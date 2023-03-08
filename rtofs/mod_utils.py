@@ -108,6 +108,8 @@ def find_indx_lonlat(x0,y0,X0,Y0,xsct="none"):
 
   dmm = np.sqrt((XX-x0)**2+(YY-y0)**2)
   jj0, ii0 = np.where(dmm == np.min(dmm)) # global indices
+  jj0 = jj0[0]
+  ii0 = ii0[0]
 
 #
 # Check for singularity along 180/-180 longitude
@@ -296,7 +298,7 @@ def find_min3d(A3d,dZZ):
   return minA
 
 
-def clrmp_lmask(nclrs=2):
+def clrmp_lmask(nclrs=2,clr_land=[0.3,0.3,0.3]):
   """
     Create colormap for land mask with 2 colors
   """
@@ -304,14 +306,177 @@ def clrmp_lmask(nclrs=2):
   from matplotlib import cm
   from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 
+  r, g, b = clr_land[0:3]
   clrs   = cm.get_cmap('GnBu_r',nclrs)
   newclr = clrs(range(nclrs))
   newclr[0,:] = [1, 1, 1, 1]
-  newclr[1,:] = [0.3, 0.3, 0.3, 1]
+  newclr[1,:] = [r, g, b, 1]
 
   newcmp  = ListedColormap(newclr)
 
   return newcmp
+
+
+def interp_1Dhycom(ZS,SS,ZZh,ZMh):
+  """
+    Interp SS profile at ZS depths onto
+    HYCOM mid-point depths ZMh
+    depths are negative
+  """
+  import mod_interp1D as mintrp
+
+  if np.min(ZS) > 0.:
+    ZS = -ZS
+  if np.min(ZMh) > 0.:
+    ZMh = -ZMh
+  if np.min(ZZh) > 0.:
+    ZZh = -ZZh
+
+# Add missing near-surf values in ARGO
+  if abs(ZS[0]) > 1.e-3:
+    ZS = np.insert(ZS,0,0.)
+    SS = np.insert(SS,0,SS[0])
+
+  kzm = ZMh.shape[0]
+  kzz = ZZh.shape[0]
+  ksz = ZS.shape[0]
+  iSS = np.zeros((kzm))*np.nan
+  for kk in range(kzm):
+    z1 = ZZh[kk]
+    z2 = ZZh[kk+1]
+    z0 = ZMh[kk]
+    if np.isnan(z0):
+      break
+
+    if min(ZS) > z2:   # Argo last point is too shallow
+      break
+#
+# Interpolate SS onto upper layers interface
+    isz1 = max(np.where(ZS >= z1)[0])
+    isz2 = min(np.where(ZS <= z2)[0])
+
+    if isz1 == isz2:
+      iSS[kk] = SS[isz1]
+      continue
+
+# Prepare Argo T/S and depths for HYCOM layer
+    zz  = ZS[isz1:isz2+1]
+    xx  = SS[isz1:isz2+1]
+    xx1 = mintrp.pcws_lagr1(zz,xx,z1)
+    xx2 = mintrp.pcws_lagr1(zz,xx,z2)
+# 
+# Integrate Argo over the HYCOM layer using trapezoidal rule:
+    zsgm  = zz[1:-1]
+    zsgm  = np.insert(zsgm,0,z1)
+    zsgm  = np.append(zsgm,z2)
+    dzsgm = abs(np.diff(zsgm))
+    xsgm  = xx[1:-1]
+    xsgm  = np.insert(xsgm,0,xx1)
+    xsgm  = np.append(xsgm,xx2)
+    lsgm  = np.shape(dzsgm)[0]
+    asum  = 0.
+    for ll in range(lsgm):
+      Ia = 0.5*dzsgm[ll]*(xsgm[ll]+xsgm[ll+1])
+      asum += Ia
+    dZ = np.sum(dzsgm)  # should be = z1-z2 - HYCOM layer
+    iSS[kk] = asum/dZ
+
+
+#    zz0 = np.arange(zz[0],zz[-1],-0.1)
+#    A = []
+#    for ll in range(zz0.shape[0]):
+#      x0 = mintrp.pcws_lagr1(zz,xx,zz0[ll])
+#      A.append(x0)
+#    A = np.array(A)
+#    plt.plot(A,zz0)
+
+  return iSS
+
+def err_stat(S1,S2):
+  """
+    Compute l2 norm, RMSE, inf-norm
+    for 2 vectors S1, S2
+  """
+  r1  = (S1-S2)**2
+  inn = np.where(~np.isnan(r1))[0][-1]
+
+  Sl2   = np.sqrt(np.dot(r1[:inn+1],r1[:inn+1]))
+  Srmse = np.sqrt(np.dot(r1[:inn+1],r1[:inn+1])/inn)
+  Sinf  = np.nanmax(abs(S1-S2))
+
+  return Sl2, Srmse, Sinf
+
+def prof_limits(Th,ZMh,nT=5,z0=-6000.):
+  """
+    Define min/max limits for 1D profile Th, ZM - depths
+    over depth from z0:surface
+    nT - approximate number of x ticks
+  """
+  iz  = max(np.where(ZMh >= z0)[0])+1
+  dmm = Th[:iz+1]
+  dmx = np.max(dmm)
+  dmn = np.min(dmm)
+  dT  = int(abs(dmx-dmn))
+  if dT == 0:
+    dT = 1
+
+  tlim1 = np.floor(dmn)
+  tlim2 = np.ceil(dmx)
+
+  if tlim1 == tlim2:
+    tlim1 = 0.1*(np.floor(dmn*10))
+    tlim2 = 0.1*(np.ceil(dmx*10))
+
+  dltT = abs(tlim2-tlim1)/nT
+
+  return tlim1, tlim2, dltT
+
+  
+def pool_data_zbins(T1, T2, ZM, Zbins):
+  """
+    Pool data from 2 profiles by depth bins
+    for scatter plots
+    Profiles are at the same depths 
+    ZM < 0
+  """
+
+  class tbinned():
+    kind = 'Binned data'
+
+    def __init__(self):
+      self.T1b = []
+      self.T2b = []
+
+    def add_data(self,T1b,T2b):
+      self.T1b.append(T1b)       # binned data from prof 1
+      self.T2b.append(T2b)       # binned data from prof 2
+
+  TB = tbinned()
+  nbins = Zbins.shape[0]-1
+ 
+  zmin = np.nanmin(ZM) 
+  for kk in range(nbins):
+    z1 = Zbins[kk]
+    z2 = Zbins[kk+1]
+    if z2 > z1:
+      z1 = Zbins[kk+1]
+      z2 = Zbins[kk]
+#
+# Profile is too shallow for depth bin
+    if zmin > z1:
+      dmm1 = np.nan
+      dmm2 = np.nan
+    else:
+      iz1 = min(np.where(ZM <= z1)[0])
+      iz2 = max(np.where(ZM > z2)[0])
+
+      dmm1 = T1[iz1:iz2+1]
+      dmm2 = T2[iz1:iz2+1]
+
+    TB.add_data(dmm1,dmm2)
+
+  return TB
+
 
 
 

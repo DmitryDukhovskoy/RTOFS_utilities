@@ -886,9 +886,6 @@ def plot_Nprof_map(A3d,ZM,i0,j0,HH,dI=1,zlim=-1.e6,xlim1=[],xlim2=[],\
 
   return
 
-
-
-
 def plot_2prof(Z1,T1,Z2,T2,ctl1="",ctl2="",fgn=1):
   plt.ion()
   print('Plotting '+ctl1)
@@ -943,6 +940,7 @@ def plot_TSprof_stat(Zw,tw_md,tw_lp,tw_up, Zg,tg_md,tg_lp,tg_up, ctl1="",fgn=1,\
   legend = ax1.legend(bbox_to_anchor=(1.05,1), loc='upper left')
 
   return
+
 
 
 

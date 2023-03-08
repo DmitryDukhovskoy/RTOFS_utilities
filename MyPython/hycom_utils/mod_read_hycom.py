@@ -9,6 +9,10 @@ from netCDF4 import Dataset as ncFile
 import numpy as np
 import sys
 
+sys.path.append('/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/python/MyPython')
+import mod_misc1 as mmsc1
+
+
 def read_grid_topo(pthtopo,ftopo,fgrid,f_lon=180,pthgrid=None, dpth_neg=True):
 # Get topo and lon/lat (plon/plat) for plotting 
 # To get other lon/lat (ulon, ulat, vlon, vlat) - need to 
@@ -247,7 +251,7 @@ def hycom_dim(fina,finb,fld='temp'):
   return IDM, JDM, KDM
 
 
-def read_hycom(fina,finb,fld,Rtrc=None,rLayer=None):
+def read_hycom(fina,finb,fld,Rtrc=None,rLayer=None,finfo=True):
   """
   reads hycom binary archive files (model output), 
   returns specified field 'fld'
@@ -298,7 +302,8 @@ def read_hycom(fina,finb,fld,Rtrc=None,rLayer=None):
 
   npad =4096-IJDM%4096
 
-  print('Reading HYCOM :{0} '.format(finb))
+  if finfo:
+    print('Reading HYCOM :{0} '.format(finb))
 
   aa = fgb.readline().split()
 
@@ -320,17 +325,18 @@ def read_hycom(fina,finb,fld,Rtrc=None,rLayer=None):
 
   nrec = len(FLOC)
   if nrec == 0:
-    sys.exit('read_hycom: Field {0} not found in {1}'.format(fld,finb))
+    raise Exception('read_hycom: Field {0} not found in {1}'.format(fld,finb))
 
 # N. of v. layers
   """
- If fld = tracer and # of tracers >1
- need to distinguish # of layers 
- vs # of tracers*layers
- if strmatch(fld,'tracer')
+   If fld = tracer and # of tracers >1
+   need to distinguish # of layers 
+   vs # of tracers*layers
+   if strmatch(fld,'tracer')
   """
   ll = len(FLOC)
-  print('Grid: IDM={0}, JDM={1}, KDM={2}'.format(IDM,JDM,ll))
+  if finfo:
+    print('Grid: IDM={0}, JDM={1}, KDM={2}'.format(IDM,JDM,ll))
 
   FLOC = np.array(FLOC)
   if ll == 1:
@@ -344,7 +350,7 @@ def read_hycom(fina,finb,fld,Rtrc=None,rLayer=None):
     nVlev = ll/nTR        # # of v. layers
 
 # breakpoint()
-  if nTR != 1:
+  if nTR != 1 and finfo:
     print('read_hycom: Found {0} variables {1}  per layer'.format(nTR,fld))
 
 # Find layers to read, if specified
@@ -353,7 +359,8 @@ def read_hycom(fina,finb,fld,Rtrc=None,rLayer=None):
   lr2=-1
   if Rtrc is not None:
     if nTR < Rtrc:
-      sys.exit('Number of saved tracers {0} < requested {1}'.format(nTR,Rtrc))
+      raise Exception('Number of saved tracers {0} < requested {1}'.\
+                      format(nTR,Rtrc))
     dmm = np.copy(FLOC)
     FLOC = dmm[Rtrc-1::nTR]
 
@@ -382,7 +389,8 @@ def read_hycom(fina,finb,fld,Rtrc=None,rLayer=None):
     dmm = np.fromfile(fga, dtype='>f',count=IJDM) # read 1 layer
     amin = np.min(dmm[np.where(dmm<huge)])
     amax = np.max(dmm[np.where(dmm<huge)])
-    print('Reading {0} k={1} min={2:12.4f} max={3:12.4f}'.\
+    if finfo:
+      print('Reading {0} k={1} min={2:12.4f} max={3:12.4f}'.\
             format(fld,ii,amin,amax))
     dmm = dmm.reshape((JDM,IDM))
     ccL += 1
@@ -604,7 +612,7 @@ def read_2Dbinary(fina,IDM,JDM,rLayer):
 
   return F
 
-def zz_zm_fromDP(dH, f_btm=True):
+def zz_zm_fromDP(dH, f_btm=True, finfo=True):
   """
     Calculate ZZ, ZM from layer thkcness (dH) 
     ZZ - interface depths,
@@ -633,12 +641,13 @@ def zz_zm_fromDP(dH, f_btm=True):
 
 # Depths of the middle of the grid cells:
     ZM[kk,:,:] = 0.5*(ZZ[kk+1,:,:]+ZZ[kk,:,:])
-    print(' kk={0} min/max ZZ = {1:5.1f}/{2:5.1f}'.\
+    if finfo:
+      print(' kk={0} min/max ZZ = {1:5.1f}/{2:5.1f}'.\
            format(kk+1,np.nanmin(ZZ[kk,:,:]),np.nanmax(ZZ[kk,:,:])))
 
   return ZZ, ZM
 
-def zz_zm_fromDP1D(dH, f_btm=True):
+def zz_zm_fromDP1D(dH, f_btm=True, finfo=True):
   """
     Calculate ZZ, ZM from layer thickness (dH) for 1D profile
     ZZ - interface depths,
@@ -646,7 +655,8 @@ def zz_zm_fromDP1D(dH, f_btm=True):
     f_btm = true - nan below bottom & land
             false - no nans, all ZZ=zbtm or 0
   """
-  print('Deriving ZZ, ZM from dH ...')
+  if finfo:
+    print('Deriving ZZ, ZM from dH ...')
   ll = dH.shape[0]
 
   ZZ = np.zeros((ll+1))
@@ -665,8 +675,51 @@ def zz_zm_fromDP1D(dH, f_btm=True):
 
 # Depths of the middle of the grid cells:
     ZM[kk] = 0.5*(ZZ[kk+1]+ZZ[kk])
-    print(' kk={0} ZZ(up/btm) = {1:5.1f}/{2:5.1f}, ZM = {3:5.1f}'.\
+    if finfo:
+      print(' kk={0} ZZ(up/btm) = {1:5.1f}/{2:5.1f}, ZM = {3:5.1f}'.\
            format(kk+1,ZZ[kk],ZZ[kk+1],ZM[kk]))
 
   return ZZ, ZM
+
+def dx_dy(LON,LAT):
+  """
+    Find horizontal grid spacing from LON,LAT 2D arrays 
+    hycom grid
+  """
+  IDM = LON.shape[1]
+  JDM = LON.shape[0]
+  print('Calculating DX, DY for HYCOM idm={0}, jdm={1}'.format(IDM,JDM))
+  
+  DX = np.zeros((JDM,IDM))
+  DY = np.zeros((JDM,IDM))
+
+  for ii in range(IDM-1):
+    LT1 = LAT[:,ii]
+    LT2 = LAT[:,ii+1]
+    LN1 = LON[:,ii]
+    LN2 = LON[:,ii+1]
+    dx  = mmsc1.dist_sphcrd(LT1,LN1,LT2,LN2)
+    DX[:,ii] = dx
+
+  DX[:,IDM-1] = dx
+
+  for jj in range(JDM-1):
+    LT1 = LAT[jj,:]
+    LT2 = LAT[jj+1,:]
+    LN1 = LON[jj,:]
+    LN2 = LON[jj+1,:]
+    dy  = mmsc1.dist_sphcrd(LT1,LN1,LT2,LN2)
+    DY[jj,:] = dy
+    
+  DY[JDM-1,:] = dy
+
+  print('Min/max DX, m = {0:12.4f} / {1:12.4f}'.format(np.min(DX),np.max(DX)))
+  print('Min/max DY, m = {0:12.4f} / {1:12.4f}'.format(np.min(DY),np.max(DY)))
+
+  return DX, DY
+ 
+
+  
+
+
 
