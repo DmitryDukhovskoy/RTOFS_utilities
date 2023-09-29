@@ -1,0 +1,22 @@
+Steps for SSH validation:
+# (1) get production & paraXX runs from WCOSS2 (scripts/rtofs)
+# (2) Use interpolation indices to do bilinear interpolation 
+#     of HYCOM --> CMCES 0.25 grid
+#     interp_hycom2cmems.py
+# (3) Calculate RMSE (mean 2D and time series):
+#     calc_rmse.py
+#     select regions to derive statistics
+#
+# (4) Plot results:
+#     plot_rmse_stat.py
+#
+#
+# 0.25 near-real time data obtained from Copernicus CMEMS website:
+# https://data.marine.copernicus.eu/product/SEALEVEL_GLO_PHY_L4_NRT_OBSERVATIONS_008_046/download?dataset=dataset-duacs-nrt-global-merged-allsat-phy-l4
+#
+# Data downloaded to local Mac --> niagara untrusted --> niagara trusted --> 
+#   --> hera
+#
+
+
+

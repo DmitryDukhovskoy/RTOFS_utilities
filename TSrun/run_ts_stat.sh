@@ -1,0 +1,1 @@
+../../scripts/rtofs/run_ts_stat.sh

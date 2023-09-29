@@ -1,0 +1,10 @@
+As for changing time. This is the way I change (fake) time stamps. For example, if you want to change the time from 2021-11-19 to 2021-11-18, istep1 is the timesteps of your ice (dt=300 sec in 1/12-th exercise) from 00000 (e.g., 2021-11-01 should be 288 (86400/300).
+
+ncatted -O -h -a istep1,global,m,i,"4896" iced.2021-11-19-00000_converted.nc out.nc   # e.g., convert iced.2021-11-19-00000 to iced.2021-11-18-00000, istep1 is timesteps (dt=300) in sec from 00000 (86400/300=288 and 5184-288=4896)
+
+The remaining time stamps are pretty straightforward. For example, if you want to change mday from 19 to 18. Do as follows:
+ncatted -O -h -a mday,global,m,i,"18" out.nc 
+Say,  you want to change mmonth from 11 to 10, then ncatted -O -h -a mmonth,global,m,i,"10" out.nc  
+Something like this.
+
+
