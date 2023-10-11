@@ -110,15 +110,20 @@ def clrmp_Nvalues(Ncat,Ncmp):
 def create_colormap(CLR, Ncmp, cmp_obj=True):
 # Mix main colors in CLR adding shadings
 # Transitioning from CLR(i) to CLR(i+1)
+# Ncmp - total # of colors in the colormap
+# In most cases Ncmp > length(CLR)
+# otherwsie CLR is returned with no changes
 # cmp_obj - True ==> returns as colormap object
 #           False --> returns as RGB array
   nClr = CLR.shape[0]
 
 # If number of shades is less or eq. the # of Main colors 
 # use the Colors and no shades
-  if Ncmp <= nClr:
-    print('Specified N of colors {0} < N of Main Colors {1}'.format(Ncmp,nClr))
+  if Ncmp < nClr:
+    print('create_colormap:')
+    print('Specified N of colors {0} </= N of Main Colors {1}'.format(Ncmp,nClr))
     print(' Adjust to Ncmp clrs to {0}'.format(nClr))
+    print(' Colormap not changed')
     vals = CLR
     CMP = ListedColormap(vals)
     return CMP

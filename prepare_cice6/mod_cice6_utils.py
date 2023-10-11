@@ -667,6 +667,10 @@ def sub_region2D(AA, region='Arctic'):
   elif region == 'Antarctic':
     jS = 0
     jE = 750
+  else:
+# Assume Antarctic
+    jS = 0
+    jE = 750
 
   AS = AA[jS:jE,:]
 
@@ -738,9 +742,12 @@ def colormap_enthlp():
 
 
 def plot_polar_2D(LON, LAT, A2D, region='Arctic', nfg=1, \
-           rmin=-1.e30, rmax=-1.e30, cmpice=[], stl='CICE6 output'):
+           rmin=-1.e30, rmax=-1.e30, cmpice=[], stl='CICE6 output', \
+           cntr1=[], clr1=[], cntr2=[], clr2=[]):
   """
     Plot CICE6 field in polar projection
+    alows plotting contours for 2 types of data, e.g. pos/neg SSH
+    specify cntr1, cntr2 and colors
   """
   from mpl_toolkits.basemap import Basemap, cm
   import matplotlib.colors as colors
@@ -794,6 +801,20 @@ def plot_polar_2D(LON, LAT, A2D, region='Arctic', nfg=1, \
 
   if rmin > -1.e30 and rmax > -1.e30:
     im1.set_clim(rmin,rmax)
+
+  if len(cntr1) > 0:
+    if len(clr1) == 0:
+      clr1=[(0,0,0)]
+
+    ax1.contour(xh, yh, A2D, cntr1, linestyles='solid',
+                colors=clr1, linewidths=1)
+
+  if len(cntr2) > 0:
+    if len(clr2) == 0:
+      clr2=[(0.5,0.5,0.5)]
+
+    ax1.contour(xh, yh, A2D, cntr2, linestyles='solid',
+                colors=clr2, linewidths=1)
 
   ax1.set_title(stl) 
  

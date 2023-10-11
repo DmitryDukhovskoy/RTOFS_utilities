@@ -25,11 +25,12 @@ from mod_utils_fig import bottom_text
 import mod_time as mtime
 
 # CICE4 restart date:
-YR   = 2000
-MM   = 1
-MD   = 27
+YR   = 2020
+MM   = 12
+MD   = 15
 HR   = 0
-expt = 2
+expt = 3
+cexpt= '{0:03d}'.format(expt)
 
 pthrst  = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/' + \
           'MOM6_run/008mom6cice6_{0:03d}/tarcice_{1}{2:02d}/'.\
@@ -80,7 +81,7 @@ LAT, LON = mc6util.grid_rad2dgr(ulati6, uloni6)
 ncdata = ncFile(fl_out,'r')
 
 #importlib.reload(mc6util)
-btx = 'plot_output_icestate.py'
+btx = 'plot_output_aice.py'
 rmin   = 0.  # min conc
 rmax   = 1.  # max conc
 cmpice = mc6util.colormap_conc()
@@ -92,12 +93,12 @@ A2D    = ncdata[fld][0,:,:].data
 A2D    = np.where(Lmsk==0, np.nan, A2D)
 rgn    = 'Arctic'
 
-stl = 'CICE6, {0}/{1}/{2}, {3}, icat=ALL \n {4}'.\
-        format(YR, MM, MD, fld, fl_out)
+stl = '0.08MOM6-CICE6-{5}, {0}/{1}/{2}, {3}, icat=ALL \n {4}'.\
+        format(YR, MM, MD, fld, fl_out, cexpt)
+print(stl)
 mc6util.plot_polar_2D(LON, LAT, A2D, region=rgn,  \
                 rmin=rmin, rmax=rmax, cmpice=cmpice, stl=stl)
 bottom_text(btx, pos=[0.05, 0.02])
-
 
 
 

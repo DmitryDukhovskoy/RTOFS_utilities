@@ -199,7 +199,8 @@ TCNT = mgulf.derive_contour(T12, tz0=12.)
 # fronts using missing=... 
 importlib.reload(mrtofs)
 importlib.reload(mgulf)
-pthnavo = '/scratch2/NCEPDEV/ovp/Lichuan.Chen/DCOM/'
+#pthnavo = '/scratch2/NCEPDEV/ovp/Lichuan.Chen/DCOM/'
+pthnavo = '/scratch2/NCEPDEV/ovp/Samira.Ardani/DCOM/'
 XNW_navo, YNW_navo, navonmb = mgulf.read_navogs(rdate0, pthnavo, missing=1)
 
 print('Mapping NAVO lon/lat --> RTOFS index space ...')

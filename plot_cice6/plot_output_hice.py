@@ -25,11 +25,12 @@ from mod_utils_fig import bottom_text
 import mod_time as mtime
 
 # CICE4 restart date:
-YR   = 2000
-MM   = 2
-MD   = 7
+YR   = 2020
+MM   = 12
+MD   = 15
 HR   = 0
-expt = 2
+expt = 3
+cexpt= '{0:03d}'.format(expt)
 
 pthrst  = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/' + \
           'MOM6_run/008mom6cice6_{0:03d}/tarcice_{1}{2:02d}/'.\
@@ -91,8 +92,9 @@ A2D    = ncdata[fld][0,:,:].data
 A2D    = np.where(Lmsk==0, np.nan, A2D)
 rgn    = 'Arctic'
 
-stl = 'CICE6, {0}/{1}/{2}, {3}, icat=ALL \n {4}'.\
-        format(YR, MM, MD, fld, fl_out)
+stl = '0.08MOM6-CICE6-{5}, {0}/{1}/{2}, {3}, icat=ALL \n {4}'.\
+        format(YR, MM, MD, fld, fl_out, cexpt)
+print(stl)
 mc6util.plot_polar_2D(LON, LAT, A2D, region=rgn,  \
                 rmin=rmin, rmax=rmax, cmpice=cmpice, stl=stl)
 bottom_text(btx, pos=[0.05, 0.02])

@@ -181,7 +181,8 @@ def read_navogs(rdate, pthnavo, missing=1):
     From Gwen:
     On Hera, you can find the NAVO Gulf Stream north wall data 
     files at 
-    /scratch2/NCEPDEV/ovp/Lichuan.Chen/DCOM/$YYYYMMDD/wtxtbul.  
+    ##/scratch2/NCEPDEV/ovp/Lichuan.Chen/DCOM/$YYYYMMDD/wtxtbul.  
+    /scratch2/NCEPDEV/ovp/Samira.Ardani/DCOM
     We use the gs*.sub to generate the plots at 
     https://polar.ncep.noaa.gov/global/fronts/.  
     You can also find the data files on WCOSS2.  

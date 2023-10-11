@@ -82,6 +82,18 @@ def jday2dnmb(YR,jday,ldate_ref=[1,1,1]):
 
   return dnmb 
 
+def dnmb2jday(dnmb):
+  """
+    Obtain year day from a date number
+  """
+  DV = datevec(dnmb)
+  YR = DV[0]
+  dnmb0 = datenum([YR,1,1])
+  jday = dnmb - dnmb0 + 1
+
+  return YR, jday
+
+
 def rdate2jday(rdate):
   """
   Given string with rdate YYYYMMDD or YYYYMMDDHH derive year day

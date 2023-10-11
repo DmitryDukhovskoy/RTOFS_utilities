@@ -31,8 +31,9 @@ import mod_time as mtime
 import mod_read_hycom as mhycom
 import mod_colormaps as mclrs
 
-YR      = 2000
-jday    = 32
+expt    = '003'
+YR      = 2020
+jday    = 15
 HR      = 12
 hg      = 1.e15
 
@@ -43,7 +44,8 @@ DD   = DV[2]
 
 pthscr  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/'
 pthgrid = pthscr+'hycom_fix/'
-pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/008mom6cice6/'
+pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
+         '008mom6cice6_' + expt + '/'
 pthbin = pthrun + 'tarcice_{0}{1:02d}/'.format(YR,MM)
 flnm   = 'iceh.{0}-{1:02d}-{2:02d}.nc'.format(DV[0],DV[1],DV[2])
 fpinp   = pthbin+flnm
