@@ -121,14 +121,96 @@ def read_mom6(foutp, fld, rLayer=-1, fnan=True, finfo=True):
 
   AA = np.where(FF >= huge, np.nan, FF)
   if finfo:
-    print('{0} min/max: {1} / {2}'.format(fld,np.nanmin(AA),np.nanmax(AA)))
+    print('{0} lr {3} min/max: {1} / {2}'.\
+         format(fld,np.nanmin(AA),np.nanmax(AA),rLayer))
 
   if fnan:
     FF = AA
 
   return FF
 
-  
+def mom_dim(flin):
+  """
+    Get horiz/vert dimensions for mom6
+  """  
+  nc   = ncFile(flin, 'r')
+  xh = nc.variables['xh'][:].data.shape[0]
+  yh = nc.variables['yh'][:].data.shape[0]
+  zl = nc.variables['zl'][:].data.shape[0]
+
+  return xh, yh, zl
+
+def zz_zm_fromDP(dH, ssh, f_btm=True, finfo=True, eps0=1.e-5):
+  """
+    Calculate ZZ, ZM from layer thkcness (dH) 
+    ZZ - interface depths,
+    ZM - mid cell depths
+    Note that sum(dH) = water column height that includes SSH
+    Therefore ZZ[0] = ssh
+    f_btm = true - nan below bottom & land
+            false - no nans, all ZZ=zbtm or 0
+  """
+  print('Deriving ZZ, ZM from dH ...')
+  ll = dH.shape[0]
+  mm = dH.shape[1]
+  nn = dH.shape[2]
+
+  ZZ = np.zeros((ll+1,mm,nn))
+  ZM = np.zeros((ll,mm,nn))
+  ssh = np.where(np.isnan(ssh),0.,ssh)
+  ZZ[0,:,:] = ssh
+  dH = np.where(np.isnan(dH),0., dH)
+  for kk in range(ll):
+    ZZ[kk+1,:,:] = ZZ[kk,:,:]-dH[kk,:,:]
+
+    if f_btm:
+      [JJ,II] = np.where(dH[kk,:,:] <= eps0)
+      ZZ[kk+1,JJ,II] = np.nan
+      if kk==0:
+        ZZ[kk,JJ,II] = np.nan
+    else:
+      [JJ,II] = np.where(dH[kk,:,:] <= eps0)
+      ZZ[kk+1,JJ,II] = ZZ[kk,JJ,II]
+
+# Depths of the middle of the grid cells:
+    ZM[kk,:,:] = 0.5*(ZZ[kk+1,:,:]+ZZ[kk,:,:])
+    if finfo:
+      print(' kk={0} min/max ZZ = {1:5.1f}/{2:5.1f}'.\
+           format(kk+1,np.nanmin(ZZ[kk,:,:]),np.nanmax(ZZ[kk,:,:])))
+
+  return ZZ, ZM
+
+def get_zz_zm(fina, f_btm=True):
+  """
+    Derive layer depths: ZZ - interface depths,
+    ZM - mid cell depths
+    Note that sum(dH) = water column height that includes SSH
+    Therefore ZZ[0] = ssh
+    f_btm = true - ZZ=nan below bottom
+  """
+  print(' Deriving ZZ, ZM from '+fina)
+  huge = 1.e18
+  nc   = ncFile(fina, 'r')
+
+# Check variable dimension
+# Assumed: AA(Time, dim1, dim2, optional: dim3)
+  ndim = nc.variables['h'].ndim - 1 # Time excluded
+
+# Check that time dim=1:
+  tdim = nc.variables['Time'][:].data.shape[0]
+  if tdim != 1:
+    raise Exception('in netcdf output  Time dimensions is not 1: {0}'.\
+                    format(tdim))
+
+# Read layer thicknesses:
+  dH     = nc.variables['h'][:].squeeze().data
+  dH     = np.where(dH >= huge, np.nan, dH)
+  ssh    = nc.variables['SSH'][:].squeeze().data
+  ssh    = np.where(ssh >= huge, np.nan, ssh)
+  ZZ, ZM = zz_zm_fromDP(dH, ssh, f_btm=f_btm)  
+
+  return ZZ, ZM
+
 
 def create_time_array(date1, date2, dday, date_mat=False):
   """

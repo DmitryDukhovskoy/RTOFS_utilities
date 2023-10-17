@@ -1,5 +1,7 @@
 """
   Plot sections with vertical distribution of T or S
+# Plot HYCOM SSH from GOFS3.1 
+# used as IC for MOM6
 """
 import os
 import numpy as np
@@ -21,26 +23,27 @@ import mod_time as mtime
 import mod_utils as mutil
 import mod_cice6_utils as mc6util
 import mod_misc1 as mmisc
+import mod_read_hycom as mhycom
 #import mod_valid_utils as mvutil
 
 
 expt    = '003'
 YR      = 2020
-MM      = 12
-DD      = 15
+MM      = 1
+DD      = 1
 jday    = int(mtime.date2jday([YR,MM,DD]))
 HR      = 12
 hg      = 1.e15
 isct    = [0]  # specify sections to plot
-fld     = 'potT'  # "salt" or "potT"
-#fld     = 'salt'  # salt or potT
+#fld     = 'temp'  # "salt" or "potT"
+fld     = 'salin'  # salt or potT
+rg      = 9806.
+hg      = 1.e15
+huge    = hg
 
 XSCT = mutil.rtofs_sections()
 SCTnames = list(XSCT.keys())
 
-
-pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
-         '008mom6cice6_' + expt + '/'
 
 dnmb = mtime.jday2dnmb(YR,jday)
 DV   = mtime.datevec(dnmb)
@@ -48,65 +51,68 @@ if not MM:
   MM   = DV[1]
   DD   = DV[2]
 
+pthhcm = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/GLBb0.08_expt93.0/'
+flhcm  = '930_archv.2020_001_00'
+fina   = pthhcm+flhcm+'.a'
+finb   = pthhcm+flhcm+'.b'
 
-pthbin = pthrun + 'tarmom_{0}{1:02d}/'.format(YR,MM)
-flmom  = 'ocnm_{0}_{1:03d}_{2}.nc'.format(YR,jday,HR)
-flin   = pthbin + flmom
+
+# Read ssh:
+ssh,nn,mm,ll  = mhycom.read_hycom(fina,finb,'srfhgt')
+ssh[ssh>hg] = np.nan
+ssh = ssh/9.806
 
 
-import mod_mom6 as mom6util
-importlib.reload(mom6util)
-pthgrid  = pthrun + 'INPUT/'
-fgrd_mom = pthgrid + 'regional.mom6.nc'
-ftopo_mom= pthgrid + 'ocean_topog.nc'
-LON, LAT = mom6util.read_mom6grid(fgrd_mom, grdpnt='hpnt')
-HH       = mom6util.read_mom6depth(ftopo_mom)
-Lmsk     = mom6util.read_mom6lmask(ftopo_mom)
+IDM, JDM, KDM = mhycom.hycom_dim(fina,finb)
 
-idm, jdm, kdm = mom6util.mom_dim(flin)
-ijdm          = idm*jdm
+pthgrid = pthhcm
+ftopo   = 'depth_GLBb0.08_09m11'
+fgrid   = 'regional.grid'
+LON, LAT, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
 
-# the height of the water column = D + ssh
-# hbt = sum (dH)
-# HH = hbt - ssh
-#hbt = mom6util.read_mom6(flin, 'hbt')
-# Read layer thicknesses:
-dH   = np.zeros((kdm,jdm,idm))
-rfld = 'h' 
-for kk in range(1,kdm+1):
-  A2D = mom6util.read_mom6(flin, rfld, rLayer=kk)
-  dH[kk-1,:,:] = A2D
+# Read layer pressures:
+dH = np.zeros((KDM,JDM,IDM))
+for kk in range(1,KDM+1):
+  F,nn,mm,lmm = mhycom.read_hycom(fina,finb,'thknss',rLayer=kk)
 
-ssh    = mom6util.read_mom6(flin, 'SSH')
-ZZ, ZM = mom6util.zz_zm_fromDP(dH, ssh, f_btm=False)
-#ZZ, ZM = mom6util.get_zz_zm(flin)
+  F = F/rg
+  F[np.where(F>huge)] = np.nan
+  F[np.where(F<0.001)] = 1.e-6
+  dH[kk-1,:,:] = F
 
-#j=1250
-#i=1000
-#mmisc.print_1col(ZZ[:,j,i])
-#mmisc.print_2col(ZZ[:,j,i],dH[:,j,i])
+ZZ, ZM = mhycom.zz_zm_fromDP(dH, f_btm=False)
 
-# Read S/T fields:
-A3d  = np.zeros([kdm, jdm, idm])
-for kk in range (1,kdm+1):
-  A2D = mom6util.read_mom6(flin, fld, rLayer=kk)
-  A3d[kk-1,:,:] = A2D
+kdm = ZM.shape[0]
+jdm = ZM.shape[1]
+idm = ZM.shape[2]
+
+# Read S or T:
+A3d  = np.array([])
+for lvl in range (1,kdm+1):
+  F,n1,m1,l1 = mhycom.read_hycom(fina,finb,fld,rLayer=lvl)
+  F[np.where(F>huge)] = np.nan
+  if A3d.size == 0:
+    A3d = F.copy()
+    A3d = np.expand_dims(A3d, axis=0)
+  else:
+    F = np.expand_dims(F, axis=0)
+    A3d = np.append(A3d, F, axis=0)
 
 # 
 # Plot section
-btx = 'plot_xsctTS_mom6.py'
+btx = 'plot_xsct_TS.py'
 plt.ion()
 
 import plot_sect as psct
 importlib.reload(psct)
 
-if fld == 'salt':
+if fld == 'salin':
   cmpr = mutil.colormap_salin(clr_ramp=[1,0.85,1])
   cmpr.set_bad(color=[0.2, 0.2, 0.2])
   rmin = 30.
   rmax = 40.
   fld1 = 'SctS'
-elif fld == 'temp' or fld == 'potT':
+elif fld == 'temp':
   cmpr = mutil.colormap_temp(clr_ramp=[0.9,0.8,1])
   cmpr.set_bad(color=[1,1,1])
   rmin = -2.
@@ -169,8 +175,8 @@ for ii in range(nsct):
   lat2 = LAT[jx2,ix0]
 
   
-  ss1 = '{0} {1} \n'.format(expt,flmom)
-  ss1 = ss1 + '0.08 MOM6-CICE6 {0}/{1}/{2}\n'.format(YR,MM,DD)
+  ss1 = '{0} {1} \n'.format(expt,flhcm)
+  ss1 = ss1 + 'GOFS3.1 0.08 HYCOM-CICE4 {0}/{1}/{2}\n'.format(YR,MM,DD)
   ss1 = ss1 + 'Fort i/i, j/j: {0}/{1}, {2}/{3}\n'.format(ix1+1,ix2+1,jx0+1,jx0+1)
   ss1 = ss1 + 'Lon, lat: {0:7.2f}/{1:7.2f}E, {2:7.2f}/{3:7.2f}N'.\
          format(lon1,lon2,lat0,lat0)
@@ -183,8 +189,8 @@ for ii in range(nsct):
                       rmin=rmin, rmax=rmax, sinfo=ss1)
 
   # S- N section:
-  ss2 = '{0} {1} \n'.format(expt,flmom)
-  ss2 = ss2 + '0.08 MOM6-CICE6 {0}/{1}/{2}\n'.format(YR,MM,DD)
+  ss2 = '{0} {1} \n'.format(expt,flhcm)
+  ss2 = ss2 + 'GOFS3.1 0.08 HYCOME-CICE4 {0}/{1}/{2}\n'.format(YR,MM,DD)
   ss2 = ss2 + 'Fort i/i, j/j: {0}/{1}, {2}/{3}\n'.format(ix0+1,ix0+1,jx1+1,jx2+1)
   ss2 = ss2 + 'Lon, lat: {0:7.2f}/{1:7.2f}E, {2:7.2f}/{3:7.2f}N'.\
          format(lon0,lon0,lat1,lat2)

@@ -1241,6 +1241,8 @@ def plot_SNsection(jx1, jx2, ix0, jx0, ZZ, HH, LON, LAT, \
 #      cclr=[0.8,0,0]
       cclr = CCLR[iclr,:]
       iclr = iclr+1
+      if iclr > len(CCLR):
+        iclr=0
     else:         
       cclr=[0,0,0]
     ax1.plot(XX,dmm,color=cclr)
@@ -1406,6 +1408,7 @@ def plot_EWsectTS(ix1, ix2, ix0, jx0, ZZ, A3d, HH, LON, LAT, \
     rmin = round(rmin,2)
     rmax = np.nanpercentile(A2d,100.-alf)
     rmax = round(rmax,2)
+    print('rmin={0}, rmax={1}'.format(rmin,rmax))
 
   fig1 = plt.figure(fgnmb,figsize=(9,8))
   plt.clf()
@@ -1427,7 +1430,9 @@ def plot_EWsectTS(ix1, ix2, ix0, jx0, ZZ, A3d, HH, LON, LAT, \
       continue
 
     cclr=[0,0,0]
-    ax1.plot(XX,dmm,color=cclr)
+#    ax1.plot(XX, dmm, color=cclr, linewidth=1)
+    ax1.plot(XX, dmm, color=cclr, linewidth=0.5)
+
 
   iB = np.where(Hb == np.min(Hb))[0][0]
   if dcntr>0:
@@ -1603,6 +1608,7 @@ def plot_SNsectTS(jx1, jx2, ix0, jx0, ZZ, A3d, HH, LON, LAT, \
     rmin = round(rmin,2)
     rmax = np.nanpercentile(A2d,100.-alf)
     rmax = round(rmax,2)
+    print('rmin={0}, rmax={1}'.format(rmin,rmax))
 
   fig1 = plt.figure(fgnmb,figsize=(9,8))
   plt.clf()
@@ -1624,7 +1630,8 @@ def plot_SNsectTS(jx1, jx2, ix0, jx0, ZZ, A3d, HH, LON, LAT, \
       continue
 
     cclr=[0,0,0]
-    ax1.plot(XX,dmm,color=cclr)
+#    ax1.plot(XX,dmm,color=cclr)
+    ax1.plot(XX, dmm, color=cclr, linewidth=0.5)
 
   iB = np.where(Hb == np.min(Hb))[0][0]
   if dcntr>0:

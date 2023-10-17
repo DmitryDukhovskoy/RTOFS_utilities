@@ -423,19 +423,52 @@ def box_fltr(AA, i1=-1, i2=-1, j1=-1, j2=-1, dist_wgt='linear',nbx=9):
 
   return Aflt
 
+def print_1col(A,wd=8,prc=2):
+  """
+    Print out 1 colume of data
+  """
+  ndim1 = A.shape[0]
+  for k in range (ndim1):
+    print('{0}: {1:{width}.{precis}f}'.format(k+1,A[k],width=wd,precis=prc))
+
+  return
+
+def print_2col(A1,A2,wd=8,prc=2,kend=[]):
+  """
+    Print out 2 columns of data, same size or not
+    if not - stops at shortest length of the arrays
+    kend >= 0  stops at kend
+  """
+  ndim1 = A1.shape[0]
+  ndim2 = A2.shape[0]
+  if not kend:
+    kend = min([ndim1, ndim2])
+
+  for k in range (kend):
+    print('{0}: {1:{width}.{precis}f}  {2:{width}.{precis}f}'.\
+          format(k+1,A1[k],A2[k],width=wd,precis=prc))
+
+  return
+
+def print_3col(A1,A2,A3,wd=8,prc=2,kend=[]):
+  """
+    Print out 3 columns of data, same size
+    if not - stops at shortest length of the arrays
+    kend >= 0  stops at kend
+  """
+  ndim1 = A1.shape[0]
+  ndim2 = A2.shape[0]
+  ndim3 = A3.shape[0]
+  if not kend:
+    kend = min([ndim1, ndim2, ndim3])
+
+  for k in range (kend):
+    print('{0:3d}: {1:{width}.{precis}f} {2:{width}.{precis}f} {3:{width}.{precis}f}'.\
+          format(k+1,A1[k],A2[k],A3[k],width=wd,precis=prc))
+
+  return
 
 
   
 
-
-
-
-
-
-
-
-
-
-
-    
 

@@ -971,6 +971,10 @@ def rtofs_sections():
       "y1"  : 1700,
       "y2"  : 1915,
       "x0"  : 2503,
+      "smin": 34.85,
+      "smax": 36.75,
+      "tmin": 3.85,
+      "tmax": 27.85,
       "Reg" : 'NAtl',
       "Name": 'Gulf of Mexico'
     },
