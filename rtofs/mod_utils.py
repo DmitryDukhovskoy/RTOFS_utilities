@@ -899,17 +899,17 @@ def rtofs_reg2Dmaps():
       "Jp"  : [0, 780, 780, 0]
     },
     "Agulhas": {
-      "xl1" : 3299,
-      "xl2" : 4415,
-      "yl1" : 795,
-      "yl2" : 1270,
+      "xl1" : 3400,
+      "xl2" : 4000,
+      "yl1" : 780,
+      "yl2" : 1350,
       "Reg" : 'SAtl',
       "ij1" : [1757, 2431],
       "ij2" : [1250, 2415],
       "ij3" : [1902, 2210],
       "Name": 'Agulhas Region',
-      "Ip"  : [3299, 3299, 4415, 4415],
-      "Jp"  : [795, 1270, 1270, 795]
+      "Ip"  : [3400, 3400, 4000, 4000],
+      "Jp"  : [780, 1350, 1350, 780]
     },
     "NPac1" : {
       "xl1" : 661,
@@ -985,6 +985,10 @@ def rtofs_sections():
       "y1"  : 1800,
       "y2"  : 2300,
       "x0"  : 3350,
+      "smin": 34.92,
+      "smax": 36.82,
+      "tmin": 2.0,
+      "tmax": 22.0,
       "Reg" : 'NAtl',
       "Name": 'East N Atlantic'
     },
@@ -1015,6 +1019,10 @@ def rtofs_sections():
       "y1"  : 2430,
       "y2"  : 3271,
       "x0"  : 3450,
+      "smin": 33.50,
+      "smax": 35.00,
+      "tmin": -1.5,
+      "tmax": 8.5,
       "Reg" : 'NAtl',
       "Name": 'GIN Seas'
     },
@@ -1025,6 +1033,10 @@ def rtofs_sections():
       "y1"  : 920, 
       "y2"  : 1686,
       "x0"  : 3330,
+      "smin": 34.37,
+      "smax": 36.98,
+      "tmin": 1.0,
+      "tmax": 28.0,
       "Reg" : 'SAtl',
       "Name": 'Subtrop/Centr S Atlantic'
     },
@@ -1217,7 +1229,157 @@ def colormap_temp(nclrs=200, clr_ramp=[1,1,1], add_btm=True):
 
   return newcmp
 
+def colormap_ssh(cpos='Oranges',cneg='Blues_r',nclrs=100, clr_ramp=[1,1,1]):
+  """
+    Create colormaps for showing positive/negative ranges
+    clr_ramp - color in the middle of the colormap
+    nclrs - # of colors in positve or negative segments
+  """
+  from matplotlib import cm
+  from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+
+  btm = cm.get_cmap(cpos,nclrs)
+  ixpos  = round(nclrs*0.1)-1
+  clrpos = btm(range(nclrs))
+  chpos  = np.zeros((ixpos,4))
+  chneg  = np.zeros((ixpos,4))
+
+# Positive colors:
+# Add white at the beginning:
+  fixclr = clrpos[ixpos,:]
+  chpos[:,3] = fixclr[3]
+
+  clr_ramp=[1,1,1]
+  for ik in range(3):
+    cc0 = clr_ramp[ik]
+    chpos[:,ik]  = np.linspace(fixclr[ik],cc0,ixpos)
+
+  chpos = np.flip(chpos, axis=0)
+  clrpos[:ixpos,:] = chpos
+
+# Negative ssh range:
+# Add white at the top
+  clr0    = cm.get_cmap(cneg,nclrs)  
+  clrneg  = clr0(range(nclrs))
+  ixneg   = nclrs - ixpos - 1
+  fixnegc = clrneg[ixneg,:]
+  chneg[:,3] = fixnegc[3]
+
+  for ik in range(3):
+    cc0 = clr_ramp[ik]
+    chneg[:,ik]  = np.linspace(fixnegc[ik],cc0,ixpos)
+
+#  chneg = np.flip(chneg, axis=0)
+  clrneg[ixneg+1:nclrs,:] = chneg
+
+  newclrs = np.append(clrneg,clrpos, axis=0)
+#  newclrs = clrbtm
+  newcmp  = ListedColormap(newclrs)
+
+  return newcmp
+  
+
+def plot_orthographic_proj(LON, LAT, A2d, cmpr=[], sttl='Orthographic Porjection',\
+                           lon0=-10, lat0=40, res='l', rmin=[], rmax=[], \
+                           btx=[], fgnmb=1):
+  """
+    Plot 2D maps in orthographic projections
+    To change projection angle: set lon0, lat0
+  """
+  from mpl_toolkits.basemap import Basemap, cm
+  import matplotlib.colors as colors
+  import matplotlib.mlab as mlab
+#  from matplotlib.colors import ListedColormap
+  m = Basemap(projection='ortho', lon_0=lon0, lat_0=lat0, resolution=res)
+#  m.drawcoastlines()
+  ny = A2d.shape[0]; nx = A2d.shape[1]
+
+# Check if colormap object is provided:
+  try:
+    Nclr = cmpr.colors
+  except:
+    cmpr = colormap_temp(clr_ramp=[0.9,0.8,1])
+    cmpr.set_bad(color=[0.2, 0.2, 0.2])
+#    cmpr.set_under(color=[1, 1, 1])  #
+#  x, y = m(lons, lats) # compute map proj coordinates.
+#  LONA = LON.copy()
+#  LONA = np.append(LONA, np.array([LONA[:,0]]).transpose(), axis=1)
+#  LONA = np.append(LONA, np.array([LONA[0,:]]), axis=0)
+  xh, yh = m(LON,LAT)  # hycom coordinates on the projections
+
+# Need to mask values that are not in the projection
+  PMsk = ( (xh > 1e20) | (yh > 1e20) )
+#  A2d[PMsk] = np.nan
+  app = A2d.copy()
+  app[PMsk] = np.nan
+
+  xh[PMsk]  = 1.e30
+  yh[PMsk]  = 1.e30
+
+  if (not rmax) or (not rmin): 
+    rmin, rmax = minmax_clrmap(app)
+
+  fig1 = plt.figure(fgnmb,figsize=(9,9))
+  plt.clf()
+  ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
+
+#  im1 = m.pcolormesh(xh, yh, app)
+#  im1.set_cmap(cmpr)
+  im1 = m.pcolormesh(xh, yh, app, shading='nearest', cmap=cmpr,\
+                     vmin=rmin, vmax=rmax)
+# Plot land:
+  PLnd = ( (~PMsk) & (np.isnan(A2d)) )
+  xL = xh[PLnd]
+  yL = yh[PLnd]
+  Lclr = np.array([[0.2, 0.2, 0.2]])
+  ax1.scatter(xL, yL, s=0.008, c=Lclr)
+  
+
+# alternatively but slower:
+#  m.scatter(xh, yh, s=0.1, c=app, cmap=cmpr)
+  m.drawparallels(np.arange(-90.,120.,10.))
+  m.drawmeridians(np.arange(-180.,180.,10.))
+
+  plt.title(sttl)
+
+  ax2 = fig1.add_axes([ax1.get_position().x1+0.02,
+               ax1.get_position().y0,0.02,
+               ax1.get_position().height])
+  clb = plt.colorbar(im1, cax=ax2, extend='both')
+  ax2.set_yticklabels(ax2.get_yticks())
+  ticklabs = clb.ax.get_yticklabels()
+#  clb.ax.set_yticklabels(ticklabs,fontsize=10)
+  clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+  clb.ax.tick_params(direction='in', length=5)
+
+  if len(btx) > 0:
+    bottom_text(btx, pos=[0.08, 0.02])
+
+  plt.show()
+
+  return
  
+
+def minmax_clrmap(dmm, pmin=10, pmax=90, cpnt=0.01, fsym=False):
+  """
+  Find min/max limits for colormap 
+  discarding pmin and 1-pmax min/max values
+  cpnt - decimals to leave
+  """
+  dmm = dmm[~np.isnan(dmm)]
+  a1  = np.percentile(dmm,pmin)
+  a2  = np.percentile(dmm,pmax)
+  cff = 1./cpnt
+  rmin = cpnt*(int(a1*cff))
+  rmax = cpnt*(int(a2*cff))
+
+  if fsym and (rmin<0. and rmax>0.) :
+    dmm = max([abs(rmin),abs(rmax)])
+    rmin = -dmm
+    rmax = dmm
+
+  return rmin,rmax
+
 
 def colormap_salin2(nclrs=200):
   """

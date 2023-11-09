@@ -20,6 +20,7 @@ import mod_read_hycom as mhycom
 import mod_misc1 as mmisc
 importlib.reload(mmisc)
 import mod_utils_fig as mufig
+importlib.reload(mhycom)
 
 import mod_utils as mutil
 importlib.reload(mutil)
@@ -97,8 +98,8 @@ ftopo = 'regional.depth'
 fgrid = 'regional.grid'
 
 
-import mod_read_hycom as mhycom
-importlib.reload(mhycom)
+#import mod_read_hycom as mhycom
+#importlib.reload(mhycom)
 from mod_utils_fig import bottom_text
 
 print('Processing '+fina)
@@ -133,16 +134,19 @@ if z0 > zlr1:
   z0 = zlr1
 
 # Read S or T:
-A3d  = np.array([])
-for lvl in range (1,kdm+1):
-  F,n1,m1,l1 = mhycom.read_hycom(fina,finb,fld,rLayer=lvl)
-  F[np.where(F>huge)] = np.nan
-  if A3d.size == 0:
-    A3d = F.copy()
-    A3d = np.expand_dims(A3d, axis=0)
-  else:
-    F = np.expand_dims(F, axis=0)
-    A3d = np.append(A3d, F, axis=0)
+A3d, _, _, _ = mhycom.read_hycom(fina,finb,fld)
+A3d = np.where(A3d >= 0.1*huge, np.nan, A3d)
+
+#A3d  = np.array([])
+#for lvl in range (1,kdm+1):
+#  F,n1,m1,l1 = mhycom.read_hycom(fina,finb,fld,rLayer=lvl)
+#  F[np.where(F>huge)] = np.nan
+#  if A3d.size == 0:
+#    A3d = F.copy()
+#    A3d = np.expand_dims(A3d, axis=0)
+#  else:
+#    F = np.expand_dims(F, axis=0)
+#    A3d = np.append(A3d, F, axis=0)
 
 # 2D Arrays with S above and below z0 for interpolation
 print('Searching top/btm values for {0}'.format(z0))

@@ -232,7 +232,7 @@ def create_time_array(date1, date2, dday, date_mat=False):
     dnmb1 = date1
     dnmb2 = date2
 
-  ldays = np.arange(dnmb1,dnmb2,dday)   
+  ldays = np.arange(dnmb1,dnmb2+dday/100.,dday)   
   nrec  = ldays.shape[0]
   TPLT  = np.zeros(nrec, dtype=[('dnmb', float),
                                 ('date', int, (4,)),
@@ -256,8 +256,71 @@ def create_time_array(date1, date2, dday, date_mat=False):
 
   return TPLT  
 
- 
 
+def dx_dy(LON,LAT):
+  """
+    Find horizontal grid spacing from LON,LAT 2D arrays 
+    hycom grid
+  """
+  import mod_misc1 as mmsc1
+
+  IDM = LON.shape[1]
+  JDM = LON.shape[0]
+  print('Calculating DX, DY for HYCOM idm={0}, jdm={1}'.format(IDM,JDM))
+
+  DX = np.zeros((JDM,IDM))
+  DY = np.zeros((JDM,IDM))
+
+  for ii in range(IDM-1):
+    LT1 = LAT[:,ii]
+    LT2 = LAT[:,ii+1]
+    LN1 = LON[:,ii]
+    LN2 = LON[:,ii+1]
+    dx  = mmsc1.dist_sphcrd(LT1,LN1,LT2,LN2)
+    DX[:,ii] = dx
+
+  DX[:,IDM-1] = dx
+
+  for jj in range(JDM-1):
+    LT1 = LAT[jj,:]
+    LT2 = LAT[jj+1,:]
+    LN1 = LON[jj,:]
+    LN2 = LON[jj+1,:]
+    dy  = mmsc1.dist_sphcrd(LT1,LN1,LT2,LN2)
+    DY[jj,:] = dy
+
+  DY[JDM-1,:] = dy
+
+  print('Min/max DX, m = {0:12.4f} / {1:12.4f}'.format(np.min(DX),np.max(DX)))
+  print('Min/max DY, m = {0:12.4f} / {1:12.4f}'.format(np.min(DY),np.max(DY)))
+
+  return DX, DY
+
+ 
+def vol_transp_2Dsection(LSgm, ZZ, UV):
+  """
+    Compute Vol transport along a straight line (EW or SN orientation)
+    Note this algorithm works for zigzaging section
+    as long as ZZ, UV are collocated in the center of the segments
+    of the contour line
+   
+    Use midpoint quadrature
+    All inputs are 2D fields:
+    LSgm - segment lengths (grid cell dx)
+    ZZ   - interface depths
+    UV   - normal U component 
+  """
+  klv  = UV.shape[0]
+  nsgm = UV.shape[1]
+  dZ   = abs(np.diff(ZZ, axis=0))
+
+  Ctrp = np.zeros((klv,nsgm))
+  for kk in range(klv):
+    Ctrp[kk,:] = UV[kk,:]*dZ[kk,:]*LSgm
+
+  volTr_1D = np.nansum(Ctrp, axis=0)
+
+  return volTr_1D
 
 
 

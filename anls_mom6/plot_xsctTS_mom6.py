@@ -26,14 +26,14 @@ import mod_misc1 as mmisc
 
 expt    = '003'
 YR      = 2020
-MM      = 12
+MM      = 6
 DD      = 15
 jday    = int(mtime.date2jday([YR,MM,DD]))
 HR      = 12
 hg      = 1.e15
-isct    = [0]  # specify sections to plot
-fld     = 'potT'  # "salt" or "potT"
-#fld     = 'salt'  # salt or potT
+isct    = [4]  # specify sections to plot
+#fld     = 'potT'  # "salt" or "potT"
+fld     = 'salt'  # salt or potT
 
 XSCT = mutil.rtofs_sections()
 SCTnames = list(XSCT.keys())

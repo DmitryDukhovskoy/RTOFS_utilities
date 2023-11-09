@@ -25,8 +25,8 @@ from mod_utils_fig import bottom_text
 import mod_time as mtime
 
 # CICE4 restart date:
-YR   = 2020
-MM   = 12
+YR   = 2021
+MM   = 9
 MD   = 15
 HR   = 0
 expt = 3

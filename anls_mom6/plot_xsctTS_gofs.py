@@ -34,7 +34,7 @@ DD      = 1
 jday    = int(mtime.date2jday([YR,MM,DD]))
 HR      = 12
 hg      = 1.e15
-isct    = [0]  # specify sections to plot
+isct    = [4]  # specify sections to plot
 #fld     = 'temp'  # "salt" or "potT"
 fld     = 'salin'  # salt or potT
 rg      = 9806.
@@ -155,10 +155,10 @@ for ii in range(nsct):
     tmin = []
     tmax = []
 
-  if fld == 'salt' and smin:
+  if fld == 'salin' and smin:
     rmin = smin
     rmax = smax
-  elif fld == 'potT' and tmax:
+  elif fld == 'temp' and tmax:
     rmin = tmin
     rmax = tmax
   else:
@@ -175,7 +175,7 @@ for ii in range(nsct):
   lat2 = LAT[jx2,ix0]
 
   
-  ss1 = '{0} {1} \n'.format(expt,flhcm)
+  ss1 = '{0} \n'.format(flhcm)
   ss1 = ss1 + 'GOFS3.1 0.08 HYCOM-CICE4 {0}/{1}/{2}\n'.format(YR,MM,DD)
   ss1 = ss1 + 'Fort i/i, j/j: {0}/{1}, {2}/{3}\n'.format(ix1+1,ix2+1,jx0+1,jx0+1)
   ss1 = ss1 + 'Lon, lat: {0:7.2f}/{1:7.2f}E, {2:7.2f}/{3:7.2f}N'.\
@@ -189,7 +189,7 @@ for ii in range(nsct):
                       rmin=rmin, rmax=rmax, sinfo=ss1)
 
   # S- N section:
-  ss2 = '{0} {1} \n'.format(expt,flhcm)
+  ss2 = '{0} \n'.format(flhcm)
   ss2 = ss2 + 'GOFS3.1 0.08 HYCOME-CICE4 {0}/{1}/{2}\n'.format(YR,MM,DD)
   ss2 = ss2 + 'Fort i/i, j/j: {0}/{1}, {2}/{3}\n'.format(ix0+1,ix0+1,jx1+1,jx2+1)
   ss2 = ss2 + 'Lon, lat: {0:7.2f}/{1:7.2f}E, {2:7.2f}/{3:7.2f}N'.\

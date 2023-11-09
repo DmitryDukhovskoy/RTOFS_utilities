@@ -25,31 +25,25 @@ importlib.reload(mhycom)
 # Interpolation depth
 z0 = -150.   
 
-#expt    = 'paraD5b'
-expt    = 'production'
+expt    = 'GOFS3.1'
 rmin    = 34.79  # make it [] to get rmin/rmax 
 rmax    = 37.03
-rdate   = '20231031'
+rdate   = '20231030'
 pthscr  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/'
 pthgrid = pthscr+'hycom_fix/'
-pthbin  = '{0}data/{1}/rtofs.{2}/'.format(pthscr,expt,rdate)
+pthbin  = '{0}data/{1}/'.format(pthscr,expt)
 #pthbin  = pthscr+'data/rtofs.'+rdate+'/ocnqc_logs/profile_qc/'
 YR     = int(rdate[0:4])
 MM     = int(rdate[4:6])
 DD     = int(rdate[6:8])
 yrday  = mmisc.date_yearday(YR,MM,DD) 
-hr     = -24
+hr     = 0
 
 # F/cast output:
 pthhcm = pthbin 
-flhcm  = 'rtofs_glo.t00z.'.format(YR,yrday,hr)
+flhcm  = 'archv.{0}{1:02d}'.format(rdate, hr)
 # Renamed:
 #pthhcm  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data/rtofs.'+rdate+'/'
-
-if hr <= 0:
-  flhcm = 'rtofs_glo.t00z.n-{0:02d}.archv'.format(abs(hr))
-else:
-  flhcm = 'rtofs_glo.t00z.f{0:02d}.archv'.format(abs(hr))
 
 fina = pthhcm+flhcm+'.a'
 finb = pthhcm+flhcm+'.b'
@@ -177,7 +171,7 @@ ax1.axis('scaled')
 ax1.set_xlim([xlim1,xlim2])
 ax1.set_ylim([ylim1,ylim2])
 
-ctl = 'RTOFS {0}, {1} {2:5.1f}m, {3}/{4}/{5}, {6}'.format(expt, fld, z0, YR, MM, DD, flhcm)
+ctl = '{0}, {1} {2:5.1f}m, {3}/{4}/{5}, {6}'.format(expt, fld, z0, YR, MM, DD, flhcm)
 ax1.set_title(ctl)
 
 ax2 = fig1.add_axes([ax1.get_position().x1+0.02,
@@ -189,9 +183,7 @@ ticklabs = clb.ax.get_yticklabels()
 clb.ax.set_yticklabels(ticklabs,fontsize=10)
 clb.ax.tick_params(direction='in', length=12)
 
-ss2 = '{0} {2}/{1} \n'.format(expt,flhcm,rdate)
-ss2 = ss2 + 'RTOFS f/cast: {0}/{1}/{2} '.format(YR,MM,DD)
-ss2 = ss2 + 'Plotted output: {0}/{1}/{2} {3:02d}:00 UTC\n'.format(YRp,MMp,DDp,HRp)
+ss2 = '{0} {1} \n'.format(expt,flhcm,rdate)
 ax6 = plt.axes([0.45, 0.4, 0.8, 0.06])
 ax6.text(0.0,0.0,ss2)
 ax6.axis('off')

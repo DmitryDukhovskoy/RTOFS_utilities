@@ -31,7 +31,10 @@ README.*
 *.sql
 *.sqlite
 
+# Modules and backups #
+#######################
 **/__pycache__/*
+*.py*bkp
 **/bkp/*
 
 

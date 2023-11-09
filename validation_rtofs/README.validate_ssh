@@ -18,5 +18,30 @@ Steps for SSH validation:
 #   --> hera
 #
 
+Use ADT analysis fields, from Jim Cummings 10/25/23:
+Here's the info on the ADT SSH analyses I've been doing on Hera.  I'll continue the analyses once I get more of the altimeter data downloaded.
+
+global mercator projection grid from ~80S to ~80N, 0E to 360E
+3241 longitudes, 2441 latitudes
+analyses are available from 14 Jun 2023 to 24 Aug 20223
+files are binary, big endian
+
+the following fields are available in:
+    /scratch2/NCEPDEV/marine/Jim.Cummings/ssh_test/restart
+grdlat_sfc_1o3241x2441_2023082400_0000_datafld
+grdlon_sfc_1o3241x2441_2023082400_0000_datafld
+seahgt_sfc_1o3241x2441_2023082400_0000_analfld
+seahgt_sfc_1o3241x2441_2023082400_0000_analinc
+
+grdlat, grdlon - grid latitudes (2441), grid longitudes (3241)
+analfld, analinc - ADT SSH analysis field, analysis increments
+
+read fields use 'stream' access in fortran:
+   real      field (3241 * 2441)
+   file_name = 'seahgt_sfc_1o3241x2441_2023082400_0000_analfld'
+     open (UNIT, file=file_name, status='old', access='stream',
+               form='unformatted')
+   read (UNIT) field
+   close (UNIT)
 
 

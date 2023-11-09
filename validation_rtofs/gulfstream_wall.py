@@ -48,8 +48,8 @@ importlib.reload(mtime)
 # Interpolation depth
 z0 = -400.
 
-expt    = 'paraD5d'
-rdate0  = '20230703'
+expt    = 'paraD5'
+rdate0  = '20230513'
 sfx     = 'n-24'
 
 # Figure output directory:
@@ -272,13 +272,16 @@ print('=======   Start Plotting   =========')
 from matplotlib import cm
 #clrs   = cm.get_cmap('viridis',200)
 clrs   = cm.get_cmap('rainbow',200)
-clrs.set_bad(color=[0.3,0.3,0.3])
 #  clrs.set_under(color=[0.8,0.8,0.8])
 #  clrs.set_under(color=[0.8,0.7,1])
+clrs = mutil.colormap_temp(clr_ramp=[0.9,0.8,1])
+#  cmpr.set_under(color=[1, 1, 1])  # ice
+clrs.set_bad(color=[0.3,0.3,0.3])
 
 plt.ion()
 
-rmin = 0.
+#rmin = 0.
+rmin = -2.
 rmax = 28.
 tz0  = 12.0
 

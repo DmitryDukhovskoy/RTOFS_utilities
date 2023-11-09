@@ -380,7 +380,7 @@ def read_hycom(fina,finb,fld,Rtrc=None,rLayer=None,finfo=True):
 
 #  print('Reading {0}, Layers: {1}-{2}'.format(fld,lr1,lr2))
   fga = open(fina,'rb')
-  F = []
+  F   = np.array([])
   ccL = -1
   huge = 0.0001*2.**99
   for ii in range(lr1,lr2+1):
@@ -399,8 +399,12 @@ def read_hycom(fina,finb,fld,Rtrc=None,rLayer=None,finfo=True):
 #   breakpoint()
     if ccL == 0:
       F = np.copy(dmm)
+      F = np.expand_dims(F, axis=0)
     else:
-      F = np.dstack((F,dmm))
+      dmm = np.expand_dims(dmm, axis=0)
+#      print(dmm.shape)
+#      print(F.shape)
+      F = np.append(F, dmm, axis=0)
 
   if ll == 0:
     print('!!! read_hycom: {0} not found in {1} ERR'.format(fld,fina))
@@ -408,7 +412,7 @@ def read_hycom(fina,finb,fld,Rtrc=None,rLayer=None,finfo=True):
 
   fga.close()
 
-  return F, IDM, JDM, ll
+  return np.squeeze(F), IDM, JDM, ll
 
 
 def read_hycom_restart(fina,finb,fld,IDM,JDM,Rtrc=None,rLayer=None,t_level=1,sprt='='):
@@ -541,8 +545,11 @@ def read_hycom_restart(fina,finb,fld,IDM,JDM,Rtrc=None,rLayer=None,t_level=1,spr
 #   breakpoint()
     if ccL == 0:
       F = np.copy(dmm)
+      F = np.expand_dims(F, axis=0)
     else:
-      F = np.dstack((F,dmm))
+#      F = np.dstack((F,dmm))
+      dmm = np.expand_dims(dmm, axis=0)
+      F = np.append(F, dmm, axis=0)
 
   if ll == 0:
     print('!!! read_hycom: {0} not found in {1} ERR'.format(fld,fina))
@@ -550,7 +557,7 @@ def read_hycom_restart(fina,finb,fld,IDM,JDM,Rtrc=None,rLayer=None,t_level=1,spr
 
   fga.close()
 
-  return F,IDM,JDM,ll 
+  return np.squeeze(F), IDM, JDM, ll 
 
 
 def get_zz_zm(fina,finb,f_btm=True):

@@ -63,11 +63,11 @@ print('Template CICE6 restart: ' + fl_restartT)
 print('Output CICE6 restart:   ' + fl_restart6)
 
 
-import mod_cice6_utils as mc6util 
-importlib.reload(mc6util)
+import mod_datm_utils as mdatm
+importlib.reload(mdatm)
 
 # Create new restart from template for writing CICE4 fields
-mc6util.cice6_newfile(fl_restartT,fl_restart6)
+mdatm.cice6_newfile(fl_restartT, fl_restart6)
 
 # Grid CICE4 - unformatted binary file
 pthgrd4 = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/rtofs_paraCd/fix/'
