@@ -39,6 +39,20 @@ def gdem_grid():
 
   return LON, LAT, ZM
 
+def read_gdem_Lmask():
+  """
+    Land mask
+  """
+  import pickle
+  pthout   =  '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data/GDEM/'
+  gdem_out = pthout + 'GDEM_sealand_mask.pkl'
+  print('Loading GDEM land mask --> ' + gdem_out)
+
+  with open(gdem_out,'rb') as fid:
+    Lmsk = pickle.load(fid)
+
+  return Lmsk
+
 def read_gdem3d(pthgdem, month, fldrd, NI, NJ, NK):
   """
     Read GDEM binary 3D fields
@@ -78,7 +92,7 @@ def read_gdem3d(pthgdem, month, fldrd, NI, NJ, NK):
 
   DATA.astype(float)
   DATA = DATA*scale + offst
-  DATA[np.where(DATA<0.)] = np.nan
+#  DATA[np.where(DATA<0.)] = np.nan
 
 # AA = np.zeros((NK,NJ,NI))*np.nan
 # icc = -1
@@ -111,10 +125,10 @@ def gdem_profile(pthgdem, month, fldrd, lon0, lat0):
     LONG[II] = LONG[II]-360.
 
   dst = np.square((LONG-lon0)**2)
-  I0  = np.where(dst == np.min(dst))[0]
+  I0  = np.where(dst == np.min(dst))[0][0]
   lng = LONG[I0]
   dst = np.square((LATG-lat0)**2)
-  J0  = np.where(dst == np.min(dst))[0]
+  J0  = np.where(dst == np.min(dst))[0][0]
   ltg = LATG[J0]
   dst = np.square((lng-lon0)**2+(ltg-lat0)**2)
   if dst > 0.25:

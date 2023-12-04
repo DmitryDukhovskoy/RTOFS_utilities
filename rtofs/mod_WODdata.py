@@ -124,3 +124,109 @@ def search_UID(furl, x0, y0, dx, dy,YR1=0, YR2=0, \
 
   return LAT, LON, TM, UID
 
+def read_WOA18_3D(finp, idm, jdm, kdm, f_info=True):
+  """
+    Read WOA18 climatology
+    Fortran binary files
+  """
+  print('Reading WOA18 3D: ' + finp)
+  ijdm = idm*jdm
+
+  try:
+    fga = open(finp, 'rb')
+  except:
+    print('Could not open '+finp)
+
+  F3d = np.zeros((kdm,jdm,idm)) + 1.e30
+  fga.seek(0)
+  for kk in range(kdm):
+#    nbts = np.fromfile(fga, dtype='>i4', count=1)[0]
+    AA = np.fromfile(fga, dtype='>f4', count=ijdm)
+    AA = np.reshape(AA,(jdm,idm), order='C')
+    F3d[kk,:,:] = AA
+    if f_info:
+      print(f"Lr {kk}, min/max: {np.min(AA):.4f}/{np.max(AA):.4f}")
+  
+  return F3d
+
+def woa_profile(finp, LON, LAT, idm, jdm, kdm, lon0, lat0, f_info=False):
+  """
+    Extract WOA profile for given location
+  """
+  F3d = read_WOA18_3D(finp, idm, jdm, kdm, f_info)
+
+  if lon0 < 0.:
+    II = np.where(LON>180.)[0]
+    LON[II] = LON[II]-360.
+
+  dst = np.square((LON-lon0)**2)
+  I0  = np.where(dst == np.min(dst))[0][0]
+  lng = LON[I0]
+  dst = np.square((LAT-lat0)**2)
+  J0  = np.where(dst == np.min(dst))[0][0]
+  ltg = LAT[J0]
+  dst = np.square((lng-lon0)**2+(ltg-lat0)**2)
+  if dst > 0.25:
+    print(' ERROR finding closest WOA18 pnt for {0:6.3f}N {0:6.3f}E'.\
+           format(lat0, lon0))
+    raise Exception('Check closest point in WOA18: {0:6.3f}N {0:6.3f}E'.\
+           format(ltg, lng))
+
+  Aprf = np.squeeze(F3d[:,J0,I0])
+
+  return Aprf
+  
+
+ 
+def read_WOA18_grid(fgrid):
+  """
+    WOA18 Grid
+  """
+  print('Reading WOA18 grid: ' + fgrid)
+
+  try: 
+    fga = open(fgrid, 'rb')
+  except:
+    print('Could not open '+fgrid)
+
+  fga.seek(0)
+  nbts = np.fromfile(fga, dtype='>i4', count=1)[0]
+  kdm  = np.fromfile(fga, dtype='>i4', count=1)[0]
+  nbte = np.fromfile(fga, dtype='>i4', count=1)[0]
+
+  nbts = np.fromfile(fga, dtype='>i4', count=1)[0]
+  ZZ   = np.fromfile(fga, dtype='>f4', count=kdm)
+  nbte = np.fromfile(fga, dtype='>i4', count=1)[0]
+
+  nbts = np.fromfile(fga, dtype='>i4', count=1)[0]
+  idm  = np.fromfile(fga, dtype='>i4', count=1)[0]
+  nbte = np.fromfile(fga, dtype='>i4', count=1)[0]
+
+  nbts = np.fromfile(fga, dtype='>i4', count=1)[0]
+  LON  = np.fromfile(fga, dtype='>f4', count=idm)
+  nbte = np.fromfile(fga, dtype='>i4', count=1)[0]
+
+  nbts = np.fromfile(fga, dtype='>i4', count=1)[0]
+  jdm  = np.fromfile(fga, dtype='>i4', count=1)[0]
+  nbte = np.fromfile(fga, dtype='>i4', count=1)[0]
+
+  nbts = np.fromfile(fga, dtype='>i4', count=1)[0]
+  LAT  = np.fromfile(fga, dtype='>f4', count=jdm)
+  nbte = np.fromfile(fga, dtype='>i4', count=1)[0]
+
+  fga.close()
+
+  return kdm, idm, jdm, ZZ, LON, LAT
+
+
+
+
+
+
+
+
+
+
+
+ 
+

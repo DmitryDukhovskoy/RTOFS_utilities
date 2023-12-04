@@ -40,11 +40,25 @@ def pcws_lagr1(Xp,Yp,xx):
    Piecewise linear Lagr. Polynomial degree 1
    Xp is assumed in Ascending Order
   """
-  if Xp[1] < Xp[0]:
+  if np.any(np.isnan(Xp)) or np.any(np.isnan(Yp)):
+    raise Exception ('No nans are allowed in the input Xp or Yp')
+
+  if not Xp.shape[0] == Yp.shape[0]:
+    raise Exception ('Both Xp and Yp arrays should be same length')
+
+  if not np.all(np.diff(Xp)):
+    raise Exception ('Xp should be monotonically increasing, no repeating values')
+
+# Check if Xp is increasing:
+  if Xp[0] > Xp[1]:
+    Xp = -Xp
+    xx = -xx
+
+#  if Xp[1] < Xp[0]:
 #    raise Exception('Xp should be increasing')
 #    print('Xp is not in ascending order, flipping ...')
-    Xp = np.flip(Xp)
-    Yp = np.flip(Yp)
+#    Xp = np.flip(Xp)
+#    Yp = np.flip(Yp)
 
  # Find interval that contains point xx
   dmm = abs(Xp-xx)
@@ -69,10 +83,21 @@ def pcws_lagr1(Xp,Yp,xx):
 
   return Pn
 
-def pcws_lagr2(Xp,Yp,xx):
+def pcws_lagr2(Xp, Yp, xx):
   """
    Piecewise Lagr. Polynomial degree 2
    needs 3 nodes, near the boundary if < 3 nodes - use linear polynom
+   Xp -  nodes
+   Yp - values at Xp
+   xx - interpolation point
+   Pn - interpolated value at point xx
+
+   Assumed: X axis is increasing, if X is revearsed (decreasing order, 
+            like depths) X is changed sign to make it increasing
+   X should not have repeating values (i.e. monotonically increasing)
+   No nan values allowed 
+   Xp and Yp should be same length
+
   """
 # for 1st and last nodes - return the node value:
   if xx == Xp[0]:
@@ -81,6 +106,22 @@ def pcws_lagr2(Xp,Yp,xx):
   elif xx == Xp[-1]:
     Pn = Yp[-1]
     return Pn
+
+  if np.any(np.isnan(Xp)) or np.any(np.isnan(Yp)):
+    raise Exception ('No nans are allowed in the input Xp or Yp')
+
+  if not Xp.shape[0] == Yp.shape[0]:
+    raise Exception ('Both Xp and Yp arrays should be same length')
+
+  if not np.all(np.diff(Xp)):
+    raise Exception ('Xp should be monotonically increasing, no repeating values')
+
+# Check if Xp is increasing:
+  if Xp[0] > Xp[1]:
+    Xp = -Xp
+    xx = -xx
+#    Xp = np.flip(Xp)
+#    Yp = np.flip(Yp)
 
 # Define non-overlapping intervals containing 3 nodes:
   nx = Xp.shape[0]
@@ -208,9 +249,33 @@ def poly1eqd(XX,YY,N):
   return Plagr, Xp, iXp
 
 
+def make_monotonic(Xp, eps0=0.001):
+  """
+    For interpolation, polynomial nodes have to be
+    monotonically increasing / decreasing
+    In some cases (below botom), Xp can be not monotonic function
+    Change to monotonic
 
+    Xp = 1D array
+  """
+  if Xp[-1] > Xp[0]:
+    MIncr = True
+    eps0 = abs(eps0)
+  else:
+    MIncr = False
+    eps0 = -abs(eps0)
 
+  zrr = 1.e-23
+  dX  = abs(np.diff(Xp))
+  if min(abs(dX)) >= zrr:
+    return Xp
 
+  ix0 = min(np.where(dX <= zrr)[0]) 
+  nxx = len(Xp)
+  for ixx in range(ix0, nxx-1):
+    Xp[ixx+1] = Xp[ixx] + eps0
+
+  return Xp
 
 
 

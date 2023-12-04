@@ -49,13 +49,8 @@ MD  = 27
 HR  = 0
 
 
-pthrst      = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/008mom6cice6_003/RESTART/'
-#cicerst6    = 'iced.{0}-{1:02d}-{2:02d}-{3:05d}.nc'.\
-#               format(YR,MM,MD,HR)
-#cicerst6    = 'iced.{0}-{1:02d}-{2:02d}-gofs3.2.nc'.\
-#               format(YR,MM,MD)
-cicerst6    = 'iced.2020-01-01-00000.nc'
-#cicerst6    = 'iced.2022-01-24-00000.nc'
+pthrst      = '/scratch2/NCEPDEV/stmp3/Neil.Barton/ICs/2017100503/'
+cicerst6    = 'iced.2017-10-05-10800.nc'
 fl_restart6 = pthrst + cicerst6
 
 puny      = 1.e-11
@@ -103,10 +98,10 @@ for kcat in range(ncat):
   aicen  = np.where(aicen < puny, np.nan, aicen)
   vsnon  = np.where(np.isnan(aicen), np.nan, vsnon)
   hsn    = vsnon / aicen
-#  hsn    = np.where(np.isnan(aicen), 1.e-11, hsn)
+  hsn    = np.where(np.isnan(aicen), 1.e-11, hsn)
   
 #
-# Convert enthalpy to layer internal energy
+# Convert internal energy to layer enthalpy
 # to make it similar to icepack_itd code
   nslyr = 1.
 #  zqsn  = qsnon*vsnon/nslyr

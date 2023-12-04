@@ -20,16 +20,56 @@ from mod_utils_fig import bottom_text
 def ocean_straits():
   STR = {
     "Fram80"  : {
+      "nlegs" : 1,
       "xl1"   : 3379,
       "xl2"   : 3519,
       "yl1"   : 3007,
-      "yl2"   : 3007
+      "yl2"   : 3007,
+      "smin"  : 32.5,
+      "smax"  : 35.0,
+      "tmin"  : -1.5,
+      "tmax"  : 5.5,
+      "umin"  : -0.1,
+      "umax"  : 0.1
     },
     "Fram79"  : {
+      "nlegs" : 1,
       "xl1"   : 3353,
       "xl2"   : 3555,
       "yl1"   : 2965,
-      "yl2"   : 2965
+      "yl2"   : 2965,
+      "smin"  : 32.5,
+      "smax"  : 35.0,
+      "tmin"  : -1.5,
+      "tmax"  : 5.5,
+      "umin"  : -0.1,
+      "umax"  : 0.1
+    },
+    "DavisStr": {
+      "nlegs" : 1,
+      "xl1"   : 2903,
+      "xl2"   : 3006,
+      "yl1"   : 2707,
+      "yl2"   : 2707,
+      "smin"  : 32.2,
+      "smax"  : 35.0,
+      "tmin"  : -1.5,
+      "tmax"  : 7.5,
+      "umin"  : -0.1,
+      "umax"  : 0.1
+    },
+    "Yucatan" : {
+      "nlegs" : 2,
+      "xl1"   : [2485, 2485],
+      "xl2"   : [2485, 2514],
+      "yl1"   : [1779, 1785],
+      "yl2"   : [1785, 1785],
+      "smin"  : 34.0,
+      "smax"  : 35.0,
+      "tmin"  : 5.,
+      "tmax"  : 25.,
+      "umin"  : -0.5,
+      "umax"  : 0.5
     },
   }
 
@@ -58,12 +98,14 @@ def minmax_clrmap(dmm,pmin=10,pmax=90,cpnt=0.01,fsym=False):
 
 def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[], \
                clrmp=[], btx=[], dcntr=2, lstart=25, zstart=-1000.,\
-               ijsct=[]):
+               ijsct=[], f_intrf=True):
   """
   Plot vertical section of a scalar field
   """
 
-  if not clrmp:
+  try: 
+    dmm = clrmp.colors
+  except:
 #  clrmp = copy(plt.cm.rainbow)
     clrmp = copy(plt.cm.Spectral_r)
 
@@ -90,32 +132,36 @@ def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[
   poly = Polygon(verts, facecolor='0.6', edgecolor='0.6')
   ax1.add_patch(poly)
 
-  # Plot interfaces
-  dZZ = abs(np.diff(ZZ, axis=0))
-  for kk in range(lstart, ll+1):
-    dmm = ZZ[kk,:]
-    if kk > 0:
-      dzz = dZZ[kk-1,:]
-#      if all (dzz == 0):  # all layers at the bottom
-#        break
-    ax1.plot(XX, dmm, color=[0,0,0], linewidth=0.5)
+  # Plot interfaces only if zz is 2D
+  if len(ZZ.shape) == 1:
+    f_intrf = False
 
-  iB = np.where(Hb == np.min(Hb))[0][0]
-  if dcntr>0:
-    cc=-1
-    for kk in range(ll+1):
-      zlr = ZZ[kk,iB]
+  if f_intrf:
+    dZZ = abs(np.diff(ZZ, axis=0))
+    for kk in range(lstart, ll+1):
+      dmm = ZZ[kk,:]
       if kk > 0:
-        dzz = dZZ[kk-1,iB]
-      else:
-        dzz = 0.
+        dzz = dZZ[kk-1,:]
+  #      if all (dzz == 0):  # all layers at the bottom
+  #        break
+      ax1.plot(XX, dmm, color=[0,0,0], linewidth=0.5)
 
-      if zlr <= zstart:
-        cc += 1
-        if cc%dcntr == 0 and dzz > 1.e-18:
-          zm = zlr+0.5*dzz
-          txt = '{0}'.format(kk)
-          ax1.text(XX[iB],zm,txt,fontsize=10)
+    iB = np.where(Hb == np.min(Hb))[0][0]
+    if dcntr>0:
+      cc=-1
+      for kk in range(ll+1):
+        zlr = ZZ[kk,iB]
+        if kk > 0:
+          dzz = dZZ[kk-1,iB]
+        else:
+          dzz = 0.
+
+        if zlr <= zstart:
+          cc += 1
+          if cc%dcntr == 0 and dzz > 1.e-18:
+            zm = zlr+0.5*dzz
+            txt = '{0}'.format(kk)
+            ax1.text(XX[iB],zm,txt,fontsize=10)
 
   ax1.set_xlim([np.min(XX), np.max(XX)])
   ax1.set_ylim([Bmin, 0])
@@ -142,7 +188,7 @@ def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[
     i2 = ijsct[1]
     j1 = ijsct[2]
     j2 = ijsct[3]
-    ax2 = plt.axes([0.75, 0.025, 0.18, 0.18])
+    ax2 = plt.axes([0.74, 0.020, 0.18, 0.18])
     ax2.contour(HH,[0.0],colors=[(0,0,0)],linewidths=1)
     ax2.plot((i1,i2),(j1,j1),'-',color=[1.,0.4,0])
     dii = 250
@@ -176,18 +222,68 @@ class TRANSP():
     self.trnsp = np.append(self.trnsp, trnsp1d, axis=0)
  
 class FIELD2D():
-  def __init__(self, dnmb, XX, YY, LSgm, Hb, A2d):
+  def __init__(self, dnmb, XX, YY, LSgm, ZZi, Hb, A2d):
     A2d        = np.expand_dims(A2d, axis=(0))
     self.TM    = np.array([dnmb])
     self.Fld2D = A2d
     self.LON   = XX 
     self.LAT   = YY
-    self.Lsgm  = Lsgm
+    self.Lsgm  = LSgm
     self.Hbtm  = Hb
+    self.ZZi   = ZZi
 
   def add_array(self, dnmb, A2d):
     A2d        = np.expand_dims(A2d, axis=0)
-    self.TM    = np.array([dnmb])
+    self.TM    = np.append(self.TM, dnmb)
     self.Fld2D = np.append(self.Fld2D, A2d, axis=0)
 
+
+def interp_2Dsect(A2d, ZZi, ZM2d, Hb):
+  """
+  Interpolate 2D section from hybrid to z-fixed levels
+  """
+  import mod_interp1D as minterp
+
+  nsgm  = A2d.shape[1]
+  nlvls = A2d.shape[0]
+  nintp = ZZi.shape[0]
+  A2di  = np.zeros((nintp, nsgm)) + 1.e30
+  for isgm in range(nsgm):
+    hb0 = Hb[isgm]
+    if hb0 >= 0.:
+      A2di[:,isgm] = np.nan
+      continue
+
+    zz = ZM2d[:,isgm].squeeze().copy()
+    zz = minterp.make_monotonic(zz)
+    aa = A2d[:, isgm].squeeze().copy()
+# To avoid problems with interpolation at the end-points (Gibbs effect
+# for polynom > 1 degree): keep same values below bottom
+# Or use linear interp 
+    dbtm = abs(zz-hb0)
+    izb = min(np.where(dbtm <= 0.01)[0])
+    aa[izb:] = aa[izb-1]
+
+# Add extra point for 0 interp at the surface:
+    zz = np.insert(zz, 0, 5.)
+    aa = np.insert(aa, 0, aa[0])
+
+# Add extra point at the bottom for interp deep z levels:
+    zz = np.insert(zz, -1, zz[-1])
+    zz[-1] = -10000.
+    aa = np.insert(aa, -1, aa[-1])
+#
+
+# Depth levels:
+#    print(f"isgm={isgm}")
+    Aint = np.zeros((nintp))
+    for kk in range(nintp):
+# 2nd degree polynom gives errors near the bottom when profile makes jumps
+# to random bottom values, use 1st degree
+#      aai = minterp.pcws_lagr2(zz, aa, ZZi[kk])
+      aai = minterp.pcws_lagr1(zz, aa, ZZi[kk])
+      Aint[kk] = aai
+      A2di[kk,isgm] = aai
+
+  return A2di
 

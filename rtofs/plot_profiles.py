@@ -9,7 +9,6 @@ import pdb
 import netCDF4
 import importlib
 import struct
-import pickle
 from netCDF4 import Dataset as ncFile
 from copy import copy
 import matplotlib.colors as colors

@@ -1708,16 +1708,21 @@ def plot_SNsectTS(jx1, jx2, ix0, jx0, ZZ, A3d, HH, LON, LAT, \
 
   return ZZs, Hb, XX, dZZs
 
-def plot_profile(ax0, S1, zzm, z0, stl='Prof', zlim=-500., xl1=10., xl2=40.):
+def plot_profile(ax0, S1, zzm, z0, stl='Prof', zlim=-500., xl1=10., xl2=40., \
+                 lclr=(0., 0.4,  0.8), f_line=False):
   """
     Plot T/S profile
   """
 #  ax0 = plt.axes([0.1, 0.08, 0.3, 0.35])
-  ax0.plot(S1,zzm,'.-',color=(0.,0.4,0.8))
+  if f_line:
+    ax0.plot(S1,zzm,'-',color=lclr)
+  else:
+    ax0.plot(S1,zzm,'.-',color=lclr)
 #  ax0.plot(si,z0,'r.')
   ax0.set_xlim(xl1,xl2)
   ax0.set_ylim(zlim,0)
-  ax0.plot([xl1, xl2],[z0, z0],'r--')
+  if z0 <= 0.:
+    ax0.plot([xl1, xl2],[z0, z0],'r--')
   ax0.grid(True)
   ax0.set_title(stl)
 

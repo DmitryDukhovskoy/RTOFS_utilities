@@ -140,16 +140,25 @@ def mom_dim(flin):
 
   return xh, yh, zl
 
-def zz_zm_fromDP(dH, ssh, f_btm=True, finfo=True, eps0=1.e-5):
+def zz_zm_fromDP(dH, ssh, f_intrp=False, f_btm=True, finfo=True, eps0=1.e-5):
   """
     Calculate ZZ, ZM from layer thkcness (dH) 
     ZZ - interface depths,
     ZM - mid cell depths
     Note that sum(dH) = water column height that includes SSH
     Therefore ZZ[0] = ssh
+
     f_btm = true - nan below bottom & land
             false - no nans, all ZZ=zbtm or 0
+    f_intrp = True: for vertical interpolation, land/bottom make
+              not nans and not equal depths, i.e. depth continue
+              increasing at eps0 rate below bottom to keep
+              monotonicity of zz, zm
+    f_interp overrides f_btm flag: makes it False
   """
+  if f_intrp:
+    f_btm = False
+
   print('Deriving ZZ, ZM from dH ...')
   ll = dH.shape[0]
   mm = dH.shape[1]
@@ -159,7 +168,14 @@ def zz_zm_fromDP(dH, ssh, f_btm=True, finfo=True, eps0=1.e-5):
   ZM = np.zeros((ll,mm,nn))
   ssh = np.where(np.isnan(ssh),0.,ssh)
   ZZ[0,:,:] = ssh
-  dH = np.where(np.isnan(dH),0., dH)
+  if f_btm:
+    dH = np.where(np.isnan(dH),0., dH)
+  else:
+    dH = np.where(np.isnan(dH),eps0, dH)
+
+  if f_intrp:
+    dH = np.where(dH < eps0, eps0, dH)
+
   for kk in range(ll):
     ZZ[kk+1,:,:] = ZZ[kk,:,:]-dH[kk,:,:]
 
@@ -168,7 +184,7 @@ def zz_zm_fromDP(dH, ssh, f_btm=True, finfo=True, eps0=1.e-5):
       ZZ[kk+1,JJ,II] = np.nan
       if kk==0:
         ZZ[kk,JJ,II] = np.nan
-    else:
+    elif not f_btm and not f_intrp:
       [JJ,II] = np.where(dH[kk,:,:] <= eps0)
       ZZ[kk+1,JJ,II] = ZZ[kk,JJ,II]
 

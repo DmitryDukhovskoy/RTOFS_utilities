@@ -1,6 +1,10 @@
 """
+  RTOFS - production
+  scripts to bring rtofs files: scripts/rtofs/get_production_hycom_Ndays.sh
+
   Extract 2D field along a section
-  Note variables are on staggered grid in the output files
+  Note variables are on staggered hycom grid in the output archv files
+  U,V (i,j) is different from MOM6
 
 """
 import os
@@ -23,32 +27,35 @@ sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/hycom_utils')
 sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/draw_map')
 sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython')
 sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/mom6_utils')
+sys.path.append('/home/Dmitry.Dukhovskoy/python/anls_mom6')
 
+import mod_read_hycom as mhycom
 import mod_time as mtime
 from mod_utils_fig import bottom_text
 
 import mod_mom6_valid as mom6vld
 importlib.reload(mom6vld)
 
-expt  = '003'
-hg    = 1.e15
-#sctnm = 'Fram79'
+f_cont = False       # True - load saved and start from last saved
+expt   = 'product'
+sfx    = 'n-24'
+YR1    = 2021
+#sctnm  = 'Fram79'
 sctnm = 'DavisStr'
-fld2d = 'Unrm'
-#fld2d = 'salt'
-#fld2d = 'potT'
-dnmb1 = mtime.datenum([2021,1,1])
-dnmb2 = mtime.datenum([2021,12,31])
+fld2d  = 'Unrm'
+#fld2d = 'salin'
+#fld2d = 'temp'
+huge   = 1.e15
+rg     = 9806.
+
+dnmb1 = mtime.datenum([YR1,1,1])
+dnmb2 = mtime.datenum([YR1,12,31])
 dv1   = mtime.datevec(dnmb1)
 dv2   = mtime.datevec(dnmb2)
 
-pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
-         '008mom6cice6_' + expt + '/'
-pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/' + \
-          'MOM6_CICE6/expt{0}/'.format(expt)
-#floutp = 'mom6-{4}_u2dsect_{0}{1:02d}-{2}{3:02d}_{5}.pkl'.\
-#         format(dv1[0], dv1[1], dv2[0], dv2[1], expt, sctnm)
-floutp = f"mom6-{expt}_{fld2d}xsct_{dv1[0]}" + \
+pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/wcoss2.prod/'
+pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/RTOFS_production/'
+floutp = f"rtofs-{expt}_{fld2d}xsct_{dv1[0]}" + \
          f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
 ffout = pthoutp + floutp
 
@@ -79,8 +86,42 @@ import mod_misc1 as mmisc
 import mod_mom6 as mom6util
 importlib.reload(mom6util)
 
-dday=5
-TPLT = mom6util.create_time_array(dnmb1, dnmb2, dday, date_mat=True)
+# Time array
+dday = 7
+irc  = -1
+nrec = 48
+TPLT = np.zeros(nrec, dtype=[('dnmb', float),
+                              ('date', int, (4,)),
+                              ('yrday', float)])
+for imo in range(1, 13):
+  for mday in range(2, 29, dday):
+    irc += 1
+    dnmb = mtime.datenum([YR1,imo,mday])
+    DV   = mtime.datevec(dnmb)
+    _, jday = mtime.dnmb2jday(dnmb)
+    TPLT['dnmb'][irc]   = dnmb
+    TPLT['yrday'][irc]  = jday
+    TPLT['date'][irc,:] = DV[0:4]
+
+dnmbL = 0
+if f_cont:
+  print('Start from last saved record')
+  print('Loading ' + ffout)
+  try:
+    with open(ffout,'rb') as fid:
+      F2D = pickle.load(fid)
+
+    TM    = F2D.TM
+    nlast = len(TM)
+    dnmbL = TM[-1]
+    dvL   = mtime.datevec(dnmbL)
+    print(f"{nlast} saved records, last {dvL[0]}/{dvL[1]}/{dvL[2]}")
+  except:
+#    raise Exception('Saved output not found ...')
+    print(f"Saved output not found {ffout}")
+    print("Starting from 0")
+   
+
 nrec = len(TPLT)
 for irec in range(nrec):
   rtimeS = time.time()
@@ -89,48 +130,60 @@ for irec in range(nrec):
   MM   = DV[1]
   DD   = DV[2]
   jday = int(TPLT[irec][2])
-  dnmb = TPLT[irec][0]  
+  dnmb = TPLT[irec][0]
 #  jday    = int(mtime.date2jday([YR,MM,DD]))
 #  dnmb = mtime.jday2dnmb(YR,jday)
   HR   = 12
 
-  pthbin = pthrun + 'tarmom_{0}{1:02d}/'.format(YR,MM)
-  flmom  = 'ocnm_{0}_{1:03d}_{2}.nc'.format(YR,jday,HR)
-  flin   = pthbin + flmom
+  print(f"Processing rec {irec+1} {YR}/{MM}/{DD}")
+  pthbin  = pthrun + 'tarmom_{0}{1:02d}/'.format(YR,MM)
+  pthbin  = pthrun + f"rtofs.{YR}{MM:02d}{DD:02d}/"
+  flhycom = f"rtofs_glo.t00z.{sfx}.archv" 
+  fina    = pthbin + flhycom + '.a'
+  finb    = pthbin + flhycom + '.b'
 
-  pthgrid   = pthrun + 'INPUT/'
-  fgrd_mom  = pthgrid + 'regional.mom6.nc'
-  ftopo_mom = pthgrid + 'ocean_topog.nc'
+  pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
+  ftopo = 'regional.depth'
+  fgrid = 'regional.grid'
   if irec == 0:
-    LON, LAT  = mom6util.read_mom6grid(fgrd_mom, grdpnt='hpnt')
-    HH        = mom6util.read_mom6depth(ftopo_mom)
-    Lmsk      = mom6util.read_mom6lmask(ftopo_mom)
-    idm, jdm, kdm = mom6util.mom_dim(flin)
-    ijdm          = idm*jdm
-
-  # Read layer thicknesses:
-  rfld = 'h'
-  dH = mom6util.read_mom6(flin, rfld, finfo=False)
-
-  ssh    = mom6util.read_mom6(flin, 'SSH', finfo=False)
-  ZZ, ZM = mom6util.zz_zm_fromDP(dH, ssh, f_intrp=True, finfo=False)
-  #ZZ, ZM = mom6util.get_zz_zm(flin)
+    LON, LAT, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
 
   # Calc segment lengths:
   if irec==0:
-    DX, DY = mom6util.dx_dy(LON,LAT)
+    DX, DY = mhycom.dx_dy(LON,LAT)
 
-  #j=1250
-  #i=1000
-  #mmisc.print_1col(ZZ[:,j,i])
-  #mmisc.print_2col(ZZ[:,j,i],dH[:,j,i])
+  if dnmb <= dnmbL:
+    print(f"Skipping rec {irec+1} {YR}/{MM}/{DD} --->")
+    continue
+
+  # Read layer thicknesses:
+  dH, idm, jdm, kdm = mhycom.read_hycom(fina,finb,'thknss')
+  dH = dH/rg
+  dH = np.where(dH>huge, np.nan, dH)
+  dH = np.where(dH<0.001, 0., dH)
+
+  ZZ, ZM = mhycom.zz_zm_fromDP(dH, f_btm=False)
+
+#j=1250
+#i=1000
+#mmisc.print_1col(ZZ[:,j,i])
+#mmisc.print_2col(ZZ[:,j,i],dH[:,j,i])
 
   # Read U/V only normal velocity needed:
   if fld2d == 'Unrm':
     if xsct_EW:
-      fld = 'v'
+      fld = 'v-vel.'
+# Read barotropic V
+# Only for archv output !
+      F, _, _, _ = mhycom.read_hycom(fina,finb,'v_btrop')
+      F = np.where(F>=huge, 0., F)
+      Ubtrop = F.copy()
     else:
-      fld = 'u'
+      fld = 'u-vel.'
+# Read barotropic U
+      F, _, _, _ = mhycom.read_hycom(fina,finb,'u_btrop')
+      F = np.where(F>=huge, 0., F)
+      Ubtrop = F.copy()
   else:
      fld = fld2d
 
@@ -148,12 +201,15 @@ for irec in range(nrec):
 
   sttl = fld2d
 
-  A3d = mom6util.read_mom6(flin, fld, finfo=False)
-
+  A3d, _, _, _ = mhycom.read_hycom(fina, finb, fld)
+  A3d = np.where(A3d >= huge, np.nan, A3d)
   # Interpolated onto h-pnt:
   if xsct_EW:
     if fld2d == 'Unrm':
-  # Collocate V components to h pnt
+# Add barotropic U:
+      for kk in range(kdm):
+        A3d[kk,:,:] = A3d[kk,:,:] + Ubtrop
+# Collocate V components to h pnt
       Uj   = A3d[:,j1,i1:ni].squeeze()
       Ujm1 = A3d[:,j1-1,i1:ni].squeeze()
       Uj   = np.where(np.isnan(Uj), 0., Uj)
@@ -163,20 +219,25 @@ for irec in range(nrec):
       A2d = A3d[:,j1,i1:ni].squeeze()
   else:
     if fld2d == 'Unrm':
-  # Collocate U components to h pnt
+# Add barotropic U:
+      for kk in range(kdm):
+        A3d[kk,:,:] = A3d[kk,:,:] + Ubtrop
+# Collocate U components to h pnt
       Ui   = A3d[:,j1:nj,i1].squeeze()
-      Uim1 = A3d[:,j1:nj,i1-1].squeeze()
+      Uip1 = A3d[:,j1:nj,i1+1].squeeze()
       Ui   = np.where(np.isnan(Ui), 0., Ui)
-      Uim1 = np.where(np.isnan(Uim1), 0., Uim1)
-      A2d = 0.5*(Ui + Uim1)   # collocated with h
+      Uip1 = np.where(np.isnan(Uip1), 0., Uip1)
+      A2d = 0.5*(Ui + Uip1)   # collocated with h
     else:
       A2d = A3d[:,j1:nj,i1].squeeze()
 
   dH2d  = dH[:,j1:nj,i1:ni].squeeze()
   Hb    = HH[j1:nj,i1:ni].squeeze()
-  ZZ2d  = ZZ[:,j1:nj,i1:ni].squeeze()
-  ZM2d  = ZM[:,j1:nj,i1:ni].squeeze()
+  ZZ2d  = ZZ[:,j1:nj,i1:ni].squeeze().copy()
+  ZM2d  = ZM[:,j1:nj,i1:ni].squeeze().copy()
   dZ    = abs(np.diff(ZZ2d, axis=0))
+
+  
 #
 # Interpolate:
   A2di = mom6vld.interp_2Dsect(A2d, ZZi, ZM2d, Hb)
@@ -185,7 +246,7 @@ for irec in range(nrec):
   # Plot section
   f_plt = False
   if f_plt:
-    btx = 'extr2Dfld_section.py'
+    btx = 'extr2Dfld_section_rtofs.py'
     plt.ion()
 
     importlib.reload(mom6vld)
@@ -208,34 +269,20 @@ for irec in range(nrec):
 
 #    stl = ('0.08 MOM6-CICE6-{0} {1} {2}, {3}/{4}/{5}'.\
 #            format(expt, sttl, sctnm, YR, MM, DD))
-    stl = f"0.08 MOM6-CICE6-{expt} {sttl} {sctnm}, {YR}/{MM:02d}/{DD:02d}"
+    stl = f"RTOFS-{expt} {sttl} {sctnm}, {YR}/{MM:02d}/{DD:02d}"
 
     mom6vld.plot_xsect(XX, Hb, ZZ2d, A2d, HH, stl=stl,\
                        rmin = rmin, rmax = rmax, clrmp=cmpr,\
                        ijsct=[i1,i2,j1,j2], btx=btx)
 
-    stl = ('0.08 MOM6-CICE6-{0} Interpolated  {1} {2}, {3}/{4}/{5}'.\
-            format(expt, sttl, sctnm, YR, MM, DD))
-
+    stl = f"RTOFS-{expt} {sttl} {sctnm} Interpelodated, {YR}/{MM:02d}/{DD:02d}"
     II = np.arange(i1,ni)
     mom6vld.plot_xsect(XX, Hb, ZZi, A2di, HH, stl=stl, fgnmb=2,\
                        rmin = rmin, rmax = rmax, clrmp=cmpr,\
                        ijsct=[i1,i2,j1,j2], btx=btx)
 
-#    i0 = 3513-i1
-#    mmisc.print_1col(A2di[:,i0], prc=4)
-#    mmisc.print_1col(A2d[:,i0], prc=4)
-#
-#    fig2 = plt.figure(2,figsize=(9,9))
-#    plt.clf()
-#    ax1 = plt.axes([0.1, 0.1, 0.35, 0.8])
-#    psct.plot_profile(ax1, Aint, ZZi, 0., zlim=-1700., xl1=-0.1, xl2=0.6) 
-#    psct.plot_profile(ax1, A2d[:,i0], ZM2d[:,i0], 0., zlim=-1700., \
-#                      xl1=-0.1, xl2=0.6, \
-#                      lclr=(0.9, 0.2, 0)) 
-#
+#    AB = CC
 
-  # 2D field
   if irec == 0:
     F2D = mom6vld.FIELD2D(dnmb, XX, YY, LSgm, ZZi, Hb, A2di)
   else:
@@ -264,4 +311,5 @@ if f_chck:
   plt.clf()
   ax1 = plt.axes([0.1, 0.2, 0.8, 0.7])
   ax1.plot(XX,VFlx*1e-6)
+
 
