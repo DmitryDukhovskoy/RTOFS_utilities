@@ -338,5 +338,42 @@ def vol_transp_2Dsection(LSgm, ZZ, UV):
 
   return volTr_1D
 
+def fill_bottom(A2d, ZZ, Hbtm, fill_land=True):
+  """
+    Fill bottom values for plotting
+    ZZ - mid-layer depths 1D or 2D
+    fill_land - fill land or not with closest values
+  """
+  A2df = A2d.copy()
+  
+  if len(ZZ.shape) == 2:
+    f2d = True
+  else:
+    f2d = False
+    z0 = ZZ
 
+  kdm = A2d.shape[0]
+  idm = A2d.shape[1]
+  iOc = np.where(Hbtm < 0.)[0]
+
+  for ii in range(idm):
+    hb0 = Hbtm[ii]
+    if hb0 >= 0.:
+      if fill_land:
+        dii        = abs(iOc - ii)
+        ix         = np.where(dii == np.min(dii))[0][0]
+        iocn       = iOc[ix]
+        A2df[:,ii] = A2d[:,iocn] 
+        continue
+      else:
+        continue 
+
+    if f2d:
+      z0 = ZZ[:,ii]
+
+    dZb = ZZ-hb0
+    izb = min(np.where(dZb <= 0.)[0])
+    A2df[izb:,ii] = A2d[izb-1,ii]
+    
+  return A2df
 

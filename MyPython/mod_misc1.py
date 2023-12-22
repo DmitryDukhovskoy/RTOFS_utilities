@@ -468,7 +468,337 @@ def print_3col(A1,A2,A3,wd=8,prc=2,kend=[]):
 
   return
 
+def xsect_indx(IIv, JJv):
+  """
+    IIv=[Is,Ie], JJv=[Js,Je]
+    Find index points connecting 
+    2 vertices (is,js) and (ie,je)
+    Finding the shortest distance
+      
+                  * (Ie, Je)
+                  |
+            *--*--*
+            |
+      *--*--*
+      |
+      *   (Is, Js)
 
-  
+  """
+  Is, Ie = IIv
+  Js, Je = JJv
+  II = np.array([Is])
+  JJ = np.array([Js])
+  cntr = 0
+  x0   = Is
+  y0   = Js
+  ss0  = np.sqrt((Is-Ie)**2 + (Js-Je)**2)
+  ss   = 1.5*ss0
 
+  while ss > 0.5:
+    di   = (Ie-x0)/ss
+    dj   = (Je-y0)/ss
+    Xnrm = np.array([-dj,di])    # normal to the X-section
+    ss   = np.sqrt((x0-Ie)**2+(y0-Je)**2)
+    if ss < 0.5:
+      break
+    x0   = x0+di
+    y0   = y0+dj
+    if np.round(x0)==II[-1] and np.round(y0)==JJ[-1]:
+      continue
+   
+# Make sure that di and dj < 1 to avoid skipping of grid point 
+# at line zgzaging
+    xnew = np.round(x0)
+    ynew = np.round(y0)
+    dx   = xnew - II[-1]
+    dy   = ynew - JJ[-1]
+    nl  = np.sqrt(dx**2+dy**2)
+    if nl > 1.:
+# Add missing point closest to the main section
+# dx and dy should be close to 1
+      if abs(np.round(dx)) > 1.0 or abs(np.round(dy)) > 1.0:
+        raise Exception(f"Too large dx={dx} or dy={dy} > 1")
+
+# Moving along X
+      xpi = II[-1] + dx
+      ypi = JJ[-1]
+# Moving along Y:
+      xpj = II[-1]
+      ypj = JJ[-1] + dy
+#
+# Find close pnt to the section line choosing the smallest
+# area of triangles btw the pnt and the line 
+      TrI = np.array([[xpi, ypi, 1],[x0, y0, 1],[x0-di, y0-dj, 1]])
+      TrJ = np.array([[xpj, ypj, 1],[x0, y0, 1],[x0-di, y0-dj, 1]])
+      ArI = abs(0.5*np.linalg.det(TrI))
+      ArJ = abs(0.5*np.linalg.det(TrJ))
+      if ArI < ArJ:
+        II = np.append(II, np.round(xpi))
+        JJ = np.append(JJ, np.round(ypi))
+      else: 
+        II = np.append(II, np.round(xpj))
+        JJ = np.append(JJ, np.round(ypj))
+
+    cntr  += 1
+    II   = np.append(II,np.round(x0))
+    JJ   = np.append(JJ,np.round(y0))
+
+    if cntr > 1e6:
+      print(f"Couldnt find indices? Too many points: {cntr}")
+      raise Exception("Finding index points: Endless loop ")
+
+    if ss>2.*ss0:
+      raise Exception("Finding index points: Moving away from the segment")
+      
+  dE = np.sqrt((II[-1]-Ie)**2 + (JJ[-1]-Je)**2)
+  if dE > 1.e-6:
+    II = np.append(II, Ie)
+    JJ = np.append(JJ, Je)
+
+  II = II.astype(int)
+  JJ = JJ.astype(int)  
+  return II, JJ
+
+class SEGMENTS():
+  def __init__(self, Isgm, Jsgm, Lsgm1, Lsgm2, vnrm1, vnrm2, nLeg, curve_ornt):
+    self.curve_ornt = curve_ornt
+    self.I_indx     = Isgm
+    self.J_indx     = Jsgm
+    self.half_Lsgm1 = Lsgm1
+    self.half_Lsgm2 = Lsgm2
+    self.half_norm1 = vnrm1
+    self.half_norm2 = vnrm2
+    self.Leg_number = nLeg
+
+def define_segments(IJ, DX, DY, curve_ornt='negative'):
+  """
+    Given poly-segment section connected at vertices IJ[iS:iE, jS:jE]
+    find grid indices connecting the vertices
+
+    Each segment consists of 2 halvs wrt to the center pnt
+    For each half norm is defined as a negatively oriented curve
+
+           half2 of isgm
+         *---------------------* (isgm+1)
+         |     | nrm2
+ half1   |-->  V    :
+ of isgm | nrm1     :
+         |----------:-------------------
+         |          :
+         |          :
+isgm-1   *          :
+         |          :
+         |          :
+         |----------:-------------------
+
+
+
+    find segment lengths for each half
+    
+    define positive norm - depending on the curve or section
+                           orientation following math definition:
+     "A positively oriented curve is a planar simple closed curve 
+     such that when traveling on it one always has the 
+     curve interior to the left"
+
+     Note right or left depends on the segment indices and 
+     negative/positive is defined using given index order
+
+    To preserve volume flux: U should be multiplied by the norm
+
+    All small segments are combined into 1 array
+  """
+  nlegs = IJ.shape[0]-1
+  nLeg  = np.array([])
+  vnrm1 = np.array([])
+  vnrm2 = np.array([])
+  Lsgm1 = np.array([])
+  Lsgm2 = np.array([])
+  Isgm  = np.array([])
+  Jsgm  = np.array([])
+  for ileg in range(nlegs):
+    Is  = IJ[ileg,0]
+    Js  = IJ[ileg,1]
+    Ie  = IJ[ileg+1,0]
+    Je  = IJ[ileg+1,1]
+    IIv = [Is,Ie]
+    JJv = [Js,Je]
+#    II, JJ = mmisc.xsect_indx(IIv,JJv)
+    II, JJ = xsect_indx(IIv,JJv)
+
+    Isgm = np.append(Isgm, II)
+    Jsgm = np.append(Jsgm, JJ)
+
+    nsgm = len(II)
+    for isgm in range(nsgm):
+      nLeg = np.append(nLeg, ileg)
+# Compute half 1 of the segment:
+      if isgm == 0:
+        ii1 = II[isgm]
+        ii2 = II[isgm]
+        jj1 = JJ[isgm]
+        jj2 = JJ[isgm]     
+        L1  = 0.
+
+      else:
+        ii1 = II[isgm-1]
+        ii2 = II[isgm]
+        jj1 = JJ[isgm-1]
+        jj2 = JJ[isgm]     
+        if ii1 == ii2:
+          sgm_north = True
+        else:
+          sgm_north = False
+
+        if sgm_north:
+          L1 = 0.5*DY[jj1,ii1]
+        else:
+          L1 = 0.5*DX[jj1,ii1]
+
+      nrm_v1 = find_norm([ii1,jj1],[ii2,jj2], curve_ornt)
+      nrm_v1 = np.expand_dims(nrm_v1, axis=0)
+
+# Compute half 2:
+      if isgm == nsgm-1:
+        ii1 = II[isgm]
+        ii2 = II[isgm]
+        jj1 = JJ[isgm]
+        jj2 = JJ[isgm]
+        L2  = 0.
+      else:
+        ii1 = II[isgm]
+        ii2 = II[isgm+1]
+        jj1 = JJ[isgm]
+        jj2 = JJ[isgm+1]
+        if ii1 == ii2:
+          sgm_north = True
+        else:
+          sgm_north = False
+
+        if sgm_north:
+          L2 = 0.5*DY[jj2,ii2]
+        else:
+          L2 = 0.5*DX[jj2,ii2]
+        
+      nrm_v2 = find_norm([ii1,jj1],[ii2,jj2], curve_ornt)
+      nrm_v2 = np.expand_dims(nrm_v2, axis=0)
+
+      if len(vnrm1) == 0:
+        vnrm1 = nrm_v1.copy()
+        vnrm2 = nrm_v2.copy()
+      else: 
+        vnrm1  = np.append(vnrm1, nrm_v1, axis=0)
+        vnrm2  = np.append(vnrm2, nrm_v2, axis=0)
+
+      Lsgm1  = np.append(Lsgm1, L1)
+      Lsgm2  = np.append(Lsgm2, L2)
+
+
+# Combine legs at the pivoting points
+#
+#  At the corner (pivoting) points I[izr] = I[izr+1]
+#      and J[izr]=J[izr+1]
+#
+#                  : 
+#                  : Lsgm2[izr] = 0
+#                  :
+#           .......*---- nLeg[izr+1]=Leg2
+# Lsgm1[izr+1]=0   | 
+#                  | 
+#       nLeg[izr] = Leg1
+#
+  nsgm = len(Isgm)
+  Dij  = np.sqrt((np.diff(Isgm))**2 + (np.diff(Jsgm))**2)
+  Idbl = np.where(Dij==0)[0]
+  IZR1 = np.array([])
+  IZR2 = np.array([])
+  ccr  = -1
+  for nI in range(len(Idbl)):
+    ccr += 1
+    izr = Idbl[nI]-ccr  # adjust for deleted rows
+# Check that this is a pivoting point or a duplicate:
+#  remove duplicated point, although there should not be
+# duplicates except for pivots connecting the legs 
+    if nLeg[izr] == nLeg[izr+1]: 
+      print(f"define_segm: segm {izr} duplicated point, not a pivoting point")
+# TODO: if there are duplicates - remove everywhere
+    else:
+      Isgm = np.delete(Isgm, izr)
+      Jsgm = np.delete(Jsgm, izr)
+      if Lsgm1[izr] == 0:
+        izr1 = izr
+        izr2 = izr+1
+      else:
+        izr1 = izr+1
+        izr2 = izr
+# Check: both half Lsgm should be 0 for adjacent segments 
+      if Lsgm1[izr1] < 1.e-30:
+        Lsgm1 = np.delete(Lsgm1, izr1)
+      else:
+        raise Exception("Pivot point: Lsgm1({izr1}) not 0")
+
+      if Lsgm2[izr2] < 1.e-30:
+        Lsgm2 = np.delete(Lsgm2, izr2)
+      else:
+        raise Exception("Pivot point: Lsgm2({izr2}) not 0")
+     
+# Designate pivoting points (connectors) as half of
+# the two legs Numbers
+      nLeg = np.delete(nLeg, izr+1)
+      nLeg[izr] = 0.5*(nLeg[izr]+nLeg[izr+1])
+
+      nrm1  = vnrm1[izr1]
+      nrm2  = vnrm2[izr2]
+      lnrm1 = np.sqrt(np.dot(nrm1,nrm1.transpose()))
+      lnrm2 = np.sqrt(np.dot(nrm2,nrm2.transpose()))
+      if lnrm1 < 1.e-30:
+        vnrm1 = np.delete(vnrm1, izr1, axis=0)
+      else:
+        raise Exception("vnrm1({izr1}) not 0") 
+
+      if lnrm2 < 1.e-30:
+        vnrm2 = np.delete(vnrm2, izr2, axis=0)
+      else:
+        raise Exception("vnrm2({izr2}) not 0") 
+
+  Isgm = Isgm.astype(int) 
+  Jsgm = Jsgm.astype(int) 
+  SGMT = SEGMENTS(Isgm, Jsgm, Lsgm1, Lsgm2, vnrm1, vnrm2, nLeg, curve_ornt)
+#  SGMT = np.dtype({'curve_ornt': curve_ornt,
+#                   'I_indx': Isgm,
+#                   'J_indx': Jsgm,
+#                   'half_Lsgm1': Lsgm1,
+#                   'half_Lsgm2': Lsgm2,
+#                   'half_norm1': vnrm1,
+#                   'half_norm2': vnrm2})
+
+  return SGMT
+
+def find_norm(IJ1, IJ2, curve_ornt):
+  """
+    With respect to IJ1, IJ2 direction of a segment
+    Use cross-product Vz(0,0,1) x V(i,j,0) to get 
+    positive norm
+    curve_ornt = pos: norm is to the left
+               = neg: norm is to the right
+  """
+  Vz=np.array([0,0,1])
+  V=np.array([IJ2[0]-IJ1[0], IJ2[1]-IJ1[1], 0])
+# Check for 0 vector:
+  V_len = np.sqrt(V[0]**2 + V[1]**2 + V[2]**2)
+  if V_len < 1.e-32:
+#    raise Exception(f"0 vector segment ({IJ1[0]} {IJ1[1]}), ({IJ2[0]} {IJ2[1]})")
+    vnrm=np.array([0,0])
+    return vnrm
+
+  Unrm = np.cross(Vz,V)
+  Unrm_len = np.sqrt(Unrm[0]**2 + Unrm[1]**2 + Unrm[2]**2)
+  Unrm = Unrm/Unrm_len   # should be 0 or 1
+  if curve_ornt[0:3] == 'neg':
+    Unrm = -Unrm
+
+  vnrm = Unrm[0:2] 
+  vnrm = np.where(abs(vnrm) < 1.e-30, 0, vnrm)
+
+  return vnrm
 

@@ -1,5 +1,5 @@
 """
-  Extract 2D field along a section
+  Extract 2D field along a section 1D - straight line
   Note variables are on staggered grid in the output files
 
 """
@@ -32,8 +32,8 @@ importlib.reload(mom6vld)
 
 expt  = '003'
 hg    = 1.e15
-#sctnm = 'Fram79'
-sctnm = 'DavisStr'
+sctnm = 'Fram79'
+#sctnm = 'DavisStr'
 fld2d = 'Unrm'
 #fld2d = 'salt'
 #fld2d = 'potT'
@@ -60,7 +60,7 @@ j2  = STR[sctnm]["yl2"]
 ni  = i2+1
 nj  = j2+1
 
-if j1 == j1:
+if j1 == j2:
   xsct_EW = True
 else:
   xsct_EW = False
@@ -259,9 +259,25 @@ print(' All done ' )
 
 f_chck=False
 if f_chck:
+  Is = i1
+  Ie = i2
+  Js = j1
+  Je = j1+150
+  IIv=[Is,Ie]
+  JJv=[Js,Je]
+  II, JJ = mmisc.xsect_indx(IIv,JJv)
+
   plt.ion()
   fig1 = plt.figure(1,figsize=(9,8))
   plt.clf()
   ax1 = plt.axes([0.1, 0.2, 0.8, 0.7])
-  ax1.plot(XX,VFlx*1e-6)
+  ax1.contour(HH,[0], colors=[(0,0.,0)])
+  ax1.contour(HH,[-1000,-500], colors=[(0.8,0.8,0.8)], linestyles='solid')
+  ax1.set_xlim([Is-50, Ie+50])
+  ax1.set_ylim([Js-50, Je+50])
+  ax1.plot(IIv,JJv,'r')
+  ax1.plot(II, JJ, '.-')
+
+
+#  ax1.plot(XX,VFlx*1e-6)
 

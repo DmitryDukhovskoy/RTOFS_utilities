@@ -327,6 +327,12 @@ def datestr(dnmb,ldate_ref=[1,1,1], show_hr=True):
   convert datenum back to [YR,MM,DD,HR,MN]
   print the date
   """
+# Check if this is an array or a scalar:
+  if hasattr(dnmb, '__len__'):
+    farray = True
+  else:
+    farray = False
+
   lr = len(ldate_ref)
   YRr = ldate_ref[0]
   MMr = ldate_ref[1]
@@ -339,23 +345,36 @@ def datestr(dnmb,ldate_ref=[1,1,1], show_hr=True):
     MNr = 0
 
   timeR = datetime.datetime(YRr,MMr,DDr,HRr,MNr,0)
-  dfrct = dnmb-np.floor(dnmb)
-  if abs(dfrct) < 1.e-6:
-    HR = 0
-    MN = 0
+
+  def get_dstr(dnmb):
+    dfrct = dnmb-np.floor(dnmb)
+    if abs(dfrct) < 1.e-6:
+      HR = 0
+      MN = 0
+    else:
+      HR = int(np.floor(dfrct*24.))
+      MN = int(np.floor(dfrct*1440.-HR*60.))
+
+    ndays = int(np.floor(dnmb))-1
+    time0 = timeR+datetime.timedelta(days=ndays, seconds=(HR*3600 + MN*60))
+
+    if show_hr:
+      dstr = time0.strftime('%Y/%m/%d %H:%M')
+    else:
+      dstr = time0.strftime('%Y/%m/%d')
+    
+    return dstr
+
+  if farray:
+    nrec = len(dnmb)
+    DSTR = []
+    for irec in range(nrec):
+      dstr = get_dstr(dnmb[irec])
+      DSTR.append(dstr)
   else:
-    HR = int(np.floor(dfrct*24.))
-    MN = int(np.floor(dfrct*1440.-HR*60.))
+    DSTR = get_dstr(dnmb)
 
-  ndays = int(np.floor(dnmb))-1
-  time0 = timeR+datetime.timedelta(days=ndays, seconds=(HR*3600 + MN*60))
-
-  if show_hr:
-    dstr = time0.strftime('%Y/%m/%d %H:%M')
-  else:
-    dstr = time0.strftime('%Y/%m/%d')
-
-  return dstr
+  return DSTR
 
 
 def dnumb2rdate(dnmb, ihours=True):

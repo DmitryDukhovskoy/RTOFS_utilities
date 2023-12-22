@@ -21,10 +21,10 @@ def ocean_straits():
   STR = {
     "Fram80"  : {
       "nlegs" : 1,
-      "xl1"   : 3379,
-      "xl2"   : 3519,
-      "yl1"   : 3007,
-      "yl2"   : 3007,
+      "xl1"   : [3379],
+      "xl2"   : [3519],
+      "yl1"   : [3007],
+      "yl2"   : [3007],
       "smin"  : 32.5,
       "smax"  : 35.0,
       "tmin"  : -1.5,
@@ -34,10 +34,10 @@ def ocean_straits():
     },
     "Fram79"  : {
       "nlegs" : 1,
-      "xl1"   : 3353,
-      "xl2"   : 3555,
-      "yl1"   : 2965,
-      "yl2"   : 2965,
+      "xl1"   : [3353],
+      "xl2"   : [3555],
+      "yl1"   : [2965],
+      "yl2"   : [2965],
       "smin"  : 32.5,
       "smax"  : 35.0,
       "tmin"  : -1.5,
@@ -47,10 +47,23 @@ def ocean_straits():
     },
     "DavisStr": {
       "nlegs" : 1,
-      "xl1"   : 2903,
-      "xl2"   : 3006,
-      "yl1"   : 2707,
-      "yl2"   : 2707,
+      "xl1"   : [2903],
+      "xl2"   : [3006],
+      "yl1"   : [2707],
+      "yl2"   : [2707],
+      "smin"  : 32.2,
+      "smax"  : 35.0,
+      "tmin"  : -1.5,
+      "tmax"  : 7.5,
+      "umin"  : -0.1,
+      "umax"  : 0.1
+    },
+    "DavisS2" : {
+      "nlegs" : 1,
+      "xl1"   : [2924],
+      "xl2"   : [3004],
+      "yl1"   : [2730],
+      "yl2"   : [2705],
       "smin"  : 32.2,
       "smax"  : 35.0,
       "tmin"  : -1.5,
@@ -64,12 +77,25 @@ def ocean_straits():
       "xl2"   : [2485, 2514],
       "yl1"   : [1779, 1785],
       "yl2"   : [1785, 1785],
-      "smin"  : 34.0,
-      "smax"  : 35.0,
-      "tmin"  : 5.,
-      "tmax"  : 25.,
-      "umin"  : -0.5,
-      "umax"  : 0.5
+      "smin"  : 34.8,
+      "smax"  : 36.7,
+      "tmin"  : 3.,
+      "tmax"  : 28.,
+      "umin"  : -0.8,
+      "umax"  : 0.8
+    },
+    "Yucatan2": {
+      "nlegs" : 1,
+      "xl1"   : [2487],
+      "xl2"   : [2512],
+      "yl1"   : [1778],
+      "yl2"   : [1784],
+      "smin"  : 34.8,
+      "smax"  : 36.7,
+      "tmin"  : 3.,
+      "tmax"  : 28.,
+      "umin"  : -0.8,
+      "umax"  : 0.8
     },
   }
 
@@ -98,9 +124,12 @@ def minmax_clrmap(dmm,pmin=10,pmax=90,cpnt=0.01,fsym=False):
 
 def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[], \
                clrmp=[], btx=[], dcntr=2, lstart=25, zstart=-1000.,\
-               ijsct=[], f_intrf=True):
+               IJs=[], f_intrf=True, shad='flat'):
   """
   Plot vertical section of a scalar field
+  IJs = I and J indices of the segment vertices or all points
+  XX - arrays of along-section coordinates (distances, or lon/lat, ...)
+  shad - shading: flat, gouraud
   """
 
   try: 
@@ -121,7 +150,7 @@ def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[
   plt.clf()
   ax1 = plt.axes([0.1, 0.2, 0.8, 0.7])
   #ax1.plot(XX,Hb)
-  im1 = ax1.pcolormesh(XX, ZZ, A2d, shading='flat', \
+  im1 = ax1.pcolormesh(XX, ZZ, A2d, shading=shad, \
                  cmap=clrmp,\
                  vmin=rmin, \
                  vmax=rmax)
@@ -158,7 +187,7 @@ def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[
 
         if zlr <= zstart:
           cc += 1
-          if cc%dcntr == 0 and dzz > 1.e-18:
+          if cc%dcntr == 0 and dzz > 0.1:
             zm = zlr+0.5*dzz
             txt = '{0}'.format(kk)
             ax1.text(XX[iB],zm,txt,fontsize=10)
@@ -183,15 +212,15 @@ def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[
 # Draw a section on the map:
   xdm = HH.shape[1]
   ydm = HH.shape[0]
-  if ijsct:
-    i1 = ijsct[0]
-    i2 = ijsct[1]
-    j1 = ijsct[2]
-    j2 = ijsct[3]
+  if len(IJs)>0:
+    i1 = np.min(IJs[:,0])
+    i2 = np.max(IJs[:,0])
+    j1 = np.min(IJs[:,1])
+    j2 = np.max(IJs[:,1])
     ax2 = plt.axes([0.74, 0.020, 0.18, 0.18])
     ax2.contour(HH,[0.0],colors=[(0,0,0)],linewidths=1)
-    ax2.plot((i1,i2),(j1,j1),'-',color=[1.,0.4,0])
-    dii = 250
+    ax2.plot(IJs[:,0],IJs[:,1],'-',color=[1.,0.4,0])
+    dii = 100
     ilim1 = max([i1-dii,0])
     ilim2 = min([i2+dii,xdm])
     jlim1 = max([j1-dii,0])
@@ -237,6 +266,78 @@ class FIELD2D():
     self.TM    = np.append(self.TM, dnmb)
     self.Fld2D = np.append(self.Fld2D, A2d, axis=0)
 
+class UTS2D():
+  def __init__(self, dnmb,II,JJ, XX, YY, LSgm, ZZi, Hb, A2d):
+    A2d        = np.expand_dims(A2d, axis=(0))
+    self.TM    = np.array([dnmb])
+    self.Fld2D = A2d
+    self.Iindx = II
+    self.Jindx = JJ
+    self.LON   = XX 
+    self.LAT   = YY
+    self.Lsgm  = LSgm
+    self.Hbtm  = Hb
+    self.ZZi   = ZZi
+
+  def add_array(self, dnmb, A2d):
+    A2d        = np.expand_dims(A2d, axis=0)
+    self.TM    = np.append(self.TM, dnmb)
+    self.Fld2D = np.append(self.Fld2D, A2d, axis=0)
+
+def interp_2Dsect_segmhalf(A2d, ZZi, ZM2d, Hb):
+  """
+  Interpolate 2D section from hybrid to z-fixed levels
+   for half segments
+  """
+  import mod_interp1D as minterp
+
+  nsgm  = A2d.shape[1]
+  nlvls = A2d.shape[0]
+  nintp = ZZi.shape[0]
+  A2di  = np.zeros((nintp, nsgm)) + 1.e30
+  for ihf in range(nsgm):
+    isgm = int(np.floor(ihf/2))
+    hb0 = Hb[isgm]
+    if hb0 >= 0.:
+#      print(f"isgm={isgm} ihf={ihf}")
+      A2di[:,ihf] = np.nan
+      continue
+
+    zz = ZM2d[:,isgm].squeeze().copy()
+    zz = minterp.make_monotonic(zz)
+    aa = A2d[:, ihf].squeeze().copy()
+# To avoid problems with interpolation at the end-points (Gibbs effect
+# for polynom > 1 degree): keep same values below bottom
+# Or use linear interp 
+#    print(f"isgm={isgm} zz={zz} hb0={hb0}")
+    dbtm = abs(zz-hb0)
+#    dbtm = np.diff(zz)
+    izb = min(np.where(dbtm <= 0.01)[0])
+    aa[izb+1:] = aa[izb]
+
+# Add extra point for 0 interp at the surface:
+    zz = np.insert(zz, 0, 5.)
+    aa = np.insert(aa, 0, aa[0])
+
+# Add extra point at the bottom for interp deep z levels:
+    zz = np.insert(zz, -1, zz[-1])
+    zz[-1] = -10000.
+    aa = np.insert(aa, -1, aa[-1])
+#
+
+# Depth levels:
+#    print(f"isgm={isgm}")
+    Aint = np.zeros((nintp))
+    for kk in range(nintp):
+# 2nd degree polynom gives errors near the bottom when profile makes jumps
+# to random bottom values, use 1st degree
+#      aai = minterp.pcws_lagr2(zz, aa, ZZi[kk])
+      aai = minterp.pcws_lagr1(zz, aa, ZZi[kk])
+      Aint[kk] = aai
+      A2di[kk,ihf] = aai
+
+  return A2di
+
 
 def interp_2Dsect(A2d, ZZi, ZM2d, Hb):
   """
@@ -260,9 +361,11 @@ def interp_2Dsect(A2d, ZZi, ZM2d, Hb):
 # To avoid problems with interpolation at the end-points (Gibbs effect
 # for polynom > 1 degree): keep same values below bottom
 # Or use linear interp 
+#    print(f"isgm={isgm} zz={zz} hb0={hb0}")
     dbtm = abs(zz-hb0)
+#    dbtm = np.diff(zz) 
     izb = min(np.where(dbtm <= 0.01)[0])
-    aa[izb:] = aa[izb-1]
+    aa[izb+1:] = aa[izb]
 
 # Add extra point for 0 interp at the surface:
     zz = np.insert(zz, 0, 5.)
@@ -287,3 +390,140 @@ def interp_2Dsect(A2d, ZZi, ZM2d, Hb):
 
   return A2di
 
+def segm_half_zintrf(II, JJ, ZZ2d):
+  nI      = len(II)
+  kdm     = ZZ2d.shape[0]
+  ZZ_hf   = np.zeros((kdm,2*nI))-999.
+  for ik in range(nI):
+# indices for 1st half segment
+    ix1 = ik*2
+    ix2 = ix1+1
+# Interf depths:
+    if ik < nI-1:
+      ZZ_hf[:,ix1] = ZZ2d[:,ik] + 0.25*(ZZ2d[:,ik+1]-ZZ2d[:,ik])      
+      ZZ_hf[:,ix2] = ZZ2d[:,ik] + 0.75*(ZZ2d[:,ik+1]-ZZ2d[:,ik])      
+    else:
+      ZZ_hf[:,ix1] = ZZ2d[:,ik]
+      ZZ_hf[:,ix2] = ZZ2d[:,ik]
+
+  return ZZ_hf
+
+def segm_half_coord(II, JJ, Vnrm1, Vnrm2, hLsgm1, hLsgm2, XX, YY, Hb):
+  """
+    Define coordinates, segment legnths, layer depths for 
+    half segments
+  """
+# Half-segment indices and coordinates for plotting:
+  nI      = len(II)
+  II_hf   = np.zeros((2*nI))-999.
+  JJ_hf   = np.zeros((2*nI))-999.
+  XX_hf   = np.zeros((2*nI))-999.
+  YY_hf   = np.zeros((2*nI))-999.
+  LSgm_hf = np.zeros((2*nI))-999.
+  Hb_hf   = np.zeros((2*nI))-999.
+  for ik in range(nI):
+# indices for 1st half segment
+    ix1 = ik*2
+    ix2 = ix1+1
+    II_hf[ix1] = II[ik] - 0.25*abs(Vnrm1[ik,1]) # 0 if vertical half-segm
+    JJ_hf[ix1] = JJ[ik] - 0.25*abs(Vnrm1[ik,0]) # 0 if horiz half-segm
+    II_hf[ix2] = II[ik] + 0.25*abs(Vnrm2[ik,1]) # 0 if vertical half-segm
+    JJ_hf[ix2] = JJ[ik] + 0.25*abs(Vnrm2[ik,0]) # 0 if horiz half-segm
+
+# lengths:
+    LSgm_hf[ix1] = hLsgm1[ik]
+    LSgm_hf[ix2] = hLsgm2[ik]
+
+# coordinates:
+    if ik > 0:
+      dX1 = XX[ik] - XX[ik-1]
+      dY1 = YY[ik] - YY[ik-1]
+    else:
+      dX1 = 0.
+      dY1 = 0.
+
+    if ik < nI-1:
+      dX2 = XX[ik+1] - XX[ik]
+      dY2 = YY[ik+1] - YY[ik]
+    else:
+      dX2 = 0.
+      dY2 = 0.
+
+    XX_hf[ix1] = XX[ik] - 0.25*dX1
+    XX_hf[ix2] = XX[ik] + 0.25*dX2
+    YY_hf[ix1] = YY[ik] - 0.25*dY1
+    YY_hf[ix2] = YY[ik] + 0.25*dY2
+
+# Bottom:
+    if ik < nI-1:
+      Hb_hf[ix1] = Hb[ik] + 0.25*(Hb[ik+1]-Hb[ik])
+      Hb_hf[ix2] = Hb[ik] + 0.75*(Hb[ik+1]-Hb[ik])
+    else:
+      Hb_hf[ix1] = Hb[ik]
+      Hb_hf[ix2] = Hb[ik]
+
+    if Hb[ik] > 0.:
+      Hb_hf[ix1] = Hb[ik]
+      Hb_hf[ix2] = Hb[ik]
+
+  return II_hf, JJ_hf, XX_hf, YY_hf, Hb_hf, LSgm_hf
+
+def project2X(II, JJ, Fav):
+  """
+  For plotting to avoid discontinuities caused by
+  zigzaging segments of the sections
+  project 2D section on X-axis reducing Y-oriented segments
+  Fill gaps of Y-segments by interpolating between X-segm
+  for smooth plotting
+  """
+  import mod_interp1D as mintrp
+  Favi = Fav.copy()
+  nI   = len(II)
+  dJ   = np.diff(JJ)
+  Irmv = np.where(dJ>0)[0]   
+  nIrmv= len(Irmv)
+  if nIrmv == 0:
+    print('Section is on X axis, no projection needed')
+    return
+
+# Find start-end indices for interpolation into gaps
+  Indx1 = [Irmv[0]]
+  Indx2 = []
+  for ii in range(nIrmv-1):
+# Find next X-segm
+    ir0   = Irmv[ii]
+    irp1  = Irmv[ii+1]
+    dIrmv = irp1 - ir0
+    if dIrmv > 1:
+      Indx2.append(ir0+1) # next index on X-segment
+      Indx1.append(irp1)  # next Y segment
+# Case when Y-segm at the beginning
+      if Indx1[0] == 0:
+        Indx1[0] = irp1
+
+# At the end segment:
+    if ii == nIrmv-2:
+      if irp1 == nI:
+        Indx2.append(Indx2[-1])
+      else:
+        Indx2.append(irp1+1)
+
+# Interpolate into gaps:
+  ngp = len(Indx1)
+  for ii in range(ngp):
+    ix1 = Indx1[ii]
+    ix2 = Indx2[ii]
+    Xp  = np.array([JJ[ix1],JJ[ix2]])
+    Yp  = np.array([Fav[:,ix1], Fav[:,ix2]]).transpose()
+
+    for igp in range(ix1+1,ix2):
+      xx0 = JJ[igp]
+      Ai  = mintrp.lagr_polynom1D(Xp, Yp, xx0)
+      Favi[:,igp] = Ai
+
+  return Favi
+
+
+
+
+  return Irmv

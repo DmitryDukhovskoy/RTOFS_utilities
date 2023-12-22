@@ -34,6 +34,38 @@ def lagr_polynom(Xp,Yp,xx):
 
   return Pn
 
+def lagr_polynom1D(Xp,Yp,xx):
+  """
+  Lagrange polynomial
+  estimate function at xx
+  Given values Yp[N,M] at interpolation nodes Xp[M]
+  find value at xx
+
+  Yp is a 2D array with data at each node in columns, rows - locations
+  e.g., Yp = values at depths along a section with nodes at Xp
+
+  Pn(x) = sum(i to n): y(i)*Li(x)
+  """
+  Np = Xp.shape[0]
+  Nz = Yp.shape[0]
+  Pn = np.zeros((Nz))
+  for ii in range(Np):
+    xi = Xp[ii]
+    mi_x = 1.
+    mi_xi = 1.
+    for jj in range(Np):
+      if jj == ii:
+        continue
+      mi_xi = mi_xi*(xi-Xp[jj])  # mi(xi)
+#     print('jj={0}, xi={1}, Xp={2}, mi_xi={3}'.format(jj,xi,Xp[jj],mi_xi))
+      mi_x = mi_x*(xx-Xp[jj])  # mi(x)
+#     print('xx={0}, mi_x={1}'.format(xx,mi_x))
+
+    Li_x = mi_x/mi_xi
+    Pn = Pn+Yp[:,ii]*Li_x
+
+  return Pn
+
 
 def pcws_lagr1(Xp,Yp,xx):
   """
