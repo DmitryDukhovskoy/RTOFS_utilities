@@ -45,6 +45,19 @@ def ocean_straits():
       "umin"  : -0.1,
       "umax"  : 0.1
     },
+    "Fram79s2": {
+      "nlegs" : 1,
+      "xl1"   : [3355],
+      "xl2"   : [3530],
+      "yl1"   : [2949],
+      "yl2"   : [2989],
+      "smin"  : 32.5,
+      "smax"  : 35.0,
+      "tmin"  : -1.5,
+      "tmax"  : 5.5,
+      "umin"  : -0.1,
+      "umax"  : 0.1
+    },
     "DavisStr": {
       "nlegs" : 1,
       "xl1"   : [2903],
@@ -124,13 +137,18 @@ def minmax_clrmap(dmm,pmin=10,pmax=90,cpnt=0.01,fsym=False):
 
 def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[], \
                clrmp=[], btx=[], dcntr=2, lstart=25, zstart=-1000.,\
-               IJs=[], f_intrf=True, shad='flat'):
+               IJs=[], f_intrf=True, shad='flat', cntr1=[], cntr2=[]):
   """
   Plot vertical section of a scalar field
   IJs = I and J indices of the segment vertices or all points
   XX - arrays of along-section coordinates (distances, or lon/lat, ...)
   shad - shading: flat, gouraud
+  cntr1, cntr2 - plotting contours
   """
+  class nf(float):
+    def __repr__(self):
+      s = f'{self:.2f}'
+      return f'{self:.0f}' if s[-1] == '0' else s
 
   try: 
     dmm = clrmp.colors
@@ -154,6 +172,23 @@ def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[
                  cmap=clrmp,\
                  vmin=rmin, \
                  vmax=rmax)
+  if len(cntr1) > 0:
+    CS1 = ax1.contour(XX, ZZ, A2d, cntr1, colors=[(0.,0.6,0.9)], \
+                linestyles='solid',linewidths=1)
+    # Recast levels to new class
+#    CS1.levels = [nf(val) for val in CS1.levels]
+    fmt='%.2f'
+    ax1.clabel(CS1, CS1.levels, inline=True, fmt=fmt, fontsize=10)
+
+
+  if len(cntr2) > 0:
+    CS2 = ax1.contour(XX, ZZ, A2d, cntr2, colors=[(0.6,0.6,0.6)], \
+                linestyles='solid',linewidths=1)
+    # Recast levels to new class
+#    CS2.levels = [nf(val) for val in CS2.levels]
+    fmt='%.2f'
+    ax1.clabel(CS2, CS2.levels, inline=True, fmt=fmt, fontsize=10)
+
 
   # Patch bottom:
   Bmin = np.floor(np.min(Hb))-100.
@@ -217,7 +252,7 @@ def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[
     i2 = np.max(IJs[:,0])
     j1 = np.min(IJs[:,1])
     j2 = np.max(IJs[:,1])
-    ax2 = plt.axes([0.74, 0.020, 0.18, 0.18])
+    ax2 = plt.axes([0.74, 0.010, 0.18, 0.18])
     ax2.contour(HH,[0.0],colors=[(0,0,0)],linewidths=1)
     ax2.plot(IJs[:,0],IJs[:,1],'-',color=[1.,0.4,0])
     dii = 100
@@ -284,7 +319,7 @@ class UTS2D():
     self.TM    = np.append(self.TM, dnmb)
     self.Fld2D = np.append(self.Fld2D, A2d, axis=0)
 
-def interp_2Dsect_segmhalf(A2d, ZZi, ZM2d, Hb):
+def interp_2Dsect_segmhalf(A2d, ZZi, ZZ2d, ZM2d, Hb):
   """
   Interpolate 2D section from hybrid to z-fixed levels
    for half segments
@@ -303,8 +338,9 @@ def interp_2Dsect_segmhalf(A2d, ZZi, ZM2d, Hb):
       A2di[:,ihf] = np.nan
       continue
 
-    zz = ZM2d[:,isgm].squeeze().copy()
-    zz = minterp.make_monotonic(zz)
+    zz = ZZ2d[:,isgm].squeeze().copy()
+    zm = ZM2d[:,isgm].squeeze().copy()
+    zm = minterp.make_monotonic(zm)
     aa = A2d[:, ihf].squeeze().copy()
 # To avoid problems with interpolation at the end-points (Gibbs effect
 # for polynom > 1 degree): keep same values below bottom
@@ -312,16 +348,23 @@ def interp_2Dsect_segmhalf(A2d, ZZi, ZM2d, Hb):
 #    print(f"isgm={isgm} zz={zz} hb0={hb0}")
     dbtm = abs(zz-hb0)
 #    dbtm = np.diff(zz)
-    izb = min(np.where(dbtm <= 0.01)[0])
-    aa[izb+1:] = aa[izb]
+    try:
+      izb = min(np.where(dbtm <= 0.01)[0]) # interf. depths!
+    except:
+      print(f"interp_2Dsect: couldnt find bottom: isgm={isgm} " +\
+            f"Hbottom={hb0} ZZ={zz[-1]}")
+      raise Exception("Failed locating bottom")
+
+    if izb <= nlvls:
+      aa[izb:] = aa[izb-1]
 
 # Add extra point for 0 interp at the surface:
-    zz = np.insert(zz, 0, 5.)
+    zm = np.insert(zm, 0, 5.)
     aa = np.insert(aa, 0, aa[0])
 
 # Add extra point at the bottom for interp deep z levels:
-    zz = np.insert(zz, -1, zz[-1])
-    zz[-1] = -10000.
+    zm = np.insert(zm, -1, zm[-1])
+    zm[-1] = -10000.
     aa = np.insert(aa, -1, aa[-1])
 #
 
@@ -331,8 +374,8 @@ def interp_2Dsect_segmhalf(A2d, ZZi, ZM2d, Hb):
     for kk in range(nintp):
 # 2nd degree polynom gives errors near the bottom when profile makes jumps
 # to random bottom values, use 1st degree
-#      aai = minterp.pcws_lagr2(zz, aa, ZZi[kk])
-      aai = minterp.pcws_lagr1(zz, aa, ZZi[kk])
+#      aai = minterp.pcws_lagr2(zm, aa, ZZi[kk])
+      aai = minterp.pcws_lagr1(zm, aa, ZZi[kk])
       Aint[kk] = aai
       A2di[kk,ihf] = aai
 
@@ -468,7 +511,7 @@ def segm_half_coord(II, JJ, Vnrm1, Vnrm2, hLsgm1, hLsgm2, XX, YY, Hb):
 
   return II_hf, JJ_hf, XX_hf, YY_hf, Hb_hf, LSgm_hf
 
-def project2X(II, JJ, Fav):
+def project2X(II0, JJ0, Fav):
   """
   For plotting to avoid discontinuities caused by
   zigzaging segments of the sections
@@ -476,54 +519,151 @@ def project2X(II, JJ, Fav):
   Fill gaps of Y-segments by interpolating between X-segm
   for smooth plotting
   """
+# Find start-end indices for interpolation into gaps
+# Want to eliminate Y-oriented segments that cause discontinuities
+# in the U fields (here: nodes 2, 3, 4, as they have u-components
+# normal to the section or part of the grid cell at the corners)
+# interpolate 1 point before and after the zigzag point
+#            4         5 
+#            *---------*-------
+#            |
+#            |
+#            * 3
+#            |
+#            |
+# --*--------*  
+#   1        2
+#
+#  Interpolate (1) - (5) to nodes (2,3,4)
+#
   import mod_interp1D as mintrp
   Favi = Fav.copy()
-  nI   = len(II)
-  dJ   = np.diff(JJ)
-  Irmv = np.where(dJ>0)[0]   
+  nI   = len(II0)
+  dJ   = np.diff(JJ0)
+  dI   = np.diff(II0)
+  ndj  = len(dJ)
+  Irmv = np.where( (dJ>0) & (dI==0.) )[0]   
   nIrmv= len(Irmv)
   if nIrmv == 0:
     print('Section is on X axis, no projection needed')
-    return
+    return Favi
 
-# Find start-end indices for interpolation into gaps
-  Indx1 = [Irmv[0]]
-  Indx2 = []
-  for ii in range(nIrmv-1):
-# Find next X-segm
-    ir0   = Irmv[ii]
-    irp1  = Irmv[ii+1]
-    dIrmv = irp1 - ir0
-    if dIrmv > 1:
-      Indx2.append(ir0+1) # next index on X-segment
-      Indx1.append(irp1)  # next Y segment
+  Indx1   = []
+  Indx2   = []
+  f_gap = False
+  for irr in range(nIrmv):
+    ir1 = Irmv[irr]
+    if ~f_gap:
+      Indx1.append(ir1-1)
+      f_gap = True
+    
+    if irr == nIrmv-1:  # last Y segm
+      Indx2.append(ir1+2)
+      f_gap = False
+    else:
+      ir2 = Irmv[irr+1]
+      if (ir2-ir1) > 1:  # not the same Y-segment
+        Indx2.append(ir1+2)
+        f_gap = False      
+
 # Case when Y-segm at the beginning
-      if Indx1[0] == 0:
-        Indx1[0] = irp1
+# Interpolate from next X-segment
+  if Indx1[0] < 0: Indx1[0] = Indx2[0]
 
-# At the end segment:
-    if ii == nIrmv-2:
-      if irp1 == nI:
-        Indx2.append(Indx2[-1])
-      else:
-        Indx2.append(irp1+1)
+# Now check the last Y-segment - if Y segm is the last
+# interpolate from the previous X-segment
+  if Indx2[-1] > nI:
+    Indx2[-1] = Indx1[-1]
 
 # Interpolate into gaps:
   ngp = len(Indx1)
   for ii in range(ngp):
     ix1 = Indx1[ii]
     ix2 = Indx2[ii]
-    Xp  = np.array([JJ[ix1],JJ[ix2]])
+    Xp  = np.array([JJ0[ix1],JJ0[ix2]])
     Yp  = np.array([Fav[:,ix1], Fav[:,ix2]]).transpose()
 
     for igp in range(ix1+1,ix2):
-      xx0 = JJ[igp]
+      xx0 = JJ0[igp]
       Ai  = mintrp.lagr_polynom1D(Xp, Yp, xx0)
       Favi[:,igp] = Ai
 
   return Favi
 
+def runmn1D(AA, npnts=3, axis=0):
+  """
+    Running mean along axis = 0 - by rows along X axis, 
+    = 1 - by columns along Y axis
+ 
+    assumed equidistant nodes
+    averaging is over npnts nodes, if npnts is even +1 to make odd
+
+    AA is 2D array
+  """
+  if axis == 1:
+    AA = AA.transpose()
+
+  idm = AA.shape[1]
+  jdm = AA.shape[0]
+
+  if npnts%2 == 0:
+    print(f"Specified # points for averaging even {npnts} ---> {npnts+1}")
+    npnts = npnts+1
+
+  dii = int((npnts-1)/2)
+
+  Aav = AA.copy()
+  for jj in range(jdm):
+    dmm = AA[jj,:]
+ 
+    for ii in range(idm):
+      i1 = ii-dii
+      i2 = ii+dii
+      i1 = max([i1,0])
+      i2 = min([i2,idm])
+ 
+      Aav[jj,ii] = np.nanmean(dmm[i1:i2+1])
+
+  if axis == 1:
+    Aav = Aav.transpose()
+
+  return Aav
+
+def box_fltr(AA, npnts=3):
+  """
+    Running box-fltr 
+    Nans are ignored
+ 
+    assumed equidistant nodes
+    averaging is over (npnts x npnts), if npnts is even +1 to make odd
+
+    AA is 2D array
+  """
+  idm = AA.shape[1]
+  jdm = AA.shape[0]
+
+  if npnts%2 == 0:
+    print(f"Specified # points for averaging even {npnts} ---> {npnts+1}")
+    npnts = npnts+1
+
+  dii = int((npnts-1)/2)
+
+  Aav = AA.copy()
+  for jj in range(jdm):
+    for ii in range(idm):
+      i1 = ii-dii
+      i2 = ii+dii
+      i1 = max([i1,0])
+      i2 = min([i2,idm])
+ 
+      j1 = jj-dii
+      j2 = jj+dii
+      j1 = max([j1,0])
+      j2 = min([j2,jdm])
+
+      Aav[jj,ii] = np.nanmean(AA[j1:j2+1,i1:i2+1])
+
+  return Aav
 
 
 
-  return Irmv

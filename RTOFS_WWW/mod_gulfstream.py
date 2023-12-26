@@ -16,6 +16,7 @@ def derive_contour(AA, tz0=12., xFS=2565, yFS=1809):
     AA is T field with regions that are outside the 
    study region being masked out
    index space - for 0.08 global RTOFS tripolar grid 4500 x 3298 
+   xFS, yFS - control point in Florida Straits
   """
 
 #  plt.ion()
@@ -52,13 +53,18 @@ def derive_contour(AA, tz0=12., xFS=2565, yFS=1809):
 
   for ii in range(nC):
     if ii == 0:
-      x0 = xFS
-      y0 = yFS
+      x0   = xFS
+      y0   = yFS
+      dltD = 100.
     else:
-      x0 = TCNT[-1,0]
-      y0 = TCNT[-1,1]
+      x0   = TCNT[-1,0]
+      y0   = TCNT[-1,1]
+      dltD = 10.
 
-    xsgm, ysgm, imin, jmin = arange_1segm(CNTR,x0,y0)  
+    xsgm, ysgm, imin, jmin = arange_1segm(CNTR,x0,y0, dltD=dltD)  
+
+    if len(xsgm) == 0:
+      continue
 
 # Remove selected segment:
     CNTR.pop(imin)
@@ -115,12 +121,13 @@ def adjust_rtofs_gsnw(Ir, Jr, In, Jn, nskip=0):
 
   return Irr, Jrr
 
-def arange_1segm(CNTR,x0,y0):
+def arange_1segm(CNTR, x0, y0, dltD=50.):
   """
     Find segment closest to x0, y0 
     arange the orientation of the segment
     so that it starts from the pnt closest to x0, y0
     CNTR - list with segments X,Y as np arrays
+    Ignore contours that are > dltD points from the previous segment
   """
   nC  = len(CNTR)
   DFS = np.zeros((nC,2))*np.nan
@@ -144,6 +151,13 @@ def arange_1segm(CNTR,x0,y0):
   if jmin == 1:
     xsgm = np.flip(xsgm)
     ysgm = np.flip(ysgm)
+
+# Disconnected segment - ignore:
+  if np.min(DFS > dltD):
+    xsgm = []
+    ysgm = []
+    imin = []
+    jmin = []
 
   return xsgm, ysgm, imin, jmin
 

@@ -16,6 +16,7 @@ def derive_contour(AA, tz0=12., xFS=2565, yFS=1809):
     AA is T field with regions that are outside the 
    study region being masked out
    index space - for 0.08 global RTOFS tripolar grid 4500 x 3298 
+   xFS, yFS - control point in Florida Straits
   """
 
 #  plt.ion()
@@ -52,13 +53,18 @@ def derive_contour(AA, tz0=12., xFS=2565, yFS=1809):
 
   for ii in range(nC):
     if ii == 0:
-      x0 = xFS
-      y0 = yFS
+      x0   = xFS
+      y0   = yFS
+      dltD = 100.
     else:
-      x0 = TCNT[-1,0]
-      y0 = TCNT[-1,1]
+      x0   = TCNT[-1,0]
+      y0   = TCNT[-1,1]
+      dltD = 10.
 
-    xsgm, ysgm, imin, jmin = arange_1segm(CNTR,x0,y0)  
+    xsgm, ysgm, imin, jmin = arange_1segm(CNTR,x0,y0, dltD=dltD)  
+
+    if len(xsgm) == 0:
+      continue
 
 # Remove selected segment:
     CNTR.pop(imin)
@@ -115,12 +121,13 @@ def adjust_rtofs_gsnw(Ir, Jr, In, Jn, nskip=0):
 
   return Irr, Jrr
 
-def arange_1segm(CNTR,x0,y0):
+def arange_1segm(CNTR, x0, y0, dltD=50.):
   """
     Find segment closest to x0, y0 
     arange the orientation of the segment
     so that it starts from the pnt closest to x0, y0
     CNTR - list with segments X,Y as np arrays
+    Ignore contours that are > dltD points from the previous segment
   """
   nC  = len(CNTR)
   DFS = np.zeros((nC,2))*np.nan
@@ -144,6 +151,13 @@ def arange_1segm(CNTR,x0,y0):
   if jmin == 1:
     xsgm = np.flip(xsgm)
     ysgm = np.flip(ysgm)
+
+# Disconnected segment - ignore:
+  if np.min(DFS > dltD):
+    xsgm = []
+    ysgm = []
+    imin = []
+    jmin = []
 
   return xsgm, ysgm, imin, jmin
 
@@ -181,7 +195,8 @@ def read_navogs(rdate, pthnavo, missing=1):
     From Gwen:
     On Hera, you can find the NAVO Gulf Stream north wall data 
     files at 
-    /scratch2/NCEPDEV/ovp/Lichuan.Chen/DCOM/$YYYYMMDD/wtxtbul.  
+    ##/scratch2/NCEPDEV/ovp/Lichuan.Chen/DCOM/$YYYYMMDD/wtxtbul.  
+    /scratch2/NCEPDEV/ovp/Samira.Ardani/DCOM
     We use the gs*.sub to generate the plots at 
     https://polar.ncep.noaa.gov/global/fronts/.  
     You can also find the data files on WCOSS2.  
@@ -232,12 +247,8 @@ def read_navogs(rdate, pthnavo, missing=1):
         break
 
   if not gsFound:
-    print('NAVO gs*.sub file not found for {1} +/- {0}'.format(missing,rdnavo))
-    XNW = []
-    YNW = []
-    fcstnmb = -999. 
-    return XNW, YNW, fcstnmb
-#    raise Exception(" NAVO not found, try increase missing search range")
+    print('NAVO gs*.sub file not found for {1} +/- {0}'.format(missing,rdanvo0))
+    raise Exception(" NAVO not found, try increase missing search range")
       
   fid = open(fpnavo,'r')
   fpos = fid.tell()
@@ -299,153 +310,4 @@ def read_navogs(rdate, pthnavo, missing=1):
 
   return XNW, YNW, fcstnmb
     
-def plot_gulfstr(TCNT, A3d, INW_navo, JNW_navo, LON, LAT, \
-                 INW_rtofs, JNW_rtofs, sinfo='', btx='', ssinf=''):
-  """
-    Plot Gulf Stream map
-    for checking front
-  """
-  print('=======   Start Plotting   =========')
-  from matplotlib import cm
-  import mod_rtofs as mrtofs
-  import mod_time as mtime
-  import mod_utils_fig as mufig
-
-  #clrs   = cm.get_cmap('viridis',200)
-  clrs   = cm.get_cmap('rainbow',200)
-  clrs.set_bad(color=[0.3,0.3,0.3])
-  #  clrs.set_under(color=[0.8,0.8,0.8])
-  #  clrs.set_under(color=[0.8,0.7,1])
-
-  plt.ion()
-    
-  rmin = 0.
-  rmax = 28.
-  tz0  = 12.0
-    
-  Xt = TCNT[:,0]
-  Yt = TCNT[:,1]
-
-  fig1 = plt.figure(1,figsize=(9,9))
-  plt.clf()
-
-  ax1 = plt.axes([0.1, 0.2, 0.7, 0.7])
-
-  Tplt = np.squeeze(A3d[0,:,:])
-  im1 = ax1.pcolormesh(Tplt, shading='flat', \
-                 cmap=clrs,\
-                 vmin=rmin, \
-                 vmax=rmax)
-  #  im1.set_clim(rmin,rmax)
-  #  ax1.contour(HH, [0.0], colors=[(0,0,0)], linewidths=1)
-  #  ax1.contour(T12, [tz0], colors=[(0.,0.4,0.6)], linewidths=1)
-  clr_rtofs = [0,0.8,1]
-  clr_navo  = [0,0,0]
-
-  # Plot Gulf Stream front:
-  ln1, = ax1.plot(Xt,Yt,'-',color=clr_rtofs, label="RTOFS")
-  # NAVO Gulf Stream North Wall:
-  ln2, = ax1.plot(INW_navo, JNW_navo,'-',color=clr_navo, label="NAVO")
-
-  lons = np.linspace(-180,180,73)
-  lats = np.linspace(-90,90,37)
-  ax1.contour(LON, lons, linestyles='dotted', colors=[(0.8,0.8,0.8)])
-  ax1.contour(LAT, lats, linestyles='dotted', colors=[(0.8,0.8,0.8)])
-
-# Plot RTOFS front used for MHD:
-  ax1.plot(INW_rtofs,JNW_rtofs,'-', color=[0,0,1])
-  #
-  xlim1 = 2520
-  xlim2 = 3020
-  ylim1 = 1760
-  ylim2 = 2250 
-  #  ax1.axis('equal')
-  ax1.axis('scaled')
-  ax1.set_xlim([xlim1,xlim2])
-  ax1.set_ylim([ylim1,ylim2])
-  ax1.set_xticklabels([])
-  ax1.set_yticklabels([])
-  ax1.set_xticks([])
-  ax1.set_yticks([])
-
-  # Actual limits:
-  Ylim = ax1.get_ylim()
-  Xlim = ax1.get_xlim()
-  Yl1  = int(Ylim[0])
-  Yl2  = int(Ylim[1])
-  Xl1  = int(Xlim[0])
-  Xl2  = int(Xlim[1])
-  # Put lon/lats on axis:
-  lon1 = LON[Yl1,Xl1]
-  lon2 = LON[Yl2,Xl2]
-  lat1 = LAT[Yl1,Xl1]
-  lat2 = LAT[Yl2,Xl2]
-
-  iLN1 = np.min(np.where(lons>=lon1)[0])
-  iLN2 = np.max(np.where(lons<=lon2)[0])
-  iLT1 = np.min(np.where(lats>=lat1)[0])
-  iLT2 = np.max(np.where(lats<=lat2)[0])
-  dltx = 1
-  dlty = 1
-  if iLN2-iLN1 >= 8:
-    dltx = 2
-  if iLT2-iLT1 >= 8:
-    dlty = 2
-
-  # X-axis labels
-  for ikk in range(iLN1,iLN2+1,dltx):
-    xx0 = lons[ikk]
-    yy0 = lat1   # for Mercator part of the grid, lat = const along j=fixed
-    ii0, jj0 = mrtofs.find_indx_lonlat(xx0, yy0, LON, LAT)
-    jj0 = Yl1-20
-    xstl = '{0:3.1f}W'.format(abs(xx0))
-    ax1.text(ii0, jj0, xstl,
-             fontsize=12,
-             horizontalalignment='center')
-
-  # Y-axis labels
-  for ikk in range(iLT1,iLT2+1,dlty):
-    yy0 = lats[ikk]
-    xx0 = lon1
-    ii0, jj0 = mrtofs.find_indx_lonlat(xx0, yy0, LON, LAT)
-    ii0 = Xl1-10
-    ystl = '{0:3.1f}N'.format(abs(yy0))
-    if jj0 > Yl2:
-      continue
-    ax1.text(ii0, jj0, ystl,
-             fontsize=12,
-             verticalalignment='center',
-             horizontalalignment='right')
-
-  ax1.set_title(sinfo)
-
-  ax1.set_xlim(Xlim)
-  ax1.set_ylim(Ylim)
-
-  # Select coordinate of the region of interest:
-  #f_setrgn = False
-  #if f_setrgn:
-  ## Bind the button_press_event with the onclick() method
-  #  fig1.canvas.mpl_connect('button_press_event', onclick)
-
-  ax2 = fig1.add_axes([ax1.get_position().x1+0.02,
-               ax1.get_position().y0,0.02,
-               ax1.get_position().height])
-  clb = plt.colorbar(im1, cax=ax2, extend='both')
-  ax2.set_yticklabels(ax2.get_yticks())
-  ticklabs = clb.ax.get_yticklabels()
-  clb.ax.set_yticklabels(ticklabs,fontsize=10)
-  clb.ax.tick_params(direction='in', length=12)
-
-  # Legend:
-  if len(ssinf) > 0:
-    ax5 = plt.axes([0.7, 0.03, 0.2, 0.13])
-    lgd = plt.legend(handles=[ln1,ln2], loc='upper left')
-    ax5.text(0,0.01,ssinf)
-    ax5.axis('off')
-
-  if len(btx) > 0:
-    mufig.bottom_text(btx, pos=[0.1, 0.03])
-
-
 

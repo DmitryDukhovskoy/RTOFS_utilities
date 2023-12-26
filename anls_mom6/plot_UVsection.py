@@ -33,9 +33,9 @@ importlib.reload(mom6vld)
 expt  = '003'
 hg    = 1.e15
 #sctnm = 'Fram79'
-sctnm = 'DavisStr'
+sctnm = 'DavisS2'
+#sctnm = 'Yucatan2'  # slented section
 fld2d = 'Unrm'
-sctnm = 'Yucatan2'  # slented section
 
 #fld2d = 'salt'
 #fld2d = 'potT'
@@ -62,20 +62,18 @@ with open(ffout, 'rb') as fid:
 # 2D fields are at half-grid points
 TM   = F2D.TM
 Unrm = F2D.Fld2D  # 2D Flow: Time x depth x Width
-II   = F2D.Iindx
-JJ   = F2D.Jindx
+IIhf   = F2D.Iindx
+JJhf   = F2D.Jindx
 XX   = F2D.LON
 YY   = F2D.LAT
 Lsgm = F2D.Lsgm
-Hbtm = F2D.Hbtm
+Hbhf = F2D.Hbtm
 ZZi  = F2D.ZZi
-# Dpeht-integrated: full grid
+# Depth-integrated: full grid
 VFlx = UFLX.trnsp*1e-6  # 1D depth-integrated flow, Sv
-Hb1  = UFLX.Hbtm
-
-
+Hbtm = UFLX.Hbtm
 Xdst = np.cumsum(Lsgm)
-Xdst = np.insert(Xdst,0,0)
+#Xdst = np.insert(Xdst,0,0)
 #mtime.datestr(TM)
 
 KN,JN,IN = np.where(np.isnan(Unrm))
@@ -90,7 +88,29 @@ ftopo_mom = pthgrid + 'ocean_topog.nc'
 
 import mod_misc1 as mmisc
 import mod_mom6 as mom6util
-HH  = mom6util.read_mom6depth(ftopo_mom)
+STR = mom6vld.ocean_straits()
+nlegs = STR[sctnm]["nlegs"]
+I1    = STR[sctnm]["xl1"]
+I2    = STR[sctnm]["xl2"]
+J1    = STR[sctnm]["yl1"]
+J2    = STR[sctnm]["yl2"]
+Ni    = np.zeros((nlegs))
+Nj    = np.zeros((nlegs))
+IJ    = np.zeros((nlegs+1,2))
+for kk in range(nlegs):
+  Ni[kk]     = I2[kk]+1
+  Nj[kk]     = J2[kk]+1
+  IJ[kk,0]   = I1[kk]
+  IJ[kk,1]   = J1[kk]
+  IJ[kk+1,0] = I2[kk]
+  IJ[kk+1,1] = J2[kk]
+
+HH        = mom6util.read_mom6depth(ftopo_mom)
+LON, LAT  = mom6util.read_mom6grid(fgrd_mom, grdpnt='hpnt')
+DX, DY    = mom6util.dx_dy(LON,LAT)
+SGMT      = mmisc.define_segments(IJ, DX, DY, curve_ornt='positive')
+II        = SGMT.I_indx
+JJ        = SGMT.J_indx
 
 # Time-mean section:
 Fav = np.nanmean(Unrm, axis=0).squeeze()
@@ -101,13 +121,16 @@ Fav[JN,IN] = 0.0
 # Interpolate over the gaps for smooth picture
 f_proj = 'X' 
 if f_proj == 'X' or f_proj == 'x':
-  Favi = mom6vld.project2X(II,JJ,Fav)
+  print("Projecting Unrm on X-axis for plotting")
+  Favi = mom6vld.project2X(IIhf,JJhf,Fav)
 elif f_proj == 'Y' or f_proj == 'y':
-  Favi = mom6vld.project2Y(II,JJ,Fav)
+  Favi = mom6vld.project2Y(IIhf,JJhf,Fav)
+else:
+  Favi = Fav.copy()
 
 # Truncate 2D field to bottom depth
 # to mask out filled land values 
-#Favi = mom6util.fill_bottom(Favi, ZZi, Hbtm)
+#Favi = mom6util.fill_bottom(Favi, ZZi, Hbhf)
 
 STR = mom6vld.ocean_straits()
 nlegs = STR[sctnm]["nlegs"]
@@ -157,22 +180,33 @@ DD2 = dv2[2]
 stl = f"0.08 MOM6-CICE6-{expt} {sctnm}, {fld2d}  Mean: " + \
       f"{YR1}/{MM1:02d}/{DD1:02d}-{YR2}/{MM2:02d}/{DD2:02d}"
 
-ni = len(II)
-#XI = np.arange(0, ni, 1, dtype=int)
-XI = np.cumsum(Lsgm)*1.e-3 # distance along section, km
-mom6vld.plot_xsect(XI, Hbtm, ZZi, Favi, HH, stl=stl,\
-                   rmin = rmin, rmax = rmax, clrmp=cmpr,\
-                   IJs=IJ, btx=btx)
+# For plotting - smooth 2D field:
+Favi = mom6vld.box_fltr(Favi, npnts=3)
 
+# Contour:
+cntr1=[-0.2,-0.15,-0.1,-0.05]
+cntr2=[0,0.25,0.5,0.75,1.,1.25,1.5,1.75]
+
+ni = len(IIhf)
+#XI = np.arange(0, ni, 1, dtype=int)
+XI = (np.cumsum(Lsgm) - Lsgm[0])*1.e-3# distance along section, km
+mom6vld.plot_xsect(XI, Hbhf, ZZi, Favi, HH, stl=stl,\
+                   rmin = rmin, rmax = rmax, clrmp=cmpr,\
+                   IJs=IJ, btx=btx, cntr1=cntr1, cntr2=cntr2)
 
 # Plot depth-integrated transport
 Tday = TM-TM[0]
 
-# Mean flux:
+# Mean flux for plotting:
+# Interpolate over zigzagging segments
+# and smooth for plotting
+VFlxi = mom6vld.project2X(II,JJ,VFlx) 
+VFlxi = mom6vld.runmn1D(VFlxi, axis=0)
+
 alf  = 10.
-mVF  = np.nanmean(VFlx, axis=0)
-pL   = np.percentile(VFlx, alf, axis=0)
-pU   = np.percentile(VFlx, (100.-alf), axis=0)
+mVF  = np.nanmean(VFlxi, axis=0)
+pL   = np.percentile(VFlxi, alf, axis=0)
+pU   = np.percentile(VFlxi, (100.-alf), axis=0)
 #
 # Total transport:
 VFtot = np.nansum(VFlx, axis=1)
@@ -194,8 +228,8 @@ for ii in range(nnI):
 #
 
 #XXI = np.arange(0,nnI,1)
-#XXI = np.cumsum(Lsgm1)*1.e-3 # distance along section, km
-XXI = Lon1
+XXI = (np.cumsum(Lsgm1)-Lsgm1[0])*1.e-3 # distance along section, km
+#XXI = Lon1
 
 plt.ion()
 fig2 = plt.figure(2,figsize=(9,8))
@@ -209,7 +243,7 @@ xl1 = np.min(XXI)
 xl2 = np.max(XXI)
 
 ax1.set_xlim([xl1, xl2])
-ax1.set_xticks(np.arange(np.floor(xl1),np.ceil(xl2),2.))
+ax1.set_xticks(np.linspace(np.floor(xl1),np.ceil(xl2),10))
 ax1.grid(True)
 
 ctl = ('0.08 MOM6-CICE6-{0} {1}, depth.intgr. VFlux (Sv),  \n'.format(expt, sctnm)\
@@ -218,8 +252,8 @@ ctl = ('0.08 MOM6-CICE6-{0} {1}, depth.intgr. VFlux (Sv),  \n'.format(expt, sctn
 ax1.set_title(ctl)
 
 # Plot bottom:
-verts = [(xl1-1.,-8000),(xl1-1., Hbtm1[0]),*zip(XXI,Hbtm1),\
-         (xl2+1.,Hbtm1[-1]),(xl2+1.,-8000)]
+verts = [(xl1-1.,-8000),(xl1-1., Hbtm[0]),*zip(XXI,Hbtm),\
+         (xl2+1.,Hbtm[-1]),(xl2+1.,-8000)]
 poly = Polygon(verts, facecolor='0.', edgecolor='none')
 
 ax2 = plt.axes([0.1, 0.36, 0.8, 0.1])
@@ -227,9 +261,10 @@ ax2.cla()
 #ax2.plot(XX, Hbtm)
 ax2.add_patch(poly)
 ax2.set_xlim([xl1, xl2])
-ax2.set_yticks(np.arange(-5000.,0.,1000.))
+ax2.set_yticks(np.arange(-5000.,0.,500.))
 ax2.set_ylim([np.floor(np.min(Hbtm)), 0])
-ax2.set_xticks(np.arange(np.floor(xl1),np.ceil(xl2),2.))
+#ax2.set_xticks(np.arange(np.floor(xl1),np.ceil(xl2),2.))
+ax2.set_xticks(np.linspace(np.floor(xl1),np.ceil(xl2),10))
 ax2.grid(True)
 
 ax3 = plt.axes([0.1, 0.1, 0.6, 0.2])
@@ -242,7 +277,7 @@ ax3.set_xlabel('Days, {0}'.format(dv1[0]))
 
 ax4 = plt.axes([0.72, 0.15, 0.15, 0.2])
 sinfo = 'mean Flux = {0:7.2f} Sv\n'.format(mnVF)
-sinfo = sinfo + 'sgm = {0:6.3f} Sv'.format(stdVF)
+sinfo = sinfo + 'StDev = {0:6.3f} Sv'.format(stdVF)
 ax4.text(0., 0., sinfo)
 ax4.axis('off')
 

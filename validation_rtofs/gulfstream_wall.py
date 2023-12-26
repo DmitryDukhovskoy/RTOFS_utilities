@@ -48,8 +48,9 @@ importlib.reload(mtime)
 # Interpolation depth
 z0 = -400.
 
-expt    = 'paraD5'
-rdate0  = '20230513'
+#expt    = 'paraD5'
+expt    = 'product'
+rdate0  = '20231215'
 sfx     = 'n-24'
 
 # Figure output directory:
@@ -57,7 +58,8 @@ f_figsave = False
 f_intract = True  # False - no figures shown
 pthfig  = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/' + expt + '/fig/'
 #pthscr  = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/'
-pthscr  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data/{0}/'.format(expt) 
+#pthscr  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data/{0}/'.format(expt) 
+pthscr  = f'/scratch2/NCEPDEV/marine/Zulema.Garraffo/rtofs/hycom/'
 pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
 
 if not f_intract:

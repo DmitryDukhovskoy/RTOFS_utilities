@@ -41,7 +41,9 @@ f_cont = False     # load saved and start from last saved
 #sctnm = 'Fram79'
 #sctnm = 'DavisStr'
 #sctnm = 'Yucatan'  # 2-leg right angle section
-sctnm = 'Yucatan2'  # slented section
+#sctnm = 'Yucatan2'  # slented section
+#sctnm = 'DavisS2'
+sctnm = 'Fram79s2'
 fld2d = 'Unrm'
 dday  = 5       # time stepping for data processing/analysis
 dnmb1 = mtime.datenum([2021,1,1])
@@ -61,6 +63,8 @@ pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/' + \
 floutp = f"mom6-{expt}_{fld2d}VFlx_{dv1[0]}" + \
          f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
 ffout = pthoutp + floutp
+
+print(f"Extracting {fld2d} {sctnm} ")
 
 STR = mom6vld.ocean_straits()
 nlegs = STR[sctnm]["nlegs"]
@@ -270,7 +274,7 @@ for irec in range(nrec):
     UV2d[:,ix2] = UV2[:,ik]
  
 # Interpolate:
-  UV2di = mom6vld.interp_2Dsect_segmhalf(UV2d, ZZi, ZM2d, Hb)
+  UV2di = mom6vld.interp_2Dsect_segmhalf(UV2d, ZZi, ZZ2d, ZM2d, Hb)
 
   # 
   # Plot section
