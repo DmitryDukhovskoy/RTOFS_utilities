@@ -341,7 +341,7 @@ def vol_transp_2Dsection(LSgm, ZZ, UV):
 def fill_bottom(A2d, ZZ, Hbtm, fill_land=True):
   """
     Fill bottom values for plotting
-    ZZ - mid-layer depths 1D or 2D
+    ZZ - layer interface depths 1D or 2D
     fill_land - fill land or not with closest values
   """
   A2df = A2d.copy()
@@ -372,8 +372,39 @@ def fill_bottom(A2d, ZZ, Hbtm, fill_land=True):
       z0 = ZZ[:,ii]
 
     dZb = ZZ-hb0
-    izb = min(np.where(dZb <= 0.)[0])
+    izb = min(np.where(dZb <= 1.e-3)[0])
     A2df[izb:,ii] = A2d[izb-1,ii]
     
   return A2df
+
+def bottom2nan(A2d, ZZ, Hbtm):
+  """
+    Fill bottom/land values with nans for plotting
+    ZZ - layer interface depths 1D or 2D
+  """
+  A2df = A2d.copy()
+  
+  if len(ZZ.shape) == 2:
+    f2d = True
+  else:
+    f2d = False
+    z0 = ZZ
+
+  kdm = A2d.shape[0]
+  idm = A2d.shape[1]
+
+  for ii in range(idm):
+    hb0 = Hbtm[ii]
+    if hb0 >= 0.:
+     A2df[:,ii] = np.nan
+
+    if f2d:
+      z0 = ZZ[:,ii]
+
+    dZb = ZZ-hb0
+    izb = min(np.where(dZb <= 1.e-3)[0])
+    A2df[izb:,ii] = np.nan
+    
+  return A2df
+
 

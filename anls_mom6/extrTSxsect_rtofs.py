@@ -3,6 +3,7 @@
   comprised of several connected segments
   Slanted sections are allowed
 
+  RTOFS
 """
 import os
 import numpy as np
@@ -25,6 +26,7 @@ sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/draw_map')
 sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython')
 sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/mom6_utils')
 
+import mod_read_hycom as mhycom
 import mod_time as mtime
 from mod_utils_fig import bottom_text
 
@@ -33,7 +35,6 @@ importlib.reload(mom6vld)
 
 # Check orientation of the line/norms 
 # curve_ornt
-f_cont = True     # load saved and start from last saved
 #sctnm = 'DavisS2'
 #sctnm = 'Yucatan'  # 2-leg right angle section
 #sctnm = 'Yucatan2'  # slented section
@@ -49,34 +50,51 @@ f_cont = True     # load saved and start from last saved
 #======= Ocean Sections =====
 #sctnm = 'BaffNAFram'
 sctnm = 'AlaskaIcld' 
- 
+
+f_save    = True
+f_cont    = False     # load saved and start from last saved
 f_chcksgm = False  # plot section with all segments and norms
 f_plt     = False # Plot sections on MOM grid and interpolated to Z
 
 #fld2d = 'salt'
 fld2d = 'potT'
-dday  = 5       # time stepping for data processing/analysis
-dnmb1 = mtime.datenum([2021,1,1])
-dnmb2 = mtime.datenum([2021,12,31])
+dday  = 7       # time stepping for data processing/analysis
+
+expt  = 'product'
+sfx   = 'n-24'
+YR1   = 2023
+hg    = 1.e15
+huge  = 1.e15
+rg    = 9806.
+
+dnmb1 = mtime.datenum([YR1,1,2])
+dnmb2 = mtime.datenum([YR1,12,31])
 dv1   = mtime.datevec(dnmb1)
 dv2   = mtime.datevec(dnmb2)
 ds1   = mtime.datestr(dnmb1)
 ds2   = mtime.datestr(dnmb2)
 
-expt  = '003'
-hg    = 1.e15
+# HYCOM notations:
+fld = fld2d
+if fld2d == 'salt':
+  fld = 'salin'
+elif fld2d == 'potT':
+  fld = 'temp'
 
-print(f"\nExtracting {sctnm} {fld2d} MOM6-{expt} {ds1}-{ds2}\n") 
+print(f"\nExtracting {sctnm} {fld} RTOFS-{expt} {ds1}-{ds2}\n") 
 
-pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
-         '008mom6cice6_' + expt + '/'
-pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/' + \
-          'MOM6_CICE6/expt{0}/'.format(expt)
-#floutp = 'mom6-{4}_u2dsect_{0}{1:02d}-{2}{3:02d}_{5}.pkl'.\
-#         format(dv1[0], dv1[1], dv2[0], dv2[1], expt, sctnm)
-floutp = f"mom6-{expt}_{fld2d}VFlx_{dv1[0]}" + \
-         f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
-ffout = pthoutp + floutp
+pthrun  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/wcoss2.prod/'
+pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/RTOFS_production/'
+floutp  = f"rtofs-{expt}_{fld}xsct_{dv1[0]}" + \
+          f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
+ffout   = pthoutp + floutp
+
+pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
+ftopo = 'regional.depth'
+fgrid = 'regional.grid'
+LON, LAT, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
+idm = HH.shape[1]
+jdm = HH.shape[0]
 
 # Either strait or ocean section:
 STR = mom6vld.ocean_straits()
@@ -103,7 +121,7 @@ else:
   STR = mom6vld.ocean_sections()
   if sctnm in STR:
     oc_strait = False
-
+    NPsct   = STR[sctnm]["NP"]
     Is      = STR[sctnm]["II"]
     Js      = STR[sctnm]["JJ"]
     Is      = np.array(Is)
@@ -118,7 +136,7 @@ else:
     IJ      = np.zeros((nlegs+1,2))
     IJ[:,0] = Is
     IJ[:,1] = Js
-
+    
   else:
     raise Exception(f"Name {sctnm} is not defined as a strait or section")
 
@@ -138,7 +156,23 @@ import mod_misc1 as mmisc
 import mod_mom6 as mom6util
 importlib.reload(mom6util)
 
-TPLT = mom6util.create_time_array(dnmb1, dnmb2, dday, date_mat=True)
+# Time array
+dday = 7
+irc  = -1
+nrec = 48
+TPLT = np.zeros(nrec, dtype=[('dnmb', float),
+                              ('date', int, (4,)),
+                              ('yrday', float)])
+for imo in range(dv1[1], dv2[1]+1):
+  for mday in range(dv1[2], 29, dday):
+    irc += 1
+    dnmb = mtime.datenum([YR1,imo,mday])
+    DV   = mtime.datevec(dnmb)
+    _, jday = mtime.dnmb2jday(dnmb)
+    TPLT['dnmb'][irc]   = dnmb
+    TPLT['yrday'][irc]  = jday
+    TPLT['date'][irc,:] = DV[0:4]
+
 nrec = len(TPLT)
 
 dnmbL = 0
@@ -170,24 +204,18 @@ for irec in range(nrec):
 #  dnmb = mtime.jday2dnmb(YR,jday)
   HR   = 12
 
-  pthbin = pthrun + 'tarmom_{0}{1:02d}/'.format(YR,MM)
-  flmom  = 'ocnm_{0}_{1:03d}_{2}.nc'.format(YR,jday,HR)
-  flin   = pthbin + flmom
+  print(f"Processing rec {irec+1} {YR}/{MM}/{DD}")
+  pthbin  = pthrun + f"rtofs.{YR}{MM:02d}{DD:02d}/"
+  flhycom = f"rtofs_glo.t00z.{sfx}.archv"
+  fina    = pthbin + flhycom + '.a'
+  finb    = pthbin + flhycom + '.b'
 
-  pthgrid   = pthrun + 'INPUT/'
-  fgrd_mom  = pthgrid + 'regional.mom6.nc'
-  ftopo_mom = pthgrid + 'ocean_topog.nc'
   if irec == 0:
-    LON, LAT  = mom6util.read_mom6grid(fgrd_mom, grdpnt='hpnt')
-    HH        = mom6util.read_mom6depth(ftopo_mom)
-    Lmsk      = mom6util.read_mom6lmask(ftopo_mom)
-    idm, jdm, kdm = mom6util.mom_dim(flin)
-    ijdm          = idm*jdm
 
 # Define segment lengths, norms, etc:
 # positive: norm vector is to the left as follow the section
 # negative: to the right
-    DX, DY = mom6util.dx_dy(LON,LAT)
+    DX, DY = mhycom.dx_dy(LON,LAT)
     SGMT   = mmisc.define_segments(IJ, DX, DY, curve_ornt='positive')
 #    SGMT   = mmisc.define_segments(IJ, DX, DY, curve_ornt='negative')
     II     = SGMT.I_indx
@@ -204,19 +232,22 @@ for irec in range(nrec):
     for ik in range(len(II)):
        LSgm[ik] = hLsgm1[ik] + hLsgm2[ik]
 
-#    II_hf, JJ_hf, XX_hf, \
-#    YY_hf, Hb_hf, LSgm_hf = mom6vld.segm_half_coord(II, JJ, \
-#                           Vnrm1, Vnrm2, hLsgm1, hLsgm2, XX, YY, Hb) 
-
   if dnmb <= dnmbL:
     print(f"Skipping rec {irec+1} {YR}/{MM}/{DD} --->")
     continue
 
-  # Read MOM6 output
-  dH     = mom6util.read_mom6(flin, 'h', finfo=False)
-  ssh    = mom6util.read_mom6(flin, 'SSH', finfo=False)
-  ZZ, ZM = mom6util.zz_zm_fromDP(dH, ssh, f_intrp=True, finfo=False)
-  A3d    = mom6util.read_mom6(flin, fld2d, finfo=False)
+  # Read RTOFS
+  # Read layer thicknesses:
+  print(f"Reading thknss {fina}")
+  dH, idm, jdm, kdm = mhycom.read_hycom(fina, finb, 'thknss', finfo=False)
+  dH = dH/rg
+  dH = np.where(dH>huge, np.nan, dH)
+  dH = np.where(dH<0.001, 0., dH)
+  ZZ, ZM = mhycom.zz_zm_fromDP(dH, f_btm=False, finfo=False)
+
+  print(f"Reading {fld} {fina}")
+  A3d, _, _, _ = mhycom.read_hycom(fina, finb, fld, finfo=False)
+  A3d = np.where(A3d >= huge, np.nan, A3d)
 
 # Subset to section:
   dH2d  = dH[:,JJ,II].squeeze()
@@ -234,8 +265,11 @@ for irec in range(nrec):
   if f_chcksgm:
     IIhf = []  # half-segments
     JJhf = []
+    nI = len(Hb)
+    XI = np.arange(0, nI, 1, dtype=int)
+
     ax2 = mom6vld.plot_section_map(II, JJ, IJ, Vnrm1, Vnrm2, IIhf, JJhf, \
-                       HH, fgnmb=3, btx='extrTSxsect_polysegm.py')
+                       HH, fgnmb=3, XI=XI, dX=100, btx='extrTSxsect_polysegm.py')
     A = STOP
 
   # Plot section
@@ -271,16 +305,14 @@ for irec in range(nrec):
 #    XI = XX.copy()
 
     IJs = np.array([II,JJ]).transpose()
-    sttl = fld2d
-#    stl = ('0.08 MOM6-CICE6-{0} {1} {2}, {3}/{4}/{5}'.\
-#            format(expt, sttl, sctnm, YR, MM, DD))
-    stl = f"0.08 MOM6-CICE6-{expt} {sttl} {sctnm}, {YR}/{MM:02d}/{DD:02d}"
+    sttl = fld
+    stl = f"0.08 RTOFS-{expt} {sttl} {sctnm}, {YR}/{MM:02d}/{DD:02d}"
 
     mom6vld.plot_xsect(XI, Hb, ZZ2d, A2d, HH, stl=stl,\
                        rmin = rmin, rmax = rmax, clrmp=cmpr,\
                        IJs=IJs, btx=btx)
 
-    stl = ('0.08 MOM6-CICE6-{0} Interpolated  {1} {2}, {3}/{4}/{5}'.\
+    stl = ('0.08 RTOFS-{0} Interpolated  {1} {2}, {3}/{4}/{5}'.\
             format(expt, sttl, sctnm, YR, MM, DD))
 
     mom6vld.plot_xsect(XI, Hb, ZZi, A2di, HH, stl=stl, fgnmb=2,\
@@ -305,9 +337,12 @@ for irec in range(nrec):
 
 # Save:
   if irec%10 == 0 or irec == nrec-1:
-    print('Saving to '+ffout)
-    with open(ffout,'wb') as fid:
-      pickle.dump(F2D,fid)
+    if f_save: 
+      print('Saving to '+ffout)
+      with open(ffout,'wb') as fid:
+        pickle.dump(F2D,fid)
+    else:
+      print('Saving turned off \n')
 
 print(' All done ' )
 

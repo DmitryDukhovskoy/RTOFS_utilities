@@ -43,7 +43,14 @@ f_cont = False     # load saved and start from last saved
 #sctnm = 'Yucatan'  # 2-leg right angle section
 #sctnm = 'Yucatan2'  # slented section
 #sctnm = 'DavisS2'
-sctnm = 'Fram79s2'
+#sctnm = 'Fram79s2'
+#sctnm = 'BarentsS'
+#sctnm = 'BeringS'
+#sctnm = 'DenmarkS'
+#sctnm = 'IclShtl'
+#sctnm = 'ShtlScot'
+#sctnm = 'LaManch'
+sctnm = 'NAtl39'
 fld2d = 'Unrm'
 dday  = 5       # time stepping for data processing/analysis
 dnmb1 = mtime.datenum([2021,1,1])
@@ -64,7 +71,7 @@ floutp = f"mom6-{expt}_{fld2d}VFlx_{dv1[0]}" + \
          f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
 ffout = pthoutp + floutp
 
-print(f"Extracting {fld2d} {sctnm} ")
+print(f"\nExtracting {fld2d} {sctnm} \n")
 
 STR = mom6vld.ocean_straits()
 nlegs = STR[sctnm]["nlegs"]
@@ -90,7 +97,7 @@ ZZi = np.concatenate((np.arange(0.,     -21,    -1),
                       np.arange(-250.,  -510.,  -10),
                       np.arange(-525.,  -1000., -25),
                       np.arange(-1000., -2000., -50),
-                      np.arange(-2000., -5001., -1000)))
+                      np.arange(-2000., -9001., -1000)))
 
 import mod_misc1 as mmisc
 import mod_mom6 as mom6util
@@ -146,26 +153,27 @@ for irec in range(nrec):
 # Define segment lengths, norms, etc:
 # positive: norm vector is to the left as follow the section
 # negative: to the right
-    DX, DY = mom6util.dx_dy(LON,LAT)
-    SGMT   = mmisc.define_segments(IJ, DX, DY, curve_ornt='positive')
+    DX, DY   = mom6util.dx_dy(LON,LAT)
+    SGMT     = mmisc.define_segments(IJ, DX, DY, curve_ornt='positive')
 #    SGMT   = mmisc.define_segments(IJ, DX, DY, curve_ornt='negative')
-    II     = SGMT.I_indx
-    JJ     = SGMT.J_indx
-    hLsgm1 = SGMT.half_Lsgm1
-    hLsgm2 = SGMT.half_Lsgm2
-    Vnrm1  = SGMT.half_norm1
-    Vnrm2  = SGMT.half_norm2
-    nLeg   = SGMT.Leg_number
-    XX     = LON[JJ,II]
-    YY     = LAT[JJ,II]
-    Hb     = HH[JJ,II]
-    LSgm   = np.zeros((len(II)))  # total segment length = half1 + half2
+    II       = SGMT.I_indx
+    JJ       = SGMT.J_indx
+    hLsgm1   = SGMT.half_Lsgm1
+    hLsgm2   = SGMT.half_Lsgm2
+    Vnrm1    = SGMT.half_norm1
+    Vnrm2    = SGMT.half_norm2
+    nLeg     = SGMT.Leg_number
+    LegNorm  = SGMT.LegNorm
+    XX       = LON[JJ,II]
+    YY       = LAT[JJ,II]
+    Hb       = HH[JJ,II]
+    LSgm     = np.zeros((len(II)))  # total segment length = half1 + half2
     for ik in range(len(II)):
        LSgm[ik] = hLsgm1[ik] + hLsgm2[ik]
 
     II_hf, JJ_hf, XX_hf, \
     YY_hf, Hb_hf, LSgm_hf = mom6vld.segm_half_coord(II, JJ, \
-                           Vnrm1, Vnrm2, hLsgm1, hLsgm2, XX, YY, Hb) 
+                            hLsgm1, hLsgm2, XX, YY, Hb) 
 
 # Define weights for U and V for each segment:
     nsgm  = len(II)
@@ -263,22 +271,29 @@ for irec in range(nrec):
     mmisc.print_2col(VFlx1,VFlx2, prc=3)
 
 # Data for plotting 2D sections
-# Save half-segments
-  nI   = len(II) 
-  UV2d = np.zeros((kdm,2*nI)) 
-  for ik in range(nI):
-# indices for 1st half segment
-    ix1 = ik*2
-    ix2 = ix1+1
-    UV2d[:,ix1] = UV1[:,ik]
-    UV2d[:,ix2] = UV2[:,ik]
- 
-# Interpolate:
-  UV2di = mom6vld.interp_2Dsect_segmhalf(UV2d, ZZi, ZZ2d, ZM2d, Hb)
+# Project U on the normal vector for the main section line
+  UV2d = np.zeros((kdm,nsgm)) 
+  for isgm in range(nsgm):
+# indices for 1st half segment 
+    uu = U2d[:,isgm]
+    vv = V2d[:,isgm]
+    Snrm = LegNorm[isgm,:]
+    UV2d[:,isgm] = uu*Snrm[0] + vv*Snrm[1]
+
+# Interpolate on Z levels:
+#  UV2di = mom6vld.interp_2Dsect_segmhalf(UV2d, ZZi, ZZ2d, ZM2d, Hb)
+  UV2di = mom6vld.interp_2Dsect(UV2d, ZZi, ZZ2d, ZM2d, Hb)
 
   # 
-  # Plot section
+  # Check: Plot section
   btx = 'extrUVxsect_polysegm.py' 
+  f_chck = False
+  if f_chck:
+  # Draw section with half-segments and norm vectors
+    ax1 = mom6vld.plot_section_map(II, JJ, IJ, Vnrm1, Vnrm2, II_hf, JJ_hf, \
+                                   HH, fgnmb=1, btx=btx)
+    F = STOP
+
   f_plt = False
   if f_plt:
     plt.ion()
@@ -298,14 +313,14 @@ for irec in range(nrec):
       rmax = 6.5
     elif fld2d == 'Unrm':
       cmpr = mutil.colormap_ssh(nclrs=100)
-      rmin = -0.8
-      rmax = 0.8
+      rmin = -0.2
+      rmax = 0.2
 
 # Get interf depths for half-segments
-    ZZ_hf = mom6vld.segm_half_zintrf(II, JJ, ZZ2d)
+#    ZZ_hf = mom6vld.segm_half_zintrf(II, JJ, ZZ2d)
 
-    nHf = len(Hb_hf)
-    XI  = np.arange(0, nHf, 1, dtype=int)
+#    nHf = len(Hb_hf)
+    XI  = np.arange(0, nsgm, 1, dtype=int)
 
     IJs = np.array([II,JJ]).transpose()
     sttl = 'UV (x+ y+) '
@@ -313,22 +328,22 @@ for irec in range(nrec):
 #            format(expt, sttl, sctnm, YR, MM, DD))
     stl = f"0.08 MOM6-CICE6-{expt} {sttl} {sctnm}, {YR}/{MM:02d}/{DD:02d}"
 
-    mom6vld.plot_xsect(XI, Hb_hf, ZZ_hf, UV2d, HH, stl=stl,\
+    mom6vld.plot_xsect(XI, Hb, ZZ2d, UV2d, HH, stl=stl,\
                        rmin = rmin, rmax = rmax, clrmp=cmpr,\
                        IJs=IJs, btx=btx)
 
     stl = ('0.08 MOM6-CICE6-{0} Interpolated  {1} {2}, {3}/{4}/{5}'.\
             format(expt, sttl, sctnm, YR, MM, DD))
 
-    mom6vld.plot_xsect(XI, Hb_hf, ZZi, UV2di, HH, stl=stl, fgnmb=2,\
+    mom6vld.plot_xsect(XI, Hb, ZZi, UV2di, HH, stl=stl, fgnmb=2,\
                        rmin = rmin, rmax = rmax, clrmp=cmpr,\
                        IJs=IJs, btx=btx)
-#    C = G
+    C = G
 
   # 2D field
   if irec == 0:
-    F2D  = mom6vld.UTS2D(dnmb, II_hf, JJ_hf, XX_hf, YY_hf, \
-                         LSgm_hf, ZZi, Hb_hf, UV2di)
+    F2D  = mom6vld.UTS2D(dnmb, II, JJ, XX, YY, \
+                         LSgm, ZZi, Hb, UV2di)
     UFLX = mom6vld.TRANSP(dnmb, VFlx, XX, YY, Hb) 
   else:
     F2D.add_array(dnmb, UV2di)
@@ -350,67 +365,6 @@ for irec in range(nrec):
 
 print(' All done ' )
 
-f_chck=False
-if f_chck:
-#  II, JJ = mmisc.xsect_indx(IIv,JJv)
-  xl1 = np.min(IJ[:,0])
-  xl2 = np.max(IJ[:,0])
-  yl1 = np.min(IJ[:,1])
-  yl2 = np.max(IJ[:,1])
-  dxy = 50
-
-  plt.ion()
-  fig1 = plt.figure(1,figsize=(9,8))
-  plt.clf()
-  ax1 = plt.axes([0.1, 0.2, 0.8, 0.7])
-  ax1.contour(HH,[0], colors=[(0,0.,0)])
-  ax1.contour(HH,[-1000,-500], colors=[(0.8,0.8,0.8)], linestyles='solid')
-  ax1.axis('scaled')
-  ax1.set_xlim([xl1-dxy, xl2+dxy])
-  ax1.set_ylim([yl1-dxy, yl2+dxy])
-  ax1.plot(IJ[:,0],IJ[:,1],'b-')
-  ax1.plot(IJ[:,0],IJ[:,1],'.', ms=15, color=(0.,0.5,0.8))
-
-  nsgm = len(II)
-  for isgm in range(nsgm):
-    ii0 = II[isgm]
-    jj0 = JJ[isgm]
-    if isgm < nsgm-1:
-      ip1 = II[isgm+1]
-      jp1 = JJ[isgm+1]
-    else:
-      ip1 = ii0
-      jp1 = jj0
-    if isgm > 0:
-      im1 = II[isgm-1]
-      jm1 = JJ[isgm-1]
-    else:
-      im1 = ii0
-      jm1 = jj0
-    ih1 = 0.5*(im1+ii0)
-    jh1 = 0.5*(jm1+jj0)
-    ih2 = 0.5*(ip1+ii0)
-    jh2 = 0.5*(jp1+jj0)
-
-    ax1.plot(ii0, jj0, '.', ms=10, color=(0., 0.2, 0.5))
-    if isgm > 0:
-      ax1.plot([ih1,ii0],[jh1,jj0],'r-') # 1st half of the segment
-    if isgm < nsgm-1:
-      ax1.plot([ii0,ih2],[jj0,jh2],'g-') # 2nd half
-# Plot norm
-    scl = 0.2
-    v1  = scl*Vnrm1[isgm,:]
-    v2  = scl*Vnrm2[isgm,:]
-    in1 = 0.5*(ii0-ih1)+ih1
-    jn1 = 0.5*(jj0-jh1)+jh1
-    in2 = 0.5*(ih2-ii0)+ii0
-    jn2 = 0.5*(jh2-jj0)+jj0
-    if isgm > 0:
-      ax1.plot([in1, in1+v1[0]],[jn1, jn1+v1[1]],'-', color=(0.7,0.2,0))
-    if isgm < nsgm-1:
-      ax1.plot([in2, in2+v2[0]],[jn2, jn2+v2[1]],'-', color=(0.,1.,0.4))
-
-    bottom_text(btx,pos=[0.08, 0.08])    
 
 f_chck2=False
 if f_chck2:

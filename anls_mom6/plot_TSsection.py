@@ -31,27 +31,70 @@ from mod_utils_fig import bottom_text
 import mod_mom6_valid as mom6vld
 importlib.reload(mom6vld)
 
-expt  = '003'
-hg    = 1.e15
-#sctnm = 'Fram79'
-#sctnm = 'DavisStr'
-sctnm = 'Yucatan2'  # slented section
+nrun  = 'MOM6'  # MOM6, RTOFS
+expt  = '003' # 003 or product
+#sctnm = 'Fram79s2'
+#sctnm = 'DavisS2'
+#sctnm = 'Yucatan2'  # slanted section
+#sctnm = 'BarentsS'
+#sctnm = 'BeringS'
+#sctnm = 'DenmarkS'
+#sctnm = 'IclShtl'
+#sctnm = 'ShtlScot'
+#sctnm = 'LaManch'
+#sctnm = 'NAtl39'
+#======= Ocean Sections =====
+#sctnm = 'BaffNAFram'
+sctnm = 'AlaskaIcld' 
 
-fld2d = 'salt'
-#fld2d = 'potT'
+#fld2d = 'salt'
+fld2d = 'potT'
+# Years for MOM6 - 2021, 2020 not extracted
+# RTOFS - 2023, 2022 
 dnmb1 = mtime.datenum([2021,1,1])
 dnmb2 = mtime.datenum([2021,12,31])
+
+
 dv1   = mtime.datevec(dnmb1)
 dv2   = mtime.datevec(dnmb2)
+hg    = 1.e15
 
-pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
-         '008mom6cice6_' + expt + '/'
-pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/' + \
-          'MOM6_CICE6/expt{0}/'.format(expt)
-#floutp = 'mom6-{4}_u2dsect_{0}{1:02d}-{2}{3:02d}_{5}.pkl'.\
-#         format(dv1[0], dv1[1], dv2[0], dv2[1], expt, sctnm)
-floutp = f"mom6-{expt}_{fld2d}VFlx_{dv1[0]}" + \
-         f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
+print(f"\n Plotting {nrun}-{expt} {sctnm} {fld2d} \n")
+
+import mod_misc1 as mmisc
+import mod_mom6 as mom6util
+import mod_colormaps as mcmp
+import mod_read_hycom as mhycom
+importlib.reload(mom6util)
+importlib.reload(mmisc)
+importlib.reload(mcmp)
+
+if nrun == 'MOM6':
+  pthrun  = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
+            '008mom6cice6_' + expt + '/'
+  pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/' + \
+            'MOM6_CICE6/expt{0}/'.format(expt)
+  floutp  = f"mom6-{expt}_{fld2d}VFlx_{dv1[0]}" + \
+            f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
+  pthgrid   = pthrun + 'INPUT/'
+  fgrd_mom  = pthgrid + 'regional.mom6.nc'
+  ftopo_mom = pthgrid + 'ocean_topog.nc'
+  HH  = mom6util.read_mom6depth(ftopo_mom)
+elif nrun == 'RTOFS':
+  if fld2d == 'salt':
+    fld = 'salin'
+  elif fld2d == 'potT':
+    fld = 'temp'
+
+  pthrun  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/wcoss2.prod/'
+  pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/RTOFS_production/'
+  floutp  = f"rtofs-{expt}_{fld}xsct_{dv1[0]}" + \
+            f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
+  pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
+  ftopo   = 'regional.depth'
+  fgrid   = 'regional.grid'
+  _, _, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
+
 ffout = pthoutp + floutp
 
 print('Loading ' + ffout)
@@ -79,64 +122,51 @@ if len(KN) >  0:
   f_nans = True
   A2dT = np.where(np.isnan(A2dT), 1.e30, A2dT)
 
-pthgrid   = pthrun + 'INPUT/'
-fgrd_mom  = pthgrid + 'regional.mom6.nc'
-ftopo_mom = pthgrid + 'ocean_topog.nc'
-
-import mod_misc1 as mmisc
-import mod_mom6 as mom6util
-HH  = mom6util.read_mom6depth(ftopo_mom)
-
 # Time-mean section:
 A2d = np.nanmean(A2dT, axis=0).squeeze()
-A2d[JN,IN] = 0.0
-
-# For plotting - project slanted sections on
-# X or Y axis
-# Interpolate over the gaps for smooth picture
-#f_proj = 'X' 
-#if f_proj == 'X' or f_proj == 'x':
-#  A2di = mom6vld.project2X(II,JJ,A2d)
-#elif f_proj == 'Y' or f_proj == 'y':
-#  A2di = mom6vld.project2Y(II,JJ,A2d)
+A2d[JN,IN] = np.nan
 A2di = A2d.copy()
 
-STR = mom6vld.ocean_straits()
-nlegs = STR[sctnm]["nlegs"]
-I1    = STR[sctnm]["xl1"]
-I2    = STR[sctnm]["xl2"]
-J1    = STR[sctnm]["yl1"]
-J2    = STR[sctnm]["yl2"]
-Ni    = np.zeros((nlegs))
-Nj    = np.zeros((nlegs))
-IJ    = np.zeros((nlegs+1,2))
-for kk in range(nlegs):
-  Ni[kk]     = I2[kk]+1
-  Nj[kk]     = J2[kk]+1
-  IJ[kk,0]   = I1[kk]
-  IJ[kk,1]   = J1[kk]
-  IJ[kk+1,0] = I2[kk]
-  IJ[kk+1,1] = J2[kk]
+# For plotting - fill land/bottom and smooth 2D field:
+#A2di = mom6util.fill_bottom(A2di, ZZi, Hbtm)
+A2di = mom6vld.box_fltr(A2di, npnts=3)
+#A2di = mom6util.bottom2nan(A2di, ZZi, Hbtm)
 
-btx = 'plot_UVsection.py'
+
+STR = mom6vld.ocean_straits()
+if sctnm in STR:
+  oc_strait = True
+else:
+  STR = mom6vld.ocean_sections()
+  if sctnm in STR:
+    oc_strait = False
+  else:
+    raise Exception(f"Name {sctnm} is not defined as a strait or section")
+
+IJ = np.zeros((len(II),2))
+IJ[:,0] = II
+IJ[:,1] = JJ
+
+btx = 'plot_TSsection.py'
 plt.ion()
 
 import mod_utils as mutil
 import plot_sect as psct
+#importlib.reload(mcmp)
 
-cmpr = mutil.colormap_ssh(nclrs=100)
 if fld2d == 'salt':
-  cmpr = mutil.colormap_salin(clr_ramp=[0.,0.4,0.6])
+#  cmpr = mcmp.colormap_salin(clr_ramp=[0.94,0.95,1])
+  cmpr = mcmp.colormap_haline()
   rmin = STR[sctnm]["smin"]
   rmax = STR[sctnm]["smax"] 
+  cntr1 = STR[sctnm]["scntr"]
 elif fld2d == 'potT':
-  cmpr = mutil.colormap_temp()
+#  cmpr = mcmp.colormap_temp()
+  cmpr = mcmp.colormap_temp2()
   rmin = STR[sctnm]["tmin"]
   rmax = STR[sctnm]["tmax"] 
-elif fld2d == 'Unrm':
-  cmpr = mutil.colormap_ssh(nclrs=100)
-  rmin = STR[sctnm]["umin"]
-  rmax = STR[sctnm]["umax"] 
+  cntr1 = STR[sctnm]["tcntr"]
+
 
 dv1 = mtime.datevec(TM[0])
 dv2 = mtime.datevec(TM[-1])
@@ -146,14 +176,14 @@ DD1 = dv1[2]
 YR2 = dv2[0]
 MM2 = dv2[1]
 DD2 = dv2[2]
-stl = f"0.08 MOM6-CICE6-{expt} {sctnm}, {fld2d}  Mean: " + \
+stl = f"0.08 {nrun}-{expt} {sctnm}, {fld2d}  Mean: " + \
       f"{YR1}/{MM1:02d}/{DD1:02d}-{YR2}/{MM2:02d}/{DD2:02d}"
 
 ni = len(II)
-#XI = np.arange(0, ni, 1, dtype=int)
+XI = np.arange(0, ni, 1, dtype=int)
 XI = np.cumsum(Lsgm)*1.e-3 # distance along section, km
 mom6vld.plot_xsect(XI, Hbtm, ZZi, A2di, HH, stl=stl,\
                    rmin = rmin, rmax = rmax, clrmp=cmpr,\
-                   IJs=IJ, btx=btx)
+                   IJs=IJ, btx=btx, btm_midpnt=True, cntr2=cntr1)
 
 

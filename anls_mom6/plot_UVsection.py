@@ -32,13 +32,18 @@ importlib.reload(mom6vld)
 
 expt  = '003'
 hg    = 1.e15
-#sctnm = 'Fram79'
-sctnm = 'DavisS2'
+#sctnm = 'Fram79s2'
+#sctnm = 'DavisS2'
 #sctnm = 'Yucatan2'  # slented section
+#sctnm = 'BarentsS'
+#sctnm = 'BeringS'
+#sctnm = 'DenmarkS'
+#sctnm = 'IclShtl'
+#sctnm = 'ShtlScot'
+#sctnm = 'LaManch'
+sctnm = 'NAtl39'
 fld2d = 'Unrm'
 
-#fld2d = 'salt'
-#fld2d = 'potT'
 dnmb1 = mtime.datenum([2021,1,1])
 dnmb2 = mtime.datenum([2021,12,31])
 dv1   = mtime.datevec(dnmb1)
@@ -54,6 +59,10 @@ floutp = f"mom6-{expt}_{fld2d}VFlx_{dv1[0]}" + \
          f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
 ffout = pthoutp + floutp
 
+# Function to print mouse click event coordinates
+def onclick(event):
+   print([event.xdata, event.ydata])
+
 print('Loading ' + ffout)
 
 with open(ffout, 'rb') as fid:
@@ -62,16 +71,16 @@ with open(ffout, 'rb') as fid:
 # 2D fields are at half-grid points
 TM   = F2D.TM
 Unrm = F2D.Fld2D  # 2D Flow: Time x depth x Width
-IIhf   = F2D.Iindx
-JJhf   = F2D.Jindx
+II   = F2D.Iindx
+JJ   = F2D.Jindx
 XX   = F2D.LON
 YY   = F2D.LAT
 Lsgm = F2D.Lsgm
-Hbhf = F2D.Hbtm
+Hbtm = F2D.Hbtm
 ZZi  = F2D.ZZi
 # Depth-integrated: full grid
 VFlx = UFLX.trnsp*1e-6  # 1D depth-integrated flow, Sv
-Hbtm = UFLX.Hbtm
+#Hbtm = UFLX.Hbtm
 Xdst = np.cumsum(Lsgm)
 #Xdst = np.insert(Xdst,0,0)
 #mtime.datestr(TM)
@@ -106,48 +115,33 @@ for kk in range(nlegs):
   IJ[kk+1,1] = J2[kk]
 
 HH        = mom6util.read_mom6depth(ftopo_mom)
-LON, LAT  = mom6util.read_mom6grid(fgrd_mom, grdpnt='hpnt')
-DX, DY    = mom6util.dx_dy(LON,LAT)
-SGMT      = mmisc.define_segments(IJ, DX, DY, curve_ornt='positive')
-II        = SGMT.I_indx
-JJ        = SGMT.J_indx
+
+# Check segments etc:
+# Draw section line with all segments, norm vectors and
+# half-segments
+f_chcksgm = False
+if f_chcksgm:
+  LON, LAT  = mom6util.read_mom6grid(fgrd_mom, grdpnt='hpnt')
+  DX, DY    = mom6util.dx_dy(LON,LAT)
+  SGMT      = mmisc.define_segments(IJ, DX, DY, curve_ornt='positive')
+  Vnrm1     = SGMT.half_norm1
+  Vnrm2     = SGMT.half_norm2
+  fgnmb=2
+  ax2 = mom6vld.plot_section_map(II, JJ, IJ, Vnrm1, Vnrm2, IIhf, JJhf, \
+                     HH, fgnmb=fgnmb, btx='plot_UVsection.py')
+  A = stop
 
 # Time-mean section:
 Fav = np.nanmean(Unrm, axis=0).squeeze()
 Fav[JN,IN] = 0.0
 
-# For plotting - project slanted sections on
-# X or Y axis
-# Interpolate over the gaps for smooth picture
-f_proj = 'X' 
-if f_proj == 'X' or f_proj == 'x':
-  print("Projecting Unrm on X-axis for plotting")
-  Favi = mom6vld.project2X(IIhf,JJhf,Fav)
-elif f_proj == 'Y' or f_proj == 'y':
-  Favi = mom6vld.project2Y(IIhf,JJhf,Fav)
-else:
-  Favi = Fav.copy()
+# For plotting - U is already projected onto unit normal 
+# of the main section(s)
+Favi = Fav.copy()
 
 # Truncate 2D field to bottom depth
 # to mask out filled land values 
 #Favi = mom6util.fill_bottom(Favi, ZZi, Hbhf)
-
-STR = mom6vld.ocean_straits()
-nlegs = STR[sctnm]["nlegs"]
-I1    = STR[sctnm]["xl1"]
-I2    = STR[sctnm]["xl2"]
-J1    = STR[sctnm]["yl1"]
-J2    = STR[sctnm]["yl2"]
-Ni    = np.zeros((nlegs))
-Nj    = np.zeros((nlegs))
-IJ    = np.zeros((nlegs+1,2))
-for kk in range(nlegs):
-  Ni[kk]     = I2[kk]+1
-  Nj[kk]     = J2[kk]+1
-  IJ[kk,0]   = I1[kk]
-  IJ[kk,1]   = J1[kk]
-  IJ[kk+1,0] = I2[kk]
-  IJ[kk+1,1] = J2[kk]
 
 btx = 'plot_UVsection.py'
 plt.ion()
@@ -181,27 +175,31 @@ stl = f"0.08 MOM6-CICE6-{expt} {sctnm}, {fld2d}  Mean: " + \
       f"{YR1}/{MM1:02d}/{DD1:02d}-{YR2}/{MM2:02d}/{DD2:02d}"
 
 # For plotting - smooth 2D field:
-Favi = mom6vld.box_fltr(Favi, npnts=3)
+#Favi = mom6vld.box_fltr(Favi, npnts=3)
 
 # Contour:
-cntr1=[-0.2,-0.15,-0.1,-0.05]
-cntr2=[0,0.25,0.5,0.75,1.,1.25,1.5,1.75]
+cntr1 = STR[sctnm]["ucntr1"] 
+cntr2 = STR[sctnm]["ucntr2"]
+#cntr1=[-0.2,-0.15,-0.1,-0.05]
+#cntr2=[0,0.25,0.5,0.75,1.,1.25,1.5,1.75]
 
-ni = len(IIhf)
+ni = len(II)
 #XI = np.arange(0, ni, 1, dtype=int)
 XI = (np.cumsum(Lsgm) - Lsgm[0])*1.e-3# distance along section, km
-mom6vld.plot_xsect(XI, Hbhf, ZZi, Favi, HH, stl=stl,\
+mom6vld.plot_xsect(XI, Hbtm, ZZi, Favi, HH, stl=stl,\
                    rmin = rmin, rmax = rmax, clrmp=cmpr,\
                    IJs=IJ, btx=btx, cntr1=cntr1, cntr2=cntr2)
 
 # Plot depth-integrated transport
 Tday = TM-TM[0]
 
+#VFlxi = VFlx.copy()
 # Mean flux for plotting:
 # Interpolate over zigzagging segments
 # and smooth for plotting
 VFlxi = mom6vld.project2X(II,JJ,VFlx) 
-VFlxi = mom6vld.runmn1D(VFlxi, axis=0)
+for ii in range(3):
+  VFlxi = mom6vld.runmn1D(VFlxi, npnts=3, axis=0)
 
 alf  = 10.
 mVF  = np.nanmean(VFlxi, axis=0)
@@ -215,21 +213,13 @@ stdVF = np.std(VFtot)
 
 # segment lengths for whole grid cells
 # and Longitudes for whole grid cells
-nnI   = len(mVF)
-Lsgm1 = np.zeros((nnI))
-Lon1  = np.zeros((nnI))
-Lat1  = np.zeros((nnI))
-for ii in range(nnI):
-  ix1       = ii*2
-  ix2       = ix1+1
-  Lsgm1[ii] = Lsgm[ix1] + Lsgm[ix2] 
-  Lon1[ii]  = 0.5*(XX[ix1] + XX[ix2])
-  Lat1[ii]  = 0.5*(YY[ix1] + YY[ix2]) 
-#
 
 #XXI = np.arange(0,nnI,1)
-XXI = (np.cumsum(Lsgm1)-Lsgm1[0])*1.e-3 # distance along section, km
+XXI = (np.cumsum(Lsgm)-Lsgm[0])*1.e-3 # distance along section, km
 #XXI = Lon1
+
+
+# Depth-integrated transport
 
 plt.ion()
 fig2 = plt.figure(2,figsize=(9,8))
@@ -238,6 +228,11 @@ ax1 = plt.axes([0.1, 0.5, 0.8, 0.4])
 ax1.plot(XXI, mVF)
 ax1.plot(XXI, pL, color=[0.8, 0.85, 1.])
 ax1.plot(XXI, pU, color=[0.8, 0.85, 1.])
+
+f_setrgn = False
+if f_setrgn:
+# Bind the button_press_event with the onclick() method
+  fig2.canvas.mpl_connect('button_press_event', onclick)
 
 xl1 = np.min(XXI)
 xl2 = np.max(XXI)
@@ -283,6 +278,15 @@ ax4.axis('off')
 
 bottom_text(btx,pos=[0.02, 0.03])
 
+
+
+f_topo = False
+if f_topo:
+  fig1 = plt.figure(1, figsize(9,8))
+  plt.clf()
+  ax11 = plt.axes([0.1, 0.1, 0.8, 0.8])
+  ax11.contour(HH,[0.],colors=[(0,0.,0.)], linestyles='solid')
+  ax11.contour(HH,[-500.],colors=[(0,0.6,0.9)], linestyles='solid')
 
 
 

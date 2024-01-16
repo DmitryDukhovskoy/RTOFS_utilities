@@ -93,7 +93,7 @@ if sfx == 'n-24':
 elif sfx[0] == 'f':
   hr = int(sfx[1:])
   dnmbP = dnmb0+float(hr)/24.
-
+rdateP = mtime.dnumb2rdate(dnmbP, ihours=False)
 
 dvP = mtime.datevec(dnmbP)
 YRp = dvP[0]
@@ -203,7 +203,7 @@ importlib.reload(mrtofs)
 importlib.reload(mgulf)
 #pthnavo = '/scratch2/NCEPDEV/ovp/Lichuan.Chen/DCOM/'
 pthnavo = '/scratch2/NCEPDEV/ovp/Samira.Ardani/DCOM/'
-XNW_navo, YNW_navo, navonmb = mgulf.read_navogs(rdate0, pthnavo, missing=1)
+XNW_navo, YNW_navo, navonmb = mgulf.read_navogs(rdateP, pthnavo, missing=1)
 
 print('Mapping NAVO lon/lat --> RTOFS index space ...')
 INW_navo, JNW_navo = [], []
@@ -404,7 +404,7 @@ clb.ax.tick_params(direction='in', length=12)
 
 # Legend:
 DV = mtime.datevec(navonmb)
-ssinf = 'RTOFS: {0}/{1:02d}/{2:02d}:{3:02d}\n'.format(YR,MM,DD,hr)
+ssinf = 'RTOFS: {0}/{1:02d}/{2:02d}:{3:02d}\n'.format(YRp,MMp,DDp,HRp)
 ssinf = ssinf + 'NAVO: {0}/{1:02d}/{2:02d}:{3:02d}\n'.\
          format(DV[0],DV[1],DV[2],DV[3])
 ax5 = plt.axes([0.7, 0.03, 0.2, 0.13])

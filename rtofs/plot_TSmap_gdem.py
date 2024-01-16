@@ -3,6 +3,9 @@
   see code:
   /scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/rtofs_para7b/ncoda/sorc/ncoda_qc/libsrc/prfobs
   gdem_mod.f
+
+  Note: The original GDEM data on 78 z-levels is in-situ temperature. 
+  
 """
 import os
 import numpy as np

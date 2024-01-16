@@ -115,6 +115,7 @@ def create_colormap(CLR, Ncmp, cmp_obj=True):
 # otherwsie CLR is returned with no changes
 # cmp_obj - True ==> returns as colormap object
 #           False --> returns as RGB array
+  from matplotlib.colors import ListedColormap, LinearSegmentedColormap
   nClr = CLR.shape[0]
 
 # If number of shades is less or eq. the # of Main colors 
@@ -138,9 +139,9 @@ def create_colormap(CLR, Ncmp, cmp_obj=True):
     clr2 = CLR[ii+1,:]
 # Last interval - no extra shade
     if ii < nInt-1:
-      nShades = np.int(np.round(Ncmp/nInt))+1
+      nShades = int(np.round(Ncmp/nInt))+1
     else:
-      nShades = np.int(np.round(Ncmp/nInt))
+      nShades = int(np.round(Ncmp/nInt))
     vals = np.ones((nShades,4))
     for jj in range(3):
       vals[:,jj] = np.linspace(clr1[jj],clr2[jj],nShades)
@@ -168,7 +169,7 @@ def colormap_conc():
    cmpice.N - # of colors
   
   """
-  import mod_colormaps as mclrs
+#  import mod_colormaps as mclrs
   CLR = [[238, 226, 215],
          [223, 206, 189],
          [216, 162, 107],
@@ -189,7 +190,267 @@ def colormap_conc():
   
   CLR = np.array(CLR)/255.
   CLR = np.flip(CLR, axis=0)
-  CMP = mclrs.create_colormap(CLR, 200)
+  CMP = create_colormap(CLR, 200)
   
   return CMP
+
+def colormap_salin(nclrs=200, clr_ramp=[1,1,1]):
+  """
+    Colormap for salinity
+    low S value ramp to clr_ramp
+  """
+  from matplotlib import cm
+  from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+#  import mod_colormaps as mclrs
+
+  btm = cm.get_cmap('rainbow',nclrs)
+  ixtop  = round(nclrs*0.1)-1
+  clrbtm = btm(range(nclrs))
+  chbtm  = np.zeros((ixtop,4))
+#
+# Add ramp colors at the bottom of clrbar
+#  if add_btm == True:
+# Add white at the beginning:
+  cxbtm  = clrbtm[0,:]
+
+  chbtm[:,3] = cxbtm[3]
+
+  for ik in range(3):
+    cc0 = clr_ramp[ik]
+    chbtm[:,ik]  = np.linspace(cxbtm[ik],cc0,ixtop)
+
+  chbtm = np.flip(chbtm, axis=0)
+  clrbtm = np.insert(clrbtm,0,chbtm, axis=0)
+
+# Add extra colors at the top for better representation of 
+# high-S range
+  CLR = [[204,   0,   0],
+         [153,   0,   0],
+         [153,  76,   0],
+         [204, 102,   0],
+         [255, 229, 192]]
+  CLR = np.array(CLR)/255.
+  CLR[np.where(CLR > 1.)] =  1.
+  CMP = create_colormap(CLR, ixtop, cmp_obj=False)
+  clr_high = CMP[0,:]
+
+  nclrs  = clrbtm.shape[0]
+  clrtop = clrbtm[-1,:]
+  chtop  = np.zeros((ixtop,4))
+  chtop[:,3] = cxbtm[3]
+  for ik in range(3):
+    cc0 = clr_high[ik]
+    chtop[:,ik] = np.linspace(clrtop[ik],cc0,ixtop)
+
+# COmbine high S colors at the end of colormap
+  clrbtm = np.append(clrbtm, chtop, axis=0)
+  clrbtm = np.append(clrbtm, CMP, axis=0)
+
+  newclrs = clrbtm
+  newcmp  = ListedColormap(newclrs)
+
+  return newcmp
+
+def colormap_haline(nclrs=200):
+  """
+    Colormap for salinity
+  """
+#  import mod_colormaps as mclrs
+  CLR = [[200, 230, 245],
+         [33,  17,  128],
+         [69,   52, 166],
+         [39,   10, 204],
+         [20,  101, 191],
+         [14,  139, 252],
+         [45,  171, 201],
+         [45,  181, 170],
+         [25,  207, 155],
+         [89,  194, 120],
+         [5,   179,  56],
+         [101, 235, 140],
+         [182, 227,  92],
+         [175, 217,  24],
+         [205, 209,  12],
+         [240, 214,  20],
+         [240, 182,  20],
+         [224, 103,  10],
+         [245, 141,  99],
+         [255, 236, 236]]
+
+  CLR = np.array(CLR)/255.
+  CMP = create_colormap(CLR, nclrs)
+
+  return CMP
+
+def colormap_salin2(nclrs=200):
+  """
+    Colormap for salinity
+    bright color palett
+    TODO: improve or delete this colormap
+  """
+#  import mod_colormaps as mclrs
+  CLR = [[255, 255, 255],
+         [255, 153, 204],
+         [255, 102, 255],
+         [255,   0, 255],
+         [127,   0, 255],
+         [178, 102, 255],
+         [204, 153, 255],
+         [153, 153, 255],
+         [102, 102, 255],
+         [0,   0,   255],
+         [0,   102, 102],
+         [51,  153, 255],
+         [153, 204, 255],
+         [153, 255, 204],
+         [51,  255, 153],
+         [0,   153,  76],
+         [0,   204,   0],
+         [102, 255, 102],
+         [155, 255, 155],
+         [255, 255, 153],
+         [255, 255,   0],
+         [204, 204,   0],
+         [255, 128,   0],
+         [255, 178, 102],
+         [255, 204, 153],
+         [255, 255, 204],
+         [255, 153, 153],
+         [255,  51,  51]]
+
+  CLR = np.array(CLR)/255.
+  CMP = create_colormap(CLR, nclrs)
+
+  return CMP
+
+def colormap_temp2(nclrs=200):
+  """
+    Temp colormap based on jet with added purple and lisght red 
+    shades to expand the colormap for better T range
+  """
+  from matplotlib import cm
+  from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+
+  CLR = [[242, 186, 238],
+         [184,  48, 173],
+         [100,  91, 207],
+         [ 19,   6, 186],
+         [  0,   0, 190],
+         [  0,   0, 250],
+         [  0,  31, 255],
+         [  0,  82, 255],
+         [  0, 133, 255],
+         [  0, 185, 255],
+         [  5, 236, 241],
+         [ 47, 255, 200],
+         [ 88, 255, 159],
+         [129, 255, 117],
+         [170, 255,  76],
+         [212, 255,  35],
+         [254, 237,   0],
+         [255, 190,   0],
+         [255, 142,   0],
+         [255,  95,   0],
+         [255,  47,   0],
+         [232,   1,   0],
+         [174,   0,   0],
+         [222, 170, 164]]
+
+  CLR = np.array(CLR)/255.
+  CMP = create_colormap(CLR, nclrs)
+
+  return CMP         
+
+
+def colormap_temp(nclrs=200, clr_ramp=[1,1,1], add_btm=True):
+  """
+    Colormap for temp
+    low S value ramp to clr_ramp
+  """
+  from matplotlib import cm
+  from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+
+  btm = cm.get_cmap('jet',nclrs)
+  ixtop  = round(nclrs*0.1)-1
+  clrbtm = btm(range(nclrs))
+  chbtm  = np.zeros((ixtop,4))
+  if add_btm == True:
+# Add white at the beginning:
+    cxbtm  = clrbtm[0,:]
+  else:
+# Add white at the top
+    ixtop  = round(nclrs*0.1)-1
+    ixbtm  = nclrs-ixtop-1
+    cxbtm  = clrbtm[ixbtm,:]
+
+  chbtm[:,3] = cxbtm[3]
+
+  for ik in range(3):
+    cc0 = clr_ramp[ik]
+    chbtm[:,ik]  = np.linspace(cxbtm[ik],cc0,ixtop)
+
+  if add_btm:
+    chbtm = np.flip(chbtm, axis=0)
+    clrbtm = np.insert(clrbtm,0,chbtm, axis=0)
+  else:
+    clrbtm[ixbtm+1:nclrs,:] = chbtm
+
+  newclrs = clrbtm
+  newcmp  = ListedColormap(newclrs)
+
+  return newcmp
+
+def colormap_ssh(cpos='Oranges',cneg='Blues_r',nclrs=100, clr_ramp=[1,1,1]):
+  """
+    Create colormaps for showing positive/negative ranges
+    clr_ramp - color in the middle of the colormap
+    nclrs - # of colors in positve or negative segments
+  """
+  from matplotlib import cm
+  from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+
+  btm = cm.get_cmap(cpos,nclrs)
+  ixpos  = round(nclrs*0.1)-1
+  clrpos = btm(range(nclrs))
+  chpos  = np.zeros((ixpos,4))
+  chneg  = np.zeros((ixpos,4))
+
+# Positive colors:
+# Add white at the beginning:
+  fixclr = clrpos[ixpos,:]
+  chpos[:,3] = fixclr[3]
+
+  clr_ramp=[1,1,1]
+  for ik in range(3):
+    cc0 = clr_ramp[ik]
+    chpos[:,ik]  = np.linspace(fixclr[ik],cc0,ixpos)
+
+  chpos = np.flip(chpos, axis=0)
+  clrpos[:ixpos,:] = chpos
+
+# Negative ssh range:
+# Add white at the top
+  clr0    = cm.get_cmap(cneg,nclrs)
+  clrneg  = clr0(range(nclrs))
+  ixneg   = nclrs - ixpos - 1
+  fixnegc = clrneg[ixneg,:]
+  chneg[:,3] = fixnegc[3]
+
+  for ik in range(3):
+    cc0 = clr_ramp[ik]
+    chneg[:,ik]  = np.linspace(fixnegc[ik],cc0,ixpos)
+
+#  chneg = np.flip(chneg, axis=0)
+  clrneg[ixneg+1:nclrs,:] = chneg
+
+  newclrs = np.append(clrneg,clrpos, axis=0)
+#  newclrs = clrbtm
+  newcmp  = ListedColormap(newclrs)
+
+  return newcmp
+
+
+
+
+
 

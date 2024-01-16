@@ -217,9 +217,10 @@ def read_navogs(rdate, pthnavo, missing=1):
   rnmb    = mtime.rdate2datenum(rdate)
 #  rdnavo     = mtime.adddays_date(rdate,-1)
 #  navonmb = mtime.rdate2datenum(rdnavo)
-  navonmb0 = rnmb - 1
+  navonmb0 = rnmb - 1 # NAVO file naming: day X keeps f/cast of GW for X+1
   rdnavo0  = mtime.dnumb2rdate(navonmb0, ihours=False)
 
+  print(f"NAVO GS: requested date {rdate}")
 
   gsFound = False
   lfind = [0]
@@ -233,6 +234,7 @@ def read_navogs(rdate, pthnavo, missing=1):
     ifnd = lfind[ii]
     navonmb = navonmb0 + ifnd
     rdnavo  = mtime.dnumb2rdate(navonmb, ihours=False)
+    rfcst   = mtime.dnumb2rdate(navonmb+1, ihours=False)
     pthdat  = pthnavo + rdnavo + '/wtxtbul/'
     if not os.path.isdir(pthdat):
       print('NAVO dir is missing ' + pthdat)
@@ -242,7 +244,7 @@ def read_navogs(rdate, pthnavo, missing=1):
     for ffl in os.listdir(pthdat):
       if ffl.startswith('gs') and ffl.endswith('sub'):
         fpnavo = pthdat + ffl
-        print(rdnavo + ' ok ')
+        print(f"{rdnavo}:  ok --> f/cast for {rfcst}")
         gsFound = True
         break
 

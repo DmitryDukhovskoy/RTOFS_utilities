@@ -262,7 +262,7 @@ def datestr(dnmb,ldate_ref=[1,1,1]):
 
 def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
   """
-# this procedure calculates the great-circle distance between two
+# this procedure calculates the great-circle distance ("spherical") between two
 # geographical locations on an ellipse using Lambert formula
 #
 # lat-lon coordinates with its appropiate trigonometric
@@ -427,6 +427,9 @@ def print_1col(A,wd=8,prc=2):
   """
     Print out 1 colume of data
   """
+  if type(A1) == list:
+    A1 = np.array(A1)
+
   ndim1 = A.shape[0]
   for k in range (ndim1):
     print('{0}: {1:{width}.{precis}f}'.format(k+1,A[k],width=wd,precis=prc))
@@ -439,6 +442,11 @@ def print_2col(A1,A2,wd=8,prc=2,kend=[]):
     if not - stops at shortest length of the arrays
     kend >= 0  stops at kend
   """
+  if type(A1) == list:
+    A1 = np.array(A1)
+  if type(A2) == list:
+    A2 = np.array(A2)
+
   ndim1 = A1.shape[0]
   ndim2 = A2.shape[0]
   if not kend:
@@ -456,6 +464,13 @@ def print_3col(A1,A2,A3,wd=8,prc=2,kend=[]):
     if not - stops at shortest length of the arrays
     kend >= 0  stops at kend
   """
+  if type(A1) == list:
+    A1 = np.array(A1)
+  if type(A2) == list:
+    A2 = np.array(A2)
+  if type(A3) == list:
+    A3 = np.array(A3)
+
   ndim1 = A1.shape[0]
   ndim2 = A2.shape[0]
   ndim3 = A3.shape[0]
@@ -467,6 +482,28 @@ def print_3col(A1,A2,A3,wd=8,prc=2,kend=[]):
           format(k+1,A1[k],A2[k],A3[k],width=wd,precis=prc))
 
   return
+
+def print_col(*argv, wd=8, prc=2, kend=[]):
+  """
+  
+   !!! NOT FINISHED  !!!
+
+    Print out N columns of data, same size or not
+    if not - stops at shortest length of the arrays
+    kend >= 0  stops at kend
+
+    Input: A1, A2, ... 1D arrays of data to print out
+    type - numpy arrays
+  """
+  ND = []
+  for A in argv:
+    ndim = A.shape[0] 
+    ND.append(ndim)
+  if not kend:
+    kend = min(ND)
+
+  return
+
 
 def xsect_indx(IIv, JJv):
   """
@@ -560,7 +597,8 @@ def xsect_indx(IIv, JJv):
   return II, JJ
 
 class SEGMENTS():
-  def __init__(self, Isgm, Jsgm, Lsgm1, Lsgm2, vnrm1, vnrm2, nLeg, curve_ornt):
+  def __init__(self, Isgm, Jsgm, Lsgm1, Lsgm2, vnrm1, vnrm2, nLeg, \
+               curve_ornt, LegNorm):
     self.curve_ornt = curve_ornt
     self.I_indx     = Isgm
     self.J_indx     = Jsgm
@@ -569,11 +607,20 @@ class SEGMENTS():
     self.half_norm1 = vnrm1
     self.half_norm2 = vnrm2
     self.Leg_number = nLeg
+    self.LegNorm   = LegNorm
+#    self.Tht2Sct1   = Tht2Sct1
+#    self.Tht2Sct2   = Tht2Sct2
 
-def define_segments(IJ, DX, DY, curve_ornt='negative'):
+def define_segments(IJ, DX, DY, curve_ornt='positive', arctic_patch=False):
   """
     Given poly-segment section connected at vertices IJ[iS:iE, jS:jE]
     find grid indices connecting the vertices
+
+    For more accurate volume/ heat/ FW transport calculation:
+    compute fluxes via halves of the grid cell allowing 
+    "staircase" structure of the sections approximating
+    slanted section that does not coincide with the model
+    grid axes
 
     Each segment consists of 2 halvs wrt to the center pnt
     For each half norm is defined as a negatively oriented curve
@@ -607,15 +654,30 @@ isgm-1   *          :
     To preserve volume flux: U should be multiplied by the norm
 
     All small segments are combined into 1 array
+
+    For plotting U sections, U-vector should be projected onto
+    actual norm vector of the section line(s) 
+    This norm is LegNorm (is the same for 1 leg) 
+    
+    arctic_patch - default false, meaning global grid has discontinuity
+            at the N Pole, i.e. a line across the Arctic Ocean (Alaska - Fram)
+            has 2 discontinuous segments on the grid
+
   """
-  nlegs = IJ.shape[0]-1
-  nLeg  = np.array([])
-  vnrm1 = np.array([])
-  vnrm2 = np.array([])
-  Lsgm1 = np.array([])
-  Lsgm2 = np.array([])
-  Isgm  = np.array([])
-  Jsgm  = np.array([])
+  jdm      = DX.shape[0]
+  idm      = DX.shape[1]
+  nlegs    = IJ.shape[0]-1
+  nLeg     = np.array([])
+  vnrm1    = np.array([])  # norm vector half-segment 1
+  vnrm2    = np.array([])
+  Lsgm1    = np.array([])  # length of half-segment 1
+  Lsgm2    = np.array([])
+  Isgm     = np.array([])  # indices of segments along section 
+  Jsgm     = np.array([])
+#  Tht2Sct1 = np.array([]) # angle from half-segm to main section 
+#  Tht2Sct2 = np.array([]) # sign - math. convention
+  LegNorm  = np.array([]) # norm vector for the main sections
+                          # normal orientation wrt to curve_ornt
   for ileg in range(nlegs):
     Is  = IJ[ileg,0]
     Js  = IJ[ileg,1]
@@ -623,15 +685,34 @@ isgm-1   *          :
     Je  = IJ[ileg+1,1]
     IIv = [Is,Ie]
     JJv = [Js,Je]
-#    II, JJ = mmisc.xsect_indx(IIv,JJv)
-    II, JJ = xsect_indx(IIv,JJv)
+#
+# Check if this segment is over the N. Pole:
+    if int(Js) == (jdm-1) and int(Je) == (jdm-1) and (not arctic_patch):
+      continue
 
-    Isgm = np.append(Isgm, II)
-    Jsgm = np.append(Jsgm, JJ)
+#    II, JJ = mmisc.xsect_indx(IIv,JJv)
+    II, JJ = xsect_indx(IIv,JJv)  # index of grid points, not half-segm!
+
+# Find norm vector for the main section
+# Leg vector defining the main direction:
+    LegV = np.array([IIv[1]-IIv[0],JJv[1]-JJv[0],0])
+#    LegV = np.expand_dims(LegV, axis=0)
+    LegV_mgn = np.sqrt(np.dot(LegV.transpose(),LegV))
+    LegVnorm = find_norm([IIv[0],JJv[0]], [IIv[1],JJv[1]], curve_ornt)
+    LegVnorm = np.expand_dims(LegVnorm, axis=0) 
+
+    Isgm    = np.append(Isgm, II)
+    Jsgm    = np.append(Jsgm, JJ)
 
     nsgm = len(II)
     for isgm in range(nsgm):
-      nLeg = np.append(nLeg, ileg)
+      nLeg    = np.append(nLeg, ileg)
+      if isgm==0:
+        if ileg==0:
+          LegNorm  = LegVnorm.copy()
+      else:
+        LegNorm = np.append(LegNorm, LegVnorm, axis=0)
+
 # Compute half 1 of the segment:
       if isgm == 0:
         ii1 = II[isgm]
@@ -655,6 +736,20 @@ isgm-1   *          :
         else:
           L1 = 0.5*DX[jj1,ii1]
 
+# Find angle between the half-segment and the main section:
+      sgmV     = np.array([ii2-ii1,jj2-jj1,0])
+      sgmV_mgn = np.sqrt(np.dot(sgmV, sgmV))
+      if sgmV_mgn < 1.e-30:
+        Tht1 = 0.
+      else:
+        cosTht   = np.dot(LegV,sgmV)/(LegV_mgn * sgmV_mgn)
+  #      print(f"isgm={isgm} sgmV_mgn={sgmV_mgn} cos={cosTht}")
+        Tht1     = np.arccos(cosTht)
+        RotSgm1  = np.sign(np.cross(sgmV, LegV)[2]) # direction of rotation: 
+                                                    # segment to main section 
+        Tht1     = RotSgm1*abs(Tht1)
+     
+# Find norm for half-segment 1:
       nrm_v1 = find_norm([ii1,jj1],[ii2,jj2], curve_ornt)
       nrm_v1 = np.expand_dims(nrm_v1, axis=0)
 
@@ -680,6 +775,19 @@ isgm-1   *          :
         else:
           L2 = 0.5*DX[jj2,ii2]
         
+# Find angle between the half-segment and the main section:
+      sgmV     = np.array([ii2-ii1,jj2-jj1,0])
+      sgmV_mgn = np.sqrt(np.dot(sgmV, sgmV))
+      if sgmV_mgn < 1.e-30:
+        Tht2 = 0.
+      else:
+        cosTht   = np.dot(LegV,sgmV)/(LegV_mgn * sgmV_mgn)
+        Tht2     = np.arccos(cosTht)
+        RotSgm2  = np.sign(np.cross(sgmV, LegV)[2]) # direction of rotation: 
+                                                    # segment to main section 
+        Tht2     = RotSgm2*abs(Tht2)
+
+# Find norm for half-segment 2:
       nrm_v2 = find_norm([ii1,jj1],[ii2,jj2], curve_ornt)
       nrm_v2 = np.expand_dims(nrm_v2, axis=0)
 
@@ -690,8 +798,10 @@ isgm-1   *          :
         vnrm1  = np.append(vnrm1, nrm_v1, axis=0)
         vnrm2  = np.append(vnrm2, nrm_v2, axis=0)
 
-      Lsgm1  = np.append(Lsgm1, L1)
-      Lsgm2  = np.append(Lsgm2, L2)
+      Lsgm1    = np.append(Lsgm1, L1)
+      Lsgm2    = np.append(Lsgm2, L2)
+#      Tht2Sct1 = np.append(Tht2Sct1, Tht1)
+#      Tht2Sct2 = np.append(Tht2Sct2, Tht2)
 
 
 # Combine legs at the pivoting points
@@ -763,7 +873,8 @@ isgm-1   *          :
 
   Isgm = Isgm.astype(int) 
   Jsgm = Jsgm.astype(int) 
-  SGMT = SEGMENTS(Isgm, Jsgm, Lsgm1, Lsgm2, vnrm1, vnrm2, nLeg, curve_ornt)
+  SGMT = SEGMENTS(Isgm, Jsgm, Lsgm1, Lsgm2, vnrm1, vnrm2, nLeg, \
+                  curve_ornt, LegNorm)
 #  SGMT = np.dtype({'curve_ornt': curve_ornt,
 #                   'I_indx': Isgm,
 #                   'J_indx': Jsgm,
