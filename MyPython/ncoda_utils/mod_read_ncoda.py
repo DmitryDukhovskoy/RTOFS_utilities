@@ -59,6 +59,50 @@ def read_ncoda_inc(fina,IDM,JDM,KDM,rLayer=None):
     
   return F
 
+def read_2Dbin(fina, IDM, JDM):
+  """
+    Read NCODA 2D field
+    files are binary stream access
+  """
+  IJDM = IDM*JDM
+#  fgb.seek(0)
+  print('Reading 2D binary :{0} '.format(fina))
+  print('Grid: IDM={0}, JDM={1}'.format(IDM,JDM))
+  try:
+    fga = open(fina,'rb')
+  except:
+    raise Exception('Could not open '+fina)
+
+  F = []
+  fga.seek(0)
+  dmm = np.fromfile(fga, dtype='>f',count=IJDM) # read 1 layer
+  dmm = dmm.reshape((JDM,IDM))
+  F = np.copy(dmm)
+  fga.close()
+
+  return F
+
+def read_1Dbin(fina,IDM):
+  """
+    Read NCODA 1D field
+    binary stream access
+  """
+  print('Reading 1D binary :{0} '.format(fina))
+  print(f'IDM={IDM}')
+  try:
+    fga = open(fina,'rb')
+  except:
+    raise Exception('Could not open '+fina)
+
+  F = []
+  fga.seek(0)
+  dmm = np.fromfile(fga, dtype='>f',count=IDM)
+  F = np.copy(dmm)
+  fga.close()
+
+  return F
+   
+
 
 def ncoda_depths(zneg=True):
   """

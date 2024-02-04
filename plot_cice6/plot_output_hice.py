@@ -24,9 +24,9 @@ sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/hycom_utils')
 from mod_utils_fig import bottom_text
 import mod_time as mtime
 
-# CICE4 restart date:
+# CICE4 date:
 YR   = 2021
-MM   = 9
+MM   = 12
 MD   = 15
 HR   = 0
 expt = 3

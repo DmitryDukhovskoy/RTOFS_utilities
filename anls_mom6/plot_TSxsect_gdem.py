@@ -34,7 +34,7 @@ from mod_utils_fig import bottom_text
 import mod_mom6_valid as mom6vld
 importlib.reload(mom6vld)
 
-sctnm = 'Fram79s2'
+#sctnm = 'Fram79s2'
 #sctnm = 'DavisS2'
 #sctnm = 'Yucatan2'  # slanted section
 #sctnm = 'BarentsS'
@@ -47,9 +47,10 @@ sctnm = 'Fram79s2'
 #======= Ocean Sections =====
 #sctnm = 'BaffNAFram'
 #sctnm = 'AlaskaIcld' 
+sctnm = 'GoMCarib'
 
-#fld2d = 'salt'
-fld2d = 'temp'
+fld2d = 'salt'
+#fld2d = 'temp'
 f_pot = True    # true - convert to potential wrt to P=0 from tn situ
 moS   = 1
 moE   = 12

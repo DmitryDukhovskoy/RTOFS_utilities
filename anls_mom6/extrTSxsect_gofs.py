@@ -3,7 +3,7 @@
   comprised of several connected segments
   Slanted sections are allowed
 
-  RTOFS
+  GOFS3.1-93.0 restart files
 """
 import os
 import numpy as np
@@ -29,16 +29,19 @@ sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/mom6_utils')
 import mod_read_hycom as mhycom
 import mod_time as mtime
 from mod_utils_fig import bottom_text
+importlib.reload(mhycom)
 
 import mod_mom6_valid as mom6vld
 importlib.reload(mom6vld)
 
 # Check orientation of the line/norms 
 # curve_ornt
-#sctnm = 'DavisS2'
+#sctnm = 'DavisStr'
 #sctnm = 'Yucatan'  # 2-leg right angle section
 #sctnm = 'Yucatan2'  # slented section
+#sctnm = 'FlorCabl'
 #sctnm = 'DavisS2'
+#sctnm = 'DavisStr2'
 #sctnm = 'Fram79s2'
 #sctnm = 'BarentsS'
 #sctnm = 'BeringS'
@@ -53,22 +56,23 @@ importlib.reload(mom6vld)
 sctnm = 'GoMCarib'
 
 f_save    = False
-f_cont    = False    # load saved and start from last saved
+f_cont    = False  # load saved and start from last saved
 f_chcksgm = False  # plot section with all segments and norms
-f_plt     = True # Plot sections on MOM grid and interpolated to Z
+f_plt     = True  # Plot sections on MOM grid and interpolated to Z
 
-fld2d = 'salt'
-#fld2d = 'potT'
+#fld2d = 'salt'
+fld2d = 'potT'
 dday  = 7       # time stepping for data processing/analysis
 
-expt  = 'product'
-sfx   = 'n-24'
-YR1   = 2023
+expt  = '93.0'
+YR1   = 2021
 hg    = 1.e15
 huge  = 1.e15
 rg    = 9806.
+#IDM   = 4500
+#JDM   = 3298
 
-dnmb1 = mtime.datenum([YR1,1,2])
+dnmb1 = mtime.datenum([YR1,1,1])
 dnmb2 = mtime.datenum([YR1,12,31])
 dv1   = mtime.datevec(dnmb1)
 dv2   = mtime.datevec(dnmb2)
@@ -78,15 +82,15 @@ ds2   = mtime.datestr(dnmb2)
 # HYCOM notations:
 fld = fld2d
 if fld2d == 'salt':
-  fld = 'salin'
+  fld = 'saln'
 elif fld2d == 'potT':
   fld = 'temp'
 
-print(f"\nExtracting {sctnm} {fld} RTOFS-{expt} {ds1}-{ds2}\n") 
+print(f"\nExtracting {sctnm} {fld} GOFS3.1-{expt} {ds1}-{ds2}\n") 
 
-pthrun  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/wcoss2.prod/'
-pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/RTOFS_production/'
-floutp  = f"rtofs-{expt}_{fld}xsct_{dv1[0]}" + \
+pthrun  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data/GOFS3.1/restart/'
+pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/GOFS3.1/'
+floutp  = f"gofs31-930_{fld}xsct_{dv1[0]}" + \
           f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
 ffout   = pthoutp + floutp
 
@@ -94,8 +98,9 @@ pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
 ftopo = 'regional.depth'
 fgrid = 'regional.grid'
 LON, LAT, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
-idm = HH.shape[1]
-jdm = HH.shape[0]
+IDM = HH.shape[1]
+JDM = HH.shape[0]
+
 
 # Either strait or ocean section:
 STR = mom6vld.ocean_straits()
@@ -130,8 +135,8 @@ else:
 # Replace with N. Pole values if needed:
 # MOM6 and RTOFS have differen # of jdm
     if NPsct:
-      dJ = abs(Js - jdm)
-      Js = np.where(dJ < 3, jdm-1, Js)
+      dJ = abs(Js - JDM)
+      Js = np.where(dJ < 3, JDM-1, Js)
 
     nlegs   = len(Is) - 1
     IJ      = np.zeros((nlegs+1,2))
@@ -145,8 +150,8 @@ else:
 ZZi = np.concatenate((np.arange(0.,     -21,    -1),
                       np.arange(-22.,   -202.,  -2),
                       np.arange(-205.,  -250.,  -5),
-                      np.arange(-250.,  -510.,  -10),
-                      np.arange(-525.,  -1000., -25),
+                      np.arange(-250.,  -500.,  -10),
+                      np.arange(-500.,  -1000., -25),
                       np.arange(-1000., -2000., -50),
                       np.arange(-2000., -3000., -100),
                       np.arange(-3000., -4000., -250),
@@ -206,13 +211,12 @@ for irec in range(nrec):
   HR   = 12
 
   print(f"Processing rec {irec+1} {YR}/{MM}/{DD}")
-  pthbin  = pthrun + f"rtofs.{YR}{MM:02d}{DD:02d}/"
-  flhycom = f"rtofs_glo.t00z.{sfx}.archv"
+  pthbin  = pthrun 
+  flhycom = f"restart_r{YR}{MM:02d}{DD:02d}00_930"
   fina    = pthbin + flhycom + '.a'
   finb    = pthbin + flhycom + '.b'
 
   if irec == 0:
-
 # Define segment lengths, norms, etc:
 # positive: norm vector is to the left as follow the section
 # negative: to the right
@@ -237,17 +241,22 @@ for irec in range(nrec):
     print(f"Skipping rec {irec+1} {YR}/{MM}/{DD} --->")
     continue
 
-  # Read RTOFS
+  if not os.path.isfile(fina):
+    print(f"!!! missing {fina}")
+    print(' ===== skipping =====>')
+    continue
+
+  # Read HYCOM restart
   # Read layer thicknesses:
   print(f"Reading thknss {fina}")
-  dH, idm, jdm, kdm = mhycom.read_hycom(fina, finb, 'thknss', finfo=False)
+  dH, kdm = mhycom.read_hycom_restart(fina, finb, 'dp', IDM, JDM, finfo=True)
   dH = dH/rg
   dH = np.where(dH>huge, np.nan, dH)
   dH = np.where(dH<0.001, 0., dH)
   ZZ, ZM = mhycom.zz_zm_fromDP(dH, f_btm=False, finfo=False)
 
   print(f"Reading {fld} {fina}")
-  A3d, _, _, _ = mhycom.read_hycom(fina, finb, fld, finfo=False)
+  A3d, _ = mhycom.read_hycom_restart(fina, finb, fld, IDM, JDM, finfo=False)
   A3d = np.where(A3d >= huge, np.nan, A3d)
 
 # Subset to section:
@@ -274,7 +283,7 @@ for irec in range(nrec):
     A = STOP
 
   # Plot section
-  btx = 'extrTSxsect_polysegm.py'
+  btx = 'extrTSxsect_gofs.py'
   if f_plt:
     plt.ion()
 
@@ -307,14 +316,13 @@ for irec in range(nrec):
 
     IJs = np.array([II,JJ]).transpose()
     sttl = fld
-    stl = f"0.08 RTOFS-{expt} {sttl} {sctnm}, {YR}/{MM:02d}/{DD:02d}"
+    stl = f"GOFS3.1-93.0 {sttl} {sctnm}, {YR}/{MM:02d}/{DD:02d}"
 
     mom6vld.plot_xsect(XI, Hb, ZZ2d, A2d, HH, stl=stl,\
                        rmin = rmin, rmax = rmax, clrmp=cmpr,\
                        IJs=IJs, btx=btx)
 
-    stl = ('0.08 RTOFS-{0} Interpolated  {1} {2}, {3}/{4}/{5}'.\
-            format(expt, sttl, sctnm, YR, MM, DD))
+    stl = f'GOFS3.1-93.0 Interpolated  {sttl} {sctnm}, {YR}/{MM:02d}/{DD:02d}'
 
     mom6vld.plot_xsect(XI, Hb, ZZi, A2di, HH, stl=stl, fgnmb=2,\
                        rmin = rmin, rmax = rmax, clrmp=cmpr,\

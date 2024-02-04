@@ -86,6 +86,22 @@ def ocean_straits():
       "umin"  : -0.1,
       "umax"  : 0.1
     },
+    "DavisStr2": {
+      "nlegs" : 1,
+      "xl1"   : [2921],
+      "xl2"   : [3009],
+      "yl1"   : [2724],
+      "yl2"   : [2724],
+      "ucntr1": [-0.35,-0.3,-0.25,-0.2,-0.15,-0.1,-0.05],
+      "ucntr2": [0,0.05,0.1,0.15,0.2,0.25,0.3,0.35],
+      "scntr" : [x/10 for x in range(348, 368, 2)],
+      "smin"  : 32.2,
+      "smax"  : 35.0,
+      "tmin"  : -1.5,
+      "tmax"  : 7.5,
+      "umin"  : -0.1,
+      "umax"  : 0.1
+    },
     "DavisS2" : {
       "nlegs" : 1,
       "xl1"   : [2924],
@@ -137,6 +153,23 @@ def ocean_straits():
       "umin"  : -0.8,
       "umax"  : 0.8
     },
+    "FlorCabl": {
+      "nlegs" : 1,
+      "xl1"   : [2571],
+      "xl2"   : [2591],
+      "yl1"   : [1856],
+      "yl2"   : [1856],
+      "ucntr1": [x/100 for x in range(-150, 0, 10)],
+      "ucntr2": [x/100 for x in range(0, 200, 20)],
+      "scntr" : [x/10 for x in range(346, 368, 2)],
+      "tcntr" : [x/10 for x in range(40, 280, 20)],
+      "smin"  : 34.8,
+      "smax"  : 36.7,
+      "tmin"  : 3.,
+      "tmax"  : 28.,
+      "umin"  : -1.5,
+      "umax"  : 1.5
+    },
     "BarentsS": {
       "nlegs" : 2,
       "xl1"   : [3587, 3634],
@@ -179,8 +212,10 @@ def ocean_straits():
       "yl2"   : [2601],
       "ucntr1": [-0.2,-0.15,-0.1,-0.05],
       "ucntr2": [0,0.05,0.1,0.15,0.2,0.25,.3,0.35,0.4,0.45],
-      "scntr" : [x/100 for x in range(3490, 3500, 1)],
-      "tcntr" : [x/10 for x in range(-10, 10, 10)],
+      "scntr" : [33.0,33.2,33.4,33.6,33.8,34.0,34.2,\
+                 34.4,34.6,34.8,34.9,34.91,34.92,34.93,\
+                 34.94,34.95,34.96,34.97,34.98,34.99],
+      "tcntr" : [x/100 for x in range(-100, 800, 25)],
       "smin"  : 33.4,
       "smax"  : 35.1,
       "tmin"  : -1.,
@@ -294,10 +329,66 @@ def ocean_sections():
       "umin"     : -0.1,
       "umax"     : 0.1
     },
+    "GoMCarib"   : {
+      "NP"       : False,
+      "II"       : [2347, 2493, 2506, 2572, 2594, 2810], 
+      "JJ"       : [1810, 1841, 1736, 1737, 1685, 1691], 
+      "ucntr1"   : [-0.35,-0.3,-0.25,-0.2,-0.15,-0.1,-0.05],
+      "ucntr2"   : [0,0.05,0.1,0.15,0.2,0.25,0.3,0.35],
+      "tcntr"    : [x/10 for x in range(-20, 80, 10)],
+      "scntr"    : [x/10 for x in range(340, 358, 1)],
+      "smin"     : 34.8,
+      "smax"     : 37.0,
+      "tmin"     : 5.,
+      "tmax"     : 28.,
+      "umin"     : -0.1,
+      "umax"     : 0.1
+    },
   }
 
   return XSCT
 
+def ts_prof_regions():
+  REGNS = {
+    "AmundsAO"  : {
+      "lon0"    : 75.,
+      "lat0"    : 87,
+      "dlon"    : 70.,
+      "dlat"    : 3.
+    },
+    "NansenAO"  : {
+      "lon0"    : 85.,
+      "lat0"    : 81.,
+      "dlon"    : 60.,
+      "dlat"    : 4.
+    },
+    "MakarovAO" : {
+      "lon0"    : 225.,
+      "lat0"    : 87.,
+      "dlon"    : 90.,
+      "dlat"    : 3.
+    },
+    "CanadaAO"  : {
+      "lon0"    : 200.,
+      "lat0"    : 77.,
+      "dlon"    : 20.,
+      "dlat"    : 7.
+    },
+  }
+  
+  return REGNS 
+
+def interp_zlevels():
+  # Interpolate onto fixed z-levels:
+  ZZi = np.concatenate((np.arange(0.,     -6.,    -1),
+                        np.arange(-6.,    -20.,   -2),
+                        np.arange(-20.,   -100.,  -5),
+                        np.arange(-100.,  -250.,  -10),
+                        np.arange(-250.,  -500.,  -25),
+                        np.arange(-500.,  -700.,  -50),
+                        np.arange(-700.,  -2000., -100),
+                        np.arange(-2000., -5250., -250)))
+  return ZZi
 
 def minmax_clrmap(dmm,pmin=10,pmax=90,cpnt=0.01,fsym=False):
   """
@@ -389,7 +480,8 @@ def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[
   # Patch bottom:
   Bmin = np.floor(1.05*np.min(Hb))
   if btm_midpnt:
-    verts = [(np.min(XX),-8000),*zip(XXhf,Hb),(np.max(XX),-8000)]
+    verts = [(np.min(XX),-8000),(np.min(XX),Hb[0]),*zip(XXhf,Hb),\
+             (np.max(XX),Hb[-1]),(np.max(XX),-8000)]
   else:
     verts = [(np.min(XX),-8000),*zip(XX,Hb),(np.max(XX),-8000)]
   poly = Polygon(verts, facecolor='0.6', edgecolor='0.6', zorder=10)
@@ -456,7 +548,7 @@ def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[
     if np.min(HH) <= -1000.:
       ax2.contour(HH,[-3000,-2000,-1000],colors=[(0.7,0.7,0.7)],\
                 linestyles='solid',linewidths=1)
-    ax2.plot(IJs[:,0],IJs[:,1],'-',color=[1.,0.4,0])
+    ax2.plot(IJs[:,0],IJs[:,1],'.',ms=8,color=[1.,0.4,0])
     dii = 60
     ilim1 = max([i1-dii,0])
     ilim2 = min([i2+dii,xdm])
@@ -936,7 +1028,9 @@ def plot_section_orthomap(II, JJ, IJ, LON, LAT, HH,\
   m.fillcontinents(color=(0.2,0.2,0.2))
   m.drawparallels(np.arange(-90.,120.,10.))
   m.drawmeridians(np.arange(-180.,180.,10.))
-  m.contour(xh,yh,HH,[-4000,-3000,-2000,-1000], colors=[(0.8,0.8,0.8)], linestyles='solid')
+  m.contour(xh, yh, HH, [-4000,-3000,-2000,-1000], 
+            colors=[(0.8,0.8,0.8)], 
+            linestyles='solid')
 
   m.plot(xh[JJ,II],yh[JJ,II],'.')
   ax1.set_title(sttl)
@@ -1074,4 +1168,128 @@ def plot_section_map(II, JJ, IJ, Vnrm1, Vnrm2, II_hf, JJ_hf, \
   bottom_text(btx,pos=[0.08, 0.08])
 
   return ax1
+
+def read_flcable(YR, dflobs):
+  """
+    Read Fl transport from cable observations
+    Data from https://www.aoml.noaa.gov/phod/floridacurrent/data_access.php
+  """
+  import mod_time as mtime
+
+  fid = open(dflobs,'r')
+# Find length of the input file:
+  fid.seek(0,2)
+  fend = fid.tell()
+  dmm = 0
+# Read header then data
+  fid.seek(0)
+  fpos = fid.tell()
+
+  FLX = []
+  TM0 = []
+  while fpos < fend:
+    dmm = fid.readline().split()
+    if len(dmm)==0:
+      continue
+    elif len(dmm[0].strip()) == 0:
+      print('Empty string, end ...')
+      break
+    elif dmm[0] == '%':
+      continue
+
+    yr0 = int(dmm[0])
+    mm0 = int(dmm[1])
+    dd0 = int(dmm[2])
+    flx = float(dmm[3])
+    flg = int(dmm[4])
+
+    dnmb0 = mtime.datenum([yr0,mm0,dd0])
+    TM0.append(dnmb0)
+    if flg == 2:
+      FLX.append(1.e30)
+    else:
+      FLX.append(flx)
+
+    fpos = fid.tell() 
+
+  fid.close()
+
+  FLX = np.array(FLX)
+  TM0 = np.array(TM0)
+
+  return FLX, TM0
+
+def read_flcableZ(dflin):
+  """
+    Read Zulema's transport estimates
+  """
+  fid = open(dflin,'r')
+# Find length of the input file:
+  fid.seek(0,2)
+  fend = fid.tell()
+  dmm = 0
+  fid.seek(0)
+  fpos = fid.tell()
+
+  FLX = []
+  while fpos < fend:
+    dmm = fid.readline().split()
+    if len(dmm)==0:
+      continue
+    elif len(dmm[0].strip()) == 0:
+      print('Empty string, EOF done ...')
+      break
+    elif dmm[0] == '%':
+      continue
+
+    flx = float(dmm[0])
+    FLX.append(flx)
+    fpos = fid.tell()
+ 
+  fid.close()
+  FLX = np.array(FLX)
+
+  return FLX
+
+
+def plot_points_orthomap(X,Y, LON, LAT, HH, clr=[0,0,0.8],\
+                     lon0=-10, lat0=60, res='l',\
+                     fgnmb=1, btx=[], \
+                     sttl = 'Points'):
+  """
+    Plot data points on orthonormal projection to show
+    observations or something else in the polar regions
+    X, Y - are point coordinates (lon, lat)
+    To change projection angle: set lon0, lat0
+  """
+  from mpl_toolkits.basemap import Basemap, cm
+  import matplotlib.colors as colors
+  import matplotlib.mlab as mlab
+#  from matplotlib.colors import ListedColormap
+  m = Basemap(projection='ortho', lon_0=lon0, lat_0=lat0, resolution=res)
+
+  xh, yh = m(LON,LAT)  # modl grid coordinates on the projections
+
+  plt.ion()
+  fig1 = plt.figure(fgnmb,figsize=(9,9))
+  plt.clf()
+  ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
+
+  m.drawcoastlines()
+  m.fillcontinents(color=(0.2,0.2,0.2))
+  m.drawparallels(np.arange(-90.,120.,10.))
+  m.drawmeridians(np.arange(-180.,180.,10.))
+  m.contour(xh, yh, HH, [-4000,-3000,-2000,-1000],
+            colors=[(0.8,0.8,0.8)],
+            linestyles='solid')
+
+  xp, yp = m(X,Y)
+  m.plot(xp,yp,'.',color=clr)
+  ax1.set_title(sttl)
+
+  if len(btx) > 0:
+    bottom_text(btx,pos=[0.08, 0.03])
+
+  return ax1
+
 

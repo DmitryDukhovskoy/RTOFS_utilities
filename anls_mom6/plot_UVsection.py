@@ -30,39 +30,87 @@ from mod_utils_fig import bottom_text
 import mod_mom6_valid as mom6vld
 importlib.reload(mom6vld)
 
-expt  = '003'
-hg    = 1.e15
+YRM   = 2021
+YRR   = 2023
+nrun  = 'MOM6'  # MOM6, RTOFS, GOFS3.1
+#sctnm = 'Fram79'
 #sctnm = 'Fram79s2'
-#sctnm = 'DavisS2'
-#sctnm = 'Yucatan2'  # slented section
+#sctnm = 'DavisStr'
+#sctnm  = 'DavisStr2' # straight line
+#sctnm = 'DavisS2'   # slanted section
+#sctnm = 'Yucatan2'  # slanted section
+sctnm = 'FlorCabl'
 #sctnm = 'BarentsS'
 #sctnm = 'BeringS'
 #sctnm = 'DenmarkS'
 #sctnm = 'IclShtl'
 #sctnm = 'ShtlScot'
 #sctnm = 'LaManch'
-sctnm = 'NAtl39'
+#sctnm = 'NAtl39'
 fld2d = 'Unrm'
 
-dnmb1 = mtime.datenum([2021,1,1])
-dnmb2 = mtime.datenum([2021,12,31])
+mS=1
+dS=1
+if nrun == 'MOM6':
+  expt = '003'
+  YR   = YRM
+elif nrun == 'RTOFS':
+  expt = 'product' # 003 or product
+  YR   = YRR
+#mS=9
+#dS=15
+elif nrun == 'GOFS3.1':
+  expt = '93.0'
+  YR   = YRM
+
+dnmb1 = mtime.datenum([YR,mS,dS])
+dnmb2 = mtime.datenum([YR,12,31])
 dv1   = mtime.datevec(dnmb1)
 dv2   = mtime.datevec(dnmb2)
 
-pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
-         '008mom6cice6_' + expt + '/'
-pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/' + \
-          'MOM6_CICE6/expt{0}/'.format(expt)
-#floutp = 'mom6-{4}_u2dsect_{0}{1:02d}-{2}{3:02d}_{5}.pkl'.\
-#         format(dv1[0], dv1[1], dv2[0], dv2[1], expt, sctnm)
-floutp = f"mom6-{expt}_{fld2d}VFlx_{dv1[0]}" + \
-         f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
+print(f"\n Plotting {nrun}-{expt} {sctnm} {fld2d} \n")
+
+import mod_misc1 as mmisc
+import mod_mom6 as mom6util
+import mod_colormaps as mcmp
+import mod_read_hycom as mhycom
+importlib.reload(mom6util)
+importlib.reload(mmisc)
+importlib.reload(mcmp)
+
+hg    = 1.e15
+
+if nrun == 'MOM6':
+  pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
+            '008mom6cice6_' + expt + '/'
+  pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/' + \
+             'MOM6_CICE6/expt{0}/'.format(expt)
+  floutp = f"mom6-{expt}_{fld2d}VFlx_{dv1[0]}" + \
+            f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
+  pthgrid   = pthrun + 'INPUT/'
+  fgrd_mom  = pthgrid + 'regional.mom6.nc'
+  ftopo_mom = pthgrid + 'ocean_topog.nc'
+  HH  = mom6util.read_mom6depth(ftopo_mom)
+elif nrun == 'RTOFS':   
+  pthrun  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/wcoss2.prod/'
+  pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/RTOFS_production/'
+  floutp  = f"rtofs-{expt}_{fld2d}xsct_{dv1[0]}" + \
+            f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
+  pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
+  ftopo   = 'regional.depth'
+  fgrid   = 'regional.grid'
+  _, _, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
+elif nrun == 'GOFS3.1':   
+  pthrun  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data/GOFS3.1/restart/'
+  pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/GOFS3.1/'
+  floutp  = f"gofs31-930_{fld2d}xsct_{dv1[0]}" + \
+            f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
+  pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
+  ftopo   = 'regional.depth'
+  fgrid   = 'regional.grid'
+  _, _, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
+
 ffout = pthoutp + floutp
-
-# Function to print mouse click event coordinates
-def onclick(event):
-   print([event.xdata, event.ydata])
-
 print('Loading ' + ffout)
 
 with open(ffout, 'rb') as fid:
@@ -91,12 +139,6 @@ if len(KN) >  0:
   f_nans = True
   Unrm = np.where(np.isnan(Unrm), 1.e30, Unrm)
 
-pthgrid   = pthrun + 'INPUT/'
-fgrd_mom  = pthgrid + 'regional.mom6.nc'
-ftopo_mom = pthgrid + 'ocean_topog.nc'
-
-import mod_misc1 as mmisc
-import mod_mom6 as mom6util
 STR = mom6vld.ocean_straits()
 nlegs = STR[sctnm]["nlegs"]
 I1    = STR[sctnm]["xl1"]
@@ -114,7 +156,6 @@ for kk in range(nlegs):
   IJ[kk+1,0] = I2[kk]
   IJ[kk+1,1] = J2[kk]
 
-HH        = mom6util.read_mom6depth(ftopo_mom)
 
 # Check segments etc:
 # Draw section line with all segments, norm vectors and
@@ -171,7 +212,7 @@ DD1 = dv1[2]
 YR2 = dv2[0]
 MM2 = dv2[1]
 DD2 = dv2[2]
-stl = f"0.08 MOM6-CICE6-{expt} {sctnm}, {fld2d}  Mean: " + \
+stl = f"0.08 {nrun}-{expt} {sctnm}, {fld2d}  Mean: " + \
       f"{YR1}/{MM1:02d}/{DD1:02d}-{YR2}/{MM2:02d}/{DD2:02d}"
 
 # For plotting - smooth 2D field:
@@ -188,7 +229,7 @@ ni = len(II)
 XI = (np.cumsum(Lsgm) - Lsgm[0])*1.e-3# distance along section, km
 mom6vld.plot_xsect(XI, Hbtm, ZZi, Favi, HH, stl=stl,\
                    rmin = rmin, rmax = rmax, clrmp=cmpr,\
-                   IJs=IJ, btx=btx, cntr1=cntr1, cntr2=cntr2)
+                   IJs=np.vstack((II,JJ)).T, btx=btx, cntr1=cntr1, cntr2=cntr2)
 
 # Plot depth-integrated transport
 Tday = TM-TM[0]
@@ -241,9 +282,8 @@ ax1.set_xlim([xl1, xl2])
 ax1.set_xticks(np.linspace(np.floor(xl1),np.ceil(xl2),10))
 ax1.grid(True)
 
-ctl = ('0.08 MOM6-CICE6-{0} {1}, depth.intgr. VFlux (Sv),  \n'.format(expt, sctnm)\
-        + 'mean & IDR {0}/{1}/{2} - {3}/{4}/{5}'.\
-       format(dv1[0], dv1[1], dv1[2], dv2[0], dv2[1], dv2[2]))
+ctl = f'{nrun}-{expt} {sctnm} depth.intgr. VFlux (Sv), \n' + \
+      f'mean & IDR {dv1[0]}/{dv1[1]}/{dv1[2]} - {dv2[0]}/{dv2[1]}/{dv2[2]}'
 ax1.set_title(ctl)
 
 # Plot bottom:

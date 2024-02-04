@@ -268,10 +268,11 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
 # lat-lon coordinates with its appropiate trigonometric
 # signs. 
 # INPUT: xla1, xlo1 - first point coordinates (latitude, longitude)
-#        xla2, xlo2 - second point
+#        xla2, xlo2 - second point or 1D or 2D arrays of coordinates
 # all input coordinates are in DEGREES: latitude from 90 (N) to -90,
 # longitudes: from -180 to 180 or 0 to 360,
-# LAT2, LON2 can be either coordinates of 1 point or N points (array)
+# either xla1/xlo1 or xla2/xlo2 have to be a point coord
+# the other can be a point or 1D or 2D arrays
 # in the latter case, distances from Pnt 1 (LAT1,LON1) to all pnts (LAT2,LON2)
 # are calculated 
 # OUTPUT - distance (in m)
@@ -427,8 +428,8 @@ def print_1col(A,wd=8,prc=2):
   """
     Print out 1 colume of data
   """
-  if type(A1) == list:
-    A1 = np.array(A1)
+  if type(A) == list:
+    A = np.array(A)
 
   ndim1 = A.shape[0]
   for k in range (ndim1):
@@ -912,4 +913,50 @@ def find_norm(IJ1, IJ2, curve_ornt):
   vnrm = np.where(abs(vnrm) < 1.e-30, 0, vnrm)
 
   return vnrm
+
+def match_indices(IIr,JJr,LONr,LATr,LON,LAT):
+  """
+    Match indices between 2 grids
+    Given input indices IIr, JJr and LONr/LATr grid
+    Find corresponding (closest) on LON/LAT grid
+    LON, LAT - 1D (for Mercator grid) or 2D arrays
+  """
+  if type(IIr) == list:
+    IIr = np.array(IIr)
+  if type(JJr) == list:
+    JJr = np.array(JJr)
+
+  if len(IIr.shape) > 1 or len(JJr.shape) > 1:
+    raise Exception("Dim of Input indices IIr/JJr should be <= 1 ")
+
+  if len(LONr.shape) == 1:
+    LATr, LONr = np.meshgrid(LATr, LONr, indexing='ij')
+  elif len(LONr.shape) > 2:
+    raise Exception("Dim of LONR/LATR should be 1 or 2")
+
+  if len(LON.shape) == 1:
+    LAT, LON = np.meshgrid(LAT, LON, indexing='ij') 
+  elif len(LON.shape) > 2:
+    raise Exception("Dim of LON/LAT should be 1 or 2")
+
+  npnts = len(IIr)
+  II = (np.zeros((npnts))-999).astype(int)
+  JJ = (np.zeros((npnts))-999).astype(int)
+  for ii in range(npnts):
+    i0 = IIr[ii]
+    j0 = JJr[ii]
+    x0 = LONr[j0,i0]
+    y0 = LATr[j0,i0]
+
+    DST  = dist_sphcrd(y0, x0, LAT, LON)    
+    jmin, imin = np.where(DST == np.min(DST))
+    jmin = jmin[0]
+    imin = imin[0]
+
+    II[ii] = int(imin)
+    JJ[ii] = int(jmin)
+
+  return II, JJ
+
+
 

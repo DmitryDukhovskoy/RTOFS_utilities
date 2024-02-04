@@ -415,14 +415,18 @@ def read_hycom(fina,finb,fld,Rtrc=None,rLayer=None,finfo=True):
   return np.squeeze(F), IDM, JDM, ll
 
 
-def read_hycom_restart(fina,finb,fld,IDM,JDM,Rtrc=None,rLayer=None,t_level=1,sprt='='):
+def read_hycom_restart(fina, finb, fld, IDM, JDM, \
+                       Rtrc=None, rLayer=None, t_level=1, \
+                       sprt='=', finfo=True):
   """
   reads hycom binary restart files (model output), 
   returns specified field 'fld' 
   if fields are saved at several (2) time levels
   only 1 (default = 1st) is read in
   IDM,JDM - J and I dimensions 
-  sprt - separator symbol in *.b restart file where numbers begin in the string
+  sprt - separator symbol in *.b restart file 
+         where numbers begin in the string, e.g.:
+   temp    : layer,tlevel,range =  39 2  -2.3688760E+00  1.0018643E+02
  
   if several tracers, options are:
   read tracer N: 'r_tracer',1
@@ -475,8 +479,8 @@ def read_hycom_restart(fina,finb,fld,IDM,JDM,Rtrc=None,rLayer=None,t_level=1,spr
       nrec += 1
       FLOC = np.append(FLOC,[cntr])
         
-
-  print('RESTART: {0}, time_level={1}, records found={2}'.\
+  if finfo:
+    print('RESTART: {0}, time_level={1}, records found={2}'.\
          format(fld,t_level,nrec+1))
 
   fgb.close()
@@ -505,7 +509,8 @@ def read_hycom_restart(fina,finb,fld,IDM,JDM,Rtrc=None,rLayer=None,t_level=1,spr
 
 # breakpoint()
   if nTR != 1:
-    print('read_hycom_restart: Found {0} variables {1}  per layer'.format(nTR,fld))
+    print('read_hycom_restart: Found {0} variables {1}  per layer'.\
+          format(nTR,fld))
  
 # Find layers to read, if specified
 # and tracers, if specified
@@ -530,7 +535,9 @@ def read_hycom_restart(fina,finb,fld,IDM,JDM,Rtrc=None,rLayer=None,t_level=1,spr
     lr1 = 1
     lr2 = ll
 
-  print('Reading {0}, Layers: {1}-{2}'.format(fld,lr1,lr2))
+  if finfo:
+    print('Reading {0}, Layers: {1}-{2}'.format(fld,lr1,lr2))
+
   fga = open(fina,'rb')
   F = []
   ccL = -1
@@ -557,7 +564,7 @@ def read_hycom_restart(fina,finb,fld,IDM,JDM,Rtrc=None,rLayer=None,t_level=1,spr
 
   fga.close()
 
-  return np.squeeze(F), IDM, JDM, ll 
+  return np.squeeze(F), ll 
 
 
 def get_zz_zm(fina,finb,f_btm=True):

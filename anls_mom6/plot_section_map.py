@@ -39,7 +39,7 @@ f_cont = False     # load saved and start from last saved
 #sctnm = 'Yucatan'  # 2-leg right angle section
 #sctnm = 'Yucatan2'  # slented section
 #sctnm = 'DavisS2'
-sctnm = 'Fram79s2'
+#sctnm = 'Fram79s2'
 #sctnm = 'BarentsS'
 #sctnm = 'BeringS'
 #sctnm = 'DenmarkS'
@@ -50,7 +50,7 @@ sctnm = 'Fram79s2'
 #======= Ocean Sections =====
 #sctnm = 'BaffNAFram'
 #sctnm = 'AlaskaIcld' 
-
+sctnm = 'GoMCarib'
 
 pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
 ftopo = 'regional.depth'
@@ -136,7 +136,7 @@ if NPsect:
                 lon0=-10, lat0=60, XI=XI, sttl=sctnm, btx='plot_section_map.py')
 else:
   ax1 = mom6vld.plot_section_map(II, JJ, IJ, Vnrm1, Vnrm2, IIhf, JJhf, \
-             HH, fgnmb=1, XI=XI, dX=100., sttl=sctnm, btx='plot_section_map.py')
+             HH, fgnmb=1, XI=XI, dX=500., sttl=sctnm, btx='plot_section_map.py')
 
   f_lon = True
   if f_lon:

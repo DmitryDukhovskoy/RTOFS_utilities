@@ -124,5 +124,21 @@ def read_ssh_cmems(day_read):
 
   return SSHA
 
+def find_fileindir(indir, file2srch):
+  """
+    Search for a file that matches pattern file2srch
+    in the directory indir
+    Return the 1st success
+  """
+  import pathlib
+  from glob import glob
+  folder     = pathlib.Path(indir)
+  file_match = [fp for fp in folder.glob(file2srch)]
+  if len(file_match) == 0:
+    print(f"{file2srch} not found in {indir}")
+    fdout = "xx"
+  else:
+    fdout = str(file_match[0])
 
+  return fdout
 

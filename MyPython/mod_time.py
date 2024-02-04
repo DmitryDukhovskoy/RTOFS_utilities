@@ -414,4 +414,17 @@ def dnumbTrue(dnmb0,sfx):
 
   return dnmbP
 
+def month_days(imo, YR):
+  """
+    Define the number of days in a month
+  """
+  dnmb1 = datenum([YR,imo,1])
+  dv2   = datevec(dnmb1 + 32)
+  imoN  = dv2[1]
+  YRN   = dv2[0]
+  dnmb2 = datenum([YRN, imoN,1])
+  ndays = int(dnmb2-dnmb1)
+
+  return ndays
+
 

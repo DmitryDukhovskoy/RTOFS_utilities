@@ -32,11 +32,15 @@ importlib.reload(mom6vld)
 
 expt  = '003'
 hg    = 1.e15
-sctnm = 'Fram79'
+#sctnm = 'Fram79'
+sctnm = 'DavisStr2'
 #sctnm = 'DavisStr'
 fld2d = 'Unrm'
 #fld2d = 'salt'
 #fld2d = 'potT'
+
+f_plt = True
+
 dnmb1 = mtime.datenum([2021,1,1])
 dnmb2 = mtime.datenum([2021,12,31])
 dv1   = mtime.datevec(dnmb1)
@@ -183,7 +187,6 @@ for irec in range(nrec):
 
   # 
   # Plot section
-  f_plt = False
   if f_plt:
     btx = 'extr2Dfld_section.py'
     plt.ion()
@@ -222,6 +225,7 @@ for irec in range(nrec):
                        rmin = rmin, rmax = rmax, clrmp=cmpr,\
                        ijsct=[i1,i2,j1,j2], btx=btx)
 
+    A = STOP
 #    i0 = 3513-i1
 #    mmisc.print_1col(A2di[:,i0], prc=4)
 #    mmisc.print_1col(A2d[:,i0], prc=4)

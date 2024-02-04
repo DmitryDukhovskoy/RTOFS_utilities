@@ -33,7 +33,7 @@ import mod_colormaps as mclrs
 
 expt  = '003'
 YR    = 2021
-dnmb  = mtime.datenum([2021,6,15]) 
+dnmb  = mtime.datenum([2021,9,15]) 
 jday  = mtime.dnmb2jday(dnmb)
 HR    = 12
 hg    = 1.e15

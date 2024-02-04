@@ -31,8 +31,13 @@ from mod_utils_fig import bottom_text
 import mod_mom6_valid as mom6vld
 importlib.reload(mom6vld)
 
-nrun  = 'MOM6'  # MOM6, RTOFS
-expt  = '003' # 003 or product
+YRM   = 2021
+YRR   = 2023
+
+fld2d = 'salt'
+#fld2d = 'potT'
+nrun  = 'GOFS3.1'  # MOM6, RTOFS, GOFS3.1
+
 #sctnm = 'Fram79s2'
 #sctnm = 'DavisS2'
 #sctnm = 'Yucatan2'  # slanted section
@@ -47,17 +52,26 @@ expt  = '003' # 003 or product
 #sctnm = 'BaffNAFram'
 sctnm = 'AlaskaIcld' 
 
-#fld2d = 'salt'
-fld2d = 'potT'
+
+if nrun == 'MOM6':
+  expt = '003'
+  YR   = YRM
+elif nrun == 'RTOFS':
+  expt = 'product' # 003 or product
+  YR   = YRR 
+elif nrun == 'GOFS3.1':
+  expt = '93.0'
+  YR   = YRM
+
 # Years for MOM6 - 2021, 2020 not extracted
 # RTOFS - 2023, 2022 
-dnmb1 = mtime.datenum([2021,1,1])
-dnmb2 = mtime.datenum([2021,12,31])
-
+dnmb1 = mtime.datenum([YR,1,1])
+dnmb2 = mtime.datenum([YR,12,31])
 
 dv1   = mtime.datevec(dnmb1)
 dv2   = mtime.datevec(dnmb2)
 hg    = 1.e15
+
 
 print(f"\n Plotting {nrun}-{expt} {sctnm} {fld2d} \n")
 
@@ -94,6 +108,21 @@ elif nrun == 'RTOFS':
   ftopo   = 'regional.depth'
   fgrid   = 'regional.grid'
   _, _, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
+elif nrun == 'GOFS3.1':
+  if fld2d == 'salt':
+    fld = 'saln'
+  elif fld2d == 'potT':
+    fld = 'temp'
+
+  pthrun  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data/GOFS3.1/restart/'
+  pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/GOFS3.1/'
+  floutp  = f"gofs31-930_{fld}xsct_{dv1[0]}" + \
+            f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
+  pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
+  ftopo   = 'regional.depth'
+  fgrid   = 'regional.grid'
+  _, _, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
+
 
 ffout = pthoutp + floutp
 
