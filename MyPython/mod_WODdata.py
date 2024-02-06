@@ -235,13 +235,57 @@ def read_WOA18_grid(fgrid):
 
   return kdm, idm, jdm, ZZ, LON, LAT
 
-def readTS_WODuid(dflnm):
-  ZZ = read_ncfld(dflnm, 'z', array=True, finfo=False)
-  ZZ = -abs(ZZ)
-  S  = read_ncfld(dflnm, 'Salinity')
-  T  = read_ncfld(dflnm, 'Temperature')
+def readTS_WODuid(dflnm, f_info=True, qflag=3, \
+                  tmin = -1.99, tmax=38.0, smin=1., smax=50.):
+  """
+    Read T, S, pressure from WOD data
+    check QC flags
+    min/max values
+    to avoid min/max: make tmin/smin = -1.e30
+                           tmax/smax = 1.e30
+  """
+  ZZ    = read_ncfld(dflnm, 'z', array=True, finfo=False)
+  ZZ    = -abs(ZZ)
+  S     = read_ncfld(dflnm, 'Salinity', finfo=f_info)
+  T     = read_ncfld(dflnm, 'Temperature', finfo=f_info)
+  sflag = read_ncfld(dflnm, 'Salinity_WODflag', finfo=f_info) # 0 - ok, 
+  tflag = read_ncfld(dflnm, 'Temperature_WODflag', finfo=f_info)
+  try:
+    Pdb   = read_ncfld(dflnm, 'Pressure', finfo=f_info)
+  except:
+    Pdb = []
 
-  return ZZ, T, S
+# Check for extreme values - some are missed in QC flags:
+  T = np.where(T < tmin, np.nan, T)
+  T = np.where(T > tmax, np.nan, T)
+  S = np.where(S < smin, np.nan, S)
+  S = np.where(S > smax, np.nan, S)
+
+  ITbad = np.where(tflag > qflag)[0]
+  ISbad = np.where(sflag > qflag)[0]
+#  IT    = np.where(tflag <= qflag)[0]
+#  IS    = np.where(sflag <= qflag)[0]
+
+  if len(ITbad) > 0:
+    S[ITbad]  = np.nan
+    T[ITbad]  = np.nan
+  if len(ISbad) > 0:
+    S[ISbad]  = np.nan
+    T[ISbad]  = np.nan
+
+#  S   = S[~np.isnan(T)]
+#  ZZ  = ZZ[~np.isnan(T)]
+#  Pdb = Pdb[~np.isnan(T)]
+#  T   = T[~np.isnan(T)]
+
+  IN  = np.where((~np.isnan(T) & (~np.isnan(S))))[0]
+  T   = T[IN]
+  S   = S[IN]
+  ZZ  = ZZ[IN]
+  if len(Pdb) > 0:
+    Pdb = Pdb[IN]
+
+  return ZZ, T, S, Pdb
 
 def select_WODdepth(pthdata, UID, Hmin, LON, LAT, HH, \
                     qflag = True, nmin_obs=5, zmin_obs=-100.):
@@ -286,6 +330,7 @@ def select_WODdepth(pthdata, UID, Hmin, LON, LAT, HH, \
 
     sflag = read_ncfld(dflnm, 'Salinity_WODflag', finfo=False) # 0 - ok, 
     tflag = read_ncfld(dflnm, 'Temperature_WODflag', finfo=False)
+    tprfflg = read_ncfld(dflnm, 'Temperature_WODprofileflag', finfo=False) # 0 - ok,
     T     = read_ncfld(dflnm, 'Temperature', finfo=False)
     S     = read_ncfld(dflnm, 'Salinity', finfo=False)
 

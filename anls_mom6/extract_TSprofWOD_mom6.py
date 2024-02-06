@@ -1,8 +1,6 @@
 """
-  T/S Profile Observations - downloaded from WOD18 website
-  https://www.ncei.noaa.gov/access/world-ocean-database/bin/getwodyearlydata.pl
-
-  First, run derive_WODuid.py to select profiles for specified regions/time
+  Find T/S profiles from MOM6 using WOD observed T/S profiles
+  Subsampling for the same locations / months
 
 """
 import os
@@ -32,10 +30,14 @@ import mod_WODdata as mwod
 importlib.reload(mwod)
 importlib.reload(mom6vld)
 
+expt  = '003'
+hg    = 1.e15
 
 # WOD data
 pthwod = '/scratch1/NCEPDEV/stmp4/Dmitry.Dukhovskoy/WOD_profiles/'
 pthoutp= '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/MOM6_CICE6/ts_prof/'
+pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
+         '008mom6cice6_' + expt + '/'
 
 
 # Select lon, lat to search for WOD profiles
@@ -44,23 +46,23 @@ YR1    = 2018
 YR2    = 2022
 mo1    = 1
 mo2    = 12
-#regn   = 'AmundsAO'
+regn   = 'AmundsAO'
 #regn   = 'NansenAO'
 #regn   = 'MakarovAO'
-regn  = 'CanadaAO'
+#regn  = 'CanadaAO'
 
 REGNS = mom6vld.ts_prof_regions()
 x0 = REGNS[regn]["lon0"]
-y0 = REGNS[regn]["lat0"] 
+y0 = REGNS[regn]["lat0"]
 dx = REGNS[regn]["dlon"]
 dy = REGNS[regn]["dlat"]
 
-print(f'Extracting WOD T/S for selected UID {regn} {YR1} {YR2} mo={mo1}-{mo2}\n')
+print(f'Extracting MOM6 T/S for WOD UID {regn} {YR1} {YR2} mo={mo1}-{mo2}\n')
 
 
 fuid_out = f'uidWOD_{regn}_{YR1}-{YR2}.pkl'
 dflout   = os.path.join(pthoutp,fuid_out)
-flts_out = f'WODTS_{regn}_{YR1}-{YR2}.pkl'
+flts_out = f'mom6TS_{regn}_{YR1}-{YR2}.pkl'
 dfltsout = os.path.join(pthoutp, flts_out)
 
 # Load saved UID:
@@ -76,12 +78,12 @@ print(f'# profiles CTD: {lctd}, DRB: {ldrb}, PFL: {lpfl}')
 
 ZZi = mom6vld.zlevels()
 
-import mod_swstate as msw
-lat_ref = 85.
-pr_ref  = 0.
-f_new   = True
+pthgrid   = pthrun + 'INPUT/'
+fgrd_mom  = pthgrid + 'regional.mom6.nc'
+ftopo_mom = pthgrid + 'ocean_topog.nc'
+LON, LAT  = mom6util.read_mom6grid(fgrd_mom, grdpnt='hpnt')
+HH        = mom6util.read_mom6depth(ftopo_mom)
 
-# CTD
 for obtype  in ['CTD', 'DRB', 'PFL']:
   if obtype == 'CTD':
     ll  = lctd
@@ -103,72 +105,27 @@ for obtype  in ['CTD', 'DRB', 'PFL']:
       flnm    = f'wod_0{uid}O.nc'
       pthdata = os.path.join(pthwod, obtype)
       dflnm   = os.path.join(pthdata, flnm)
+      lat = mwod.read_ncfld(dflnm, 'lat', finfo=False)
+      lon = mwod.read_ncfld(dflnm, 'lon', finfo=False)
+      TMM = mwod.read_ncfld(dflnm,'time')
+    # time:units = "days since 1770-01-01 00:00:00" ;
+      dnmb_ref = mmisc.datenum([1770,1,1])
+      TM  = TMM + dnmb_ref
+      DV  = mmisc.datevec(TM)
+      YY  = DV[0]
+      MM  = DV[1]  # months
+      DM  = DV[2]  # month days
+      jday= int(mtime.date2jday([YR,MM,DD]))
+      HR  = 12
 
-      ZZ, T, S, pr_db = mwod.readTS_WODuid(dflnm, f_info=False)  # in situ T !
+      pthbin = pthrun + 'tarmom_{0}{1:02d}/'.format(YR,MM)
+      flmom  = 'ocnm_{0}_{1:03d}_{2}.nc'.format(YR,jday,HR)
+      flin   = pthbin + flmom
 
-  # COnvert in situ -> potential T:
-      if len(pr_db) == 0:
-        lat = mwod.read_ncfld(dflnm, 'lat', finfo=False)
-        lat_obs = np.zeros((len(ZZ)))*0.0 + lat
-        pr_db, pr_pa = msw.sw_press(ZZ, lat_obs)
+      A3d    = mom6util.read_mom6(flin, 'potT', finfo=False)
+# Find indices in MOM6 grid:
 
-      Tpot = msw.sw_ptmp(S, T, pr_db, pr_ref)
-  # Interpolate
-      Ti = mom6vld.interp_prof2zlev(Tpot, ZZ, ZZi)
-      Si = mom6vld.interp_prof2zlev(S, ZZ, ZZi)
+# Get T profile
 
-      if f_new:
-        SPROF = mom6vld.PROF1D(ZZi,Si)
-        TPROF = mom6vld.PROF1D(ZZi,Ti)
-        f_new = False
-      else:
-        SPROF.add_array(Si)
-        TPROF.add_array(Ti)
-
-if f_save:
-  print(f'Saving --> {dfltsout}')
-  with open(dfltsout, 'wb') as fid:
-    pickle.dump([SPROF, TPROF],fid)  
-
-print('All Done\n')
-
-
-
-btx = 'extract_WODprof.py'
-f_pltobs = False
-if f_pltobs:
-  from mpl_toolkits.basemap import Basemap, cm
-  import matplotlib.colors as colors
-  import matplotlib.mlab as mlab
-  plt.ion()
-  clr_drb = [0.8, 0.4, 0]
-  clr_pfl = [0, 0.4, 0.8]
-  clr_ctd = [1, 0, 0.8]
-
-
-  fig1 = plt.figure(1,figsize=(9,9))
-  plt.clf()
-
-  sttl = f'UID={uid} {obtype} Tpot'
-  zlim = np.floor(ZZ[-1])
-  ax1 = plt.axes([0.08, 0.1, 0.4, 0.8])
-  ln1, = ax1.plot(Tpot,ZZ,'.-', label="obs")
-  ln2, = ax1.plot(Ti,ZZi,'.-', label="intrp")
-  ax1.set_ylim([zlim, 0])
-  ax1.grid('on')
-  ax1.set_title(sttl)
-
-  sttl = f'UID={uid} {obtype} S'
-  zlim = np.floor(ZZ[-1])
-  ax2 = plt.axes([0.58, 0.1, 0.4, 0.8])
-  ax2.plot(S,ZZ,'.-', label="obs")
-  ax2.plot(Si,ZZi,'.-', label="intrp")
-  ax2.set_ylim([zlim, 0])
-  ax2.grid('on')
-  ax2.set_title(sttl)
-
-
-
-
-
-
+#
+      A3d    = mom6util.read_mom6(flin, 'salt', finfo=False)
