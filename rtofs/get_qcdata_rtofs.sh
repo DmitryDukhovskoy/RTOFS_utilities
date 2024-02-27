@@ -1,0 +1,1 @@
+../../scripts/rtofs/get_qcdata_rtofs.sh
