@@ -32,14 +32,14 @@ importlib.reload(mom6vld)
 
 YRM   = 2021
 YRR   = 2023
-nrun  = 'MOM6'  # MOM6, RTOFS, GOFS3.1
+nrun  = 'RTOFS'  # MOM6, RTOFS, GOFS3.1
 #sctnm = 'Fram79'
 #sctnm = 'Fram79s2'
 #sctnm = 'DavisStr'
 #sctnm  = 'DavisStr2' # straight line
 #sctnm = 'DavisS2'   # slanted section
-#sctnm = 'Yucatan2'  # slanted section
-sctnm = 'FlorCabl'
+sctnm = 'Yucatan2'  # slanted section
+#sctnm = 'FlorCabl'
 #sctnm = 'BarentsS'
 #sctnm = 'BeringS'
 #sctnm = 'DenmarkS'
@@ -47,6 +47,7 @@ sctnm = 'FlorCabl'
 #sctnm = 'ShtlScot'
 #sctnm = 'LaManch'
 #sctnm = 'NAtl39'
+#sctnm = 'DrakePsg'
 fld2d = 'Unrm'
 
 mS=1

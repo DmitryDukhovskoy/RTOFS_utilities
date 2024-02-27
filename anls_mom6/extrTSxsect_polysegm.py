@@ -103,7 +103,7 @@ else:
   STR = mom6vld.ocean_sections()
   if sctnm in STR:
     oc_strait = False
-
+    NPsct   = STR[sctnm]["NP"]
     Is      = STR[sctnm]["II"]
     Js      = STR[sctnm]["JJ"]
     Is      = np.array(Is)

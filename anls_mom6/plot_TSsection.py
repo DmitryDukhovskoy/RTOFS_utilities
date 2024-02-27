@@ -34,8 +34,8 @@ importlib.reload(mom6vld)
 YRM   = 2021
 YRR   = 2023
 
-fld2d = 'salt'
-#fld2d = 'potT'
+#fld2d = 'salt'
+fld2d = 'potT'
 nrun  = 'GOFS3.1'  # MOM6, RTOFS, GOFS3.1
 
 #sctnm = 'Fram79s2'
@@ -48,10 +48,11 @@ nrun  = 'GOFS3.1'  # MOM6, RTOFS, GOFS3.1
 #sctnm = 'ShtlScot'
 #sctnm = 'LaManch'
 #sctnm = 'NAtl39'
+#sctnm = 'DrakePsg'
 #======= Ocean Sections =====
 #sctnm = 'BaffNAFram'
-sctnm = 'AlaskaIcld' 
-
+#sctnm = 'AlaskaIcld' 
+sctnm = 'GoMCarib'
 
 if nrun == 'MOM6':
   expt = '003'

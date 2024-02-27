@@ -139,9 +139,9 @@ def ocean_straits():
     "Yucatan2": {
       "nlegs" : 1,
       "xl1"   : [2487],
-      "xl2"   : [2512],
+      "xl2"   : [2516],
       "yl1"   : [1778],
-      "yl2"   : [1784],
+      "yl2"   : [1786],
       "ucntr1": [-0.2,-0.15,-0.1,-0.05],
       "ucntr2": [0,0.25,0.5,0.75,1.,1.25,1.5,1.75],
       "scntr" : [x/10 for x in range(346, 368, 2)],
@@ -291,6 +291,23 @@ def ocean_straits():
       "umin"  : -0.2,
       "umax"  : 0.2
     },
+    "DrakePsg": {
+      "nlegs" : 1,
+      "xl1"   : [2750],
+      "xl2"   : [2851],
+      "yl1"   : [682],
+      "yl2"   : [470],
+      "ucntr1": [-0.2,-0.15,-0.1,-0.05],
+      "ucntr2": [0,0.05,0.1,0.15,0.2,0.25,.3,0.35,0.4,0.45],
+      "scntr" : [x/100 for x in range(3468, 3490, 1)],
+      "tcntr" : [x/10 for x in range(0, 80, 10)],
+      "smin"  : 33.43,
+      "smax"  : 34.73,
+      "tmin"  : -1.,
+      "tmax"  : 6.,
+      "umin"  : -0.2,
+      "umax"  : 0.2
+    },
   }
 
   return STR
@@ -335,11 +352,11 @@ def ocean_sections():
       "JJ"       : [1810, 1841, 1736, 1737, 1685, 1691], 
       "ucntr1"   : [-0.35,-0.3,-0.25,-0.2,-0.15,-0.1,-0.05],
       "ucntr2"   : [0,0.05,0.1,0.15,0.2,0.25,0.3,0.35],
-      "tcntr"    : [x/10 for x in range(-20, 80, 10)],
-      "scntr"    : [x/10 for x in range(340, 358, 1)],
+      "tcntr"    : [x/100 for x in range(20, 650, 50)],
+      "scntr"    : [x/100 for x in range(3460, 3505, 4)],
       "smin"     : 34.8,
       "smax"     : 37.0,
-      "tmin"     : 5.,
+      "tmin"     : 4.,
       "tmax"     : 28.,
       "umin"     : -0.1,
       "umax"     : 0.1
@@ -389,6 +406,38 @@ def zlevels():
                         np.arange(-700.,  -2000., -100),
                         np.arange(-2000., -5250., -250)))
   return ZZi
+
+def create_timestamps(dnmb1,dnmb2,dday):
+  """
+    numpy array of time stamps for file processing/ plotting
+    with evenly spaced time = dday [1, ...] between
+    time instances dnmb1 - dnmb2
+    dnmb1/2 are date numbers in "matlab" form
+  """
+  import mod_time as mtime
+
+  if dday <=0:
+    raise Exception(f'ERR: dday={dday} cannot be <=0')
+
+  nrec = len(np.arange(dnmb1, dnmb2+1, dday))
+  irc  = -1
+  TPLT = np.zeros(nrec, dtype=[('dnmb', float),
+                                ('date', int, (4,)),
+                                ('yrday', float)])
+  #for imo in range(dv1[1], dv2[1]+1):
+  #  YRi = dv1[0]
+  #  mday_last = mtime.month_days(imo,YRi)
+  #  for mday in range(dv1[2], mday_last, dday):
+  for dnmb in range(int(dnmb1), int(dnmb2+1), dday):
+    irc += 1
+  #  dnmb = mtime.datenum([YR1, imo, mday])
+    DV   = mtime.datevec(dnmb)
+    _, jday = mtime.dnmb2jday(dnmb)
+    TPLT['dnmb'][irc]   = dnmb
+    TPLT['yrday'][irc]  = jday
+    TPLT['date'][irc,:] = DV[0:4]
+
+  return TPLT
 
 def minmax_clrmap(dmm,pmin=10,pmax=90,cpnt=0.01,fsym=False):
   """
@@ -688,7 +737,7 @@ def interp_2Dsect_segmhalf(A2d, ZZi, ZZ2d, ZM2d, Hb):
 
   return A2di
 
-def interp_prof2zlev(AA, ZZ, ZZi, fill_deep=False, fill_surf=False):
+def interp_prof2zlev(AA, ZZ, ZZi, fill_deep=False, fill_surf=False, check_mincr=True):
   """
     Interpolate 1 profile - 1D array at depths ZZ
     onto ZZi 
@@ -697,6 +746,9 @@ def interp_prof2zlev(AA, ZZ, ZZi, fill_deep=False, fill_surf=False):
     otherwise - with the last value AA[-1]
     fill_surf=False: Missing values from ZZ[0] to the surface = nan
     othewise used AA[0]
+
+    check_mincr - check if ZZ0 is monotonically incr/decreasing for interpolation
+                  bottom values can be constant - need to correct
   """
   import mod_interp1D as minterp
 
@@ -708,6 +760,13 @@ def interp_prof2zlev(AA, ZZ, ZZi, fill_deep=False, fill_surf=False):
   if ZZ0[0] < 0.:
     ZZ0 = np.insert(ZZ0, 0, 1.)
     AA  = np.insert(AA, 0, AA[0])
+
+# check monotonicity of zz:
+  if check_mincr:
+    dZZ  = np.diff(ZZ0)
+    ibtm = np.where(abs(dZZ) < 1.e-30)[0]
+    for izz in ibtm:
+      ZZ0[izz+1] = ZZ0[izz] + np.sign(dZZ[ibtm[0]-1])*1.e-6 
 
 # Add extra point at the bottom for interp deep z levels:
   if ZZ0[-1] > ZZi[-1]:
@@ -1351,4 +1410,109 @@ def plot_points_orthomap(X,Y, LON, LAT, HH, clr=[0,0,0.8],\
 
   return ax1
 
+
+def read_prof_stat(dflts_out, plow=5):
+  """
+    Read T/S profiles subsampled from model /WOD
+    saved into 2D array (time vs depth)
+    compute simple statistics: mean, percentiles
+  """
+  import pickle
+
+  print(f'Loading {dflts_out}')
+  with open(dflts_out, 'rb') as fid:
+    [SPROF, TPROF] = pickle.load(fid)
+
+  ZZi = TPROF.zz
+  TT  = TPROF.prof1d
+  SS  = SPROF.prof1d
+  
+  pup  = 100-plow
+  Tmn  = np.nanmean(TT, axis=0)
+  Tpl  = np.nanpercentile(TT, plow, axis=0)
+  Tpu  = np.nanpercentile(TT, pup, axis=0)
+
+  Smn  = np.nanmean(SS, axis=0)
+  Spl  = np.nanpercentile(SS, plow, axis=0)
+  Spu  = np.nanpercentile(SS, pup, axis=0)
+
+  return ZZi, Tmn, Tpl, Tpu, Smn, Spl, Spu
+
+def derive_mom_coord_section(fgrd_mom, ftopo_mom, sctnm):
+  """
+    Define segment lengths, norms, etc:
+    positive: norm vector is to the left as follow the section
+    negative: to the right
+  """
+  import mod_mom6 as mom6util
+  import mod_misc1 as mmisc
+
+  STR = ocean_straits()
+  if sctnm in STR:
+    oc_strait = True
+
+    nlegs = STR[sctnm]["nlegs"]
+    I1    = STR[sctnm]["xl1"]
+    I2    = STR[sctnm]["xl2"]
+    J1    = STR[sctnm]["yl1"]
+    J2    = STR[sctnm]["yl2"]
+    Ni    = np.zeros((nlegs))
+    Nj    = np.zeros((nlegs))
+    IJ    = np.zeros((nlegs+1,2))
+    for kk in range(nlegs):
+      Ni[kk]     = I2[kk]+1
+      Nj[kk]     = J2[kk]+1
+      IJ[kk,0]   = I1[kk]
+      IJ[kk,1]   = J1[kk]
+      IJ[kk+1,0] = I2[kk]
+      IJ[kk+1,1] = J2[kk]
+
+  else:
+    STR = ocean_sections()
+    if sctnm in STR:
+      oc_strait = False
+
+      Is      = STR[sctnm]["II"]
+      Js      = STR[sctnm]["JJ"]
+      Is      = np.array(Is)
+      Js      = np.array(Js)
+  # Replace with N. Pole values if needed:
+  # MOM6 and RTOFS have differen # of jdm
+  #    if NPsct:
+  #      dJ = abs(Js - jdm)
+  #      Js = np.where(dJ < 3, jdm-1, Js)
+
+      nlegs   = len(Is) - 1
+      IJ      = np.zeros((nlegs+1,2))
+      IJ[:,0] = Is
+      IJ[:,1] = Js
+
+    else:
+      raise Exception(f"Name {sctnm} is not defined as a strait or section")
+
+  LON, LAT  = mom6util.read_mom6grid(fgrd_mom, grdpnt='hpnt')
+  HH        = mom6util.read_mom6depth(ftopo_mom)
+  Lmsk      = mom6util.read_mom6lmask(ftopo_mom)
+
+# Define segment lengths, norms, etc:
+# positive: norm vector is to the left as follow the section
+# negative: to the right
+  DX, DY = mom6util.dx_dy(LON,LAT)
+  SGMT   = mmisc.define_segments(IJ, DX, DY, curve_ornt='positive')
+#    SGMT   = mmisc.define_segments(IJ, DX, DY, curve_ornt='negative')
+  II     = SGMT.I_indx
+  JJ     = SGMT.J_indx
+  hLsgm1 = SGMT.half_Lsgm1
+  hLsgm2 = SGMT.half_Lsgm2
+  Vnrm1  = SGMT.half_norm1
+  Vnrm2  = SGMT.half_norm2
+  nLeg   = SGMT.Leg_number
+  XX     = LON[JJ,II]
+  YY     = LAT[JJ,II]
+  Hb     = HH[JJ,II]
+  LSgm   = np.zeros((len(II)))  # total segment length = half1 + half2
+  for ik in range(len(II)):
+     LSgm[ik] = hLsgm1[ik] + hLsgm2[ik]
+
+  return II, JJ, Vnrm1, Vnrm2, XX, YY, Hb, LSgm
 

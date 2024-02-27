@@ -157,6 +157,7 @@ def find_gdem_indx(XX, YY, LON, LAT, Hb0 = []):
   Hbtm = []
   nLN  = len(LON)
   nLT  = len(LAT)
+  LAT  = np.where(LAT>=90., 89.99, LAT)
 
   print(f"Finding section {nI} indices on GDEM grid ...")
   for ix in range(nI):

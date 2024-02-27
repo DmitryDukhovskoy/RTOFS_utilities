@@ -55,6 +55,7 @@ def datenum(ldate0,ldate_ref=[1,1,1,0,0]):
 def adddays_date(rdate,ndays):
   """
   Add/subtract n days from rdate
+  rdate is in the format YYYYMMDD[HR]
   """
 
   ll = len(rdate)

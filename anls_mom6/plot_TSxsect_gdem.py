@@ -44,13 +44,14 @@ importlib.reload(mom6vld)
 #sctnm = 'ShtlScot'
 #sctnm = 'LaManch'
 #sctnm = 'NAtl39'
+#sctnm = 'DrakePsg'
 #======= Ocean Sections =====
 #sctnm = 'BaffNAFram'
 #sctnm = 'AlaskaIcld' 
 sctnm = 'GoMCarib'
 
-fld2d = 'salt'
-#fld2d = 'temp'
+#fld2d = 'salt'
+fld2d = 'temp'
 f_pot = True    # true - convert to potential wrt to P=0 from tn situ
 moS   = 1
 moE   = 12
@@ -93,29 +94,14 @@ try:
   with open(ffsect, 'rb') as fid:
     [II, JJ, XX, YY, Lsgm, Hbtm] = pickle.load(fid)
 except:
-# Load section info from MOM6:
-  dnmb1  = mtime.datenum([2021,1,1])
-  dnmb2  = mtime.datenum([2021,12,31])
-  dv1    = mtime.datevec(dnmb1)
-  dv2    = mtime.datevec(dnmb2)
-  pthmom = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/' + \
-            'MOM6_CICE6/expt003/'
-  flmom  = f"mom6-003_saltVFlx_{dv1[0]}" + \
-            f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
-  ffmom = pthmom + flmom
-  print('Loading ' + ffmom)
-
-  with open(ffmom, 'rb') as fid:
-    F2D = pickle.load(fid)
-  #TM   = F2D.TM
-  #A2dT = F2D.Fld2D  # 2D fields: Time x depth x Width
-#  IM   = F2D.Iindx
-#  JM   = F2D.Jindx
-  XM   = F2D.LON
-  YM   = F2D.LAT
-  #Lsgm = F2D.Lsgm
-  HbtmM = F2D.Hbtm
-  #ZZi  = F2D.ZZi
+# Derive section info for MOM6:
+  pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
+         '008mom6cice6_003/'
+  pthgrid   = pthrun + 'INPUT/'
+  fgrd_mom  = pthgrid + 'regional.mom6.nc'
+  ftopo_mom = pthgrid + 'ocean_topog.nc'
+  _, _, _, _, XM, YM, HbtmM, _ = mom6vld.derive_mom_coord_section(fgrd_mom, \
+                                   ftopo_mom, sctnm)
 
   # Find section indices on GDEM grid:
   II, JJ, XX, YY, Lsgm, Hbtm = mgdem.find_gdem_indx(XM, YM, LON, LAT, Hb0=HbtmM)

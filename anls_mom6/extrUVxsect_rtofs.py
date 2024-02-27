@@ -42,15 +42,17 @@ from mod_utils_fig import bottom_text
 import mod_mom6_valid as mom6vld
 importlib.reload(mom6vld)
 
-f_plt  = True    # Plot original and interpolated sections for checking
+f_plt  = False    # Plot original and interpolated sections for checking
 f_cont = False   # True - load saved and start from last saved
-f_save = False
+f_save = True
 expt   = 'product'
 sfx    = 'n-24'
-YR1    = 2021
-dday   = 7       # time stepping for data processing/analysis
-mS     = 9
-dS     = 1
+YR1    = 2023
+# For cases when available output are not equally spaced
+# make dday <= 0
+dday   = -1       # time stepping for data processing/analysis
+mS     = 1
+dS     = 2
 #sctnm = 'Yucatan2'  # slanted section
 sctnm = 'FlorCabl'
 #sctnm = 'DavisS2'
@@ -74,8 +76,8 @@ dnmb2 = mtime.datenum([YR1,12,31])
 dv1   = mtime.datevec(dnmb1)
 dv2   = mtime.datevec(dnmb2)
 
-#pthrun = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/wcoss2.prod/'
-pthrun = '/scratch2/NCEPDEV/marine/Zulema.Garraffo/rtofs.prod/'
+pthrun = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/wcoss2.prod/'
+#pthrun = '/scratch2/NCEPDEV/marine/Zulema.Garraffo/rtofs.prod/'
 pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/RTOFS_production/'
 floutp = f"rtofs-{expt}_{fld2d}xsct_{dv1[0]}" + \
          f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
@@ -117,24 +119,35 @@ import mod_mom6 as mom6util
 importlib.reload(mom6util)
 
 # Time array
-nrec = len(np.arange(dnmb1, dnmb2+1, dday))
-irc  = -1
-TPLT = np.zeros(nrec, dtype=[('dnmb', float),
-                              ('date', int, (4,)),
-                              ('yrday', float)])
-#for imo in range(dv1[1], dv2[1]+1):
-#  YRi = dv1[0]
-#  mday_last = mtime.month_days(imo,YRi)
-#  for mday in range(dv1[2], mday_last, dday):
-for dnmb in range(int(dnmb1), int(dnmb2+1), dday):
-  irc += 1
-#  dnmb = mtime.datenum([YR1, imo, mday])
-  DV   = mtime.datevec(dnmb)
-  _, jday = mtime.dnmb2jday(dnmb)
-  TPLT['dnmb'][irc]   = dnmb
-  TPLT['yrday'][irc]  = jday
-  TPLT['date'][irc,:] = DV[0:4]
+if dday > 0:
+  TPLT = mom6vld.create_timestamps(dnmb1, dnmb2, dday)
+else:
+# Create time array from existing outputs:
+  fall = os.listdir(pthrun)
+# Separate directories from files etc
+# and select only the right ones
+  LL   = [fnm for fnm in fall if os.path.isdir(os.path.join(pthrun,fnm))]
+  LL   = [fnm for fnm in LL if (fnm[:6] == 'rtofs.')]
 
+  nrec = len(LL)
+  if nrec == 0:
+    raise Exception(f'No output found in {pthrun}')
+
+  irc  = -1
+  TPLT = np.zeros(nrec, dtype=[('dnmb', float),
+                                ('date', int, (4,)),
+                                ('yrday', float)])
+  for ifl in range(nrec):
+    irc += 1
+    rdate   = LL[ifl][6:]
+    dnmb    = mtime.rdate2datenum(rdate)
+    DV      = mtime.datevec(dnmb)
+    _, jday = mtime.dnmb2jday(dnmb)
+    TPLT['dnmb'][irc]   = dnmb
+    TPLT['yrday'][irc]  = jday
+    TPLT['date'][irc,:] = DV[0:4]
+
+TPLT = np.sort(TPLT, order='dnmb')
 nrec = len(TPLT)
 
 dnmbL = 0
@@ -169,7 +182,6 @@ for irec in range(nrec):
   HR   = 12
 
   print(f"Processing rec {irec+1} {YR}/{MM}/{DD}")
-  pthbin  = pthrun + 'tarmom_{0}{1:02d}/'.format(YR,MM)
   pthbin  = pthrun + f"rtofs.{YR}{MM:02d}{DD:02d}/"
 #  pthbin = '/scratch2/NCEPDEV/marine/Zulema.Garraffo/rtofs.prod/rtofs.20231001/'
   flhycom = f"rtofs_glo.t00z.{sfx}.archv" 

@@ -52,7 +52,7 @@ importlib.reload(mom6vld)
 #sctnm = 'AlaskaIcld' 
 sctnm = 'GoMCarib'
 
-f_save    = False
+f_save    = True
 f_cont    = False    # load saved and start from last saved
 f_chcksgm = False  # plot section with all segments and norms
 f_plt     = True # Plot sections on MOM grid and interpolated to Z

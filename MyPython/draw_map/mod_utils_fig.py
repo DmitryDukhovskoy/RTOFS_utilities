@@ -5,11 +5,20 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-def bottom_text(btx, ipwd=1, pos=[0.1, 0.05], fsz=10):
+def bottom_text(btx, gtdir='RTOFS_utilities', \
+                ipwd=1, pos=[0.05, 0.05], fsz=8, f_short=False):
+  sgit = 'github.com/DmitryDukhovskoy/' + gtdir
   drr = os.getcwd()
-  btnm = drr+'/'+btx
+#  btnm = drr+'/'+btx
+  bnm = os.path.basename(drr)
+  if f_short:
+    btnm = bnm + '/' + btx
+  else:
+    btnm = sgit + '/' + bnm + '/' + btx
+
   if ipwd==0:
     btnm = btx
+
   plt.text(pos[0],pos[1],btnm,horizontalalignment='left',
          transform=plt.gcf().transFigure, fontsize=fsz)
   return

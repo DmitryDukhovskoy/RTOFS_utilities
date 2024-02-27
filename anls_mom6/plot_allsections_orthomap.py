@@ -39,7 +39,8 @@ import matplotlib.mlab as mlab
 plt.ion()
 
 SCTNMS = ['DavisS2','Fram79s2','BarentsS','BeringS','DenmarkS','IclShtl',
-          'ShtlScot','LaManch','NAtl39','BaffNAFram','AlaskaIcld']
+          'ShtlScot','LaManch','NAtl39','BaffNAFram','AlaskaIcld','GoMCarib',
+          'Yucatan2','FlorCabl']
 
 pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
 ftopo = 'regional.depth'
@@ -128,7 +129,7 @@ for isct in range(nscts):
   XI = (np.cumsum(LSgm)-LSgm[0])*1.e-3           # distance along section, km
 
   if isct==0:
-    m = Basemap(projection='ortho', lon_0=-10, lat_0=60, resolution='l')
+    m = Basemap(projection='ortho', lon_0=-50, lat_0=45, resolution='l')
 
     xh, yh = m(LON,LAT)  # modl grid coordinates on the projections
 
