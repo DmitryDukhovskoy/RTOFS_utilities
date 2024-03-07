@@ -27,6 +27,7 @@ from matplotlib.colors import ListedColormap
 # Assumed file structure
 # .../python/MyPython
 # or set PPTHN explicitely
+#PPTHN = '/home/Dmitry.Dukhovskoy/python'
 PPTHN = []
 if len(PPTHN) == 0:
   cwd   = os.getcwd()

@@ -11,10 +11,16 @@ from copy import copy
 import matplotlib.colors as colors
 from matplotlib.patches import Polygon
 
-sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/hycom_utils')
-sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/draw_map')
-sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython')
-sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/mom6_utils')
+PPTHN = '/home/Dmitry.Dukhovskoy/python'
+if len(PPTHN) == 0:
+  cwd   = os.getcwd()
+  aa    = cwd.split("/")
+  nii   = cwd.split("/").index('python')
+  PPTHN = '/' + os.path.join(*aa[:nii+1])
+sys.path.append(PPTHN + '/MyPython/hycom_utils')
+sys.path.append(PPTHN + '/MyPython/draw_map')
+sys.path.append(PPTHN + '/MyPython')
+sys.path.append(PPTHN + '/MyPython/mom6_utils')
 
 from mod_utils_fig import bottom_text
 import mod_time as mtime
@@ -22,7 +28,6 @@ import mod_utils as mutil
 import mod_cice6_utils as mc6util
 import mod_misc1 as mmisc
 #import mod_valid_utils as mvutil
-
 
 expt    = '003'
 YR      = 2020
