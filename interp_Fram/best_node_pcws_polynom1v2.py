@@ -14,6 +14,14 @@ from copy import copy
 import importlib
 import matplotlib.pyplot as plt
 import sys
+import pickle
+from netCDF4 import Dataset as ncFile
+from copy import copy
+import matplotlib.colors as colors
+import matplotlib.mlab as mlab
+from matplotlib.patches import Polygon
+from matplotlib.colors import ListedColormap
+import yaml
 
 PTHR = '/Users/ddmitry/python'
 sys.path.append(PTHR+'/MyPython/hycom_utils')
@@ -21,35 +29,97 @@ sys.path.append(PTHR+'/MyPython/draw_map')
 sys.path.append(PTHR+'/MyPython')
 sys.path.append(PTHR+'/MyPython/mom6_utils')
 
-
-plt.close('all')
-rVFlx = False   # rVFlx - read/plot Vol Flux, otherwise - FW flux
-#tplt = 5  
-
+import mod_time as mtime
 from mod_utils_fig import bottom_text
-plt.ion()  # enables interactive mode
-
 import mod_polynom as mpol
 importlib.reload(mpol)
+import mod_mom6_valid as mom6vld
+importlib.reload(mom6vld)
+import mod_misc1 as mmisc
+import mod_mom6 as mom6util
+import mod_colormaps as mcmp
+import mod_read_hycom as mhycom
+importlib.reload(mom6util)
+importlib.reload(mmisc)
+importlib.reload(mcmp)
+
+
+plt.close('all')
+rVFlx = True   # rVFlx - read/plot Vol Flux, otherwise - FW flux
+#tplt = 5  
+
+plt.ion()  # enables interactive mode
+
 
 # min/max of polynom nodes:
 n1 = 5
 n2 = 18
+YRM = 2017
+
+nrun  = 'ARCc0.08'  # MOM6, RTOFS, GOFS3.1, ARCc0.08
 
 #yr = 2019  # yr = 0 - some analytical functions
+# Use volume flux estimates computed extrUVFlx_hycom.py 
+# COAPS server
 yr  = 0
-strnm = 'FramStr'
-pthout = '/nexsan/people/ddmitry/Net_tholia/hycom/ARCc0.08/data_straits/'
+sctnm = 'Fram79s2'
+fld2d = 'Unrm'
 
-if yr == 0:
-  nn = 211
-  dL, Vflx, Tflx, FWflx = mpol.anlfn(nn)
-else:
-  dL, Vflx, Tflx, FWflx = mpol.read_vflux(yr,strnm,pthout)
+mS=1
+dS=1
+if nrun == 'MOM6':
+  expt = '003'
+  YR   = YRM
+elif nrun == 'RTOFS':
+  expt = 'product' # 003 or product
+  YR   = YRR
+#mS=9
+#dS=15
+elif nrun == 'GOFS3.1':
+  expt = '93.0'
+  YR   = YRM
+elif nrun == 'ARCc0.08':
+  expt = '112'
+  YR = YRM
+
+dnmb1 = mtime.datenum([YR,mS,dS])
+dnmb2 = mtime.datenum([YR,12,31])
+dv1   = mtime.datevec(dnmb1)
+dv2   = mtime.datevec(dnmb2)
+
+pthoutp = '/Users/ddmitry/DATA/ARCc0.08/data_straits/'
+floutp  = f"008arc-{expt}_{fld2d}xsct_{dv1[0]}" + \
+        f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
+pthgrid = '/Users/ddmitry/DATA/ARCc0.08/topo_grid_arc08/'
+ftopo   = 'regional.depth'
+fgrid   = 'regional.grid'
+_, _, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
+
+ffout = pthoutp + floutp
+print('Loading ' + ffout)
+  
+with open(ffout, 'rb') as fid:
+  F2D, UFLX = pickle.load(fid)
+
+
+# 2D fields are at half-grid points
+TM   = F2D.TM
+Unrm = F2D.Fld2D  # 2D Flow: Time x depth x Width
+II   = F2D.Iindx
+JJ   = F2D.Jindx
+XX   = F2D.LON
+YY   = F2D.LAT
+dL   = F2D.Lsgm
+Hbtm = F2D.Hbtm
+ZZi  = F2D.ZZi
+# Depth-integrated: full grid
+VFlx = UFLX.trnsp*1e-6  # 1D depth-integrated flow, Sv
+
+#  dL, VFlx, Tflx, FWflx = mpol.read_vflux(yr,strnm,pthout)
 
 
 if rVFlx:
-  Flx = Vflx
+  Flx = np.nanmean(VFlx, axis=0)  # time mean V flux
   FlxNm = 'VolFlux'
 else:
   Flx = FWflx

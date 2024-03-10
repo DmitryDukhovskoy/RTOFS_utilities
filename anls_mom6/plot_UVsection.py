@@ -18,6 +18,7 @@ import matplotlib.colors as colors
 import matplotlib.mlab as mlab
 from matplotlib.patches import Polygon
 from matplotlib.colors import ListedColormap
+import yaml
 
 PTHR = '/Users/ddmitry/python'
 sys.path.append(PTHR+'/MyPython/hycom_utils')
@@ -84,6 +85,11 @@ importlib.reload(mcmp)
 
 hg    = 1.e15
 
+with open('paths_expts_macbook.yaml','r') as fid:
+  path_dict = yaml.load_all(fid, yaml.FullLoader)
+finish yaml reading
+
+
 if nrun == 'MOM6':
   pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
             '008mom6cice6_' + expt + '/'
@@ -118,7 +124,7 @@ elif nrun == 'ARCc0.08':
   pthoutp = '/Users/ddmitry/DATA/ARCc0.08/data_straits/'
   floutp  = f"008arc-{expt}_{fld2d}xsct_{dv1[0]}" + \
             f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
-  pthgrid = '/Users/ddmitry/DATA/ARCc0.08/topo_grid/'
+  pthgrid = '/Users/ddmitry/DATA/ARCc0.08/topo_grid_arc08/'
   ftopo   = 'regional.depth'
   fgrid   = 'regional.grid'
   _, _, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)

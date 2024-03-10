@@ -1,0 +1,22 @@
+---
+"MOM6":
+  pthout  = "/Users/ddmitry/DATA/MOM6_008/data_straits/"
+  pthgrid = "/Users/ddmitry/DATA/MOM6_008/topo_grid_mom6/"
+  fgrid   = "regional.mom6.nc"
+  ftopo   = "ocean_topog.nc"
+"RTOFS":
+  pthout  = "/Users/ddmitry/DATA/MOM6_008/data_straits/"
+  pthgrid = "/Users/ddmitry/DATA/MOM6_008/topo_grid_mom6/"
+  fgrid   = "regional.mom6.nc"
+  ftopo   = "ocean_topog.nc"
+"GOFS3.1":
+  pthout  = "/Users/ddmitry/DATA/MOM6_008/data_straits/"
+  pthgrid = "/Users/ddmitry/DATA/MOM6_008/topo_grid_mom6/"
+  fgrid   = "regional.mom6.nc"
+  ftopo   = "ocean_topog.nc"
+"ARCc0.08":
+  pthout  = '/Users/ddmitry/DATA/ARCc0.08/data_straits/'
+  pthgrid = '/Users/ddmitry/DATA/ARCc0.08/topo_grid_arc08/'
+  ftopo   = 'depth_ARCc0.08_11'
+  fgrid   = 'regional.grid'
+...
