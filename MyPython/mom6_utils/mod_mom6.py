@@ -12,6 +12,7 @@ from netCDF4 import Dataset as ncFile
 def read_mom6grid(fgrid, grdpnt='hpnt'):
   """
     Read MOM6 grid
+    coordinates on "supergrid" (half grid points of actual grid)
     default - coordinates of h-points (scalar) are derived
     options: 'qpnt' - coordinated in the upper-right corner
                       q-points, vorticity points
@@ -33,6 +34,24 @@ def read_mom6grid(fgrid, grdpnt='hpnt'):
      |                                              |  
    q(i-1,j-1) ------------  v(i,j-1) ------------  q(i,j-1)
 
+
+!!!
+  Note: need to check the code for q-points
+  the first coord is for q point at (0,0) and the last - (mm-1, nn-1)
+  should q points be from i=0,..., nn and j=0,..., mm?
+
+  Within the netCDF file for MOM6 grids the following descriptions 
+  of variables and dimensions
+  nx, ny : grid centers
+  nxp, nxp : grid verticies
+  in mom6 ocean_hgrid.nc 
+	float x(nyp, nxp) ;
+		x:units = "degrees_east" ;
+	float y(nyp, nxp) ;
+		y:units = "degrees_north" ;
+  lon/lats are specified at the verticies
+  to get h-pnt coordinate, need to average vertix coordinated 
+ !!!
 
   """
 
@@ -58,7 +77,7 @@ def read_mom6grid(fgrid, grdpnt='hpnt'):
 
   return LON, LAT
 
-def read_mom6depth(ftopo):
+def read_mom6depth(ftopo, f_negate=True):
   """
     Read MOM6 depths at h-pnts
   """
@@ -68,7 +87,8 @@ def read_mom6depth(ftopo):
 
 # Convert depth to negatives:
 # Land > 0
-  HH  = np.where(HH > 0, -HH, 100.)
+  if f_negate:
+    HH  = np.where(HH > 0, -HH, 100.)
 
   return HH
 

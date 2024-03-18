@@ -449,6 +449,30 @@ def colormap_ssh(cpos='Oranges',cneg='Blues_r',nclrs=100, clr_ramp=[1,1,1]):
 
   return newcmp
 
+def colormap_topo1(nclrs=200):
+  """
+    Colormap for topography
+  """
+#  import mod_colormaps as mclrs
+  CLR = [[59,   43, 105],
+         [33,   17, 128],
+         [69,   52, 166],
+         [39,   10, 204],
+         [20,  101, 191],
+         [14,  139, 252],
+         [45,  171, 201],
+         [45,  181, 170],
+         [25,  207, 155],
+         [89,  194, 120],
+         [63,  209,  50],
+         [170, 242,  53],
+         [242, 247,  89],
+         [249, 250, 212]]
+
+  CLR = np.array(CLR)/255.
+  CMP = create_colormap(CLR, nclrs)
+
+  return CMP
 
 
 
