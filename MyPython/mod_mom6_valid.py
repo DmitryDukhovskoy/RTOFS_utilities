@@ -197,10 +197,10 @@ def ocean_straits():
       "ucntr2": [x/100 for x in range(0, 50, 5)],
       "scntr" : [x/10 for x in range(346, 368, 2)],
       "tcntr" : [x/10 for x in range(40, 280, 20)],
-      "smin"  : 34.8,
-      "smax"  : 36.7,
-      "tmin"  : 3.,
-      "tmax"  : 28.,
+      "smin"  : 31.0,
+      "smax"  : 33.0,
+      "tmin"  : -1.,
+      "tmax"  : 3.,
       "umin"  : -0.4,
       "umax"  : 0.4
     },
@@ -597,7 +597,7 @@ def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[
     if np.min(HH) <= -1000.:
       ax2.contour(HH,[-3000,-2000,-1000],colors=[(0.7,0.7,0.7)],\
                 linestyles='solid',linewidths=1)
-    ax2.plot(IJs[:,0],IJs[:,1],'.',ms=8,color=[1.,0.4,0])
+    ax2.plot(IJs[:,0],IJs[:,1],'.',ms=2,color=[1.,0.4,0])
     dii = 60
     ilim1 = max([i1-dii,0])
     ilim2 = min([i2+dii,xdm])
