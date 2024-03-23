@@ -269,10 +269,15 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
 # signs. 
 # INPUT: xla1, xlo1 - first point coordinates (latitude, longitude)
 #        xla2, xlo2 - second point or 1D or 2D arrays of coordinates
+#
+# Coordinates can be 1 pnt, 1D or 2D arrays both - gives pnt by pnt distance or
+# 1 pnt vs 1D or 2D - gives 1 pnt vs all other pnts distances
+# 
 # all input coordinates are in DEGREES: latitude from 90 (N) to -90,
 # longitudes: from -180 to 180 or 0 to 360,
-# either xla1/xlo1 or xla2/xlo2 have to be a point coord
-# the other can be a point or 1D or 2D arrays
+#
+# keep longitidues in similar range, -180/180 or 0/360
+#
 # in the latter case, distances from Pnt 1 (LAT1,LON1) to all pnts (LAT2,LON2)
 # are calculated 
 # OUTPUT - distance (in m)
@@ -292,8 +297,8 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
     flt1 = True
   elif isinstance(xlo2, float):
     flt2 = True
-  else:
-    raise Exception("Either 1st or 2nd lon/lat have to be a single value")
+#  else:
+#    raise Exception("Either 1st or 2nd lon/lat have to be a single value")
 
   if np.absolute(xla1).max() > 90.0:
     print("ERR: dist_sphcrd Lat1 > 90")
@@ -316,15 +321,22 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
   J0s  = []
   epsD = 1.e-12
 # if type(dphi) in (int,float):   # scalar input
-  if flt1 and flt2:
-    if dphi == 0.0 and dlmb == 0.0:
-      dist_lmbrt = 0.0
-      return dist_lmbrt
-  else:           # N dim array
-    J0s, I0s = np.where((dphi<epsD) & (dlmb<epsD))
-    if len(I0s)>0:
-      dphi[J0s,I0s]=epsD
-      dlmb[J0s,I0s]=epsD
+  if np.min(dphi) < epsD or np.min(dlmb) < epsD:
+    if flt1 and flt2:
+      if dphi == 0.0 and dlmb == 0.0:
+        dist_lmbrt = 0.0
+        return dist_lmbrt
+    else:           # N dim array
+      if dphi.ndim == 1:
+        J0s = np.where((dphi<epsD) & (dlmb<epsD))
+        if len(J0s) > 0:
+          dphi[J0s] = epsD
+          dlmb[J0s] = epsD
+      elif dphi.ndim == 2:
+        J0s, I0s = np.where((dphi<epsD) & (dlmb<epsD))
+        if len(I0s)>0:
+          dphi[J0s,I0s] = epsD
+          dlmb[J0s,I0s] = epsD
 
   Eflat = (Req-Rpl)/Req  # flatenning of the Earth
 # Haversine formula to calculate central angle:
