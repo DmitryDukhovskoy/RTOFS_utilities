@@ -286,6 +286,15 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
   xla2 = np.float64(xla2)
   xlo2 = np.float64(xlo2)
 
+  flt1 = False
+  flt2 = False
+  if isinstance(xlo1, float):
+    flt1 = True
+  elif isinstance(xlo2, float):
+    flt2 = True
+  else:
+    raise Exception("Either 1st or 2nd lon/lat have to be a single value")
+
   if np.absolute(xla1).max() > 90.0:
     print("ERR: dist_sphcrd Lat1 > 90")
     dist = float("nan")
@@ -303,19 +312,20 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
   dphi = abs(phi2-phi1)
   dlmb = abs(lmb2-lmb1)
 
-  I0s = []
+  I0s  = []
+  J0s  = []
+  epsD = 1.e-12
 # if type(dphi) in (int,float):   # scalar input
-  if isinstance(dphi,float) or isinstance(dphi,int):
+  if flt1 and flt2:
     if dphi == 0.0 and dlmb == 0.0:
       dist_lmbrt = 0.0
       return dist_lmbrt
   else:           # N dim array
-    if np.min(dphi) == 0.0 and np.min(dlmb[dphi==0])==0:
-      I0s = np.argwhere((dphi==0.0) & (dlmb==0.0))
-      if len(I0s)>0:
-        dphi[I0s]=1.e-8
-        dlmb[I0s]=1.e-8
-#
+    J0s, I0s = np.where((dphi<epsD) & (dlmb<epsD))
+    if len(I0s)>0:
+      dphi[J0s,I0s]=epsD
+      dlmb[J0s,I0s]=epsD
+
   Eflat = (Req-Rpl)/Req  # flatenning of the Earth
 # Haversine formula to calculate central angle:
   aa1 = (np.sin(dphi/2.))**2
