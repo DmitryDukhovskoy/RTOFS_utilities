@@ -109,28 +109,44 @@ def find_indx_lonlat(x0,y0,X0,Y0,xsct="none"):
   XX = X0.copy()
   YY = Y0.copy()
 
+  if np.max(XX) > 180.:
+    XX = np.where(XX > 180., XX-360., XX)
+
   dmm = np.sqrt((XX-x0)**2+(YY-y0)**2)
   jj0, ii0 = np.where(dmm == np.min(dmm)) # global indices
   jj0 = jj0[0]
   ii0 = ii0[0]
-
+  dmm_min = np.min(dmm)
 #
 # Check for singularity along 180/-180 longitude
   IDM = XX.shape[1]
-  if ii0 > 0 and ii0 < IDM:
+  if ii0 > 0 and ii0 < IDM-1:
     xm1 = XX[jj0,ii0-1]
     xp1 = XX[jj0,ii0+1]
     if abs(xm1-x0) > 180. or abs(xp1-x0)>180.:
-      J, I = np.where(XX < 0.)
-      XX[J,I] = XX[J,I]+360.
-      
+      XX = np.where(XX < 0., XX+360., XX)
       if x0 < 0:
         x0 = x0+360.
-
     dmm = np.sqrt((XX-x0)**2+(YY-y0)**2)
-    jj0, ii0 = np.where(dmm == np.min(dmm)) # global indices
-    jj0 = jj0[0]
-    ii0 = ii0[0]
+
+    if np.min(dmm) < dmm_min:
+      jj0, ii0 = np.where(dmm == np.min(dmm)) # global indices
+      jj0 = jj0[0]
+      ii0 = ii0[0]
+
+  if ii0 == IDM-1:
+    xm1 = XX[jj0,ii0]
+    xp1 = XX[jj0,0]
+    if abs(xp1-x0) > 180.:
+      XX = np.where(XX < 0., XX+360., XX)
+      if x0 < 0:
+        x0 = x0+360.
+    dmm = np.sqrt((XX-x0)**2+(YY-y0)**2)
+
+    if np.min(dmm) < dmm_min:
+      jj0, ii0 = np.where(dmm == np.min(dmm)) # global indices
+      jj0 = jj0[0]
+      ii0 = ii0[0]
 
 # Sanity check:
 #  print(f'jj0={jj0} ii0={ii0} x0={x0} y0={y0}')

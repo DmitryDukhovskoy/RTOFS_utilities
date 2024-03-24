@@ -74,3 +74,57 @@ def correct_evensp_grid(x, y):
 
   return xcrct, ycrct
 
+def plot_fld2D(aa,ctitle,cl1,cl2,X=np.array([]),Y=np.array([]),clrmp='turbo',
+               btx='mod_utils_fig.py', figout='plot_field.jpg'):
+  """
+    Create a quick figure of 2D map and 
+    put it on web to view via browser
+    otherwise python get slow
+    open figure in the browser:
+        https://www-dev.star1.nesdis.noaa.gov/ncei_wod/pthn_fig.jpg
+  """
+  plt.ion()
+  cmpS = plt.cm.get_cmap(clrmp)
+  fig1 = plt.figure(1,figsize=(8,8), constrained_layout=False)
+  plt.clf()
+  ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
+  jdm=aa.shape[0]
+  idm=aa.shape[1]
+
+#  if np.isfinite(X) and np.isfinite(Y):
+  if X.size == 0 | Y.size == 0:
+    im = ax1.pcolormesh(X,Y,aa,cmap=cmpS,shading='flat')
+    ax1.axis('scaled')
+    ax1.set(xlim=(np.min(X),np.max(X)),
+            ylim=(np.min(Y),np.max(Y)))
+  else:
+    im = ax1.pcolormesh(aa,cmap=cmpS,shading='flat')
+    ax1.axis('scaled')
+    ax1.set(xlim=(0,idm),ylim=(0,jdm))
+
+  im.set_clim(cl1,cl2)
+  ax1.autoscale(enable=True, axis='both', tight=True)
+
+  ax1.set_title(ctitle)
+#
+# Colorbar
+  divider = make_axes_locatable(ax1)
+  cax = divider.append_axes("bottom",size="5%",pad=0.25)
+  fig1.colorbar(im,ax=ax1,orientation='horizontal',cax=cax)
+
+
+  bottom_text(btx)
+
+  plt.show()
+  plt.savefig(figout)
+  plt.close(fig1)
+
+  wwwpth='/net/www-dev/www/ncei_wod/'
+  wwwfig='pthn_fig.jpg'
+  cmd = ('mv {0} {1}{2}'.format(figout,wwwpth,wwwfig))
+  os.system(cmd)
+
+
+  return
+
+

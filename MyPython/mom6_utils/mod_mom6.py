@@ -9,7 +9,7 @@ import sys
 import importlib
 from netCDF4 import Dataset as ncFile
 
-def read_mom6grid(fgrid, grdpnt='hpnt'):
+def read_mom6grid(fgrid, grdpnt='hpnt', grid='nonsymmetr'):
   """
     Read MOM6 grid
     coordinates on "supergrid" (half grid points of actual grid)
@@ -35,44 +35,63 @@ def read_mom6grid(fgrid, grdpnt='hpnt'):
    q(i-1,j-1) ------------  v(i,j-1) ------------  q(i,j-1)
 
 
-!!!
-  Note: need to check the code for q-points
-  the first coord is for q point at (0,0) and the last - (mm-1, nn-1)
-  should q points be from i=0,..., nn and j=0,..., mm?
+  grid nonsymmetr: All arrays are declared with the same shape (isd:ied,jsd:jed)
+                 There are fewer staggered variables to the south-west of the 
+                 computational domain. An operator applied at h-point locations 
+                 involving u- or v- point data can not have as wide a stencil on 
+                 the south-west side of the processor domain as it can on 
+                 the north-east side.
 
-  Within the netCDF file for MOM6 grids the following descriptions 
-  of variables and dimensions
-  nx, ny : grid centers
-  nxp, nxp : grid verticies
-  in mom6 ocean_hgrid.nc 
-	float x(nyp, nxp) ;
-		x:units = "degrees_east" ;
-	float y(nyp, nxp) ;
-		y:units = "degrees_north" ;
-  lon/lats are specified at the verticies
-  to get h-pnt coordinate, need to average vertix coordinated 
- !!!
+  grid symmetric: Arrays have different shapes depending on their staggering 
+                  location on the Arakawa C grid. 
 
   """
 
   print('Reading MOM6 grid ' + grdpnt)
-  print('Gird: ' + fgrid)
+  print('Grid: ' + fgrid)
   nc  = ncFile(fgrid,'r')
+# Read MOM supergrid:
   XX  = nc.variables['x'][:].data
   YY  = nc.variables['y'][:].data
   mm  = XX.shape[0]
   nn  = XX.shape[1]
-  jdm = int((mm-1)/2)
-  idm = int((nn-1)/2)
 
 
   if grdpnt == 'hpnt':
     LON = XX[1:mm:2, 1:nn:2]
     LAT = YY[1:mm:2, 1:nn:2]
-  elif grdpnt == 'qpnt':
-    LON = XX[0:mm-1:2, 1:nn-1:2]
-    LAT = YY[0:mm-1:2, 1:nn-1:2]
+  
+  if grid == 'nonsymmetr':
+    if grdpnt == 'qpnt':
+      LON = XX[2:mm+1:2, 2:nn+1:2]
+      LAT = YY[2:mm+1:2, 2:nn+1:2]
+    elif grdpnt == 'hpnt':
+      LON = XX[1:mm:2, 1:nn:2]
+      LAT = YY[1:mm:2, 1:nn:2]
+    elif grdpnt == 'upnt':
+      LON = XX[1:mm:2, 2:nn+1:2]
+      LAT = YY[1:mm:2, 2:nn+1:2]
+    elif grdpnt == 'vpnt':
+      LON = XX[2:mm+1:2, 1:nn:2]
+      LAT = YY[2:mm+1:2, 1:nn:2]
+  elif grid == 'symmetric':
+    if grdpnt == 'qpnt':
+      LON = XX[0:mm+1:2, 0:nn+1:2]
+      LAT = YY[0:mm+1:2, 0:nn+1:2]
+    elif grdpnt == 'hpnt':
+      LON = XX[1:mm:2, 1:nn:2]
+      LAT = YY[1:mm:2, 1:nn:2]
+    elif grdpnt == 'upnt':
+      LON = XX[1:mm:2, 0:nn+1:2]
+      LAT = YY[1:mm:2, 0:nn+1:2]
+    elif grdpnt == 'vpnt':
+      LON = XX[0:mm+1:2, 1:nn:2]
+      LAT = YY[0:mm+1:2, 1:nn:2]
 
+  jdm = LAT.shape[0]
+  idm = LAT.shape[1]
+
+  print(f" MOM6 {grdpnt} {grid} grid dim (J,I): {jdm} x {idm}")
   LON = np.where(LON < -180., LON+360., LON)
 
   return LON, LAT

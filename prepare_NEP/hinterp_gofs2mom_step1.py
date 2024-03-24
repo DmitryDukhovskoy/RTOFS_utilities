@@ -1,3 +1,9 @@
+# To prepare MOM restart:
+# 1st step: interpoalte T,S,U, fields horizontally 
+# from HYCOM archv file onto MOM grid
+# 
+# Keep fields on HYCOM vertical grid
+# 
 # Plot NEP domain on GOFS grid
 import os
 import numpy as np
@@ -36,17 +42,20 @@ import mod_mom6 as mom6util
 importlib.reload(mcmp)
 
 
-nrun = "GOFS3.1"
-expt = "93.0"
+nrun = "GOFS3.0"
+expt = "19.0"
+f_symmteric = True # MOM grid: symmetric/non-symmetric
 
 with open('pypaths_gfdlpub.yaml') as ff:
   dct = yaml.safe_load(ff)
 
+pthrun  = dct[nrun][expt]["pthrun"]
 pthgrid = dct[nrun][expt]["pthgrid"]
 ftopo   = dct[nrun][expt]["ftopo"]
 fgrid   = dct[nrun][expt]["fgrid"]
 
 LON, LAT, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
+HH = np.where(HH>=0, np.nan, HH)
 
 #
 # Read MOM6 NEP domain nx=342, ny=816
@@ -59,75 +68,20 @@ LONM, LATM  = mom6util.read_mom6grid(dfgrid_mom)
 HHM         = mom6util.read_mom6depth(dftopo_mom) 
 jdm         = np.shape(HHM)[0]
 idm         = np.shape(HHM)[1]
-DX, DY      = mhycom.dx_dy(LON,LAT)
 
-RS = np.sqrt(DX**2 + DY**2)*1.e-3  # km
-mm = RS.shape[0]
-nn = RS.shape[1]
-
-RS = np.where(HH >= 0., np.nan, RS)
-
-# Find boundaries of the NEP domain:
-IBND = np.array([])
-JBND = np.array([])
-dstp = 10
-print("Searching indices along western boundary ...")
-for jj in range(0,jdm,dstp):
-  if jj%100 == 0:
-    print(f"  {jj/jdm*100:3.1f}% ...")
-  x0 = LONM[jj,0]
-  y0 = LATM[jj,0]
-  ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
-
-  IBND = np.append(IBND, ii0)
-  JBND = np.append(JBND, jj0)
-
-print("Searching indices along northern boundary ...")
-for ii in range(0,idm,dstp):
-  if ii%100 == 0:
-    print(f"  {ii/idm*100:3.1f}% ...")
-  x0 = LONM[jdm-1,ii]
-  y0 = LATM[jdm-1,ii]
-  ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
-
-  IBND = np.append(IBND, ii0)
-  JBND = np.append(JBND, jj0)
-
-print("Searching indices along eastern boundary ...")
-for jj in range(0,jdm,dstp):
-  if jj%100 == 0:
-    print(f"  {jj/jdm*100:3.1f}% ...")
-  x0 = LONM[jj,idm-1]
-  y0 = LATM[jj,idm-1]
-  ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
-
-  IBND = np.append(IBND, ii0)
-  JBND = np.append(JBND, jj0)
-
-print("Searching indices along southern boundary ...")
-for ii in range(0,idm,dstp):
-  if ii%100 == 0:
-    print(f"  {ii/idm*100:3.1f}% ...")
-  x0 = LONM[0,ii]
-  y0 = LATM[0,ii]
-  ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
-
-  IBND = np.append(IBND, ii0)
-  JBND = np.append(JBND, jj0)
-
+# 
 
 plt.ion()
 
-clrmp = mcmp.colormap_temp(nclrs=200)
+clrmp = mcmp.colormap_topo1(nclrs=200)
 clrmp.set_bad(color=[0.2,0.2,0.2])
-cmpS.set_under(color=[0.95, 0.95, 0.95])
 
 fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
 ax1 = plt.axes([0.1, 0.24, 0.8, 0.7])
-rmin = 5.
-rmax = 15.
-im1 = ax1.pcolormesh(RS, \
+rmin = -6000.
+rmax = 0.
+im1 = ax1.pcolormesh(HH, \
                  cmap=clrmp,\
                  vmin=rmin, \
                  vmax=rmax)
@@ -155,7 +109,7 @@ ax1.contour(LAT,list(range(0,89,10)),
           linewidths=1.0)
 
 
-stl = 'GOFS3.1 grid resolution ||dl||$_2$, km, NEP region'
+stl = 'GOFS3.1 Topo: GLB0.08_09m11, NEP region'
 ax1.set_title(stl)
 
 ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,
@@ -169,7 +123,7 @@ clb.ax.set_yticklabels(["{:.0f}".format(i) for i in clb.get_ticks()], fontsize=1
 clb.ax.tick_params(direction='in', length=12)
 
 
-btx = 'plot_resolution_gofs.py'
+btx = 'plot_domain_gofs.py'
 bottom_text(btx)
 
 

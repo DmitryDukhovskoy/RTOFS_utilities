@@ -269,10 +269,15 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
 # signs. 
 # INPUT: xla1, xlo1 - first point coordinates (latitude, longitude)
 #        xla2, xlo2 - second point or 1D or 2D arrays of coordinates
+#
+# Coordinates can be 1 pnt, 1D or 2D arrays both - gives pnt by pnt distance or
+# 1 pnt vs 1D or 2D - gives 1 pnt vs all other pnts distances
+# 
 # all input coordinates are in DEGREES: latitude from 90 (N) to -90,
 # longitudes: from -180 to 180 or 0 to 360,
-# either xla1/xlo1 or xla2/xlo2 have to be a point coord
-# the other can be a point or 1D or 2D arrays
+#
+# keep longitidues in similar range, -180/180 or 0/360
+#
 # in the latter case, distances from Pnt 1 (LAT1,LON1) to all pnts (LAT2,LON2)
 # are calculated 
 # OUTPUT - distance (in m)
@@ -286,6 +291,15 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
   xla2 = np.float64(xla2)
   xlo2 = np.float64(xlo2)
 
+  flt1 = False
+  flt2 = False
+  if isinstance(xlo1, float):
+    flt1 = True
+  elif isinstance(xlo2, float):
+    flt2 = True
+#  else:
+#    raise Exception("Either 1st or 2nd lon/lat have to be a single value")
+
   if np.absolute(xla1).max() > 90.0:
     print("ERR: dist_sphcrd Lat1 > 90")
     dist = float("nan")
@@ -295,6 +309,21 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
     dist = float("nan")
     return dist
 
+# Convert into -180/180 - works best
+#  if flt1: 
+#    if xlo1 > 180.:
+#      xlo1 = xlo1-360.
+#  else:
+#    if np.max(xlo1) > 180.:
+#      xlo1 = np.where(xlo1>180., xlo1-360., xlo1)
+#
+#  if flt2: 
+#    if xlo2 > 180.:
+#      xlo2 = xlo2-360.
+#  else:
+#    if np.max(xlo2) > 180.:
+#      xlo2 = np.where(xlo2>180., xlo2-360., xlo2)
+
   cf = np.pi/180.
   phi1 = xla1*cf
   phi2 = xla2*cf
@@ -303,18 +332,26 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
   dphi = abs(phi2-phi1)
   dlmb = abs(lmb2-lmb1)
 
-  I0s = []
+  I0s  = []
+  J0s  = []
+  epsD = 1.e-12 
 # if type(dphi) in (int,float):   # scalar input
-  if isinstance(dphi,float) or isinstance(dphi,int):
-    if dphi == 0.0 and dlmb == 0.0:
-      dist_lmbrt = 0.0
-      return dist_lmbrt
-  else:           # N dim array
-    if np.min(dphi) == 0.0 and np.min(dlmb[dphi==0])==0:
-      I0s = np.argwhere((dphi==0.0) & (dlmb==0.0))
-      if len(I0s)>0:
-        dphi[I0s]=1.e-8
-        dlmb[I0s]=1.e-8
+  if np.min(dphi) < epsD or np.min(dlmb) < epsD:
+    if flt1 and flt2:
+      if dphi == 0.0 and dlmb == 0.0:
+        dist_lmbrt = 0.0
+        return dist_lmbrt
+    else:           # N dim array
+      if dphi.ndim == 1:
+        J0s = np.where((dphi<epsD) & (dlmb<epsD))
+        if len(J0s) > 0:
+          dphi[J0s] = epsD
+          dlmb[J0s] = epsD
+      elif dphi.ndim == 2:
+        J0s, I0s = np.where((dphi<epsD) & (dlmb<epsD))
+        if len(I0s)>0:
+          dphi[J0s,I0s] = epsD
+          dlmb[J0s,I0s] = epsD
 #
   Eflat = (Req-Rpl)/Req  # flatenning of the Earth
 # Haversine formula to calculate central angle:
@@ -336,6 +373,8 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
 
   if np.min(dist_lmbrt)<0.0:
     print('WARNING: spheric distance <0: ',np.min(dist_lmbrt))
+
+#  print(f"Min dist = {np.min(dist_lmbrt)}")
 
 # breakpoint()
 
@@ -958,5 +997,32 @@ def match_indices(IIr,JJr,LONr,LATr,LON,LAT):
 
   return II, JJ
 
+def orientation(A,B,C):
+  """
+    Given 3 points: A(ax,ay), B(bx,by), C(cx,cy)
+    A,B,C - lists
+   Given vector ab by two points: A(ax,ay) - start point of vector
+    and B(bx,by) - end point, such that positive vector in X means
+   bx-ax > 0
+   and a point C(cx,cy)
+   Does C lie on, to the left, to the right of ab?
+   To find this out, find determinant of 
+   | ax  ay  1 |
+   | bx  by  1 | = | ax-cx  ay-cy |
+   | cx  cy  1 |   | bx-cx  by-cy |
+  
+   From website of J. Shewchuk 
+  
+   Output: determinate D
+   If point ay < by, then D<0 means point C is to the right
+                          D>0 - point C is to the left
+                          D=0 - point C is on the line AB
+  """
+  ax, ay = A[0], A[1]
+  bx, by = B[0], B[1]
+  cx, cy = C[0], C[1]
+  
+  D = (ax-cx)*(by-cy)-(ay-cy)*(bx-cx);
 
+  return D
 

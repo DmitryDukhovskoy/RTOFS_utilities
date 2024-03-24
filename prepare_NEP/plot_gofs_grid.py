@@ -47,96 +47,35 @@ ftopo   = dct[nrun][expt]["ftopo"]
 fgrid   = dct[nrun][expt]["fgrid"]
 
 LON, LAT, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
-
+HH = np.where(HH>0, np.nan, HH)
 #
-# Read MOM6 NEP domain nx=342, ny=816
-pthgrid_mom = dct["MOM6_NEP"]["test"]["pthgrid"]
-ftopo_mom   = dct["MOM6_NEP"]["test"]["ftopo"]
-fgrid_mom   = dct["MOM6_NEP"]["test"]["fgrid"]
-dftopo_mom  = os.path.join(pthgrid_mom, ftopo_mom) 
-dfgrid_mom  = os.path.join(pthgrid_mom, fgrid_mom) 
-LONM, LATM  = mom6util.read_mom6grid(dfgrid_mom)
-HHM         = mom6util.read_mom6depth(dftopo_mom) 
-jdm         = np.shape(HHM)[0]
-idm         = np.shape(HHM)[1]
-DX, DY      = mhycom.dx_dy(LON,LAT)
 
-RS = np.sqrt(DX**2 + DY**2)*1.e-3  # km
-mm = RS.shape[0]
-nn = RS.shape[1]
-
-RS = np.where(HH >= 0., np.nan, RS)
-
-# Find boundaries of the NEP domain:
-IBND = np.array([])
-JBND = np.array([])
-dstp = 10
-print("Searching indices along western boundary ...")
-for jj in range(0,jdm,dstp):
-  if jj%100 == 0:
-    print(f"  {jj/jdm*100:3.1f}% ...")
-  x0 = LONM[jj,0]
-  y0 = LATM[jj,0]
-  ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
-
-  IBND = np.append(IBND, ii0)
-  JBND = np.append(JBND, jj0)
-
-print("Searching indices along northern boundary ...")
-for ii in range(0,idm,dstp):
-  if ii%100 == 0:
-    print(f"  {ii/idm*100:3.1f}% ...")
-  x0 = LONM[jdm-1,ii]
-  y0 = LATM[jdm-1,ii]
-  ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
-
-  IBND = np.append(IBND, ii0)
-  JBND = np.append(JBND, jj0)
-
-print("Searching indices along eastern boundary ...")
-for jj in range(0,jdm,dstp):
-  if jj%100 == 0:
-    print(f"  {jj/jdm*100:3.1f}% ...")
-  x0 = LONM[jj,idm-1]
-  y0 = LATM[jj,idm-1]
-  ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
-
-  IBND = np.append(IBND, ii0)
-  JBND = np.append(JBND, jj0)
-
-print("Searching indices along southern boundary ...")
-for ii in range(0,idm,dstp):
-  if ii%100 == 0:
-    print(f"  {ii/idm*100:3.1f}% ...")
-  x0 = LONM[0,ii]
-  y0 = LATM[0,ii]
-  ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
-
-  IBND = np.append(IBND, ii0)
-  JBND = np.append(JBND, jj0)
-
+# Proposed domain:
+i1, j1 = 1034, 2075
+i2, j2 = 1034, 2986
+i3, j3 = 2060, 2986
+i4, j4 = 2060, 2088
+IJ = np.array([[i1,j1],[i2,j2],[i3,j3],[i4,j4],[i1,j1]])
 
 plt.ion()
 
-clrmp = mcmp.colormap_temp(nclrs=200)
+clrmp = mcmp.colormap_topo1(nclrs=200)
 clrmp.set_bad(color=[0.2,0.2,0.2])
-cmpS.set_under(color=[0.95, 0.95, 0.95])
+#cmpS.set_under(color=[0.95, 0.95, 0.95])
 
 fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
 ax1 = plt.axes([0.1, 0.24, 0.8, 0.7])
-rmin = 5.
-rmax = 15.
-im1 = ax1.pcolormesh(RS, \
+rmin = -6000.
+rmax = 0.
+im1 = ax1.pcolormesh(HH, \
                  cmap=clrmp,\
                  vmin=rmin, \
                  vmax=rmax)
 
 ax1.axis('scaled')
-ax1.set_xlim([1010, 2280])
-ax1.set_ylim([1500, 3050])
-
-ax1.plot(IBND, JBND, 'r.')
+ax1.set_xlim([950, 2350])
+ax1.set_ylim([1700, 3200])
 
 LON1 = LON.copy()
 LON1 = np.where(LON1<0., LON+360., LON)
@@ -154,9 +93,14 @@ ax1.contour(LAT,list(range(0,89,10)),
           linestyles='solid',
           linewidths=1.0)
 
+ax1.plot(IJ[:,0],IJ[:,1],'r-')
 
-stl = 'GOFS3.1 grid resolution ||dl||$_2$, km, NEP region'
+nIp = i3-i1+1
+nJp = j2-j1+1
+
+stl = f'GOFS3.1 North Pacific, proposed domain: {nIp}i x {nJp}j'
 ax1.set_title(stl)
+
 
 ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,
                    0.02, ax1.get_position().height])
@@ -169,7 +113,7 @@ clb.ax.set_yticklabels(["{:.0f}".format(i) for i in clb.get_ticks()], fontsize=1
 clb.ax.tick_params(direction='in', length=12)
 
 
-btx = 'plot_resolution_gofs.py'
+btx = 'plot_gofs_grid.py'
 bottom_text(btx)
 
 

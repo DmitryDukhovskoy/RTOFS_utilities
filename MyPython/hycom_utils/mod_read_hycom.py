@@ -703,7 +703,7 @@ def dx_dy(LON,LAT):
   """
   IDM = LON.shape[1]
   JDM = LON.shape[0]
-  print('Calculating DX, DY for HYCOM idm={0}, jdm={1}'.format(IDM,JDM))
+  print('Calculating DX, DY  idm={0}, jdm={1}'.format(IDM,JDM))
   
   DX = np.zeros((JDM,IDM))
   DY = np.zeros((JDM,IDM))

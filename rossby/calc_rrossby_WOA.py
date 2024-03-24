@@ -13,7 +13,8 @@
 #
 # Problems: (1) max depth in climat -5500 m - need to bottom
 # (2) a few cases when min(eig/value)>0 --- check out
-#
+# (3) R is small in the Indonisian seas - too shallow?
+# 
 # !!!!!!!!!!!!!!!!
 #
 import os
@@ -441,15 +442,13 @@ with open(fout1,'wb') as fid:
 
 print(" All Done ")
 
-f_plt=1
+f_plt=0
 if f_plt>0:
-#kk=0
-#aa=N2[kk,:,:].squeeze()
-#zz0=Z_phi[kk]
+  import mod_plot_rsb as mpltrsb
   ctitle='1st Barocl Rossby Radius, {0}, {1}'.format(tfnm,sfnm)
   cl1=5.
   cl2=245.
-  plot_fld2D(RsbNum,ctitle,cl1,cl2,X=lon,Y=lat,btx=btx) # quick plot on the web
+  mpltrsb.plot_fld2D(RsbNum,ctitle,cl1,cl2,X=lon,Y=lat,btx=btx) # quick plot on the web
 #
 
 from mod_plot_anls import zonalavrg
