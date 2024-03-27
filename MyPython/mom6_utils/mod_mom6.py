@@ -9,12 +9,12 @@ import sys
 import importlib
 from netCDF4 import Dataset as ncFile
 
-def read_mom6grid(fgrid, grdpnt='hpnt', grid='nonsymmetr'):
+def read_mom6grid(fgrid, grdpnt='hgrid', grid='nonsymmetr'):
   """
     Read MOM6 grid
     coordinates on "supergrid" (half grid points of actual grid)
     default - coordinates of h-points (scalar) are derived
-    options: 'qpnt' - coordinated in the upper-right corner
+    options: 'qgrid' - coordinated in the upper-right corner
                       q-points, vorticity points
 
    https://mom6.readthedocs.io/en/main/api/generated/pages/Discrete_Grids.html
@@ -42,12 +42,12 @@ def read_mom6grid(fgrid, grdpnt='hpnt', grid='nonsymmetr'):
                  the south-west side of the processor domain as it can on 
                  the north-east side.
 
-  grid symmetric: Arrays have different shapes depending on their staggering 
+  grid symmetr:   Arrays have different shapes depending on their staggering 
                   location on the Arakawa C grid. 
 
   """
 
-  print('Reading MOM6 grid ' + grdpnt)
+  print(f"Reading MOM6 grid for: {grid} grdpnt={grdpnt}")
   print('Grid: ' + fgrid)
   nc  = ncFile(fgrid,'r')
 # Read MOM supergrid:
@@ -57,34 +57,30 @@ def read_mom6grid(fgrid, grdpnt='hpnt', grid='nonsymmetr'):
   nn  = XX.shape[1]
 
 
-  if grdpnt == 'hpnt':
-    LON = XX[1:mm:2, 1:nn:2]
-    LAT = YY[1:mm:2, 1:nn:2]
-  
   if grid == 'nonsymmetr':
-    if grdpnt == 'qpnt':
+    if grdpnt == 'qgrid':
       LON = XX[2:mm+1:2, 2:nn+1:2]
       LAT = YY[2:mm+1:2, 2:nn+1:2]
-    elif grdpnt == 'hpnt':
+    elif grdpnt == 'hgrid':
       LON = XX[1:mm:2, 1:nn:2]
       LAT = YY[1:mm:2, 1:nn:2]
-    elif grdpnt == 'upnt':
+    elif grdpnt == 'ugrid':
       LON = XX[1:mm:2, 2:nn+1:2]
       LAT = YY[1:mm:2, 2:nn+1:2]
-    elif grdpnt == 'vpnt':
+    elif grdpnt == 'vgrid':
       LON = XX[2:mm+1:2, 1:nn:2]
       LAT = YY[2:mm+1:2, 1:nn:2]
-  elif grid == 'symmetric':
-    if grdpnt == 'qpnt':
+  elif grid == 'symmetr':
+    if grdpnt == 'qgrid':
       LON = XX[0:mm+1:2, 0:nn+1:2]
       LAT = YY[0:mm+1:2, 0:nn+1:2]
-    elif grdpnt == 'hpnt':
+    elif grdpnt == 'hgrid':
       LON = XX[1:mm:2, 1:nn:2]
       LAT = YY[1:mm:2, 1:nn:2]
-    elif grdpnt == 'upnt':
+    elif grdpnt == 'ugrid':
       LON = XX[1:mm:2, 0:nn+1:2]
       LAT = YY[1:mm:2, 0:nn+1:2]
-    elif grdpnt == 'vpnt':
+    elif grdpnt == 'vgrid':
       LON = XX[0:mm+1:2, 1:nn:2]
       LAT = YY[0:mm+1:2, 1:nn:2]
 

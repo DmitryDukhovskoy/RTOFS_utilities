@@ -50,6 +50,23 @@ def inpolygon_v2(X,Y,Xv,Yv):
 
   return MSK, IP, JP
 
+def inpolygon_1pnt(xq, yq, xv, yv):
+  """ 
+  Is 1 point(xq,yq) inside a polygon?
+  Function similar to matlab inpolygon
+  based on interent stackoverflow
+  returns in indicating if the query points specified by xq and yq 
+  are inside or on the edge of the polygon area defined by xv and yv.
+  """
+  from matplotlib import path
+
+  xv = xv.reshape(-1)
+  yv = yv.reshape(-1)
+  q = np.array([[xq,yq]])
+  p = path.Path([(xv[i], yv[i]) for i in range(xv.shape[0])])
+
+  return p.contains_points(q)[0]
+
 def rotate_vector(uin,vin,thtd):
   """
   Rotate vector U(uin,vin)
@@ -295,7 +312,7 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
   flt2 = False
   if isinstance(xlo1, float):
     flt1 = True
-  elif isinstance(xlo2, float):
+  if isinstance(xlo2, float):
     flt2 = True
 #  else:
 #    raise Exception("Either 1st or 2nd lon/lat have to be a single value")

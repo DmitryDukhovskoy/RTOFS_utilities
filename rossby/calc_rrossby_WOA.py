@@ -303,7 +303,7 @@ for iocn in range(nocn):
 # If continue from saved fields:
   if len(Irsb) > 0:
     if I1 <= Irsb[-1]:
-      if (cc % 10000) == 0 or I1 == Irsb:
+      if (cc % 10000) == 0 or I1 == Irsb[-1]:
         print(f" ---> Skipping f{cc/nocn*100:3.1f}%...")
       continue
 

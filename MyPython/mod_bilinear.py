@@ -7,7 +7,7 @@ import numpy as np
 
 def basisFn_RectRef():
   """
-    Define basis functions on a reference rectangle
+    Define basis functions on a reference rectangle (square)
     (-1,-1), (1,-1) (1,1) (-1,1)
 
     For each basis fn phi1, ..., phi4 solve a system of linear eqns
@@ -28,13 +28,91 @@ def basisFn_RectRef():
   X3 = np.transpose(np.array([[0,0,1,0]]))
   X4 = np.transpose(np.array([[0,0,0,1]]))
 
-  phi1 = np.dot(Minv,X1)
-  phi2 = np.dot(Minv,X2)
-  phi3 = np.dot(Minv,X3)
-  phi4 = np.dot(Minv,X4)
+  phi1 = np.dot(Minv,X1).squeeze()
+  phi2 = np.dot(Minv,X2).squeeze()
+  phi3 = np.dot(Minv,X3).squeeze()
+  phi4 = np.dot(Minv,X4).squeeze()
 
   return phi1, phi2, phi3, phi4
 
+def sort_gridcell_indx(II, JJ, fsens='positive'):
+  """
+    In case when rectangular indices are in random order
+    need to put them in c/clckwize (positive) or clockwize (negative)
+    order
+
+    assumed: indices represent vertices of a grid box:
+    i = 0,1,2,3
+
+     II[i]JJ[i]     II[..]JJ[..]
+     *----------------*
+     |                |
+     |                |
+     |                |
+     *----------------*
+     II[..]JJ[..]     II[..]JJ[..]
+
+   e.g.: II = [10,11,10,11] J=[23, 22, 22, 23]
+     want:  II=[10,11,11,10] J=[22,22,23,23]
+  """
+  if isinstance(II, list):
+    II = np.array(II)
+  if isinstance(JJ, list):
+    JJ = np.array(JJ)
+    
+# Start from smallest i,j:
+  D    = np.sqrt(II**2 + JJ**2)
+  isrt = np.argsort(D)
+  I0   = II.copy()
+  J0   = JJ.copy()  
+
+  ix1         = I0[isrt[0]]
+  jx1         = J0[isrt[0]]
+  I0[isrt[0]] = -999
+  J0[isrt[0]] = -999
+
+  if fsens == 'positive':
+# c/clockwise sense:
+    imm     = np.argwhere(J0 == jx1)[0][0]
+    isrt[1] = imm
+    ix2     = I0[imm]
+    jx2     = J0[imm]
+    I0[imm] = -999
+    J0[imm] = -999
+
+    imm     = np.argwhere(I0 == ix2)[0][0]
+    isrt[2] = imm
+    ix3     = I0[imm]
+    jx3     = J0[imm]
+    I0[imm] = -999
+    J0[imm] = -999
+ 
+    imm     = np.argwhere(J0 == jx3)[0][0]
+    isrt[3] = imm
+
+  else:
+# clockwise sense:
+    imm     = np.argwhere(I0 == ix1)[0][0]
+    isrt[1] = imm
+    ix2     = I0[imm]
+    jx2     = J0[imm]
+    I0[imm] = -999
+    J0[imm] = -999
+
+    imm     = np.argwhere(J0 == jx2)[0][0]
+    isrt[2] = imm
+    ix3     = I0[imm]
+    jx3     = J0[imm]
+    I0[imm] = -999
+    J0[imm] = -999
+
+    imm     = np.argwhere(I0 == ix3)[0][0]
+    isrt[3] = imm
+
+  IIsrt = II[isrt]
+  JJsrt = JJ[isrt]
+
+  return IIsrt, JJsrt
 
 def phi_x0y0(phi,x1,y1):
   """
@@ -47,7 +125,8 @@ def phi_x0y0(phi,x1,y1):
 
 def map_x2xhat(XX,YY,x0,y0):
   """
-    Map a point from a rectangle (x1,y1), ..., (x4,y4) to a reference recatngle
+    Map a point from a quadrilateral (x1,y1), ..., (x4,y4) 
+    to a reference square
     (-1,-1), ..., (-1,1)
     The mapping is of the form:
     xhat = a1+a2*x+a3*y+a4*x*y
@@ -88,7 +167,7 @@ def bilin_interp(phi1,phi2,phi3,phi4,xht,yht,HT):
   Bilinear interpolation H(x,y) = sum(H(x1,y1)*psi_i(x,y)), i=1,...,4
   Input: 
     phi1,phi2,phi3,phi4 - linear basis functions
-    xht, yht - interpolated point mapped onto a reference rectangle 
+    xht, yht - interpolated point mapped onto a reference square
                use map_x2xhat   
   """
   p1x = phi_x0y0(phi1,xht,yht) # Phi1 at pnt xht,yht
@@ -100,15 +179,44 @@ def bilin_interp(phi1,phi2,phi3,phi4,xht,yht,HT):
 
   return Hi
 
+def bilin_interp1D(phi1,phi2,phi3,phi4,xht,yht,HT):
+  """
+  Bilinear interpolation H(x,y) = sum(H(x1,y1)*psi_i(x,y)), i=1,...,4
+  For 1 D inpyt arrays combined in HT = [[1:n],[1:n],[1:n],[1:n]]
+  where n - number of observations at each box vertex, e.g.
+  n = number of vertical layers in a model   
+
+  Input: 
+    phi1,phi2,phi3,phi4 - linear basis functions
+    xht, yht - interpolated point mapped onto a reference square
+               use map_x2xhat   
+  """
+  p1x = phi_x0y0(phi1,xht,yht) # Phi1 at pnt xht,yht
+  p2x = phi_x0y0(phi2,xht,yht)
+  p3x = phi_x0y0(phi3,xht,yht)
+  p4x = phi_x0y0(phi4,xht,yht)
+
+  if not HT.ndim == 2:
+    raise Exception('HT should be N x 4 array')
+
+  npnt = HT.shape[1]
+  nlv  = HT.shape[0]
+  PX  = np.array([[p1x, p2x, p3x, p4x]]).transpose()
+  Hi = np.matmul(HT,PX)
+#  Hi = (HT[:,0]*p1x + HT[1]*p2x + HT[2]*p3x + HT[3]*p4x)[0]
+  Hi = np.squeeze(Hi)
+
+  return Hi
+
 def blinrint(xht,yht,HT):
   """
   Bilinear interpolation H(x,y) = sum(H(x1,y1)*psi_i(x,y)), i=1,...,4
   Input: 
-    xht, yht - interpolated point mapped onto a reference rectangle 
+    xht, yht - interpolated point mapped onto a reference square
                use map_x2xhat   
     HT       - 1D array of node values
   """
-# Find basis functions for a reference rectangle:
+# Find basis functions for a reference square:
   phi1,phi2,phi3,phi4 = basisFn_RectRef()
 
   p1x = phi_x0y0(phi1,xht,yht) # Phi1 at pnt xht,yht

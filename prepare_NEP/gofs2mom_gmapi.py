@@ -13,7 +13,7 @@ import pdb
 import importlib
 #import struct
 import datetime
-#import pickle
+import pickle
 import matplotlib.colors as colors
 import matplotlib.mlab as mlab
 import time
@@ -43,10 +43,18 @@ import mod_misc1 as mmisc1
 importlib.reload(mcmp)
 
 
-nrun  = "GOFS3.0"
-expt  = "19.0"
-YR    = 1993
-jday  = 1
+# Change: model run name/expt that is used to generate MOM restart
+#         model restart date (input)
+# Specify MOM grid: symmetric / non-symmetric (or "standard")
+# u,v,h, q -points 
+# in MOM6 - variables oriented in North-East order wrt p.ij
+nrun       = "GOFS3.0"
+expt       = "19.0"
+YR         = 1993
+jday       = 1
+f_cont     = True        # True - continue unfinished file
+grid_var   = 'ugrid'     # hgrid, ugrid, vgrid, qgrid
+grid_shape = 'symmetr'   # MOM grid: symmetr/nonsymmetr
 
 dnmb  = mtime.jday2dnmb(YR, jday)
 dv    = mtime.datevec(dnmb)
@@ -55,11 +63,12 @@ MM    = dv[1]
 DM    = dv[2]
 rdate = f"{YR}{MM:02d}{DM:02d}"
 
-f_symmteric = True # MOM grid: symmetric/non-symmetric
-
-pthout  = '/home/Dmitry.Dukhovskoy/work1/data/mom6_nep_restart/'
-flgmap  = f"gofs2mom_nep_gmapi.pkl"
+pthout  = '/work/Dmitry.Dukhovskoy/data/mom6_nep_restart/'
+flgmap  = f"gofs2mom_nep_gmapi-{grid_var}_{grid_shape}.pkl"
 dflgmap = os.path.join(pthout,flgmap)
+
+print(f"Preparing gmapi NEP MOM6 --> GOFS: {grid_shape} {grid_var}\n")
+print(f"Output will be saved --> {dflgmap}")
 
 with open('pypaths_gfdlpub.yaml') as ff:
   dct = yaml.safe_load(ff)
@@ -81,15 +90,13 @@ ftopo_mom   = dct["MOM6_NEP"]["test"]["ftopo"]
 fgrid_mom   = dct["MOM6_NEP"]["test"]["fgrid"]
 dftopo_mom  = os.path.join(pthgrid_mom, ftopo_mom) 
 dfgrid_mom  = os.path.join(pthgrid_mom, fgrid_mom) 
-hlon, hlat  = mom6util.read_mom6grid(dfgrid_mom, grid='symmetric', grdpnt='hpnt')
-#qlon, qlat  = mom6util.read_mom6grid(dfgrid_mom, grid='symmetric', grdpnt='hpnt')
-#ulon, ulat  = mom6util.read_mom6grid(dfgrid_mom, grid='symmetric', grdpnt='hpnt')
-#vlon, vlat  = mom6util.read_mom6grid(dfgrid_mom, grid='symmetric', grdpnt='hpnt')
+hlon, hlat  = mom6util.read_mom6grid(dfgrid_mom, grid=grid_shape, grdpnt=grid_var)
+#qlon, qlat  = mom6util.read_mom6grid(dfgrid_mom, grid='symmetr', grdpnt='qgrid')
 HHM         = mom6util.read_mom6depth(dftopo_mom) 
 jdm         = np.shape(HHM)[0]
 idm         = np.shape(HHM)[1]
 
-Iall = np.where(HHM.flatten()>=0)[0]
+Iall = np.where(HHM.flatten()<=0.)[0]
 nall = Iall.shape[0]
 
 # Convert to -180/180:
@@ -134,15 +141,32 @@ Jsub2 = 3030
 Isub1 = 1010 
 Isub2 = 2290
 
-LONsub = LON[Jsub1:Jsub2+1, Isub1:Isub2+1]
-LATsub = LAT[Jsub1:Jsub2+1, Isub1:Isub2+1]
-RRsub  = RR[Jsub1:Jsub2+1, Isub1:Isub2+1]
+#LONsub = LON[Jsub1:Jsub2+1, Isub1:Isub2+1]
+#LATsub = LAT[Jsub1:Jsub2+1, Isub1:Isub2+1]
+#RRsub  = RR[Jsub1:Jsub2+1, Isub1:Isub2+1]
 
 INDX = np.zeros((jdm,idm,4)).astype(int)-999
 JNDX = np.zeros((jdm,idm,4)).astype(int)-999
 
 import timeit
 import mod_regmom as mrmom
+
+Irsb = []
+if f_cont:
+  print('Start from last saved record')
+  print('Loading ' + dflgmap)
+  try:
+    with open(dflgmap,'rb') as fid:
+      INDX, JNDX = pickle.load(fid)
+    aa = np.squeeze(INDX[:,:,0])
+    Irsb  = np.where(aa.flatten()>=0)[0]
+    Ndone = len(Irsb)/nall
+    print(f"In saved output: {Ndone*100:3.1f}% finished")
+  except:
+    print(f"Cannot open output {dflgmap}")
+    print("Starting from 0")
+
+
 kcc = 0
 tic = timeit.default_timer()
 ticR = timeit.default_timer()
@@ -152,6 +176,13 @@ for ikk in range(nall):
   I1 = Iall[ikk]
   jj, ii = np.unravel_index(I1,HHM.shape)
   kcc += 1
+
+# If continue from saved:
+  if len(Irsb) > 0:
+    if np.min(abs(Irsb-I1)) == 0:
+      if (kcc % 1000) == 0 or I1 == Irsb[-1]:
+        print(f" ---> Skipping {kcc/nall*100.:3.1f}%...")
+      continue
 
   if (kcc % 2000) == 0:
     toc    = timeit.default_timer()
@@ -164,15 +195,14 @@ for ikk in range(nall):
 #  t1 = timeit.default_timer() 
   x0  = hlon[jj,ii]
   y0  = hlat[jj,ii]
-  ixx, jxx = mrmom.find_gridpnts_box(x0, y0, RRsub, LONsub, LATsub,\
-                                     ioffset=Isub1, joffset=Jsub1)
+  ixx, jxx = mrmom.find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.12)
 #  t2 = timeit.default_timer()
-#  print(f"i={imin} j={jmin}, Process time: {t2-t1}")
+#  print(f"Process time: {t2-t1}")
 
   INDX[jj,ii,:] = ixx
   JNDX[jj,ii,:] = jxx
 
-  if kcc%5000 == 0:
+  if kcc%10000 == 0:
     print('Saving to ' + dflgmap)
     with open(dflgmap,'wb') as fid:
       pickle.dump([INDX,JNDX],fid)

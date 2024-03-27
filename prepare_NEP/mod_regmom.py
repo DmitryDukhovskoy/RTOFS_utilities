@@ -16,14 +16,10 @@ from matplotlib.patches import Polygon
 from matplotlib.colors import ListedColormap
 from mod_utils_fig import bottom_text
 
-def find_gridpnts_box(x0, y0, RR, XX, YY, ioffset=0, joffset=0, rr0=-1e30):
+def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5):
   """
     Given pnt (x0,y0) find 4 grid points enclosing the pnt
-    rr0 - some radius within which the 4 points are being searched
-    this is typically ~ grid diagonal distance
-    can specify a single number (then RR is ignored) or
-    provied a 2D RR (say RR = diagonal of grid cells)
-    shape RR = shape XX = shape YY
+    on a grid XX, YY - coordinates
 
      * -----------------  *
      |                    |
@@ -38,69 +34,118 @@ def find_gridpnts_box(x0, y0, RR, XX, YY, ioffset=0, joffset=0, rr0=-1e30):
     instead of whole domain X and Y (to speed up distance calculation)
     to get the global indices 
 
+    dhstep - approximate max grid horizontal stepping (in units of XX/YY)
+             making it too small may result in errors as
+             grid points outside this range will be discarded in order to
+             accelerate searching algorithm
   """
   import mod_misc1 as mmisc1
+  import mod_bilinear as mblnr
 
-  DD = mmisc1.dist_sphcrd(y0,x0,YY,XX)
-  jmin, imin = np.where(DD == np.min(DD))
-  jmin = jmin[0]
-  imin = imin[0]
+  mm = LON.shape[1]
+  nn = LON.shape[0]
+# Subsample the region:
+  dy = dhstep
+  JJ,II = np.where((LAT > y0-dy) & (LAT < y0+dy))
 
-  if rr0 <= 0.: 
-    rr0  = RR[jmin,imin]
+  XX = LON[JJ,II]
+  YY = LAT[JJ,II]
 
-# Find 2 closest grid points first:
-  JM, IM = np.where(DD <= rr0)
-  DR     = DD[JM,IM]
-  isort  = np.argsort(DR)[0:2]
-  ixx    = IM[isort]
-  jxx    = JM[isort]
+  DD   = mmisc1.dist_sphcrd(y0,x0,YY,XX)
+  kmin = np.where(DD == np.min(DD))[0][0]
+#  jmin, imin = np.unravel_index(kmin, LON.shape)
+#  jmin, imin = np.where(DD == np.min(DD))
+  jmin = JJ[kmin]
+  imin = II[kmin]
+  xmin = LON[jmin, imin]
+  ymin = LAT[jmin, imin]
 
-#  Find 2 other grid points to enclose the grid pnt x0,y0:
-  jv  = jxx[0]
-  iv  = ixx[0]
-  A   = [XX[jv,iv],YY[jv,iv]]
-  jv  = jxx[1]
-  iv  = ixx[1]
-  B   = [XX[jv,iv],YY[jv,iv]]
-  C   = [x0,y0]
-  Dr0 = mmisc1.orientation(A,B,C)
-  if ixx[0] == ixx[1]:
-# 2 pnts along Y axis have been selected find the other 2 + or - dx:
-    jv  = jxx[0]
-    iv  = ixx[0]-1
-    C   = [XX[jv,iv],YY[jv,iv]]
-    Dr  = mmisc1.orientation(A,B,C)
-    if np.sign(Dr) == np.sign(Dr0):
-      di = -1
-    else:
-      di = 1
-    ixx = np.append(ixx,ixx[0]+di)
-    jxx = np.append(jxx,jxx[0])
-    ixx = np.append(ixx,ixx[1]+di)
-    jxx = np.append(jxx,jxx[1])
-  else:
-# 2 pnts along X axis have been selected find the other 2 + or - dy:
-    jv = jxx[0]-1
-    iv = ixx[0]
-    C   = [XX[jv,iv],YY[jv,iv]]
-    Dr  = mmisc1.orientation(A,B,C)
-    if np.sign(Dr) == np.sign(Dr0):
-      di = -1
-    else:
-      di = 1
-    ixx = np.append(ixx,ixx[0])
-    jxx = np.append(jxx,jxx[0]+di)
-    ixx = np.append(ixx,ixx[1])
-    jxx = np.append(jxx,jxx[1]+di)
+# Find grid points around x0,y0:
+  jm1   = jmin-1
+  jp1   = jmin+1
+  if jm1 < 0:
+    jm1 = 0
+  if jp1 >= mm:
+    jp1 = mm-1
 
-  if ioffset > 0:
-    ixx = ixx+ioffset
-  if joffset > 0:
-    jxx = jxx+joffset
+# Assuming global grid:
+  im1   = imin-1
+  ip1   = imin+1
+  if im1 < 0:
+    im1 = nn-1
+  if ip1 >= nn:
+    ip1 = 0
 
-  ixx.astype(int)
-  jxx.astype(int)
+  Xs = LON[jm1:jp1+1,im1:ip1+1].flatten()
+  Ys = LAT[jm1:jp1+1,im1:ip1+1].flatten()
 
+# Find enclosed box:
+  xrf = x0-1.
+  if xrf < -180.:
+    xrf = xrf+360.
+  yrf = y0-1.
+  xd0 = mmisc1.dist_sphcrd(y0,xrf,y0,x0)
+  yd0 = mmisc1.dist_sphcrd(yrf,x0,y0,x0)
+  ixx = []
+  jxx = []
+  for ibx in range(0,4):
+    di = int(np.floor((ibx/2%2))*2-1)
+    dj = ((ibx+1)%2)*2-1
+    if abs(di) > 1 or abs(dj) > 1:
+      raise Exception(f"Searching grid box di/dj>1: ibx={ibx} di={di} dj={dj}")
+    inxt = imin+di
+    jnxt = jmin+dj 
+
+    IV = [imin, imin, inxt, inxt]
+    JV = [jmin, jnxt, jnxt, jmin]
+    IV, JV = mblnr.sort_gridcell_indx(IV, JV)
+
+# Convert box vertices into Cartesian coord wrt x0,y0
+    XX  = LON[JV,IV]
+    YY  = LAT[JV,IV]
+    XV  = np.zeros((4))
+    YV  = np.zeros((4))
+    for ipp in range(0,4):
+      dlx     = mmisc1.dist_sphcrd(YY[ipp],xrf,YY[ipp],XX[ipp]) - xd0
+      dly     = mmisc1.dist_sphcrd(yrf,XX[ipp],YY[ipp],XX[ipp]) - yd0
+      XV[ipp] = dlx
+      YV[ipp] = dly
+
+    INp     = mmisc1.inpolygon_1pnt(0.,0.,XV,YV)
+    if INp:
+      ixx = IV
+      jxx = JV
+      break
+
+# Plot box:
+# ax1.plot(XV,YV,'.-')    
+# ax1.plot(0,0,'r*')    # pnt should be inside XV,YV
+  if len(ixx) == 0:
+    print(f"Searching for {x0},{y0} enclosing grid box")
+    raise Exception("Failed no grid box for x0,y0 found")
+ 
+  ixx = np.array([imin, imin, inxt, inxt]).astype(int)
+  jxx = np.array([jmin, jnxt, jnxt, jmin]).astype(int)
+  
   return ixx, jxx
+
+def check_bottom(AA):
+  """
+    Make sure there are no NaNs in the 1D vertical data
+    AA is 1D array
+  """
+  if AA[0] == np.nan:
+    print(f"1D profile: all values are nans, check land mask?")
+    return 
+
+  izb = np.argwhere(AA == np.nan)
+  if len(izb) == 0:
+    return
+
+  AA[izb] = AA[min(izb)-1]
+
+  return AA
+  
+
+
 
