@@ -561,9 +561,48 @@ def print_col(*argv, wd=8, prc=2, kend=[]):
 
   return
 
+def polysegm_indx(IV, JV):
+  """
+    Finx index points connecting verticies of 
+    the polysegment curve
+
+    * 1 IV[0], JV[0]
+
+         * 2 IV[1], JV[1]
+
+     * 3  IV[2], JV[2]
+
+  """
+  nseg = len(IV)-1
+  II   = []
+  JJ   = []
+
+  for isgm in range(nseg):
+    I1 = IV[isgm]
+    J1 = JV[isgm]
+    I2 = IV[isgm+1]
+    J2 = JV[isgm+1]
+
+    IS, JS = xsect_indx([I1,I2],[J1,J2])
+    if isgm > 0:
+      IS = IS[1:]
+      JS = JS[1:]
+
+    if isgm == 0:
+      II = IS.copy()
+      JJ = JS.copy()
+    else:
+      II = np.append(II,IS)
+      JJ = np.append(JJ,JS)
+
+#  II = np.array(II, dtype='int')
+#  JJ = np.array(JJ, dtype='int')
+  return II, JJ
+
 
 def xsect_indx(IIv, JJv):
   """
+    Simple segment: 2 end points only
     IIv=[Is,Ie], JJv=[Js,Je]
     Find index points connecting 
     2 vertices (is,js) and (ie,je)

@@ -285,11 +285,15 @@ for irec in range(nrec):
   Uip1 = np.where(np.isnan(Uip1),0.,Uip1)
   U2d  = 0.5*(Ui+Uip1)
 
+# Fixed bug: V grid on hycom is north of (i,j) p-point not south:
   Vj   = V3d[:,JJ,II]
-  Vjm1 = V3d[:,JJ-1,II]
+#  Vjm1 = V3d[:,JJ-1,II]
+  Vjp1 = V3d[:,JJ+1,II]
   Vj   = np.where(np.isnan(Vj),0.,Vj)
-  Vjm1 = np.where(np.isnan(Vjm1),0.,Vjm1)
-  V2d  = 0.5*(Vj+Vjm1)
+#  Vjm1 = np.where(np.isnan(Vjm1),0.,Vjm1)
+  Vjp1 = np.where(np.isnan(Vjp1),0.,Vjp1)
+#  V2d  = 0.5*(Vj+Vjm1)
+  V2d  = 0.5*(Vj+Vjp1)
 
   dH2d = dH[:,JJ,II].squeeze()
   ZZ2d = ZZ[:,JJ,II].squeeze()

@@ -18,7 +18,8 @@
 # Keep fields on HYCOM vertical grid
 #
 # Note: all below-bottom values have to be filled with above values to avoid nans
-#
+# 
+# Plot NEP domain on GOFS grid
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -63,26 +64,31 @@ expt       = f"{nexpt:2.1f}"
 YR         = 1993
 jday       = 1
 hr         = 15
-fldint     = "v-vel."  # u-vel. & v-vel.: rotate and add brtrp vel!
+fldint     = "u-vel."  # temp salin u-vel. v-vel. layer thkn: u & v - add brtrp vel!
 grid_shape = 'symmetr'   # MOM grid: symmetr/nonsymmetr
 
 if not (fldint == "u-vel." or fldint == "v-vel."):
-  raise Exception ('This code is for u-vel. or v-vel. change fldint')
+  raise Exception ('This code for T or S, change fldint')
 
 pthout  = '/work/Dmitry.Dukhovskoy/data/mom6_nep_restart/'
-pthtmp  = '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp/'
 pthgofs = '/work/Dmitry.Dukhovskoy/data/GOFS3.0/expt_19.0/'
 
-if fldint == "u-vel.":
+if fldint == "temp":
+  grid_var = 'hgrid'
+  fldiout  = 'temp'
+elif fldint == "salin":
+  grid_var = 'sgrid'
+  fldiout  = 'salin'
+elif fldint == "u-vel.":
   grid_var = 'ugrid'
   fldiout  = 'uvel'
-  fbrtrp   = 'u_btrop'
 elif fldint == "v-vel.":
   grid_var = 'vgrid'
   fldiout  = 'vvel'
-  fbrtrp   = 'v_btrop'
+elif fldint == "thknss":
+  grid_var = 'hgrid'
+  fldiout  = 'lrthknss'
 
-print(f" INTERPOLATING {nrun}-{expt} --> MOM {fldint}")
 
 with open('pypaths_gfdlpub.yaml') as ff:
   dct = yaml.safe_load(ff)
@@ -102,27 +108,8 @@ rg     = 9806.
 fhycom = f"{nexpt*10:3.0f}_archv.{YR}_{jday:03d}_{hr:02d}"
 fina   = os.path.join(pthrun,fhycom) + '.a'
 finb   = os.path.join(pthrun,fhycom) + '.b'
-U3d, idmh, jdmh, kdmh   = mhycom.read_hycom(fina,finb,'u-vel.')
-U3d[np.where(U3d>huge)] = np.nan
-V3d, _, _, _            = mhycom.read_hycom(fina,finb,'v-vel.')
-V3d[np.where(V3d>huge)] = np.nan
-
-# Read barotropic velocities:
-# Only for archv output !
-F, _, _, _  = mhycom.read_hycom(fina,finb,'u_btrop')
-Ubtrop      = np.where(F>=huge, 0., F)
-F, _, _, _  = mhycom.read_hycom(fina,finb,'v_btrop')
-Vbtrop      = np.where(F>=huge, 0., F)
-
-# Add depth-average U:
-print(f"Adding depth-average U")
-for kk in range(kdmh):
-  U3d[kk,:,:] = U3d[kk,:,:] + Ubtrop
-  V3d[kk,:,:] = V3d[kk,:,:] + Vbtrop
-
-# Read grid angle:
-PANG = mhycom.read_pang(pthgrid, fgrid)
-
+A3d, idmh, jdmh, kdmh = mhycom.read_hycom(fina,finb,fldint)
+A3d[np.where(A3d>huge)] = np.nan
 
 # Read layer pressures:
 dH, _, _, _ = mhycom.read_hycom(fina,finb,'thknss')
@@ -142,7 +129,8 @@ dflgmap = os.path.join(pthout,flgmap)
 
 # Output interpolated fields on hycom layers:
 flintrp  = f"gofs2mom_nep_hrzi-{fldiout}_{grid_shape}_{rdate}.pkl"
-dflintrp = os.path.join(pthtmp,flintrp)
+dflintrp = os.path.join(pthout,flgmap)
+
 
 #
 # Read MOM6 NEP domain nx=342, ny=816
@@ -161,31 +149,15 @@ hlon   = np.where(hlon > 180.0, hlon-360., hlon)
 Iall = np.where(HHM.flatten()<=0.)[0]
 nall = Iall.shape[0]
 
-# Rotate GOFS velocity vectors --> true North/East 
-# then rotate onto MOM6 NEP grid
-# MOM6 - angle grid makes with true east direction, radians
-alpha_dx = mom6util.read_mom6angle(dfgrid_mom, grid=grid_shape, grdpnt=grid_var)
-
-# Rotate U, V from HYCOM --> true N/E grid
-# re-rotate onto MOM6 NEP grid
-print('Rotating U,V HYCOM --> MOM grid')
-for kk in range(kmh):
-  uu = U3d[kk,:,:].squeeze()
-  vv = V3d[kk,:,:].squeeze()
-
-  ur = np.cos(PANG)*uu - sin
-
-
-
 # gmapi mapping indices MOM6 <---> GOFS:
 with open(dflgmap,'rb') as fid:
   INDX, JNDX = pickle.load(fid)
 
 
 # Use bilinear interpolation 
-# Points are mapped onto a reference quadrilateral for interpolation then 
-# Perform interpolation on reference quadrilateral, that is 
-# similar to interp on actual quadrilateral
+# Points are mapped onto a reference square for interpolation then 
+# Perform interpolation on reference rectangle, that is 
+# similar to interp on actual rectangle
 # The advantage of using a reference quadrilateral is that basis
 # functions computed once and used for all grid points - saved lots of 
 # computational time
@@ -197,7 +169,6 @@ importlib.reload(mblnr)
 phi1,phi2,phi3,phi4 = mblnr.basisFn_RectRef()
 phi_basis           = np.array([phi1, phi2, phi3, phi4]).transpose() # basis funs in columns
 
-Irsb = []
 A3di = np.zeros((kdmh,jdm,idm))*np.nan
 kcc  = 0
 tic  = timeit.default_timer()
@@ -226,8 +197,6 @@ for ikk in range(nall):
 
   II = np.squeeze(INDX[jj,ii,:])
   JJ = np.squeeze(JNDX[jj,ii,:])
-  II, JJ = mblnr.sort_gridcell_indx(II,JJ)
-
 
   x0  = hlon[jj,ii]
   y0  = hlat[jj,ii]
@@ -257,19 +226,8 @@ for ikk in range(nall):
   if len(np.where(aa4 == np.isnan)[0]) > 0:
     aa4 = mrgm.check_bottom(aa4) 
 
-  if x0 < 0.:
-    x0 = x0+360.
-  xx = np.where(xx<0., xx+360., xx)
-#
-# Use cartesian coordinates for mapping
-  XV, YV, x0c, y0c = mblnr.lonlat2xy_wrtX0(xx, yy, x0, y0)
+# Interpolate with dH taken into account:
 
-# Interpolate with dH taken into account: <--- errors in shallow regions
-# due to very thin layer thicknessese, use simple interpolation
-# interpolation may not be accurate in shallow regions
-# due to potential contamination of below-bottom values 
-# mixed with true values in above-bottom
-# values on quadrilateral box used for interpolation
   HQT = np.array([aa1*qq1, aa2*qq2, aa3*qq3, aa4*qq4]).transpose()
   QT  = np.array([qq1, qq2, qq3, qq4]).transpose()
   HT  = np.array([aa1, aa2, aa3, aa4]).transpose()
@@ -277,49 +235,26 @@ for ikk in range(nall):
 # Map X,Y ---> Xhat, Yhat on reference quadrialteral 
 # i.e. map GOFS grid coordinate to a reference quadrilateral 
 # to do bilinear interpolation 
-#  xht, yht = mblnr.map_x2xhat(xx, yy, x0, y0)  # geogr coord
-  xht, yht = mblnr.map_x2xhat(XV, YV, x0c, y0c)   # cartesian coord
-
-# Due to non-rectangular shape of the grid, mapping onto a 
-# reference quadrilateral may be off results in |xhat| or |yhat| > 1
-# (to do - use triangulars
-# instead of quadrilaterals for interpolation):
-  if xht < -1.:
-    xht = -1.
-  elif xht > 1.:
-    xht = 1.
-
-  if yht < -1.:
-    yht = -1.
-  elif yht > 1.:
-    yht = 1.
-
+  xht, yht = mblnr.map_x2xhat(xx, yy, x0, y0)
 # Perform interpolation on reference rectangle, that is 
 # similar to interp on actual rectangle
   hqintp = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, HQT)
   qintp  = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, QT)
+#  hintp = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, HT)
   hintp  = hqintp/qintp
-#  hintp  = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, HT)
 #
-# Check: abs. values of interpolated values <= original data
-# ratio dmx is expected <= 1
-  mxHT = np.max(abs(HT), axis=1)
-  dmx  = abs(hintp)/mxHT
-#  idmx = np.argwhere(dmx<0)
-#  idmn = np.argwhere(dmn<0)
-  if max(dmx-1.) > 0.1:
-    print(f"!!! Min/Max test violated: i/j={ii}/{jj} dlt: {np.max(dmx)}") 
-    if max(dmx-1.) > 1.:
-      raise Exception("MinMax test: Interp error Check interpolation")
+# Check:
+  if np.max(abs(hintp)) > np.max(abs(HT)):
+    raise Exception("Max test violated: Check interpolation")
 
-  A3di[:,jj,ii] = hintp
+  A3di[:,jj1,ii1] = hintp
 
-  if kcc%20000 == 0:
+  if kcc%10000 == 0:
     print('Saving to ' + dflintrp)
     with open(dflintrp,'wb') as fid:
       pickle.dump(A3di,fid)
 
-print('END: Saving to '+dflintrp)
+print('END: Saving to '+dflgmap)
 with open(dflintrp,'wb') as fid:
   pickle.dump(A3di,fid)
 
@@ -328,14 +263,10 @@ f_plt = False
 if f_plt:
   plt.ion()
 
-  if x0 < 0.:
-    x0 = x0+360.
-  xx = np.where(xx<0., xx+360., xx)
-
   fig1 = plt.figure(1,figsize=(9,8))
   plt.clf()
   ax1 = plt.axes([0.1, 0.24, 0.8, 0.7])
+
   ax1.plot(x0,y0,'r*')
-  ax1.plot(xx,yy,'o')
-#  ax1.plot(LON[JJ,II],LAT[JJ,II],'o')
+  ax1.plot(LON[JJ,II],LAT[JJ,II],'o')
  

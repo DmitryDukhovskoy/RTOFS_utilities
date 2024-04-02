@@ -129,12 +129,14 @@ def map_x2xhat(XX,YY,x0,y0):
     to a reference square
     (-1,-1), ..., (-1,1)
     The mapping is of the form:
-    xhat = a1+a2*x+a3*y+a4*x*y
-    yhat = b1+b2*x+b3*y+b4*x*y
+    xhat = a1+a2*x+a3*y+a4*x*y = Alf*XY0
+    yhat = b1+b2*x+b3*y+b4*x*y = Bet*XY0
     Solve 4 equations to find coefficients:
     a1+a2*x1+a3*y1+a4*x1*y1 = -1 
     a1+a2*x2+a3*y2+a4*x2*y2 = 1 
     ...
+
+    AA*Alf = Cx
 
    same for b coefficients
 
@@ -148,6 +150,7 @@ def map_x2xhat(XX,YY,x0,y0):
                [1, XX[2], YY[2], XX[2]*YY[2]],\
                [1, XX[3], YY[3], XX[3]*YY[3]]])
 
+#  AA = np.float64(AA)
   AAinv = np.linalg.inv(AA)
   Cx = np.transpose(np.array([[-1.,1.,1.,-1.]]))
   Alf = np.dot(AAinv,Cx)
@@ -157,10 +160,45 @@ def map_x2xhat(XX,YY,x0,y0):
 
 
   XY0 = np.transpose(np.array([[1,x0,y0,x0*y0]]))
-  xhat = np.dot(np.transpose(Alf),XY0)[0][0]
+  xhat = np.dot(Alf.transpose(),XY0)[0][0]
   yhat = np.dot(np.transpose(Bet),XY0)[0][0]
 
   return xhat, yhat
+
+def map_xhat2x(XX,YY,xht,yht):
+  """
+    Inversing mapping from a reference quadrilateral ---> original
+    quadrilateral with vertices XX, YY
+    The mapping is:
+    a1+a2*xhat+a3*yhat+a4*xhat*yhat = x
+    b1+b2*xhat+b3*yhat+b4*xhat*yhat = y
+
+    Solve a system of lin eq:
+    a1 + a2*s1 + a3*t1 + a4*s1*t1 = x1
+    a1 + a2*s2 + a3*t2 + a4*s2*t2 = x2
+    ...
+
+    b1 + b2*s1 + b3*t1 + b4*s1*t1 = y1
+    b1 + b2*s2 + b3*t2 + b4*s2*t2 = y2
+    ...
+
+  """
+  XX    = np.expand_dims(XX, axis=0)
+  YY    = np.expand_dims(YY, axis=0)
+
+  AA = np.array([[1, -1, -1,  1],\
+                 [1,  1, -1, -1],\
+                 [1,  1,  1,  1],\
+                 [1, -1,  1, -1]])
+
+  AAinv = np.linalg.inv(AA)
+  Alf   = np.matmul(AAinv,XX.transpose())
+  Bet   = np.matmul(AAinv,YY.transpose())
+  ST0   = np.transpose(np.array([[1, xht, yht, xht*yht]]))
+  xx0   = np.dot(Alf.transpose(), ST0)[0][0]
+  yy0   = np.dot(Bet.transpose(), ST0)[0][0]
+
+  return xx0, yy0
 
 def bilin_interp(phi1,phi2,phi3,phi4,xht,yht,HT):
   """
@@ -227,6 +265,37 @@ def blinrint(xht,yht,HT):
   Hi = (HT[0]*p1x + HT[1]*p2x + HT[2]*p3x + HT[3]*p4x)[0]
 
   return Hi
+
+def lonlat2xy_wrtX0(XX, YY, x0, y0, dltx=1.):
+  """
+    Convert lon/lat coordinates of 4 quadrilateral vertices XX, YY
+    into cartisian coordinates (meters) wrt to a point (x0,y0)
+
+    so that x0,y0 --> 0,0
+    and XX, YY ---> +/- distance from 0,0
+  """
+  import mod_misc1 as mmisc1
+
+  xrf = x0-1.
+  if xrf < -180.:
+    xrf = xrf+360.
+  yrf = y0-1.
+  xd0 = mmisc1.dist_sphcrd(y0,xrf,y0,x0)
+  yd0 = mmisc1.dist_sphcrd(yrf,x0,y0,x0)
+
+  XV  = np.zeros((4))
+  YV  = np.zeros((4))
+  for ipp in range(0,4):
+    dlx     = mmisc1.dist_sphcrd(YY[ipp],xrf,YY[ipp],XX[ipp]) - xd0
+    dly     = mmisc1.dist_sphcrd(yrf,XX[ipp],YY[ipp],XX[ipp]) - yd0
+    XV[ipp] = dlx
+    YV[ipp] = dly
+
+  return XV, YV, 0., 0. 
+
+
+
+
 
 
 

@@ -103,15 +103,16 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5):
 # Convert box vertices into Cartesian coord wrt x0,y0
     XX  = LON[JV,IV]
     YY  = LAT[JV,IV]
-    XV  = np.zeros((4))
-    YV  = np.zeros((4))
-    for ipp in range(0,4):
-      dlx     = mmisc1.dist_sphcrd(YY[ipp],xrf,YY[ipp],XX[ipp]) - xd0
-      dly     = mmisc1.dist_sphcrd(yrf,XX[ipp],YY[ipp],XX[ipp]) - yd0
-      XV[ipp] = dlx
-      YV[ipp] = dly
-
-    INp     = mmisc1.inpolygon_1pnt(0.,0.,XV,YV)
+#    XV  = np.zeros((4))
+#    YV  = np.zeros((4))
+#    for ipp in range(0,4):
+#      dlx     = mmisc1.dist_sphcrd(YY[ipp],xrf,YY[ipp],XX[ipp]) - xd0
+#      dly     = mmisc1.dist_sphcrd(yrf,XX[ipp],YY[ipp],XX[ipp]) - yd0
+#      XV[ipp] = dlx
+#      YV[ipp] = dly
+#
+    XV, YV, x0c, y0c = mblnr.lonlat2xy_wrtX0(XX, YY, x0, y0)
+    INp     = mmisc1.inpolygon_1pnt(x0c, y0c, XV, YV)
     if INp:
       ixx = IV
       jxx = JV

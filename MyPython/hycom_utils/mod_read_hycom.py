@@ -14,8 +14,15 @@ sys.path.append('/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/python/MyPython')
 import mod_misc1 as mmsc1
 
 
-def read_grid_topo(pthtopo,ftopo,fgrid,f_lon=180,pthgrid=None, dpth_neg=True):
+def read_grid_topo(pthtopo, ftopo, fgrid, grdpnt='ppnt', f_lon=180, \
+                   pthgrid=None, dpth_neg=True):
 # Get topo and lon/lat (plon/plat) for plotting 
+# lon/lat:
+# ppnt --> plon/plat
+# qpnt --> qlon/qlat
+# upnt --> ulon/ulat
+# vpnt --> vlon/vlat
+#
 # To get other lon/lat (ulon, ulat, vlon, vlat) - need to 
 # read full grid file
 #
@@ -31,50 +38,83 @@ def read_grid_topo(pthtopo,ftopo,fgrid,f_lon=180,pthgrid=None, dpth_neg=True):
   flgrida = pthgrid+fgrid+'.a'
   flgridb = pthgrid+fgrid+'.b'
 
+  if grdpnt == 'ppnt':
+    nlon = 'plon'
+    nlat = 'plat'
+  elif grdpnt == 'qpnt':
+    nlon = 'qlon'
+    nlat = 'qlat'
+  elif grdpnt == 'upnt':
+    nlon = 'ulon'
+    nlat = 'ulat'
+  elif grdpnt == 'vpnt':
+    nlon = 'vlon'
+    nlat = 'vlat'
+    
 # Read dim, lon, lat
   fgb = open(flgridb,'r')
   fgb.seek(0)
   data = fgb.readline().split()
-  IDM = int(data[0])
+  IDM  = int(data[0])
   data = fgb.readline().split()
-  JDM = int(data[0])
+  JDM  = int(data[0])
   IJDM = IDM*JDM
-  fgb.close()
-
-  npad =4096-IJDM%4096
+  npad = int(4096-IJDM%4096)
 
   print('Reading HYCOM grid/topo:{0} {1} '.format(fgrid,ftopo))
-  print('Grid: IDM={0}, JDM={1}'.format(IDM,JDM))
+  print(f'Grid {nlon}/{nlat}: IDM={IDM}, JDM={JDM}')
+
+# Find variable to derive record length in the direct access binary file:
+  icc = 0
+  while len(data)>0:
+    data  = fgb.readline().split()
+    achar = data[0]
+    if achar[-1] == ':': icc += 1
+#    print(f"{icc} {data}")
+    if achar[:4] == nlon: break
+
+  fgb.seek(0)
+  jcc = 0
+  while len(data)>0:
+    data  = fgb.readline().split()
+    achar = data[0]
+    if achar[-1] == ':': jcc += 1
+#    print(f"{jcc} {data}")
+    if achar[:4] == nlat: break
+  fgb.close()
+
+  if icc == 0 or jcc == 0:
+    raise Exception(f"Grid {nlon}/{nlat} not found in {flgridb}")
 
 # Read direct access binary file
   fga = open(flgrida,'rb')
   fga.seek(0)
-  plon = np.fromfile(fga,dtype='>f',count=IJDM)
 
+# Read lon:
+  fga.seek(4*(npad+IJDM)*(icc-1),0)
+  LON = np.fromfile(fga,dtype='>f',count=IJDM)
   if f_lon == 180:
-    while any(plon > 180.):
-      plon = np.where(plon<=180.,plon,plon-360.)
+    while any(LON > 180.):
+      LON = np.where(LON<=180.,LON,LON-360.)
 
-    while any(plon < -180.):
-      plon = np.where(plon >= -180., plon, plon+360.)
-
+    while any(LON < -180.):
+      LON = np.where(LON >= -180., LON, LON+360.)
   if f_lon == 360:
-    while any(plon < 0.):
-      plon = np.where(plon >= 0., plon, plon+360.)
-    while any(plon > 360.):
-      plon = np.where(plon <= 360., plon, plon-360.)
+    while any(LON < 0.):
+      LON = np.where(LON >= 0., LON, LON+360.)
+    while any(LON > 360.):
+      LON = np.where(LON <= 360., LON, LON-360.)
+  LON = LON.reshape((JDM,IDM))
 
-  plon = plon.reshape((JDM,IDM))
-
-
-  fga.seek(4*(npad+IJDM),0)
-  plat = np.fromfile(fga, dtype='>f',count=IJDM)
-  plat = plat.reshape((JDM,IDM))
+# Read lat:
+  fga.seek(4*(npad+IJDM)*(jcc-1),0)
+  LAT = np.fromfile(fga, dtype='>f',count=IJDM)
+  LAT = LAT.reshape((JDM,IDM))
 
   fga.close()
 
-  print('Min/max lon = {0}, {1}, Min/max lat = {2}, {3}'.format(np.min(plon),\
-        np.max(plon),np.min(plat), np.max(plat)))
+  print(f'Min/max {nlon} = {np.min(LON)} / {np.max(LON)}')
+  print(f'Min/max {nlat} = {np.min(LAT)} / {np.max(LAT)}')
 
 # Read bottom topography:
 # Big endian float 32
@@ -90,7 +130,7 @@ def read_grid_topo(pthtopo,ftopo,fgrid,f_lon=180,pthgrid=None, dpth_neg=True):
 
   print('Min/max Depth = {0}, {1}'.format(np.min(HH),np.max(HH)))
 
-  return plon,plat,HH
+  return LON,LAT,HH
 
 
 def read_topo(pthtopo,ftopo,IDM,JDM,dpth_neg=True):
@@ -828,6 +868,150 @@ def read_targ_dens(finb, ss, sep, ifld, kki=-1, prntTD=True):
 
   return TDENS
     
+def read_pang(pthgrid, fgrid, fld='pang'):
+  """
+    angle that HYCOM grid makes with the true North/East directions
+    The native model velocity variables are x-wards and y-wards
+    South of 47N, model grid matches east/wast directions
+    but not north of 47N, where the grid is curvi-linear 
+    in the Arctic bi-polar patch part of the tri-pole grid.
+    Rotate the North/East velocities to x-wards y-wards.  
+    The array pang in regional.grid can be used to do this.  
+    The eastwards,northwards to x-wards,y-wards code is in ALL/force/src/wi.f:
+              COSPANG  = COS(PANG(I,J))
+              SINPANG  = SIN(PANG(I,J))
+              TXM(I,J) = COSPANG*TXMIJ + SINPANG*TYMIJ
+              TYM(I,J) = COSPANG*TYMIJ - SINPANG*TXMIJ
 
+    To rotate from HYCOM x-wards,y-wards componenet 
+    to true N/E, see isubaregion.f
+                a_in(i,j) = cos(pang_in(i,j))*u_in(i,j) -
+     &                      sin(pang_in(i,j))*v_in(i,j)
+   ...
 
+                a_in(i,j) = cos(pang_in(i,j))*v_in(i,j) +
+     &                      sin(pang_in(i,j))*u_in(i,j)
+
+     re-rotate on output grid:
+                u_out(ii,jj) = cos(pang_out(ii,jj))*up +
+     &                         sin(pang_out(ii,jj))*vp
+                v_out(ii,jj) = cos(pang_out(ii,jj))*vp -
+     &                         sin(pang_out(ii,jj))*up
+
+  """
+
+  flgrida = os.path.join(pthgrid, fgrid+'.a')
+  flgridb = os.path.join(pthgrid, fgrid+'.b')
+
+# Read dim, lon, lat
+  fgb = open(flgridb,'r')
+  fgb.seek(0)
+  data = fgb.readline().split()
+  IDM  = int(data[0])
+  data = fgb.readline().split()
+  JDM  = int(data[0])
+  IJDM = IDM*JDM
+  npad = 4096-IJDM%4096
+
+  print(f"Reading {fld} from {flgrida}")
+  print(f'Grid: IDM={IDM}, JDM={JDM}')
+
+# Find variable to derive record length in the direct access binary file:
+  icc = 0
+  while len(data)>0:
+    data  = fgb.readline().split()
+    achar = data[0]
+    if achar[-1] == ':': icc += 1
+#    print(f"{icc} {data}")
+    if achar[:4] == fld: break
+
+  fgb.close()
+  
+  if icc == 0: 
+    raise Exception(f"{fld} not found in {flgridb}")    
+
+# Read direct access binary file
+  fga = open(flgrida,'rb')
+  fga.seek(0)
+
+  fga.seek(4*(npad+IJDM)*(icc-1),0)
+  pang = np.fromfile(fga, dtype='>f',count=IJDM)
+  pang = pang.reshape((JDM,IDM))
+
+  fga.close()
+
+  print(f'Min/max {fld}: {np.min(pang)}/{np.max(pang)}')
+
+  return pang
+
+def mod_collocateU2P(U2d):
+  """
+    Collocate U vel on p-grid
+    input 2D U field
+    HYCOM grid:
+
+     Q(i,j+1)
+     * ------------------*
+     |                   |
+     |        P,T,S,H    |
+     - U(i,j) * i,j      |
+     |                   |
+     |                   |
+     * -------|----------*
+   Q(i,j)      V(i,j)
+
+  """
+  mm   = U2d.shape[0]
+  nn   = U2d.shape[1]
+  U2d  = np.where(np.isnan(U2d), 0., U2d)
+  U2d  = np.where(U2d > 1.e10, 0., U2d)
+  U2dP = U2d.copy()*0.
+
+  for ii in range(nn):
+    u1 = U2d[:,ii]
+    if ii < nn:
+      u2 = U2d[:,ii+1]
+    else:
+      u2 = U2d[:,0]
+
+    uP         = 0.5*(u1 + u2)
+    U2dP[:,ii] = uP
+
+    return U2dP
+
+def mod_collocateV2P(U2d):
+  """
+    Collocate V vel on p-grid
+    input 2D V field (1 layer)
+
+    HYCOM grid:
+
+     Q(i,j+1)
+     * ------------------*
+     |                   |
+     |        P,T,S,H    |
+     - U(i,j) * i,j      |
+     |                   |
+     |                   |
+     * -------|----------*
+   Q(i,j)      V(i,j)
+
+  """
+  mm   = V2d.shape[0]
+  nn   = V2d.shape[1]
+  V2d  = np.where(np.isnan(V2d), 0., V2d)
+  V2d  = np.where(V2d > 1.e10, 0., V2d)
+  V2dP = V2d.copy()*0.
+
+  for jj in range(mm):
+    v1 = V2d[jj,:]
+    if jj >0:
+      v2 = V2d[jj+1,:]
+    else:
+      v2 = V2d[:,0]
+
+    vP         = 0.5*(v1 + v2)
+    V2dP[:,jj] = vP
+
+    return V2dP
 

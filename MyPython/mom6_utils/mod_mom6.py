@@ -59,30 +59,30 @@ def read_mom6grid(fgrid, grdpnt='hgrid', grid='nonsymmetr'):
 
   if grid == 'nonsymmetr':
     if grdpnt == 'qgrid':
-      LON = XX[2:mm+1:2, 2:nn+1:2]
-      LAT = YY[2:mm+1:2, 2:nn+1:2]
+      LON = XX[2::2, 2::2]
+      LAT = YY[2::2, 2::2]
     elif grdpnt == 'hgrid':
-      LON = XX[1:mm:2, 1:nn:2]
-      LAT = YY[1:mm:2, 1:nn:2]
+      LON = XX[1::2, 1::2]
+      LAT = YY[1::2, 1::2]
     elif grdpnt == 'ugrid':
-      LON = XX[1:mm:2, 2:nn+1:2]
-      LAT = YY[1:mm:2, 2:nn+1:2]
+      LON = XX[1::2, 2::2]
+      LAT = YY[1::2, 2::2]
     elif grdpnt == 'vgrid':
-      LON = XX[2:mm+1:2, 1:nn:2]
-      LAT = YY[2:mm+1:2, 1:nn:2]
+      LON = XX[2::2, 1::2]
+      LAT = YY[2::2, 1::2]
   elif grid == 'symmetr':
     if grdpnt == 'qgrid':
-      LON = XX[0:mm+1:2, 0:nn+1:2]
-      LAT = YY[0:mm+1:2, 0:nn+1:2]
+      LON = XX[0::2, 0::2]
+      LAT = YY[0::2, 0::2]
     elif grdpnt == 'hgrid':
-      LON = XX[1:mm:2, 1:nn:2]
-      LAT = YY[1:mm:2, 1:nn:2]
+      LON = XX[1::2, 1::2]
+      LAT = YY[1::2, 1::2]
     elif grdpnt == 'ugrid':
-      LON = XX[1:mm:2, 0:nn+1:2]
-      LAT = YY[1:mm:2, 0:nn+1:2]
+      LON = XX[1::2, 0::2]
+      LAT = YY[1::2, 0::2]
     elif grdpnt == 'vgrid':
-      LON = XX[0:mm+1:2, 1:nn:2]
-      LAT = YY[0:mm+1:2, 1:nn:2]
+      LON = XX[0::2, 1::2]
+      LAT = YY[0::2, 1::2]
 
   jdm = LAT.shape[0]
   idm = LAT.shape[1]
@@ -91,6 +91,45 @@ def read_mom6grid(fgrid, grdpnt='hgrid', grid='nonsymmetr'):
   LON = np.where(LON < -180., LON+360., LON)
 
   return LON, LAT
+
+def read_mom6angle(fgrid, grdpnt='hgrid', grid='nonsymmetr'):
+  """
+    Read angle the grid makes with the true East direction (lat line)
+    radians
+  """
+  print(f"Reading MOM6 grid angle (radians) for: {grid} grdpnt={grdpnt}")
+  print('Grid: ' + fgrid)
+  nc  = ncFile(fgrid,'r')
+# Read MOM supergrid:
+  angle = nc.variables['angle_dx'][:].data
+  mm  = angle.shape[0]
+  nn  = angle.shape[1]
+
+  if grid == 'nonsymmetr':
+    if grdpnt == 'qgrid':
+      alpha = angle[2::2, 2::2]
+    elif grdpnt == 'hgrid':
+      alpha = angle[1::2, 1::2]
+    elif grdpnt == 'ugrid':
+      alpha = angle[1::2, 2::2]
+    elif grdpnt == 'vgrid':
+      alpha = angle[2::2, 1::2]
+  elif grid == 'symmetr':
+    if grdpnt == 'qgrid':
+      alpha = angle[0::2, 0::2]
+    elif grdpnt == 'hgrid':
+      alpha = angle[1::2, 1::2]
+    elif grdpnt == 'ugrid':
+      alpha = angle[1::2, 0::2]
+    elif grdpnt == 'vgrid':
+      alpha = angle[0::2, 1::2]
+
+  jdm = alpha.shape[0]
+  idm = alpha.shape[1]
+
+  print(f" MOM6 dx angle {grdpnt} {grid} grid dim (J,I): {jdm} x {idm}")
+
+  return  alpha
 
 def read_mom6depth(ftopo, f_negate=True):
   """

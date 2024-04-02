@@ -7,7 +7,7 @@ import pdb
 import importlib
 #import struct
 import datetime
-#import pickle
+import pickle
 import matplotlib.colors as colors
 import matplotlib.mlab as mlab
 import time
@@ -42,6 +42,7 @@ expt = "93.0"
 with open('pypaths_gfdlpub.yaml') as ff:
   dct = yaml.safe_load(ff)
 
+pthtmp  = '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp/'
 pthgrid = dct[nrun][expt]["pthgrid"]
 ftopo   = dct[nrun][expt]["ftopo"]
 fgrid   = dct[nrun][expt]["fgrid"]
@@ -68,52 +69,67 @@ nn = RS.shape[1]
 RS = np.where(HH >= 0., np.nan, RS)
 
 # Find boundaries of the NEP domain:
-IBND = np.array([])
-JBND = np.array([])
-dstp = 10
-print("Searching indices along western boundary ...")
-for jj in range(0,jdm,dstp):
-  if jj%100 == 0:
-    print(f"  {jj/jdm*100:3.1f}% ...")
-  x0 = LONM[jj,0]
-  y0 = LATM[jj,0]
-  ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
 
-  IBND = np.append(IBND, ii0)
-  JBND = np.append(JBND, jj0)
+fboutp  = 'mom_bndry_gofs.pkl'
+dfboutp = os.path.join(pthtmp, fboutp)
+f_getbindx = False
 
-print("Searching indices along northern boundary ...")
-for ii in range(0,idm,dstp):
-  if ii%100 == 0:
-    print(f"  {ii/idm*100:3.1f}% ...")
-  x0 = LONM[jdm-1,ii]
-  y0 = LATM[jdm-1,ii]
-  ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
+if f_getbindx:
+  IBND = np.array([])
+  JBND = np.array([])
+  dstp = 10
+  print("Searching indices along western boundary ...")
+  for jj in range(0,jdm,dstp):
+    if jj%100 == 0:
+      print(f"  {jj/jdm*100:3.1f}% ...")
+    x0 = LONM[jj,0]
+    y0 = LATM[jj,0]
+    ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
 
-  IBND = np.append(IBND, ii0)
-  JBND = np.append(JBND, jj0)
+    IBND = np.append(IBND, ii0)
+    JBND = np.append(JBND, jj0)
 
-print("Searching indices along eastern boundary ...")
-for jj in range(0,jdm,dstp):
-  if jj%100 == 0:
-    print(f"  {jj/jdm*100:3.1f}% ...")
-  x0 = LONM[jj,idm-1]
-  y0 = LATM[jj,idm-1]
-  ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
+  print("Searching indices along northern boundary ...")
+  for ii in range(0,idm,dstp):
+    if ii%100 == 0:
+      print(f"  {ii/idm*100:3.1f}% ...")
+    x0 = LONM[jdm-1,ii]
+    y0 = LATM[jdm-1,ii]
+    ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
 
-  IBND = np.append(IBND, ii0)
-  JBND = np.append(JBND, jj0)
+    IBND = np.append(IBND, ii0)
+    JBND = np.append(JBND, jj0)
 
-print("Searching indices along southern boundary ...")
-for ii in range(0,idm,dstp):
-  if ii%100 == 0:
-    print(f"  {ii/idm*100:3.1f}% ...")
-  x0 = LONM[0,ii]
-  y0 = LATM[0,ii]
-  ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
+  print("Searching indices along eastern boundary ...")
+  for jj in range(0,jdm,dstp):
+    if jj%100 == 0:
+      print(f"  {jj/jdm*100:3.1f}% ...")
+    x0 = LONM[jj,idm-1]
+    y0 = LATM[jj,idm-1]
+    ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
 
-  IBND = np.append(IBND, ii0)
-  JBND = np.append(JBND, jj0)
+    IBND = np.append(IBND, ii0)
+    JBND = np.append(JBND, jj0)
+
+  print("Searching indices along southern boundary ...")
+  for ii in range(0,idm,dstp):
+    if ii%100 == 0:
+      print(f"  {ii/idm*100:3.1f}% ...")
+    x0 = LONM[0,ii]
+    y0 = LATM[0,ii]
+    ii0, jj0 = mutil.find_indx_lonlat(x0, y0, LON, LAT)
+
+    IBND = np.append(IBND, ii0)
+    JBND = np.append(JBND, jj0)
+
+  print(f"Saving mom boundary indices --> {dfboutp}")
+  with open(dfboutp, 'wb') as fid:
+    pickle.dump([IBND, JBND], fid)
+
+else:
+  print(f"Loading {dfboutp}")
+  with open(dfboutp, 'rb') as fid:
+    IBND, JBND = pickle.load(fid)
 
 
 plt.ion()

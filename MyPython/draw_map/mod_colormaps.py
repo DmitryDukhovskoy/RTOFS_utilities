@@ -325,7 +325,7 @@ def colormap_salin2(nclrs=200):
 
 def colormap_temp2(nclrs=200):
   """
-    Temp colormap based on jet with added purple and lisght red 
+    Temp colormap based on jet with added purple and light red 
     shades to expand the colormap for better T range
   """
   from matplotlib import cm
@@ -360,6 +360,87 @@ def colormap_temp2(nclrs=200):
   CMP = create_colormap(CLR, nclrs)
 
   return CMP         
+
+def colormap_temp_coldhot(nclrs=200):
+  """
+    Temp colormap based on jet with added dark purple purple 
+    and light red 
+    shades to expand the colormap for better T range for cold/warm waters
+  """
+  from matplotlib import cm
+  from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+
+  CLR = [[ 87,  67, 115],
+         [ 57,   5, 130],
+         [ 89,  27, 176],
+         [117,  26, 247],
+         [123,  34, 143],
+         [184,  48, 173],
+         [100,  91, 207],
+         [ 19,   6, 186],
+         [  0,   0, 190],
+         [  0,   0, 250],
+         [  0,  31, 255],
+         [  0,  82, 255],
+         [  0, 133, 255],
+         [  0, 185, 255],
+         [  5, 236, 241],
+         [ 47, 255, 200],
+         [ 88, 255, 159],
+         [129, 255, 117],
+         [170, 255,  76],
+         [212, 255,  35],
+         [254, 237,   0],
+         [255, 190,   0],
+         [255, 142,   0],
+         [255,  95,   0],
+         [255,  47,   0],
+         [232,   1,   0],
+         [174,   0,   0],
+         [150,  47,  47],
+         [173, 112, 112],
+         [227, 205, 205]]
+
+  CLR = np.array(CLR)/255.
+  CMP = create_colormap(CLR, nclrs)
+
+  return CMP
+
+def colormap_uv(nclrs=200):
+  """
+    Colormap for U, V with negative - positive values
+    with white in the middle
+  """
+  from matplotlib import cm
+  from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+
+  CLR = [[ 19,   5,  77],
+         [ 25,   2, 120],
+         [ 39,   5, 179],
+         [ 52,   5, 245],
+         [ 93,   5, 245],
+         [129,   5, 245],
+         [177,   5, 245],
+         [200,  86, 245],
+         [223, 161, 247],
+         [241, 217, 250],
+         [255, 255, 255],
+         [250, 242, 217],
+         [250, 217, 110],
+         [245, 193,  88],
+         [247, 175,  30],
+         [235, 138,  42],
+         [224,  96,  31],
+         [214,  79,  11],
+         [168,  59,   5],
+         [122,  42,   2],
+         [ 92,  32,   2]]
+
+  CLR = np.array(CLR)/255.
+  CMP = create_colormap(CLR, nclrs)
+
+  return CMP
+
 
 
 def colormap_temp(nclrs=200, clr_ramp=[1,1,1], add_btm=True):

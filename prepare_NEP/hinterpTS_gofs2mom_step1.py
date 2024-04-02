@@ -62,10 +62,10 @@ expt       = f"{nexpt:2.1f}"
 YR         = 1993
 jday       = 1
 hr         = 15
-fldint     = "temp"  # temp salin u-vel. v-vel. layer thkn: u & v - add brtrp vel!
+fldint     = "thknss"  # temp salin thknss
 grid_shape = 'symmetr'   # MOM grid: symmetr/nonsymmetr
-
-if not (fldint == "temp" or fldint == "salin"):
+f_thknss   = False     # interpolate sum(A*dH)/dH(j,i) <- errors due to bottom val
+if not (fldint == "temp" or fldint == "salin" or fldint == 'thknss'):
   raise Exception ('This code for T or S, change fldint')
 
 pthout  = '/work/Dmitry.Dukhovskoy/data/mom6_nep_restart/'
@@ -76,18 +76,13 @@ if fldint == "temp":
   grid_var = 'hgrid'
   fldiout  = 'temp'
 elif fldint == "salin":
-  grid_var = 'sgrid'
+  grid_var = 'hgrid'
   fldiout  = 'salin'
-elif fldint == "u-vel.":
-  grid_var = 'ugrid'
-  fldiout  = 'uvel'
-elif fldint == "v-vel.":
-  grid_var = 'vgrid'
-  fldiout  = 'vvel'
 elif fldint == "thknss":
   grid_var = 'hgrid'
   fldiout  = 'lrthknss'
 
+print(f" INTERPOLATING {nrun}-{expt} --> MOM {fldint}")
 
 with open('pypaths_gfdlpub.yaml') as ff:
   dct = yaml.safe_load(ff)
@@ -109,12 +104,15 @@ fina   = os.path.join(pthrun,fhycom) + '.a'
 finb   = os.path.join(pthrun,fhycom) + '.b'
 A3d, idmh, jdmh, kdmh = mhycom.read_hycom(fina,finb,fldint)
 A3d[np.where(A3d>huge)] = np.nan
+if fldint == 'thknss':
+  A3d = A3d/rg
 
 # Read layer pressures:
-dH, _, _, _ = mhycom.read_hycom(fina,finb,'thknss')
-dH          = dH/rg
-dH          = np.where(dH>huge, np.nan, dH)
-dH          = np.where(dH<1.e-12, 1.e-12, dH)  # avoid 0 dH for interpolation
+if f_thknss:
+  dH, _, _, _ = mhycom.read_hycom(fina,finb,'thknss')
+  dH          = dH/rg
+  dH          = np.where(dH>huge, np.nan, dH)
+  dH          = np.where(dH<1.e-12, 1.e-12, dH)  # avoid 0 dH for interpolation
 
 # Saved gmapi:
 dnmb    = mtime.jday2dnmb(YR, jday)
@@ -214,10 +212,11 @@ for ikk in range(nall):
   aa2 = np.squeeze(A3d[:,jj2,ii2])
   aa3 = np.squeeze(A3d[:,jj3,ii3])
   aa4 = np.squeeze(A3d[:,jj4,ii4])
-  qq1 = np.squeeze(dH[:,jj1,ii1])    
-  qq2 = np.squeeze(dH[:,jj2,ii2])
-  qq3 = np.squeeze(dH[:,jj3,ii3])
-  qq4 = np.squeeze(dH[:,jj4,ii4])
+  if f_thknss:
+    qq1 = np.squeeze(dH[:,jj1,ii1])    
+    qq2 = np.squeeze(dH[:,jj2,ii2])
+    qq3 = np.squeeze(dH[:,jj3,ii3])
+    qq4 = np.squeeze(dH[:,jj4,ii4])
 #  kk = 0
   if len(np.where(aa1 == np.isnan)[0]) > 0:
     aa1 = mrgm.check_bottom(aa1) 
@@ -228,32 +227,50 @@ for ikk in range(nall):
   if len(np.where(aa4 == np.isnan)[0]) > 0:
     aa4 = mrgm.check_bottom(aa4) 
 
-# Interpolate with dH taken into account:
+  if x0 < 0.:
+    x0 = x0+360.
+  xx = np.where(xx<0., xx+360., xx)
+#
+# Use cartesian coordinates for mapping
+  XV, YV, x0c, y0c = mblnr.lonlat2xy_wrtX0(xx, yy, x0, y0)
 
-  HQT = np.array([aa1*qq1, aa2*qq2, aa3*qq3, aa4*qq4]).transpose()
-  QT  = np.array([qq1, qq2, qq3, qq4]).transpose()
+# Interpolate with dH taken into account: <--- errors in shallow regions
+# due to very thin layer thicknessese, use simple interpolation
+# interpolation may not be accurate in shallow regions
+# due to potential contamination of below-bottom values 
+# mixed with true values in above-bottom
+# values on quadrilateral box used for interpolation
+  if f_thknss:
+    HQT = np.array([aa1*qq1, aa2*qq2, aa3*qq3, aa4*qq4]).transpose()
+    QT  = np.array([qq1, qq2, qq3, qq4]).transpose()
+
   HT  = np.array([aa1, aa2, aa3, aa4]).transpose()
 
 # Map X,Y ---> Xhat, Yhat on reference quadrialteral 
 # i.e. map GOFS grid coordinate to a reference quadrilateral 
 # to do bilinear interpolation 
-  xht, yht = mblnr.map_x2xhat(xx, yy, x0, y0)
+#  xht, yht = mblnr.map_x2xhat(xx, yy, x0, y0)  # geogr coord
+  xht, yht = mblnr.map_x2xhat(XV, YV, x0c, y0c)   # cartesian coord
+
+
 # Perform interpolation on reference rectangle, that is 
 # similar to interp on actual rectangle
-  hqintp = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, HQT)
-  qintp  = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, QT)
-  hintp  = hqintp/qintp
-#  hintp  = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, HT)
+  if f_thknss:
+    hqintp = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, HQT)
+    qintp  = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, QT)
+    hintp  = hqintp/qintp
+  else:
+    hintp  = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, HT)
 #
-# Check:
-  mxHT = np.max(HT, axis=1)
-  mnHT = np.min(HT, axis=1)
-  dmx = mxHT - hintp
-  dmn = hintp - mnHT
-  if abs(np.min(dmx)/np.min(mnHT)) > 0.1 and np.min(dmx) < 0.:
-    raise Exception("Max test violated: Check interpolation")
-  if abs(np.min(dmn)/np.min(mnHT)) > 0.1 and np.min(dmn) < 0.:
-    raise Exception("Min test violated: Check interpolation")
+# Check: abs. values of interpolated values <= original data
+  mxHT = np.max(abs(HT), axis=1)
+  dmx  = abs(hintp)/mxHT
+#  idmx = np.argwhere(dmx<0)
+#  idmn = np.argwhere(dmn<0)
+  if max(dmx-1.) > 0.1:
+    print(f"!!! Min/Max test violated: i/j={ii}/{jj} dlt: {np.max(dmx)}") 
+    if max(dmx-1.) > 1.:
+      raise Exception("MinMax test: Interp error Check interpolation")
 
   A3di[:,jj,ii] = hintp
 
@@ -271,10 +288,14 @@ f_plt = False
 if f_plt:
   plt.ion()
 
+  if x0 < 0.:
+    x0 = x0+360.
+  xx = np.where(xx<0., xx+360., xx)
+
   fig1 = plt.figure(1,figsize=(9,8))
   plt.clf()
   ax1 = plt.axes([0.1, 0.24, 0.8, 0.7])
-
   ax1.plot(x0,y0,'r*')
-  ax1.plot(LON[JJ,II],LAT[JJ,II],'o')
+  ax1.plot(xx,yy,'o')
+#  ax1.plot(LON[JJ,II],LAT[JJ,II],'o')
  

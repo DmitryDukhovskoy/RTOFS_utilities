@@ -52,8 +52,8 @@ nrun       = "GOFS3.0"
 expt       = "19.0"
 YR         = 1993
 jday       = 1
-f_cont     = True        # True - continue unfinished file
-grid_var   = 'ugrid'     # hgrid, ugrid, vgrid, qgrid
+f_cont     = False        # True - continue unfinished file
+grid_var   = 'vgrid'     # hgrid, ugrid, vgrid, qgrid
 grid_shape = 'symmetr'   # MOM grid: symmetr/nonsymmetr
 
 dnmb  = mtime.jday2dnmb(YR, jday)
@@ -78,7 +78,17 @@ pthgrid = dct[nrun][expt]["pthgrid"]
 ftopo   = dct[nrun][expt]["ftopo"]
 fgrid   = dct[nrun][expt]["fgrid"]
 
-LON, LAT, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
+# Get lon/lat for correct variables:
+if grid_var == 'hgrid':
+  grid_hycom = 'ppnt'
+elif grid_var == 'ugrid':
+  grid_hycom = 'upnt'
+elif grid_var == 'vgrid':
+  grid_hycom = 'vpnt'
+elif grid_var == 'qgrid':
+  grid_hycom = 'qpnt'
+
+LON, LAT, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid, grdpnt=grid_hycom)
 HH           = np.where(HH>=0, np.nan, HH)
 DX, DY       = mhycom.dx_dy(LON, LAT)
 RR           = np.sqrt(DX**2 + DY**2)
@@ -103,39 +113,7 @@ nall = Iall.shape[0]
 hlon   = np.where(hlon > 180.0, hlon-360., hlon)
 
 
-# To speed up, subset global domain:
-# Longitudes - does not work on tri-polar grid
-# Do manual subsetting for now
-#lat_min = np.min(hlat)
-#lat_max = np.max(hlat)
-#if np.min(hlon)<0:
-#  aa = hlon.copy()
-#  aa = np.where(aa<0, aa+360., aa)
-#  lon_min = np.min(aa) 
-#  if lon_min > 180.:
-#    lon_min = lon_min - 360.
-#else:
-#  lon_min = np.min(hlon)
-#
-#if np.min(hlon)<0:
-#  lon_max = np.max(aa)
-#  if lon_max > 180.:
-#    lon_max = lon_max - 360.
-#else:
-#  lon_max = np.max(hlon)
-#JJ,II = np.where(LAT < lat_min)
-#Jsub1 = np.max(JJ)
-#JJ,II = np.where(LAT > lat_max)
-#Jsub2 = np.min(JJ)
-
-#  aa = LON[Jsub1:Jsub2,:]
-#  bb = LAT[Jsub1:Jsub2,:]
-#  # Only for domains not across the boundaries:
-#  JJ,II = np.where(aa < lon_min)
-#  Isub1 = np.max(II)
-#  JJ,II = np.where(aa > lon_max)
-#  Isub2 = np.min(II)
-
+# To speed up, subset GOFS global domain:
 Jsub1 = 1600
 Jsub2 = 3030
 Isub1 = 1010 
