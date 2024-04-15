@@ -1,5 +1,5 @@
 """
-  Average bottom velocities along the US west coast
+  Derive mean SSH 
   GOFS reanalysis
 """
 import os
@@ -44,17 +44,17 @@ lon1 = 235.42
 lon2 = 251.
 
 YR1  = 1994
-YR2  = 2015
+YR2  = 1994
 HR   = 12
 MM   = 1
 MD   = 1
 dday = 1
 
 # Western coast for GLBv grid:
-is1 = 650
-is2 = 886
+is1 = 0
+is2 = 1000
 js1 = 1775
-js2 = 2200
+js2 = 2800
 
 
 pthoutp  = '/work/Dmitry.Dukhovskoy/data/gofs31_btmu_westcoast/'
@@ -75,12 +75,12 @@ def lookup_ncvar(nc):
     print('Var # {0}'.format(ii))
     print(var)
 
-uvarnm = 'water_u_bottom'
-vvarnm = 'water_v_bottom'
+varnm = 'surf_el'
 
 # Average by months
 istart = -1e30
-tic  = timeit.default_timer()
+tic    = timeit.default_timer()
+icc    = 0
 for YR in range(YR1,YR2+1):
   for MM in range(1,12+1):
     ndays = mtime.month_days(MM, YR)
@@ -109,7 +109,7 @@ for YR in range(YR1,YR2+1):
         HH = read_field(fturl, 'bathymetry')
         HH = np.where(HH>1.e10, np.nan, HH)
         HH = -HH
-        HH = np.where(HH == np.nan, 100., HH)
+        HH = np.where(np.isnan(HH), 100., HH)
         mm = HH.shape[0]
         nn = HH.shape[1]  
 
@@ -121,85 +121,57 @@ for YR in range(YR1,YR2+1):
 
         HH = np.concatenate((HH[:,istart:],HH[:,:istart]), axis=1)
  
-# Subsample region:
-#        if lon1 > 180:
-#          lon1 = lon1-360.
-#        if lon2 > 180:
-#          lon2 = lon2-360.
-#is1, js1 = mutil.find_indx_lonlat(lon1, lat1, LON, LAT)
-#is1      = is1-1
-#js1      = js1-1
-#is2, js2 = mutil.find_indx_lonlat(lon2, lat2, LON, LAT)
-#is2      = is2-1
-#js2      = js2-1
         lon_s = lon1d[is1:is2+1]
         lat_s = lat1d[js1:js2+1]
         HH_s  = HH[js1:js2+1, is1:is2+1]
 
-        ftopo_regn = "gofs31_GLBv008_topo11_westcoast.pkl"
-        dftopo_regn = os.path.join(pthoutp,ftopo_regn)
-        print(f"Saving region topo, grid --> {dftopo_regn}")
-        with open(dftopo_regn,'wb') as fid:
-          pickle.dump([lon_s, lat_s, HH_s], fid)
+#        ftopo_regn = "gofs31_GLBv008_topo11_westcoast.pkl"
+#        dftopo_regn = os.path.join(pthoutp,ftopo_regn)
+#        print(f"Saving region topo, grid --> {dftopo_regn}")
+#        with open(dftopo_regn,'wb') as fid:
+#          pickle.dump([lon_s, lat_s, HH_s], fid)
 
-# Read bottom U:
+# Read bottom ssh
 # missing_value: -30000
       try:
-        ubtm  = read_field(furl, uvarnm)
-        vbtm  = read_field(furl, vvarnm)
+        ssh  = read_field(furl, varnm)
       except:
         print(f"Could not read {furl}, ikk={ikk} skipping ...")
         continue
 
-      ubtm  = np.where(ubtm < -100., np.nan, ubtm)
-      vbtm  = np.where(vbtm < -100., np.nan, vbtm)
+      ssh  = np.where(ssh < -100., np.nan, ssh)
 
 # Subsample region:
-      ubtm_s = ubtm[js1:js2+1, is1:is2+1]
-      vbtm_s = vbtm[js1:js2+1, is1:is2+1]
-      jdm    = ubtm_s.shape[0]
-      idm    = ubtm_s.shape[1]
+      ssh_s = ssh[js1:js2+1, is1:is2+1]
+      jdm   = ssh_s.shape[0]
+      idm   = ssh_s.shape[1]
 
 # Sum up:
       if ikk == 0:
-        UBTM = np.zeros((jdm,idm)) 
-        VBTM = np.zeros((jdm,idm)) 
+        SSHM = np.zeros((jdm,idm)) 
 
       ikk  += 1
-      UBTM = UBTM + ubtm_s
-      VBTM = VBTM + vbtm_s      
+      SSHM = SSHM + ssh_s
 #
-# Save monthly avearge:
-    UBTM = UBTM/ikk
-    VBTM = VBTM/ikk
-    umin = np.nanmin(UBTM)
-    umax = np.nanmax(UBTM)
-    vmin = np.nanmin(VBTM)
-    vmax = np.nanmax(VBTM)
+SSHM = SSHM/ikk
+emin = np.nanmin(SSHM)
+emax = np.nanmax(SSHM)
 
-    floutp  = f"gofs31_53X_btmuv_westcoast_{YR}{MM:02d}.pkl"
-    dfloutp = os.path.join(pthoutp,floutp)
+floutp  = f"gofs31_53X_sshmean_westcoast_{YR}.pkl"
+dfloutp = os.path.join(pthoutp,floutp)
 
-    toc    = timeit.default_timer()
-    dtic   = (toc-ticR)/60.
-    tictot = (toc-tic)/60.
+print(f"Saving mean SSH --> {dfloutp}")
+with open(dfloutp,'wb') as fid:
+  pickle.dump(SSHM,fid)
 
-    print(f"Saving mean UV --> {dfloutp}")
-    with open(dfloutp,'wb') as fid:
-      pickle.dump([UBTM,VBTM],fid)
-
-    print(f"# of processed files = {ikk}")
-    print(f"Min/max U: {umin:6.3f}/{umax:6.3f}")
-    print(f"Min/max V: {vmin:6.3f}/{vmax:6.3f}")
-    print(f"Processed {YR}/{MM} dt={dtic:6.2f} min, ttot={tictot:8.1f} min")
 
 print("ALL DONE")
 
 f_plt = False
 if f_plt:
   cmpr = mutil.colormap_ssh(nclrs=200)
-  rmin = -0.2
-  rmax = 0.2
+  rmin = -0.5
+  rmax = 0.5
   cmpr.set_bad(color=[0.1, 0.1, 0.1])
 
   plt.ion()
@@ -207,7 +179,7 @@ if f_plt:
   fig1 = plt.figure(1,figsize=(9,8))
   plt.clf()
   ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
-  im1 = ax1.pcolormesh(vbtm, \
+  im1 = ax1.pcolormesh(SSHM, \
                    cmap=cmpr,\
                    vmin=rmin, \
                    vmax=rmax)

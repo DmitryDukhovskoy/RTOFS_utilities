@@ -92,7 +92,17 @@ pthgrid = dct[nrun][expt]["pthgrid"]
 ftopo   = dct[nrun][expt]["ftopo"]
 fgrid   = dct[nrun][expt]["fgrid"]
 
-LON, LAT, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
+# Get lon/lat for correct variables:
+if grid_var == 'hgrid':
+  grid_hycom = 'ppnt'
+elif grid_var == 'ugrid':
+  grid_hycom = 'upnt'
+elif grid_var == 'vgrid':
+  grid_hycom = 'vpnt'
+elif grid_var == 'qgrid':
+  grid_hycom = 'qpnt'
+
+LON, LAT, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid, grdpnt=grid_hycom)
 HH = np.where(HH>=0, np.nan, HH)
 
 huge   = 1.e25
@@ -164,18 +174,36 @@ nall = Iall.shape[0]
 # Rotate GOFS velocity vectors --> true North/East 
 # then rotate onto MOM6 NEP grid
 # MOM6 - angle grid makes with true east direction, radians
-alpha_dx = mom6util.read_mom6angle(dfgrid_mom, grid=grid_shape, grdpnt=grid_var)
+ALPHA = mom6util.read_mom6angle(dfgrid_mom, grid=grid_shape, grdpnt=grid_var)
 
-# Rotate U, V from HYCOM --> true N/E grid
-# re-rotate onto MOM6 NEP grid
+# (1) Collocate U, V on p-grid
+# (2) Rotate U, V from HYCOM --> true N/E grid
+# (3) Remap rotated U,V to u-pnt (for u interpolation) or v-pnt (v-interpolation)
+#     Keep U/V collocated ! 
+# (4) Interpolate U,V from HYCOM --> MOM 
+# (5) re-rotate onto MOM6 NEP grid
 print('Rotating U,V HYCOM --> MOM grid')
-for kk in range(kmh):
+U3R = U3d*0.0
+V3R = V3d*0.0
+for kk in range(kdmh):
+  print(f"layer {kk+1}")
   uu = U3d[kk,:,:].squeeze()
   vv = V3d[kk,:,:].squeeze()
-
-  ur = np.cos(PANG)*uu - sin
-
-
+# Collocate u, v on p-point:
+  uu = mhycom.collocateU2P(uu)
+  vv = mhycom.collocateV2P(vv)
+# Rotate from hycom x/y-wards --> true N/E grid
+  ur = np.cos(PANG)*uu - np.sin(PANG)*vv
+  vr = np.cos(PANG)*vv + np.sin(PANG)*uu
+# Remap HYCOM p-grid to v/u-point as needed:
+  if grid_var == 'vgrid':
+    urR = mhycom.collocateP2V(ur)
+    vrR = mhycom.collocateP2V(vr)
+  elif grid_var == 'ugrid':
+    urR = mhycom.collocateP2U(ur)
+    vrR = mhycom.collocateP2U(vr)
+  U3R[kk,:,:] = urR
+  V3R[kk,:,:] = vrR
 
 # gmapi mapping indices MOM6 <---> GOFS:
 with open(dflgmap,'rb') as fid:
@@ -206,7 +234,7 @@ print(f'Interpolating HYCOM GOFS --> MOM6 {fldint} {grid_shape} {grid_var}')
 
 for ikk in range(nall):
   I1 = Iall[ikk]
-  jj, ii = np.unravel_index(I1,HHM.shape)
+  jj, ii = np.unravel_index(I1,HHM.shape)  # MOM indices
   kcc += 1
 
 # If continue from saved:
@@ -224,10 +252,10 @@ for ikk in range(nall):
     print(f"  {pprc:4.1f}% done dt={dtic:6.2f} min, ttot={tictot:7.1f} min")
     ticR = timeit.default_timer()
 
+# HYCOM GOFS indices:
   II = np.squeeze(INDX[jj,ii,:])
   JJ = np.squeeze(JNDX[jj,ii,:])
   II, JJ = mblnr.sort_gridcell_indx(II,JJ)
-
 
   x0  = hlon[jj,ii]
   y0  = hlat[jj,ii]
@@ -237,42 +265,47 @@ for ikk in range(nall):
   ii3, jj3 = II[2], JJ[2]
   ii4, jj4 = II[3], JJ[3]
 
+  if ii1 < 0 or jj1 < 0:
+    raise Exception(f"Negative HYCOM indices: {ii1} {jj1}")
+
   xx  = np.array([LON[jj1,ii1], LON[jj2,ii2], LON[jj3,ii3], LON[jj4,ii4]])
   yy  = np.array([LAT[jj1,ii1], LAT[jj2,ii2], LAT[jj3,ii3], LAT[jj4,ii4]])
-  aa1 = np.squeeze(A3d[:,jj1,ii1])    
-  aa2 = np.squeeze(A3d[:,jj2,ii2])
-  aa3 = np.squeeze(A3d[:,jj3,ii3])
-  aa4 = np.squeeze(A3d[:,jj4,ii4])
-  qq1 = np.squeeze(dH[:,jj1,ii1])    
-  qq2 = np.squeeze(dH[:,jj2,ii2])
-  qq3 = np.squeeze(dH[:,jj3,ii3])
-  qq4 = np.squeeze(dH[:,jj4,ii4])
-#  kk = 0
-  if len(np.where(aa1 == np.isnan)[0]) > 0:
-    aa1 = mrgm.check_bottom(aa1) 
-  if len(np.where(aa2 == np.isnan)[0]) > 0:
-    aa2 = mrgm.check_bottom(aa2) 
-  if len(np.where(aa3 == np.isnan)[0]) > 0:
-    aa3 = mrgm.check_bottom(aa3) 
-  if len(np.where(aa4 == np.isnan)[0]) > 0:
-    aa4 = mrgm.check_bottom(aa4) 
+  ur1 = np.squeeze(U3R[:,jj1,ii1])    
+  ur2 = np.squeeze(U3R[:,jj2,ii2])
+  ur3 = np.squeeze(U3R[:,jj3,ii3])
+  ur4 = np.squeeze(U3R[:,jj4,ii4])
+  vr1 = np.squeeze(V3R[:,jj1,ii1])    
+  vr2 = np.squeeze(V3R[:,jj2,ii2])
+  vr3 = np.squeeze(V3R[:,jj3,ii3])
+  vr4 = np.squeeze(V3R[:,jj4,ii4])
+# Rotate N/E hycom u,v onto mom x, y - wards grid:
+# Not exact rotation as alpha is at j,i u or v-point
+# and hycom u/v are around this pnt
+  alf  = ALPHA[jj,ii]
+  if grid_var == 'ugrid':
+    aa1 = np.cos(alf)*ur1 + np.sin(alf)*vr1
+    aa2 = np.cos(alf)*ur2 + np.sin(alf)*vr2
+    aa3 = np.cos(alf)*ur3 + np.sin(alf)*vr3
+    aa4 = np.cos(alf)*ur4 + np.sin(alf)*vr4
+  elif grid_var == 'vgrid':
+    aa1 = np.cos(alf)*vr1 - np.sin(alf)*ur1
+    aa2 = np.cos(alf)*vr2 - np.sin(alf)*ur2
+    aa3 = np.cos(alf)*vr3 - np.sin(alf)*ur3
+    aa4 = np.cos(alf)*vr4 - np.sin(alf)*ur4
 
-  if x0 < 0.:
-    x0 = x0+360.
+#  kk = 0
+  if len(np.where(aa1 == np.isnan)[0]) > 0: aa1 = mrgm.check_bottom(aa1) 
+  if len(np.where(aa2 == np.isnan)[0]) > 0: aa2 = mrgm.check_bottom(aa2) 
+  if len(np.where(aa3 == np.isnan)[0]) > 0: aa3 = mrgm.check_bottom(aa3) 
+  if len(np.where(aa4 == np.isnan)[0]) > 0: aa4 = mrgm.check_bottom(aa4) 
+
+  HT  = np.array([aa1, aa2, aa3, aa4]).transpose()
+
+  if x0 < 0.: x0 = x0+360.
   xx = np.where(xx<0., xx+360., xx)
 #
 # Use cartesian coordinates for mapping
   XV, YV, x0c, y0c = mblnr.lonlat2xy_wrtX0(xx, yy, x0, y0)
-
-# Interpolate with dH taken into account: <--- errors in shallow regions
-# due to very thin layer thicknessese, use simple interpolation
-# interpolation may not be accurate in shallow regions
-# due to potential contamination of below-bottom values 
-# mixed with true values in above-bottom
-# values on quadrilateral box used for interpolation
-  HQT = np.array([aa1*qq1, aa2*qq2, aa3*qq3, aa4*qq4]).transpose()
-  QT  = np.array([qq1, qq2, qq3, qq4]).transpose()
-  HT  = np.array([aa1, aa2, aa3, aa4]).transpose()
 
 # Map X,Y ---> Xhat, Yhat on reference quadrialteral 
 # i.e. map GOFS grid coordinate to a reference quadrilateral 
@@ -284,7 +317,7 @@ for ikk in range(nall):
 # reference quadrilateral may be off results in |xhat| or |yhat| > 1
 # (to do - use triangulars
 # instead of quadrilaterals for interpolation):
-  if xht < -1.:
+  if xht < -1.:  
     xht = -1.
   elif xht > 1.:
     xht = 1.
@@ -296,19 +329,14 @@ for ikk in range(nall):
 
 # Perform interpolation on reference rectangle, that is 
 # similar to interp on actual rectangle
-  hqintp = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, HQT)
-  qintp  = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, QT)
-  hintp  = hqintp/qintp
-#  hintp  = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, HT)
-#
+  hintp  = mblnr.bilin_interp1D(phi1, phi2, phi3, phi4, xht, yht, HT)
 # Check: abs. values of interpolated values <= original data
-# ratio dmx is expected <= 1
   mxHT = np.max(abs(HT), axis=1)
   dmx  = abs(hintp)/mxHT
 #  idmx = np.argwhere(dmx<0)
 #  idmn = np.argwhere(dmn<0)
   if max(dmx-1.) > 0.1:
-    print(f"!!! Min/Max test violated: i/j={ii}/{jj} dlt: {np.max(dmx)}") 
+    print(f"!!! Min/Max test violated: i/j={ii}/{jj} dlt: {np.max(dmx)}")
     if max(dmx-1.) > 1.:
       raise Exception("MinMax test: Interp error Check interpolation")
 

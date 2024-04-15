@@ -1,0 +1,22 @@
+---
+GOFS3.1:
+  "93.0":
+    pthrun:  ' '
+    pthoutp: ' '
+    pthgrid: '/work/Dmitry.Dukhovskoy/GOFS3.1/topo_grid/'
+    ftopo:   'depth_GLBb0.08_09m11'
+    fgrid:   'regional.grid'
+MOM6_NEP:
+  "test":
+    pthrun:  ' '
+    pthoutp: ' '
+    pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
+    ftopo:   'topog.nc'
+    fgrid:   'ocean_hgrid.nc'
+GOFS3.0:
+  "19.0":
+    pthrun:  '/work/Dmitry.Dukhovskoy/GOFS3.0/expt_19.0/'
+    pthoutp: ' '
+    pthgrid: '/work/Dmitry.Dukhovskoy/GOFS3.0/topo_grid/'
+    ftopo:   'depth_GLBb0.08_07'
+    fgrid:   'regional.grid'

@@ -481,4 +481,114 @@ def bottom2nan(A2d, ZZ, Hbtm):
     
   return A2df
 
+def collocateU2H(A2d, grid_shape, f_land0 = True):
+  """
+    Collocate variables from MOM u-point to H-point
+    input 2D field (1 layer) at p-point
+    Collocation is done "as is", i.e.
+    land values will be brought into H-point as is
+    If these are nans or some filled values - double checl
+    f_land0 = Replace land values (nans) with 0 - good for u/v but 
+              not for T/S
+
+    grid_shape = symmetr/ nonsymmetr
+
+    HYCOM grid:
+
+     Q(i-1,j) V(i,j)     Q(i,j)
+     * -------|----------*
+     |                   |
+     |        P,T,S,H    |
+     |        * i,j      - U(i,j)
+     |                   |
+     |                   |
+     * ------------------*
+   Q(i-1,j-1)        
+
+  """
+  lsymmetr = False
+  if grid_shape[0:6] == 'symmetr':
+    lsymmetr = True
+
+  mm   = A2d.shape[0]
+  nn   = A2d.shape[1]
+
+  if f_land0:
+    A2d  = np.where(np.isnan(A2d), 0., A2d)
+    A2d  = np.where(A2d > 1.e10, 0., A2d)
+  A2dP = A2d.copy()*0.
+
+  if lsymmetr:
+    for ii in range(1,nn):
+      u1 = A2d[:,ii]
+      u2 = A2d[:,ii-1]
+      uP         = 0.5*(u1 + u2)
+      A2dP[:,ii] = uP
+  else:
+    for ii in range(nn):
+      u1 = A2d[:,ii]
+      if ii > 0:
+        u2 = A2d[:,ii-1]
+      else:
+        u2 = A2d[:,ii]    # no periodic open boundaries assumed
+      uP         = 0.5*(u1 + u2)
+      A2dP[:,ii] = uP
+
+  return A2dP
+
+def collocateV2H(A2d, grid_shape, f_land0 = True):
+  """
+    Collocate variables from MOM v-point to H-point
+    input 2D field (1 layer) at p-point
+    Collocation is done "as is", i.e.
+    land values will be brought into H-point as is
+    If these are nans or some filled values - double checl
+    f_land0 = Replace land values (nans) with 0 - good for u/v but 
+              not for T/S
+
+    grid_shape = symmetr/ nonsymmetr
+
+    HYCOM grid:
+
+     Q(i-1,j) V(i,j)     Q(i,j)
+     * -------|----------*
+     |                   |
+     |        P,T,S,H    |
+     |        * i,j      - U(i,j)
+     |                   |
+     |                   |
+     * ------------------*
+   Q(i-1,j-1)        
+
+  """
+  lsymmetr = False
+  if grid_shape[0:6] == 'symmetr':
+    lsymmetr = True
+    
+  mm   = A2d.shape[0]
+  nn   = A2d.shape[1]
+
+  if f_land0:
+    A2d  = np.where(np.isnan(A2d), 0., A2d)
+    A2d  = np.where(A2d > 1.e10, 0., A2d)
+  A2dP = A2d.copy()*0.
+
+  if lsymmetr:
+    for jj in range(1,mm):
+      v1 = A2d[jj,:]
+      v2 = A2d[jj-1,:]
+      vP         = 0.5*(v1 + v2)
+      A2dP[jj,:] = vP
+  else:
+    for jj in range(mm):
+      v1 = A2d[jj,:]
+      if jj > 0:
+        v2 = A2d[jj-1,:]
+      else:
+        v2 = A2d[jj,:]    # no periodic open bovndaries assvmed
+      vP         = 0.5*(v1 + v2)
+      A2dP[jj,:] = vP
+
+  return A2dP
+
 

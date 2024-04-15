@@ -563,7 +563,7 @@ def print_col(*argv, wd=8, prc=2, kend=[]):
 
 def polysegm_indx(IV, JV):
   """
-    Finx index points connecting verticies of 
+    Find index points connecting verticies of 
     the polysegment curve
 
     * 1 IV[0], JV[0]

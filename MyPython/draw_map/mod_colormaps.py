@@ -8,6 +8,26 @@ import matplotlib.mlab as mlab
 from matplotlib.colors import ListedColormap
 
 
+def minmax_clrmap(dmm,pmin=10,pmax=90,cpnt=0.01,fsym=False):
+  """
+  Find min/max limits for colormap 
+  discarding pmin and 1-pmax min/max values
+  cpnt - decimals to leave
+  """
+  dmm = dmm[~np.isnan(dmm)]
+  a1  = np.percentile(dmm,pmin)
+  a2  = np.percentile(dmm,pmax)
+  cff = 1./cpnt 
+  rmin = cpnt*(int(a1*cff))
+  rmax = cpnt*(int(a2*cff))
+      
+  if fsym and (rmin<0. and rmax>0.) :
+    dmm = max([abs(rmin),abs(rmax)])
+    rmin = -dmm 
+    rmax = dmm
+    
+  return rmin,rmax
+
 def clrmp_BlRd(Ncmp):
 # Blue - white - Red:
   CLR =[[14.2,        0.0,       85.0,    1],
@@ -120,7 +140,7 @@ def create_colormap(CLR, Ncmp, cmp_obj=True):
 
 # If number of shades is less or eq. the # of Main colors 
 # use the Colors and no shades
-  if Ncmp < nClr:
+  if Ncmp <= nClr:
     print('create_colormap:')
     print('Specified N of colors {0} </= N of Main Colors {1}'.format(Ncmp,nClr))
     print(' Adjust to Ncmp clrs to {0}'.format(nClr))
@@ -406,6 +426,58 @@ def colormap_temp_coldhot(nclrs=200):
 
   return CMP
 
+def colormap_landmask(clr0=[0.,0.,0.], clr1=[1.,1.,1]):
+  """
+    Colormap for land masks 0=land and 1= ocean
+    Default: land = black, ocean = white
+  """
+  CLR = np.array([clr0, clr1])
+  CMP = ListedColormap(CLR)
+
+  return CMP
+
+def colormap_speed(nclrs=200):
+  """
+    Spped colormap from light blue with all colors to red/brown/ light brown
+  """
+  from matplotlib import cm
+  from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+
+  CLR = [[237, 239, 242],
+         [206, 214, 237],
+         [160, 181, 250],
+         [125, 151, 240],
+         [100,  91, 207],
+         [ 19,   6, 186],
+         [  0,   0, 190],
+         [  0,   0, 250],
+         [  0,  31, 255],
+         [  0,  82, 255],
+         [  0, 133, 255],
+         [  0, 185, 255],
+         [  5, 236, 241],
+         [ 47, 255, 200],
+         [ 88, 255, 159],
+         [129, 255, 117],
+         [170, 255,  76],
+         [212, 255,  35],
+         [254, 237,   0],
+         [255, 190,   0],
+         [255, 142,   0],
+         [255,  95,   0],
+         [255,  47,   0],
+         [232,   1,   0],
+         [174,   0,   0],
+         [150,  47,  47],
+         [173, 112, 112],
+         [227, 205, 205]]
+
+  CLR = np.array(CLR)/255.
+  CMP = create_colormap(CLR, nclrs)
+
+  return CMP
+
+
 def colormap_uv(nclrs=200):
   """
     Colormap for U, V with negative - positive values
@@ -555,7 +627,28 @@ def colormap_topo1(nclrs=200):
 
   return CMP
 
+def colormap_discrete(CLR=[]):
+  """
+    Create custom colorbar for discrete values
+    CLR is 2D list
+  """
+  from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+  if len(CLR) == 0:
+    CLR = [[  4,   4,  66],
+           [  7,   7, 242],
+           [133,   7, 242],
+           [242,   7, 223],
+           [  7, 195, 242],
+           [  7, 242, 105],
+           [ 53,  99,  72],
+           [240, 224,   7],
+           [209, 103,   4],
+           [209,  38,   4]]
 
+  CLR   = np.array(CLR)/255.
+  nclrs = CLR.shape[0]
+  CMP = ListedColormap(CLR)
+#  CMP   = create_colormap(CLR, nclrs)
 
-
+  return CMP
 

@@ -944,7 +944,7 @@ def read_pang(pthgrid, fgrid, fld='pang'):
 
   return pang
 
-def mod_collocateU2P(U2d):
+def collocateU2P(U2d):
   """
     Collocate U vel on p-grid
     input 2D U field
@@ -969,7 +969,7 @@ def mod_collocateU2P(U2d):
 
   for ii in range(nn):
     u1 = U2d[:,ii]
-    if ii < nn:
+    if ii < nn-1:
       u2 = U2d[:,ii+1]
     else:
       u2 = U2d[:,0]
@@ -977,9 +977,9 @@ def mod_collocateU2P(U2d):
     uP         = 0.5*(u1 + u2)
     U2dP[:,ii] = uP
 
-    return U2dP
+  return U2dP
 
-def mod_collocateV2P(U2d):
+def collocateV2P(V2d):
   """
     Collocate V vel on p-grid
     input 2D V field (1 layer)
@@ -1005,13 +1005,93 @@ def mod_collocateV2P(U2d):
 
   for jj in range(mm):
     v1 = V2d[jj,:]
-    if jj >0:
+    if jj < mm-1:
       v2 = V2d[jj+1,:]
     else:
-      v2 = V2d[:,0]
+      v2 = V2d[-1,:]
 
     vP         = 0.5*(v1 + v2)
-    V2dP[:,jj] = vP
+    V2dP[jj,:] = vP
 
-    return V2dP
+  return V2dP
+
+def collocateP2V(A2d, f_land0 = True):
+  """
+    Collocate variables from p-point on v-grid
+    input 2D field (1 layer) at p-point
+    Note - in HYCOM S boundary is closed - double check V
+    it should be 0
+
+    f_land0 = Replace land values (nans) with 0
+
+    HYCOM grid:
+
+     Q(i,j+1)
+     * ------------------*
+     |                   |
+     |        P,T,S,H    |
+     - U(i,j) * i,j      |
+     |                   |
+     |                   |
+     * -------|----------*
+   Q(i,j)      V(i,j)
+
+  """
+  mm   = A2d.shape[0]
+  nn   = A2d.shape[1]
+  if f_land0:
+    A2d  = np.where(np.isnan(A2d), 0., A2d)
+    A2d  = np.where(A2d > 1.e10, 0., A2d)
+  A2dP = A2d.copy()*0.
+
+  for jj in range(1,mm):
+    v1 = A2d[jj,:]
+    v2 = A2d[jj-1,:]
+    vP         = 0.5*(v1 + v2)
+    A2dP[jj,:] = vP
+
+  return A2dP
+
+def collocateP2U(A2d, f_land0 = True):
+  """
+    Collocate variables from p-point on u-grid
+    input 2D field (1 layer) at p-point
+    Note - double check OBs after remapping if they make sens!
+    it should be 0 or not at W/E boundaries 
+
+    f_land0 = Replace land values (nans) with 0
+
+    HYCOM grid:
+
+     Q(i,j+1)
+     * ------------------*
+     |                   |
+     |        P,T,S,H    |
+     - U(i,j) * i,j      |
+     |                   |
+     |                   |
+     * -------|----------*
+   Q(i,j)      V(i,j)
+
+  """
+  mm   = A2d.shape[0]
+  nn   = A2d.shape[1]
+
+  if f_land0:
+    A2d  = np.where(np.isnan(A2d), 0., A2d)
+    A2d  = np.where(A2d > 1.e10, 0., A2d)
+  A2dP = A2d.copy()*0.
+
+  for ii in range(0,nn):
+    u1 = A2d[:,ii]
+    if ii > 0:
+      u2 = A2d[:,ii-1]
+    else:
+      u2 = A2d[:,-1]
+
+    uP         = 0.5*(u1 + u2)
+    A2dP[:,ii] = uP
+
+  return A2dP
+
 
