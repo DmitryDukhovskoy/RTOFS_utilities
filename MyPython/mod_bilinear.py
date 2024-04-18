@@ -213,7 +213,7 @@ def bilin_interp(phi1,phi2,phi3,phi4,xht,yht,HT):
   p3x = phi_x0y0(phi3,xht,yht)
   p4x = phi_x0y0(phi4,xht,yht)
 
-  Hi = (HT[0]*p1x + HT[1]*p2x + HT[2]*p3x + HT[3]*p4x)[0]
+  Hi = HT[0]*p1x + HT[1]*p2x + HT[2]*p3x + HT[3]*p4x
 
   return Hi
 

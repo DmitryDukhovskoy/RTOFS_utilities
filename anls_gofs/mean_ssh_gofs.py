@@ -160,10 +160,11 @@ emax = np.nanmax(SSHM)
 floutp  = f"gofs31_53X_sshmean_westcoast_{YR}.pkl"
 dfloutp = os.path.join(pthoutp,floutp)
 
+LON_s, LAT_s = np.meshgrid(lon_s, lat_s)
+
 print(f"Saving mean SSH --> {dfloutp}")
 with open(dfloutp,'wb') as fid:
-  pickle.dump(SSHM,fid)
-
+  pickle.dump([SSHM, HH_s, LON_s, LAT_s],fid)
 
 print("ALL DONE")
 
