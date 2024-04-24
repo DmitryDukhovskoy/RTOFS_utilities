@@ -1,5 +1,6 @@
 #!/bin/bash
 # request comput node for interactive session
 # to run python or debugging
-# max hours - 8 (?)
-salloc --x11=first -q batch -t 8:00:00 --nodes=1 -A marine-cpu
+# max hours - 12 but check:
+# sacctmgr show qos format=Name,MaxWall 
+salloc --x11 -q batch -t 10:00:00 --ntasks=1 --clusters=c5 -A cefi
