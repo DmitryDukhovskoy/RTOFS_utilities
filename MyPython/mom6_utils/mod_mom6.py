@@ -507,23 +507,26 @@ def collocateU2H(A2d, grid_shape, f_land0 = True):
 
   """
   lsymmetr = False
-  if grid_shape[0:6] == 'symmetr':
+  if grid_shape[0:7] == 'symmetr':
     lsymmetr = True
 
-  mm   = A2d.shape[0]
-  nn   = A2d.shape[1]
+  mm  = A2d.shape[0]
+  nn  = A2d.shape[1]
+  mhp = mm
+  nhp = nn 
+  if lsymmetr: nhp=nn-1
 
   if f_land0:
     A2d  = np.where(np.isnan(A2d), 0., A2d)
     A2d  = np.where(A2d > 1.e10, 0., A2d)
-  A2dP = A2d.copy()*0.
+  A2dP = np.zeros((mhp, nhp))
 
   if lsymmetr:
     for ii in range(1,nn):
       u1 = A2d[:,ii]
       u2 = A2d[:,ii-1]
       uP         = 0.5*(u1 + u2)
-      A2dP[:,ii] = uP
+      A2dP[:,ii-1] = uP
   else:
     for ii in range(nn):
       u1 = A2d[:,ii]
@@ -562,23 +565,26 @@ def collocateV2H(A2d, grid_shape, f_land0 = True):
 
   """
   lsymmetr = False
-  if grid_shape[0:6] == 'symmetr':
+  if grid_shape[0:7] == 'symmetr':
     lsymmetr = True
     
-  mm   = A2d.shape[0]
-  nn   = A2d.shape[1]
+  mm  = A2d.shape[0]
+  nn  = A2d.shape[1]
+  mhp = mm
+  nhp = nn
+  if lsymmetr: mhp=mm-1
 
   if f_land0:
     A2d  = np.where(np.isnan(A2d), 0., A2d)
     A2d  = np.where(A2d > 1.e10, 0., A2d)
-  A2dP = A2d.copy()*0.
+  A2dP = np.zeros((mhp, nhp))
 
   if lsymmetr:
     for jj in range(1,mm):
       v1 = A2d[jj,:]
       v2 = A2d[jj-1,:]
       vP         = 0.5*(v1 + v2)
-      A2dP[jj,:] = vP
+      A2dP[jj-1,:] = vP
   else:
     for jj in range(mm):
       v1 = A2d[jj,:]
@@ -590,5 +596,75 @@ def collocateV2H(A2d, grid_shape, f_land0 = True):
       A2dP[jj,:] = vP
 
   return A2dP
+
+def deallocateP2UV(A2d, grid_shape, f_component, f_ignore=True, **kwargs):
+  """
+    Deallocate U or V component from P point putting it back to V-grid
+    Best we can do - use interpolation hoping to get close enough
+    to the true value at v-point
+    Specify via keyword arguments polynomial: 2nd or 3rd 
+    Default - cubic polynomial
+    f_component = 'v-vel' or 'u-vel'
+
+   
+    x1 v-value at v-pnt (i1) 
+    *
+
+
+         o p-point      * x3 (i1+2)
+        value xp1 
+        (i1+1/2)   o p-point (i1+1.5)
+                      
+              * x2 (i1+1) 
+
+    Given values at p-points - need to estimate values (x1, x2, ..) at v-pnts 
+    A2d - 2D array with v at p-points
+ 
+    Use polynom. interpolation 
+     
+   ==== NOT FINISHED =====
+
+
+  """
+  print('UNFINISHED ....')
+  return
+
+  f_interp = 'cubic'
+  for key, value in kwargs.items():
+    if key == "interp": f_interp = value
+
+  if f_interp == 'cubic':
+    nnd = 4
+  else:
+    nnd = 3
+
+  djm = int(np.floor((nnd-1)/2))
+  djp = nnd-djm-1
+
+# Interpolate  along the rows
+  if f_component == 'u-vel':
+    A2d = A2d.transpose()
+
+  idim = A2d.shape[1]
+  jdim = A2d.shape[0]
+  A2di = np.zeros((jdim, idim))
+
+  for jj in range(jdim):
+    if jj == jdim-1:
+      A2di[jj,-1] = A2d[jj,-1]
+      
+    J = np.arange(0,nnd)+jj-djm
+    if min(J) < 0: J = J-min(J)  
+# at the "right" boundary use piecewise Lagr cardunal basis
+# on an interval left of xi x=[x(i-nnd), xi], order of nodes
+# is inverse, so that x(i-1) = 
+    if max(J) >= jdm:
+      djj = max(J)-jdm+1
+      J = np.flip(J-djj)
+  
+#     P2d = minterp.lagr_polynom2D
+  if f_component == 'u-vel': A2di = A2di.transpose()
+
+  return
 
 

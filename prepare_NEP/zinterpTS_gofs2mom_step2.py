@@ -1,5 +1,5 @@
 """
-  Vertical interpolation of U/V fields on MOM NEP grid
+  Vertical interpolation of T/S fields on MOM NEP grid
 """
 import os
 import numpy as np
@@ -45,24 +45,25 @@ expt       = f"{nexpt:2.1f}"
 YR         = 1993
 jday       = 1
 hr         = 15
-fldint     = "u-vel."  # u-vel. & v-vel.
+fldint     = "salin"  # temp or salin
 grid_shape = 'symmetr'   # MOM grid: symmetr/nonsymmetr
 
-if not (fldint == "u-vel." or fldint == "v-vel."):
-  raise Exception ('This code is for u-vel. or v-vel. change fldint')
+if not (fldint == "temp" or fldint == "salin"):
+  raise Exception ('This code is for temp or salin change fldint')
 
 pthout  = '/work/Dmitry.Dukhovskoy/data/mom6_nep_restart/'
 pthtmp  = '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp/'
 pthgofs = '/work/Dmitry.Dukhovskoy/data/GOFS3.0/expt_19.0/'
 
-if fldint == "u-vel.":
-  grid_var = 'ugrid'
-  fldiout  = 'uvel'
-  fbrtrp   = 'u_btrop'
-elif fldint == "v-vel.":
-  grid_var = 'vgrid'
-  fldiout  = 'vvel'
-  fbrtrp   = 'v_btrop'
+if fldint == "temp":
+  grid_var = 'hgrid'
+  fldiout  = 'temp'
+elif fldint == "salin":
+  grid_var = 'hgrid'
+  fldiout  = 'salin'
+elif fldint == "thknss":
+  grid_var = 'hgrid'
+  fldiout  = 'lrthknss'
 
 print(f" INTERPOLATING on Z lev {nrun}-{expt} --> MOM {fldint}")
 
@@ -109,8 +110,6 @@ def load_interp(pthtmp, fldiout, grid_shape, rdate):
 dHlr = load_interp(pthtmp, 'lrthknss', grid_shape, rdate)
 SSH  = load_interp(pthtmp, 'srfhgt', grid_shape, rdate)
 UU   = load_interp(pthtmp, fldiout, grid_shape, rdate)
-jdu  = UU.shape[1]
-idu  = UU.shape[2]
 
 j0 = 100
 i0 = 120
@@ -143,12 +142,11 @@ dHlrM  = nc.variables['h'][:].data.squeeze()
 SSHm   = nc.variables['sfc'][:].data.squeeze()
 zI     = nc.variables['Interface'][:].data.squeeze()
 
-U2d  = UU[0,:,:].squeeze()
 Iall = np.where(HHM.flatten()<=0.)[0]
 nall = Iall.shape[0]
 
 Irsb = []
-A3di = np.zeros((kdm,jdu,idu))*np.nan
+A3di = np.zeros((kdm,jdm,idm))*np.nan
 kcc  = 0
 tic  = timeit.default_timer()
 ticR = timeit.default_timer()
@@ -161,14 +159,6 @@ for ikk in range(nall):
   I1 = Iall[ikk]
   jj, ii = np.unravel_index(I1,HHM.shape)  # MOM indices
   kcc += 1
-
-  iiu = ii
-  jju = jj
-  if grid_shape == 'symmetr':
-    if grid_var == 'vgrid':
-      jju = jj+1
-    elif grid_var == 'ugrid':
-      iiu = ii+1
 
 # If continue from saved:
   if len(Irsb) > 0:
@@ -190,13 +180,6 @@ for ikk in range(nall):
 #  JJ = np.squeeze(JNDX[jj,ii,:])
 #  II, JJ = mblnr.sort_gridcell_indx(II,JJ)
 
-# Fix error - bottom in HH hycom:
-# ikk = 941
-#In [381]: HH[JJ,II]
-#Out[381]: array([-2192.7722, -2027.1633,        nan, -1235.4307], dtype=float32)
-#Need to go back to horiz interpolation 
-#avoid nans
-
   x0   = hlon[jj,ii]
   y0   = hlat[jj,ii]
 # From GOFS interpolated onto MOM grid:
@@ -211,9 +194,9 @@ for ikk in range(nall):
 # Check depth from HYCOM vs MOM:
   hbH = -np.sum(dh0)   
 
-  if abs(1.-abs(hb0/hbH)) > 0.4:
+  if abs(1.-abs(hb0/hbH)) > 0.2:
 #    raise Exception(f"GOFS/MOM Bottom depth error: j={jj} i={ii} {hb0} vs {hbH}")
-    print(f"GOFS/MOM Bottom depth error: j={jj} i={ii} {hb0} vs {hbH}")
+    print(f"GOFS/MOM Bottom depth error: j={jj} i={ii} {hbH} vs {hb0}")
 
 # SSH correction to thickness:
 # See HYCOM-tools: archv2mom6res.f
@@ -221,7 +204,7 @@ for ikk in range(nall):
   dh0 = dh0*qq 
 
 # Checking MOM:
-# z* levels can be obatined from vgrid_75_2m.nc
+# z* levels can also be obatined from vgrid_75_2m.nc
 # truncating the last layer to the local bottom depth
   dhm  = dHlrM[:,jj,ii]
   sshm = SSHm[jj,ii]
@@ -249,27 +232,19 @@ for ikk in range(nall):
   zmH = -abs(zmH)
   zzM = -abs(zzM)
   zmM = -abs(zmM)
-  H1d = UU[:,jju,iiu]
-# For velocities, make 0s in bottom layers
-  M1d = mintrp.interp_bins(H1d, zzH, zmH, zzM, zmM, fill_btm=True, fill_val=0.)
-  A3di[:,jju,iiu] = M1d 
+  H1d = UU[:,jj,ii]
+# For T/S, extend bottom layers using last near-bottom value
+  M1d = mintrp.interp_bins(H1d, zzH, zmH, zzM, zmM, fill_btm=False)
+  A3di[:,jj,ii] = M1d 
 
-if grid_shape == 'symmetr':
-  if grid_var == 'vgrid':
-    A3di[:,0,:] = A3di[:,1,:]
-  elif grid_var == 'ugrid':
-    A3di[:,:,0] = A3di[:,:,1]
-
-print(f'Shape 3D field: {A3di.shape}')
 print('END: Saving to '+dflintrp)
 with open(dflintrp,'wb') as fid:
   pickle.dump(A3di,fid)
 
+
 f_chck=False
 if f_chck:
   plt.ion()
-
-  U2d  = A3di[0,:,:].squeeze()
 
   fig1 = plt.figure(1,figsize=(9,8))
   plt.clf()

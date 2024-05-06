@@ -55,6 +55,7 @@ import mod_mom6 as mom6util
 import mod_regmom as mrgm
 #import mod_valid_utils as mvutil
 importlib.reload(mcmp)
+importlib.reload(mrgm)
 
 nrun       = "GOFS3.0"
 nexpt      = 19.0
@@ -62,7 +63,7 @@ expt       = f"{nexpt:2.1f}"
 YR         = 1993
 jday       = 1
 hr         = 15
-fldint     = "thknss"  # temp salin thknss
+fldint     = "salin"  # temp salin thknss
 grid_shape = 'symmetr'   # MOM grid: symmetr/nonsymmetr
 f_thknss   = False     # interpolate sum(A*dH)/dH(j,i) <- errors due to bottom val
 if not (fldint == "temp" or fldint == "salin" or fldint == 'thknss'):
@@ -93,7 +94,8 @@ ftopo   = dct[nrun][expt]["ftopo"]
 fgrid   = dct[nrun][expt]["fgrid"]
 
 LON, LAT, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
-HH = np.where(HH>=0, np.nan, HH)
+#HH = np.where(HH>=0, np.nan, HH)
+Jocn_hycom, Iocn_hycom  = np.where(HH<0)
 
 huge   = 1.e25
 rg     = 9806.
@@ -218,14 +220,28 @@ for ikk in range(nall):
     qq3 = np.squeeze(dH[:,jj3,ii3])
     qq4 = np.squeeze(dH[:,jj4,ii4])
 #  kk = 0
-  if len(np.where(aa1 == np.isnan)[0]) > 0:
+  la1 = len(np.where(np.isnan(aa1))[0])
+  la2 = len(np.where(np.isnan(aa2))[0])
+  la3 = len(np.where(np.isnan(aa3))[0])
+  la4 = len(np.where(np.isnan(aa4))[0])
+# Fill land:
+  if la1 == kdmh or la2 == kdmh or la3 == kdmh or la4 == kdmh:
+    aa1, aa2, aa3, aa4 = mrgm.fill_land(aa1,aa2,aa3,aa4,HH,A3d,\
+                                       JJ,II,Jocn_hycom,Iocn_hycom)
+    la1 = len(np.where(np.isnan(aa1))[0])
+    la2 = len(np.where(np.isnan(aa2))[0])
+    la3 = len(np.where(np.isnan(aa3))[0])
+    la4 = len(np.where(np.isnan(aa4))[0])
+# Fill bottom
+  if la1 > 0:
     aa1 = mrgm.check_bottom(aa1) 
-  if len(np.where(aa2 == np.isnan)[0]) > 0:
+  if la2 > 0:
     aa2 = mrgm.check_bottom(aa2) 
-  if len(np.where(aa3 == np.isnan)[0]) > 0:
+  if la3 > 0: 
     aa3 = mrgm.check_bottom(aa3) 
-  if len(np.where(aa4 == np.isnan)[0]) > 0:
+  if la4 > 0:
     aa4 = mrgm.check_bottom(aa4) 
+
 
   if x0 < 0.:
     x0 = x0+360.

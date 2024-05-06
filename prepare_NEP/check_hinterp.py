@@ -46,7 +46,8 @@ expt       = f"{nexpt:2.1f}"
 YR         = 1993
 jday       = 1
 hr         = 15
-fldint     = "u-vel."  # temp salin u-vel. v-vel. thknss
+kk         = 2  # layer -1
+fldint     = "salin"  # temp salin u-vel. v-vel. thknss
 grid_shape = 'symmetr'   # MOM grid: symmetr/nonsymmetr
 
 dnmb    = mtime.jday2dnmb(YR, jday)
@@ -125,7 +126,6 @@ with open(dflintrp,'rb') as fid:
   A3di = pickle.load(fid)
 
 
-kk = 10
 AA = A3di[kk,:,:].squeeze()
 AH = A3d[kk,:,:].squeeze()
 

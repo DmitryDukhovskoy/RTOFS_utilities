@@ -1015,6 +1015,144 @@ def collocateV2P(V2d):
 
   return V2dP
 
+def collocateU2V(A2d, DH, f_global=True):
+  """
+    Collocate variables from p-point on v-grid
+    input 2D field (1 layer) at p-point
+    Note - in HYCOM S boundary is closed - double check V
+    it should be 0
+    Global domain assumed
+
+    DH is 2D depth layers at p-pnts, A2d is 2D u components at u-pnts
+
+    f_land0 = Replace land values (nans) with 0
+
+    HYCOM grid:
+
+     Q(i,j+1)
+     * ------------------*
+     |                   |
+     |        P,T,S,H    |
+     - U(i,j) * i,j      -U(i+1,j)
+     |                   |
+     |                   |
+     * -------|----------*
+   Q(i,j)      V(i,j)    |
+     |                   |
+     -U(i,j-1)* i,j-1    -U(i+1,j-1)
+     |        P,T,S,H    |
+     |                   |
+     * -------|----------*
+
+  """
+  mm   = A2d.shape[0]
+  nn   = A2d.shape[1]
+
+# U to p-pnts:
+  Up = np.zeros((mm,nn))
+  for ii in range(nn):
+    if ii==nn-1:
+      if f_global:
+        a1 = A2d[:,-1]
+      else:
+        a1 = A2d[:,ii]
+    else:
+      a1 = A2d[:,ii+1]
+    a2 = A2d[:,ii]
+    Up[:,ii] = 0.5*(a1+a2)
+  
+# Up to V-pnts:
+  Uv = np.zeros((mm,nn))
+  for jj in range(mm):
+    if jj == 0: 
+      u1  = Up[jj,:]
+      dh1 = DH[jj,:] 
+    else:
+      u1  = Up[jj-1,:]
+      dh1 = DH[jj-1,:]
+    u2  = Up[jj,:]
+    dh2 = DH[jj,:]
+
+    dht = dh1+dh2
+    dht = np.where(dht < 1.e-6, np.nan, dht)
+    up2v = (u1*dh1 + u2*dh2)/dht
+    up2v = np.where(np.isnan(dht), 0., up2v)
+    Uv[jj,:] = up2v
+ 
+#  j0=1100
+#  i0=200
+#  print(f"i={i0} j={j0} dh1={DH[j0-1,i0]} dh2={DH[j0,i0]}")
+#  print(f"u1={Up[j0-1,i0]} u2={Up[j0,i0]} Uv={Uv[j0,i0]}")
+  return Uv
+  
+def collocateV2U(A2d, DH, f_global=True):
+  """
+    Collocate variables from p-point on v-grid
+    input 2D field (1 layer) at p-point
+    Note - in HYCOM S boundary is closed - double check V
+    it should be 0
+    Global domain assumed
+
+    DH is 2D depth layers at p-pnts, A2d is 2D u components at u-pnts
+
+    f_land0 = Replace land values (nans) with 0
+
+    HYCOM grid:
+
+     Q(i,j+1) V(i-1,j+1)           V(i,j+1)
+     * -------|----------* --------|----------*
+     |                   |                    |
+     |        P,T,S,H    |                    |
+     -U(i-1,j)* i-1,j    -U(i,j)   * i,j      -U(i+1,j)
+     |                   |                    |
+     |                   |                    |
+     * -------|----------* --------|----------*
+   Q(i,j)      V(i-1,j)  |         V(i,j)
+     |                   |                    |
+     -U(i,j-1)* i-1,j-1  -U(i,j-1) *(i,j-1)
+     |        P,T,S,H    |                    |
+     |                   |                    |
+     * -------|----------*
+
+  """
+  mm   = A2d.shape[0]
+  nn   = A2d.shape[1]
+
+# V to p-pnts:
+  Vp = np.zeros((mm,nn))
+  for jj in range(mm):
+    if jj==mm-1:
+      a1 = A2d[jj,:]
+    else:
+      a1 = A2d[jj+1,:]
+    a2 = A2d[jj,:]
+    Vp[jj,:] = 0.5*(a1+a2)
+  
+# Vp to U-pnts:
+  Vu = np.zeros((mm,nn))
+  for ii in range(nn):
+    if ii == 0: 
+      v1  = Vp[:,ii]
+      dh1 = DH[:,ii] 
+    else:
+      v1  = Vp[:,ii-1]
+      dh1 = DH[:,ii-1]
+    v2  = Vp[:,ii]
+    dh2 = DH[:,ii]
+
+    dht = dh1+dh2
+    dht = np.where(dht < 1.e-6, np.nan, dht)
+    vp2u = (v1*dh1 + v2*dh2)/dht
+    vp2u = np.where(np.isnan(dht), 0., vp2u)
+    Vu[:,ii] = vp2u
+ 
+#  j0=1100
+#  i0=200
+#  print(f"i={i0} j={j0} dh1={DH[j0-1,i0]} dh2={DH[j0,i0]}")
+#  print(f"u1={Up[j0-1,i0]} u2={Up[j0,i0]} Uv={Uv[j0,i0]}")
+  return Vu
+  
+
 def collocateP2V(A2d, f_land0 = True):
   """
     Collocate variables from p-point on v-grid

@@ -56,6 +56,7 @@ import mod_mom6 as mom6util
 import mod_regmom as mrgm
 #import mod_valid_utils as mvutil
 importlib.reload(mcmp)
+importlib.reload(mhycom)
 
 nrun       = "GOFS3.0"
 nexpt      = 19.0
@@ -84,7 +85,7 @@ elif fldint == "v-vel.":
 
 print(f" INTERPOLATING {nrun}-{expt} --> MOM {fldint}")
 
-with open('pypaths_gfdlpub.yaml') as ff:
+with open('pypaths_gfdlpub.yaml','r') as ff:
   dct = yaml.safe_load(ff)
 
 pthrun  = dct[nrun][expt]["pthrun"]
@@ -163,8 +164,8 @@ dftopo_mom  = os.path.join(pthgrid_mom, ftopo_mom)
 dfgrid_mom  = os.path.join(pthgrid_mom, fgrid_mom) 
 hlon, hlat  = mom6util.read_mom6grid(dfgrid_mom, grid=grid_shape, grdpnt=grid_var)
 HHM         = mom6util.read_mom6depth(dftopo_mom) 
-jdm         = np.shape(HHM)[0]
-idm         = np.shape(HHM)[1]
+jdm         = np.shape(hlon)[0]
+idm         = np.shape(hlon)[1]
 # Convert to -180/180:
 hlon   = np.where(hlon > 180.0, hlon-360., hlon)
 
@@ -176,39 +177,34 @@ nall = Iall.shape[0]
 # MOM6 - angle grid makes with true east direction, radians
 ALPHA = mom6util.read_mom6angle(dfgrid_mom, grid=grid_shape, grdpnt=grid_var)
 
-# (1) Collocate U, V on p-grid
+# (1) Collocate U, V on u- or v-grid (e..g, for v - collocate u/v on v-pnt)
 # (2) Rotate U, V from HYCOM --> true N/E grid
-# (3) Remap rotated U,V to u-pnt (for u interpolation) or v-pnt (v-interpolation)
-#     Keep U/V collocated ! 
-# (4) Interpolate U,V from HYCOM --> MOM 
-# (5) re-rotate onto MOM6 NEP grid
-print('Rotating U,V HYCOM --> MOM grid')
+#     Keep U/V collocated on v-pnts (or u-pnts for u)
+# (3) Interpolate U,V from HYCOM --> MOM v-pnt (or u-pnt)
+# (4) re-rotate onto MOM6 NEP grid
+print('Rotating U,V HYCOM --> North/East grid')
 U3R = U3d*0.0
 V3R = V3d*0.0
 for kk in range(kdmh):
   print(f"layer {kk+1}")
   uu = U3d[kk,:,:].squeeze()
   vv = V3d[kk,:,:].squeeze()
+  dh = dH[kk,:,:].squeeze()
 # Collocate u, v on p-point:
-  uu = mhycom.collocateU2P(uu)
-  vv = mhycom.collocateV2P(vv)
+  if fldiout == 'vvel':
+    uu = mhycom.collocateU2V(uu, dh)
+  else:
+    vv = mhycom.collocateV2U(vv, dh)
+
 # Rotate from hycom x/y-wards --> true N/E grid
   ur = np.cos(PANG)*uu - np.sin(PANG)*vv
   vr = np.cos(PANG)*vv + np.sin(PANG)*uu
-# Remap HYCOM p-grid to v/u-point as needed:
-  if grid_var == 'vgrid':
-    urR = mhycom.collocateP2V(ur)
-    vrR = mhycom.collocateP2V(vr)
-  elif grid_var == 'ugrid':
-    urR = mhycom.collocateP2U(ur)
-    vrR = mhycom.collocateP2U(vr)
-  U3R[kk,:,:] = urR
-  V3R[kk,:,:] = vrR
+  U3R[kk,:,:] = ur
+  V3R[kk,:,:] = vr
 
 # gmapi mapping indices MOM6 <---> GOFS:
 with open(dflgmap,'rb') as fid:
   INDX, JNDX = pickle.load(fid)
-
 
 # Use bilinear interpolation 
 # Points are mapped onto a reference quadrilateral for interpolation then 
@@ -340,16 +336,33 @@ for ikk in range(nall):
     if max(dmx-1.) > 1.:
       raise Exception("MinMax test: Interp error Check interpolation")
 
-  A3di[:,jj,ii] = hintp
+  iiu = ii
+  jju = jj
+  if grid_shape == 'symmetr':
+    if grid_var == 'vgrid':
+      jju = jj+1
+    elif grid_var == 'ugrid':
+      iiu = ii+1
+
+  A3di[:,jju,iiu] = hintp
 
   if kcc%20000 == 0:
     print('Saving to ' + dflintrp)
     with open(dflintrp,'wb') as fid:
       pickle.dump(A3di,fid)
 
+if grid_shape == 'symmetr':
+  if grid_var == 'vgrid':
+    A3di[:,0,:] = A3di[:,1,:]
+  elif grid_var == 'ugrid':
+    A3di[:,:,0] = A3di[:,:,1]
+
+print(f'Shape 3D field: {A3di.shape}')
+
 print('END: Saving to '+dflintrp)
 with open(dflintrp,'wb') as fid:
   pickle.dump(A3di,fid)
+
 
 
 f_plt = False

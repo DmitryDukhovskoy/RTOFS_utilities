@@ -130,13 +130,54 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5):
   
   return ixx, jxx
 
+def fill_land(aa1,aa2,aa3,aa4,HH,A3d,JJ,II,Jocn,Iocn):
+  """
+    Fill all nans in 1D arrays - land points
+    at least 1 array should be ocean pnt
+  """
+  la1  = len(np.where(np.isnan(aa1))[0])
+  la2  = len(np.where(np.isnan(aa2))[0])
+  la3  = len(np.where(np.isnan(aa3))[0])
+  la4  = len(np.where(np.isnan(aa4))[0])
+  kdmh = len(aa1)
+
+  LL  = np.array([la1,la2,la3,la4])
+  iL  = np.where(LL == kdmh)[0]
+  inL = np.where(LL < kdmh)[0] 
+
+# This should not happen - no land points
+# assumed at least 1 array is nans
+  if len(iL) == 0:
+    return aa1, aa2, aa3, aa4
+
+  AP  = np.column_stack((aa1,aa2,aa3,aa4))
+# All land - find closes ocean point
+  if len(iL) == 4:
+#    raise Exception("All 4 1D arrays - land points, check Land masks")
+    for ild in range(4):
+      il1 = II[ild]
+      jl1 = JJ[ild]    
+      D   = np.square((Iocn-float(il1))**2 + (Jocn-float(jl1))**2)
+      ixx = np.argmin(D)
+      ioc = Iocn[ixx]
+      joc = Jocn[ixx]
+      AP[:, ild] = A3d[:,joc,ioc]
+
+  APm = np.nanmean(AP, axis=1) 
+  AP[:,iL] = APm[:,None]
+ 
+  return AP[:,0].squeeze(), AP[:,1].squeeze(),\
+         AP[:,2].squeeze(), AP[:,3].squeeze() 
+
 def check_bottom(AA):
   """
     Make sure there are no NaNs in the 1D vertical data
     AA is 1D array
+    If HYCOM land mask does not match MOM's --> all nans in the 1D profile
+    from HYCOM
   """
   if AA[0] == np.nan:
-    print(f"1D profile: all values are nans, check land mask?")
+    print(f"1D profile: all values are nans, Land mask mismatch")
     return 
 
   izb = np.argwhere(AA == np.nan)

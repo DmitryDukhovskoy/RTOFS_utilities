@@ -1,5 +1,5 @@
 """
-  Vertical interpolation of U/V fields on MOM NEP grid
+  Layer thicknesses - SSH should be added to z*
 """
 import os
 import numpy as np
@@ -45,24 +45,16 @@ expt       = f"{nexpt:2.1f}"
 YR         = 1993
 jday       = 1
 hr         = 15
-fldint     = "u-vel."  # u-vel. & v-vel.
+fldint     = "thknss"  # 
 grid_shape = 'symmetr'   # MOM grid: symmetr/nonsymmetr
 
-if not (fldint == "u-vel." or fldint == "v-vel."):
-  raise Exception ('This code is for u-vel. or v-vel. change fldint')
 
 pthout  = '/work/Dmitry.Dukhovskoy/data/mom6_nep_restart/'
 pthtmp  = '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp/'
 pthgofs = '/work/Dmitry.Dukhovskoy/data/GOFS3.0/expt_19.0/'
 
-if fldint == "u-vel.":
-  grid_var = 'ugrid'
-  fldiout  = 'uvel'
-  fbrtrp   = 'u_btrop'
-elif fldint == "v-vel.":
-  grid_var = 'vgrid'
-  fldiout  = 'vvel'
-  fbrtrp   = 'v_btrop'
+grid_var = 'hgrid'
+fldiout  = 'lrthknss'
 
 print(f" INTERPOLATING on Z lev {nrun}-{expt} --> MOM {fldint}")
 
@@ -106,15 +98,12 @@ def load_interp(pthtmp, fldiout, grid_shape, rdate):
 
   return Ai
 
-dHlr = load_interp(pthtmp, 'lrthknss', grid_shape, rdate)
+#dHlr = load_interp(pthtmp, 'lrthknss', grid_shape, rdate)
 SSH  = load_interp(pthtmp, 'srfhgt', grid_shape, rdate)
-UU   = load_interp(pthtmp, fldiout, grid_shape, rdate)
-jdu  = UU.shape[1]
-idu  = UU.shape[2]
 
-j0 = 100
-i0 = 120
-dh = dHlr[:,j0,i0]
+#j0 = 100
+#i0 = 120
+#dh = dHlr[:,j0,i0]
 
 # Output interpolated fields on hycom layers:
 flintrp  = f"gofs2mom_nep_vrtz-{fldiout}_{grid_shape}_{rdate}.pkl"
@@ -143,12 +132,11 @@ dHlrM  = nc.variables['h'][:].data.squeeze()
 SSHm   = nc.variables['sfc'][:].data.squeeze()
 zI     = nc.variables['Interface'][:].data.squeeze()
 
-U2d  = UU[0,:,:].squeeze()
 Iall = np.where(HHM.flatten()<=0.)[0]
 nall = Iall.shape[0]
 
 Irsb = []
-A3di = np.zeros((kdm,jdu,idu))*np.nan
+A3di = np.zeros((kdm,jdm,idm))*np.nan
 kcc  = 0
 tic  = timeit.default_timer()
 ticR = timeit.default_timer()
@@ -161,14 +149,6 @@ for ikk in range(nall):
   I1 = Iall[ikk]
   jj, ii = np.unravel_index(I1,HHM.shape)  # MOM indices
   kcc += 1
-
-  iiu = ii
-  jju = jj
-  if grid_shape == 'symmetr':
-    if grid_var == 'vgrid':
-      jju = jj+1
-    elif grid_var == 'ugrid':
-      iiu = ii+1
 
 # If continue from saved:
   if len(Irsb) > 0:
@@ -190,86 +170,52 @@ for ikk in range(nall):
 #  JJ = np.squeeze(JNDX[jj,ii,:])
 #  II, JJ = mblnr.sort_gridcell_indx(II,JJ)
 
-# Fix error - bottom in HH hycom:
-# ikk = 941
-#In [381]: HH[JJ,II]
-#Out[381]: array([-2192.7722, -2027.1633,        nan, -1235.4307], dtype=float32)
-#Need to go back to horiz interpolation 
-#avoid nans
-
   x0   = hlon[jj,ii]
   y0   = hlat[jj,ii]
 # From GOFS interpolated onto MOM grid:
   ssh0 = SSH[jj,ii]
-  dh0  = dHlr[:,jj,ii]
-  hb0  = HHM[jj,ii]
-  zzH  = np.cumsum(dh0)
-  zzH  = np.insert(zzH,0,0) # interface depths
-  nhf  = len(zzH)
-  zmH  = 0.5*(zzH[:nhf-1] + zzH[1:])
+
+#  dh0  = dHlr[:,jj,ii]
+#  zzH  = np.cumsum(dh0)
+#  zzH  = np.insert(zzH,0,0) # interface depths
+#  nhf  = len(zzH)
+#  zmH  = 0.5*(zzH[:nhf-1] + zzH[1:])
 
 # Check depth from HYCOM vs MOM:
-  hbH = -np.sum(dh0)   
+#  hbH = -np.sum(dh0)   
 
-  if abs(1.-abs(hb0/hbH)) > 0.4:
+#  if abs(1.-abs(hb0/hbH)) > 0.7:
 #    raise Exception(f"GOFS/MOM Bottom depth error: j={jj} i={ii} {hb0} vs {hbH}")
-    print(f"GOFS/MOM Bottom depth error: j={jj} i={ii} {hb0} vs {hbH}")
+#    print(f"GOFS/MOM Bottom depth error: j={jj} i={ii} {hbH} vs {hb0}")
 
 # SSH correction to thickness:
 # See HYCOM-tools: archv2mom6res.f
-  qq  = (ssh0 + abs(hbH))/abs(hbH)
-  dh0 = dh0*qq 
+#  qq  = (ssh0 + abs(hbH))/abs(hbH)
+#  dh0 = dh0*qq 
 
-# Checking MOM:
-# z* levels can be obatined from vgrid_75_2m.nc
+# MOM layers:
+# z* levels can also be obatined from vgrid_75_2m.nc
 # truncating the last layer to the local bottom depth
+  hb0  = HHM[jj,ii]
   dhm  = dHlrM[:,jj,ii]
   sshm = SSHm[jj,ii]
   qqm  = (sshm + abs(hb0))/abs(hb0)
-  dhm0 = dhm/qqm  # remove ssh correction from MOM layers
+  dhm0 = dhm/qqm  # remove old ssh correction from MOM layers
 
-# Vertical interpolation: two possible approaches (1) binning
-# (2) direct polynomial interpolation
-  zzM = np.cumsum(dhm0)
-  zzM = np.insert(zzM,0,0) # interface depths
-  nif = len(zzM)
-  zmM = 0.5*(zzM[:nif-1] + zzM[1:])
+# Add new ssh correction to MOM layers:
+  qqm_new = (ssh0 + abs(hb0))/abs(hb0)
+  dhm     = dhm0*qqm_new
 
-# Non nan allowed in layer thicknesses
-# all HYCOM land points that are ocean in MOM should be filled in using
-# nearest ocean pnts in 1st step (horizontal interp)
-  lzz = len(np.where(np.isnan(zzH))[0])
-  lzm = len(np.where(np.isnan(zmH))[0])
-  if lzz > 0 or lzm > 0:
-    print(f"Error in HYCOM layer thickn, pnt: {iKK} i={ii} j={jj}")
-    raise Exception('nans in zzH or zmH') 
- 
+  A3di[:,jj,ii] = dhm
 
-  zzH = -abs(zzH)
-  zmH = -abs(zmH)
-  zzM = -abs(zzM)
-  zmM = -abs(zmM)
-  H1d = UU[:,jju,iiu]
-# For velocities, make 0s in bottom layers
-  M1d = mintrp.interp_bins(H1d, zzH, zmH, zzM, zmM, fill_btm=True, fill_val=0.)
-  A3di[:,jju,iiu] = M1d 
-
-if grid_shape == 'symmetr':
-  if grid_var == 'vgrid':
-    A3di[:,0,:] = A3di[:,1,:]
-  elif grid_var == 'ugrid':
-    A3di[:,:,0] = A3di[:,:,1]
-
-print(f'Shape 3D field: {A3di.shape}')
 print('END: Saving to '+dflintrp)
 with open(dflintrp,'wb') as fid:
   pickle.dump(A3di,fid)
 
+
 f_chck=False
 if f_chck:
   plt.ion()
-
-  U2d  = A3di[0,:,:].squeeze()
 
   fig1 = plt.figure(1,figsize=(9,8))
   plt.clf()
