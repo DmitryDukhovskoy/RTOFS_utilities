@@ -214,12 +214,13 @@ def mom_dim(flin):
 
   return xh, yh, zl
 
-def zz_zm_fromDP(dH, ssh, f_intrp=False, f_btm=True, finfo=True, eps0=1.e-5):
+def zz_zm_fromDP(dH, ssh, f_intrp=False, f_btm=True, f_ssh = True, \
+                 finfo=True, eps0=1.e-5):
   """
     Calculate ZZ, ZM from layer thkcness (dH) 
     ZZ - interface depths,
     ZM - mid cell depths
-    Note that sum(dH) = water column height that includes SSH
+    Note that in MOM sum(dH) = water column height that includes SSH
     Therefore ZZ[0] = ssh
 
     f_btm = true - nan below bottom & land
@@ -228,6 +229,9 @@ def zz_zm_fromDP(dH, ssh, f_intrp=False, f_btm=True, finfo=True, eps0=1.e-5):
               not nans and not equal depths, i.e. depth continue
               increasing at eps0 rate below bottom to keep
               monotonicity of zz, zm
+    f_ssh = False - assumes ZZ[0] = 0, i.e. ssh effect should be removed
+                     from lr. thicknesses, see:
+                     remove_ssh_lrthk
     f_interp overrides f_btm flag: makes it False
   """
   if f_intrp:
@@ -241,7 +245,12 @@ def zz_zm_fromDP(dH, ssh, f_intrp=False, f_btm=True, finfo=True, eps0=1.e-5):
   ZZ = np.zeros((ll+1,mm,nn))
   ZM = np.zeros((ll,mm,nn))
   ssh = np.where(np.isnan(ssh),0.,ssh)
-  ZZ[0,:,:] = ssh
+  
+  if f_ssh:
+    ZZ[0,:,:] = ssh
+  else:
+    ZZ[0,:,:] = 0.
+
   if f_btm:
     dH = np.where(np.isnan(dH),0., dH)
   else:
@@ -270,37 +279,80 @@ def zz_zm_fromDP(dH, ssh, f_intrp=False, f_btm=True, finfo=True, eps0=1.e-5):
 
   return ZZ, ZM
 
-def get_zz_zm(fina, f_btm=True):
+def get_zz_zm(fina, f_btm=True, **kwargs):
   """
     Derive layer depths: ZZ - interface depths,
     ZM - mid cell depths
-    Note that sum(dH) = water column height that includes SSH
+    Note that in MOM sum(dH) = water column height that includes SSH
     Therefore ZZ[0] = ssh
     f_btm = true - ZZ=nan below bottom
+
+    can specify the names for layer thickness, ssh variables
+    if these are different from 'h' and 'SSH' as kwargs, e.g."
+    [sshvar="ssh", lrthkvar="hlr"]
   """
   print(' Deriving ZZ, ZM from '+fina)
   huge = 1.e18
   nc   = ncFile(fina, 'r')
+
+  sshvar   = 'SSH'
+  lrthkvar = 'h'
+  for key, value in kwargs.items():
+    if key == 'sshvar':
+      sshvar = value
+    elif key == 'lrthkvar':
+      lrthkvar = value 
 
 # Check variable dimension
 # Assumed: AA(Time, dim1, dim2, optional: dim3)
   ndim = nc.variables['h'].ndim - 1 # Time excluded
 
 # Check that time dim=1:
-  tdim = nc.variables['Time'][:].data.shape[0]
+  try:
+    tdim = nc.variables['Time'][:].data.shape[0]
+  except:
+    try:
+      tdim = nc.variables['time'][:].data.shape[0]
+    except:
+      print(f"variable Time/time not found in {fina}")
+
   if tdim != 1:
     raise Exception('in netcdf output  Time dimensions is not 1: {0}'.\
                     format(tdim))
 
 # Read layer thicknesses:
-  dH     = nc.variables['h'][:].squeeze().data
+  dH     = nc.variables[lrthkvar][:].squeeze().data
   dH     = np.where(dH >= huge, np.nan, dH)
-  ssh    = nc.variables['SSH'][:].squeeze().data
+  ssh    = nc.variables[sshvar][:].squeeze().data
   ssh    = np.where(ssh >= huge, np.nan, ssh)
   ZZ, ZM = zz_zm_fromDP(dH, ssh, f_btm=f_btm)  
 
   return ZZ, ZM
 
+def remove_ssh_lrthk(ssh, HH, dH):
+  """
+  Remove ssh from layer thicknesses such that
+  dH[0,:,:] = 0 otherwise dH[0,:,:] = ssh
+
+  dH is 3D array of layer thicknesses
+  HH - botom bathymetry 2D
+  ssh - sea surface height 2D
+
+  SSH correction to thickness:
+  See HYCOM-tools: archv2mom6res.f
+  qq  = (ssh0 + abs(hbH))/abs(hbH)
+  dh0 = dh0*qq 
+
+  """
+  qqm  = (ssh + abs(HH))/abs(HH)
+  kdim = dH.shape[0]
+  dH0  = dH.copy()
+  for ik in range(kdim):
+    aa = dH[ik,:,:]
+    aa = aa/qqm     # remove ssh correction from layers
+    dH0[ik,:,:] = aa
+
+  return dH0
 
 def create_time_array(date1, date2, dday, date_mat=False):
   """
@@ -597,6 +649,129 @@ def collocateV2H(A2d, grid_shape, f_land0 = True):
 
   return A2dP
 
+def fill_land3d(A3d, **kwargs):
+  """
+    Fill NaNs with closest values
+    2D or 3D arrays allowed
+    First, the 1st layer is filled - land values interpolated from the closest ocean points
+    Next (for 3D arrays) - below 1st layer: values are filled with the 1st lr value
+ 
+    For quick fill, specify quick_fill=Value, all Nans will be filled with Value
+
+    Note: bottom values at the ocean grid points are not checked
+          but nans will be filled for quick_fill with a specified value
+          for not quick_fill - with values above nans
+
+    Filled values can be smoothed - boxfltr = box size (should be = n^2, n- half of box size)
+
+    Usage: Afilled = mod_mom6.fill_land3d(A3d, [quick_fill=1.e22, boxfltr=25]) 
+  """
+  import mod_interp1D as minterp
+  import mod_misc1 as mmisc
+
+  adim = A3d.shape
+  ndim = len(adim)
+  if ndim > 3 or ndim < 2:
+    raise Exception('Array should be 2 or 3D')
+  print(f'Filling land, {ndim}D array')
+
+  qfill = False
+  bxflt = False
+  for key, value in kwargs.items():
+    if key == 'quick_fill': 
+      vfill = value
+      qfill = True
+    if key == 'boxfltr':
+      nbx = value
+      bxflt = True
+
+  f2d = False
+  if ndim == 3:
+    kdim = adim[0]
+    jdim = adim[1]
+    idim = adim[2]
+  else:
+    f2d = True
+    kdim = 0
+    jdim = adim[0]
+    idim = adim[1]
+ 
+  if qfill:
+    print(f'Quick land fill option with val={vfill}')
+    A3d = np.where(np.isnan(A3d), vfill, A3d)
+    return A3d
+
+# First, fill land in surface layer: 
+  if f2d:
+    A2d = A3d
+  else:
+    A2d = A3d[0,:,:].squeeze()
+
+  Inan = np.where(np.isnan(A2d.flatten()))[0]
+  nall = len(Inan)
+  if nall == 0:  
+    print('No nans found for land values')
+    return A3d
+
+  A2df = A2d.copy()
+  Indx = np.arange(idim)
+  for jj in range(jdim):
+#    I1 = Inan[ikk]
+#    jj, ii = np.unravel_index(I1, (jdim,idim))
+#    kcc += 1
+
+    imss = np.where(np.isnan(A2d[jj,:]))[0]
+    nmss = len(imss)
+    if nmss == 0: continue
+
+    a1d  = A2d[jj,:] 
+    i1d  = np.where(~np.isnan(A2d[jj,:]))[0]
+    v1d  = A2d[jj,i1d]
+# Add endpoints for interpolation:
+    if not i1d[0] == 0:
+      v1d = np.insert(v1d,0,v1d[0])
+      i1d = np.insert(i1d,0,0)
+
+    if i1d[-1] < idim-1:
+      v1d = np.append(v1d, v1d[-1])
+      i1d = np.append(i1d, idim)
+
+    for I0 in range(nmss):
+      ixx = imss[I0]
+      xF  = minterp.pcws_lagr1(i1d,v1d,ixx)
+      a1d[ixx] = xF
+
+# Check that ocean points have not been impacted:
+    dltA = np.nanmax(np.abs(A2d[jj,:]-a1d))
+    if dltA > 1.e-9:
+      raise Excpetion(f"Ocean point contaminated during land filling j={jj} dltA={dltA}")
+
+    A2df[jj,:] = a1d
+
+  if bxflt:
+    JN,IN = np.where(~np.isnan(A2d))
+    A2df = mmisc.box_fltr(A2df, nbx=nbx)
+    A2df[JN,IN] = A2d[JN,IN]
+
+  if f2d: 
+    return A2df
+
+  A3df = A3d.copy()
+  A3df[0,:,:] = A2df
+
+# Fill deep layers:
+  print('Start filling deep laeyrs')
+  for kk in range(1,kdim):
+    A2d = A3df[kk,:,:].squeeze()
+    JN,IN = np.where(np.isnan(A2d))
+    nall = len(JN)
+#    print(f'Layer {kk+1} found nans={nall}')
+    if nall == 0: continue
+    A3df[kk,JN,IN] = A3df[kk-1,JN,IN]
+
+  return A3df
+
+
 def deallocateP2UV(A2d, grid_shape, f_component, f_ignore=True, **kwargs):
   """
     Deallocate U or V component from P point putting it back to V-grid
@@ -655,7 +830,7 @@ def deallocateP2UV(A2d, grid_shape, f_component, f_ignore=True, **kwargs):
       
     J = np.arange(0,nnd)+jj-djm
     if min(J) < 0: J = J-min(J)  
-# at the "right" boundary use piecewise Lagr cardunal basis
+# at the "right" boundary use piecewise Lagr cardinal basis
 # on an interval left of xi x=[x(i-nnd), xi], order of nodes
 # is inverse, so that x(i-1) = 
     if max(J) >= jdm:

@@ -71,7 +71,7 @@ if not (fldint == "temp" or fldint == "salin" or fldint == 'thknss'):
 
 pthout  = '/work/Dmitry.Dukhovskoy/data/mom6_nep_restart/'
 pthtmp  = '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp/'
-pthgofs = '/work/Dmitry.Dukhovskoy/data/GOFS3.0/expt_19.0/'
+pthgofs = '/work/Dmitry.Dukhovskoy/GOFS3.0/expt_19.0/'
 
 if fldint == "temp":
   grid_var = 'hgrid'

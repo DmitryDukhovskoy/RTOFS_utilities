@@ -34,6 +34,7 @@ import mod_mom6 as mom6util
 import mod_regmom as mrgm
 #import mod_valid_utils as mvutil
 importlib.reload(mcmp)
+importlib.reload(mom6util)
 
 nrun       = "GOFS3.0"
 nexpt      = 19.0
@@ -67,10 +68,13 @@ MM_r   = dv_r[1]
 DM_r   = dv_r[2]
 rdate_r= f"{YR_r}{MM_r:02d}{DM_r:02d}{hr_r:02d}"
 
-flnm_rst  = f"MOM.res.{rdate_r}.nc"
+flnm_rst  = f"MOM.res.{nrun}_{rdate_r}.nc"
 dflnm_rst = os.path.join(pthout, flnm_rst) 
 
 print(f" output MOM restart file: {dflnm_rst}")
+
+# MOM restart Time is reference to Yr=0, i.e. 365 days more:
+dnmb_mom_rest = dnmb_r + 364
 
 # Read MOM6 NEP domain nx=342, ny=816
 with open('pypaths_gfdlpub.yaml') as ff:
@@ -96,7 +100,7 @@ lonh, lath  = mom6util.read_mom6grid(dfgrid_mom, grid=grid_shape, grdpnt='hgrid'
 lonq, _     = mom6util.read_mom6grid(dfgrid_mom, grid=grid_shape, grdpnt='ugrid') 
 _, latq     = mom6util.read_mom6grid(dfgrid_mom, grid=grid_shape, grdpnt='vgrid')
 
-time_var = np.atleast_1d(dnmb)
+time_var = np.atleast_1d(dnmb_mom_rest)
 nvlrs    = 75
 lonh_var = lonh[0,:].squeeze()
 lath_var = lath[:,0].squeeze()
@@ -106,6 +110,7 @@ lrs_var  = [x*1. for x in range(0,nvlrs)]
 
 
 Ai = load_interp(pthtmp, 'uvel', grid_shape, rdate)
+Ai = mom6util.fill_land3d(Ai, quick_fill=0.)
 Ai = np.expand_dims(Ai, axis=0)
 coords = {
   "Time": time_var,
@@ -116,9 +121,10 @@ coords = {
 udim = ['Time','Layer','lath','lonq'] 
 uattrs = {'long_name': 'Zonal velocity',
          'units': 'm s-1'}
-udarray = xr.DataArray(Ai, coords, dims=udim, attrs=uattrs, name="v")
+udarray = xr.DataArray(Ai, coords, dims=udim, attrs=uattrs, name="u")
 
 Ai = load_interp(pthtmp, 'vvel', grid_shape, rdate)
+Ai = mom6util.fill_land3d(Ai, quick_fill=0.)
 Ai = np.expand_dims(Ai, axis=0)
 coords = {
   "Time": time_var,
@@ -129,9 +135,10 @@ coords = {
 vdim = ['Time','Layer','latq','lonh'] 
 vattrs = {'long_name': 'Meridional velocity',
          'units': 'm s-1'}
-vdarray = xr.DataArray(Ai, coords, dims=vdim, attrs=vattrs, name="u")
+vdarray = xr.DataArray(Ai, coords, dims=vdim, attrs=vattrs, name="v")
 
 Ai = load_interp(pthtmp, 'salin', grid_shape, rdate)
+Ai = mom6util.fill_land3d(Ai)
 Ai = np.expand_dims(Ai, axis=0)
 coords = {
   "Time": time_var,
@@ -145,6 +152,7 @@ sattrs = {'long_name': 'Salinity',
 sdarray = xr.DataArray(Ai, coords, dims=sdim, attrs=sattrs, name="Salt")
 
 Ai = load_interp(pthtmp, 'temp', grid_shape, rdate)
+Ai = mom6util.fill_land3d(Ai)
 Ai = np.expand_dims(Ai, axis=0)
 coords = {
   "Time": time_var,
@@ -158,6 +166,7 @@ tattrs = {'long_name': 'Potential Temperature',
 tdarray = xr.DataArray(Ai, coords, dims=tdim, attrs=tattrs, name="Temp")
 
 Ai = load_interp(pthtmp, 'lrthknss', grid_shape, rdate)
+Ai = mom6util.fill_land3d(Ai, quick_fill=1.e-9)
 Ai = np.expand_dims(Ai, axis=0)
 coords = {
   "Time": time_var,
@@ -174,7 +183,8 @@ ldarray = xr.DataArray(Ai, coords, dims=ldim, attrs=lattrs, name="h")
 DS = xr.merge([udarray, vdarray, ldarray, tdarray, sdarray])
 DS.Time.attrs={'long_name': 'Time',
                'cartesian_axis': "T",
-               'units': "days"}
+               'units': "days",
+               'reference_year': "0"}
 DS.Layer.attrs={'long_name': "Layer z-rho",
                 'cartesian_axis': "Z",
                 'units': "meter",
@@ -191,7 +201,8 @@ DS.lonh.attrs={'long_name':  "Longitude",
 DS.lonq.attrs={'long_name':  "Longitude",
                'cartesian_axis': "X",
                'units': "degrees_east"}
-DS.attrs={'history':f'Created from GOFS3.0 {rdate}'}
+DS.attrs={'history':f'Created from {nrun}-{nexpt} {rdate}',
+          'source':'write_mom_restart_step3.py'}
 DS.info()
 
 print(f"\nWriting netcdf ---> {dflnm_rst}")

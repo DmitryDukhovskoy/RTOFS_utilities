@@ -400,7 +400,7 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
 
 def box_fltr(AA, i1=-1, i2=-1, j1=-1, j2=-1, dist_wgt='linear',nbx=9):
   """
-    Box-filter
+    Box filter
     sqrt of box-size should be odd = 3, 5, 7, 9, ... 
     so that the central node would have same size in all directions!
 
@@ -413,9 +413,9 @@ def box_fltr(AA, i1=-1, i2=-1, j1=-1, j2=-1, dist_wgt='linear',nbx=9):
   idm = AA.shape[1]
   if i1 < 0 or i2 < 0 or j1 < 0 or j2 < 0:
     i1 = 0
-    i2 = idm
+    i2 = idm-1
     j1 = 0
-    j2 = jdm
+    j2 = jdm-1
 
 # define weights:
   ibx = int(np.sqrt(nbx))

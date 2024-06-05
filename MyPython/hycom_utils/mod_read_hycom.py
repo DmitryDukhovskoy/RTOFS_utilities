@@ -317,7 +317,7 @@ def read_hycom(fina,finb,fld,Rtrc=None,rLayer=None,finfo=True):
   try: 
     fgb = open(finb,'r')
   except:
-    print('Could not open '+finb)
+    raise Exception (f'Could not open {finb}')
 
   fgb.seek(0)
   nl0 = 0

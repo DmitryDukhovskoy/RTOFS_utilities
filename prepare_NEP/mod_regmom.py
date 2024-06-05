@@ -188,6 +188,128 @@ def check_bottom(AA):
 
   return AA
   
+def derive_TSprof_WOA23(seas, YR, Xp, Yp, grd=0.25, conv2pot=True):
+  """
+    Extract T & S profiles from WOA23
+    for specified locations Xp, Yp
+    Note: T - in situ T's
+    conv2pot: Convert in situ T to potential 
+    WOA:
+    # season: 1-12 monthly, 13-winter (Jan-Mar), 14-spring (Apr-Jun), ...
+    https://www.ncei.noaa.gov/access/world-ocean-atlas-2023/bin/woa23.pl
+    woa23_[DECA]_[v][tp]_[gr].nc - NetCDF format
+    where:
+    [DECA] - decade
+    [v] - variable
+    [tp] - time period
+    [ft] - field type
+    [gr] - grid
+    e.g: woa23_95A4_t14_04.nc
+  """
+  import mod_swstate as msw
 
+  if grd==0.25:
+    cgrd=4
+  woa='woa23'
+
+  if YR > 1990 and YR < 2005:
+    deca = "95A4"
+  elif YR > 2005 and YR < 2014:
+    deca = "A5B4"
+  elif YR > 2014 and YR < 2023:
+    deca = "B5C2"
+
+  urlT = 'https://www.ncei.noaa.gov/thredds-ocean/dodsC/woa23/DATA/' + \
+         f'temperature/netcdf/{deca}/0.25/'
+  urlS = 'https://www.ncei.noaa.gov/thredds-ocean/dodsC/woa23/DATA/' + \
+         f'salinity/netcdf/{deca}/0.25/'
+
+  tfnm=f'{woa}_{deca}_t{seas:02d}_{cgrd:02d}.nc'
+  sfnm=f'{woa}_{deca}_s{seas:02d}_{cgrd:02d}.nc'
+#  print("Reading {1} from {0}".format(furl,varnm))
+  
+  tvar='t_an'
+  svar='s_an'
+
+  furl = os.path.join(urlT, tfnm)
+  print(f"Extracting T prof from WOA23 decadal clim season={seas}")
+  print(furl)
+  nc   = ncFile(furl)
+  T3d  = nc.variables[tvar][:].data.squeeze()
+  T3d  = np.where(T3d>1.e10, np.nan, T3d)
+  kdm, jdm, idm  = T3d.shape
+ 
+  furl = os.path.join(urlS, sfnm)
+  print(f"Extracting S prof from WOA23 decadal clim season={seas}")
+  print(furl)
+  nc   = ncFile(furl)
+  S3d  = nc.variables[svar][:].data.squeeze()
+  S3d  = np.where(S3d>1.e10, np.nan, S3d)
+
+  ZZ   = nc.variables['depth'][:].data.squeeze()
+  ZZ   = -abs(ZZ)
+  lat  = nc.variables['lat'][:].data.squeeze()
+  lon  = nc.variables['lon'][:].data.squeeze() 
+  dlat = np.max(np.diff(lat))
+  dlon = np.max(np.diff(lon))
+ 
+  Npnts = len(Xp)
+  print(f"N original locations={Npnts}, conv to potent temp={conv2pot}")
+
+  if max(lon) <= 180. and min(lon) < 0.:
+    Xp = np.where(Xp > 180., Xp-360., Xp)
+ 
+  Iwoa = []
+  Jwoa = []
+  Tprf = np.zeros((kdm,1))
+  Sprf = np.zeros((kdm,1))
+  for kk in range(Npnts):
+    x0 = Xp[kk]
+    y0 = Yp[kk]
+
+    dx = np.sqrt((lon-x0)**2)
+    i0 = np.where(dx == min(dx))[0][0]
+    dy = np.sqrt((lat-y0)**2)
+    j0 = np.where(dy == min(dy))[0][0]
+    chck = np.sqrt((x0-lon[i0])**2 + (y0-lat[j0])**2)
+    if chck > dlat:
+      print(f"ERR: WOA lon=lon[i0] lat=lat[j0]")
+      raise Exception(f'ERR: no closest WOA grid pnt for x={x0} y={y0} kk={kk}')
+
+    # check if this point already processed:
+    if len(Iwoa) > 0:
+      dI = int(np.min(np.sqrt((Iwoa-i0)**2 + (Jwoa-j0)**2)))
+      if dI == 0: continue
+
+    Iwoa.append(i0)
+    Jwoa.append(j0)
+    irc = len(Iwoa)
+    tt  = T3d[:,j0,i0].squeeze()
+    ss  = S3d[:,j0,i0].squeeze()
+    if irc == 1:
+      Tprf[:,0] = tt
+      Sprf[:,0] = ss
+    else:
+      tt   = np.expand_dims(tt, axis=1)
+      Tprf = np.append(Tprf, tt, axis=1)
+      ss   = np.expand_dims(ss, axis=1)
+      Sprf = np.append(Sprf, ss, axis=1)
+    
+  if conv2pot:
+    pr_ref = 0.
+    lat_obs = lat[Jwoa]
+    for klr in range(kdm):
+      t1d = Tprf[klr,:]
+      s1d = Sprf[klr,:]
+      inn = len(np.where(~np.isnan(t1d))[0])
+      if inn == 0: break
+      z0  = ZZ[klr]
+      pr_db, pr_pa = msw.sw_press(z0, lat_obs)         
+      Tpot = msw.sw_ptmp(s1d, t1d, pr_db, pr_ref)
+      Tprf[klr,:] = Tpot
+
+  return Tprf, Sprf, ZZ
+
+  
 
 

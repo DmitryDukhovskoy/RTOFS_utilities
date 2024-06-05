@@ -1516,3 +1516,40 @@ def derive_mom_coord_section(fgrd_mom, ftopo_mom, sctnm):
 
   return II, JJ, Vnrm1, Vnrm2, XX, YY, Hb, LSgm
 
+def derive_bottomT(A3d, dH, HH, dh0=0.1, **kwargs):
+  """
+    Derive bottom T from 3D T array and 3D layer thicknesses, bathymetry 2D
+    optional: specify cutoff depth to ignore shallow regions 
+    zshallow = nn (meters)
+  """
+  print(f"Deriving bottom T, min dh={dh0:4.2f}m")
+  fshelf = False
+  for key, value in kwargs.items():
+    if key == 'zshallow':
+      zshelf = -abs(value)
+      fshelf = True
+
+  if fshelf:
+    if min(HH) >= 0.:
+      HH = -abs(HH)
+    JSH, ISH = np.where(HH >= zhelf) 
+
+  kdim, jdim, idim = A3d.shape
+  Tbtm = np.zeros((jdim, idim))*np.nan
+  for kk in range(1,kdim):
+    dh2d   = dH[kk,:,:].squeeze()
+    JF, IF = np.where(~np.isnan(Tbtm))
+    if len(JF) > 0: dh2d[JF,IF] = 1.e9
+    if fshelf: dh2d[JSH,ISH] = 1.e9
+    JB, IB = np.where(dh2d <= dh0)
+    if len(JB) > 0:
+      Tbtm[JB,IB] = A3d[kk-1,JB,IB]
+
+  return Tbtm
+
+
+
+
+
+
+

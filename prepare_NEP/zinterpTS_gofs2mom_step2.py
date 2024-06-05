@@ -45,7 +45,7 @@ expt       = f"{nexpt:2.1f}"
 YR         = 1993
 jday       = 1
 hr         = 15
-fldint     = "salin"  # temp or salin
+fldint     = "temp"  # temp or salin
 grid_shape = 'symmetr'   # MOM grid: symmetr/nonsymmetr
 
 if not (fldint == "temp" or fldint == "salin"):
@@ -234,7 +234,7 @@ for ikk in range(nall):
   zmM = -abs(zmM)
   H1d = UU[:,jj,ii]
 # For T/S, extend bottom layers using last near-bottom value
-  M1d = mintrp.interp_bins(H1d, zzH, zmH, zzM, zmM, fill_btm=False)
+  M1d = mintrp.interp_bins(H1d, zzH, zmH, zzM, zmM, fill_btm=False, info=False)
   A3di[:,jj,ii] = M1d 
 
 print('END: Saving to '+dflintrp)

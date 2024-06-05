@@ -492,7 +492,7 @@ def make_monotonic(Xp, eps0=0.001):
 
 
 def interp_bins(H1d, zzH, zmH, zzM, zmM, eps_dZ=1.e-3, \
-                fill_btm=False, fill_val=0.):
+                fill_btm=False, fill_val=0., info=False):
   """
     For interpolation / remapping values from one set of vertical layers
     into another (e.g., HYCOM --> MOM6)
@@ -572,20 +572,21 @@ def interp_bins(H1d, zzH, zmH, zzM, zmM, eps_dZ=1.e-3, \
     zHtop_top = zzH[iHtop_top]
   
 # Find weights:
-# eta1 = thickn from zbtm MOM to HYCOM top interface
+# eta1 = thickn from zbtm MOM to HYCOM top interface zHbtm_top
 # if MOM lr is inside 1 HYCOM lr eta1 = dhM (MOM lr thickness)
     eta1   = min([zHbtm_top,ztop]) - zbtm
-# eta2 = thickn from ztop MOM to zbtm HYCOM
-# Check if MOM ice layer is within cice H layer
+# eta2 = thickn from ztop MOM to zbtm HYCOM interface zHtop_btm
+# Check if MOM layer is within HYCOM layer
     if iHbtm_btm == iHtop_btm and iHbtm_top == iHtop_top:
       eta2   = 0.
     else:
       eta2 = ztop - max([zHtop_btm,zbtm])
 
 # Compute value in MOM layer:
+# Note eta1+eta2 should be = |dzM| - layer thickness of MOM
     kH_btm = iHbtm_top    # HYCOM layer # where MOM bottom interface
     kH_top = iHtop_top    # HYCOM layer # where MOM top interf
-    qvM = (H1d[kH_btm]*eta1 + H1d[kH_top]*eta2)/dzM
+    qvM = (H1d[kH_btm]*eta1 + H1d[kH_top]*eta2)/(eta1+eta2)
 
     M1d[k]   = qvM
     Mtot     = Mtot + qvM*dzM
@@ -593,8 +594,17 @@ def interp_bins(H1d, zzH, zmH, zzM, zmM, eps_dZ=1.e-3, \
     dz_tot   = dz_tot + dzM
     rdz_eta  = abs(1.-eta_tot/dzM)
 
-#    print(f"eta_tot={eta_tot}, dzM={dzM}, eta/dzM={rdz_eta}")
-#  print(f"Input tot={Htot}, Output tot={Mtot}, dz_tot={dz_tot}")
+    if info:
+      print(f"k={k+1}: eta_tot={eta_tot}, dzM={dzM}, 1-eta/dzM={rdz_eta}")
+      print(f"    intrp top/btm = {ztop}/{zbtm}")
+      print(f" intrp top intrf and input z interf: {zHtop_btm} < {ztop} < {zHtop_top}")
+      print(f" intrp btm intrf and input z interf: {zHbtm_btm} < {zbtm} < {zHbtm_top}")
+
+
+  if info:
+    print(f"Input tot={Htot}, Output tot={Mtot}, dz_tot={dz_tot}")
+    print(f"hbtH={hbtH:5.1f} hbtM={hbtM:5.1f}")
+
   return M1d
 
 

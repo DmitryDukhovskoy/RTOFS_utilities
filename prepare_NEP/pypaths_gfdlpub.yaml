@@ -13,6 +13,18 @@ MOM6_NEP:
     pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
     ftopo:   'topog.nc'
     fgrid:   'ocean_hgrid.nc'
+  "NEP_BGCphys":
+    pthrun:  ' '
+    pthoutp: '/work/Dmitry.Dukhovskoy/run_output/NEP_BGCphys/'
+    pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
+    ftopo:   'topog.nc'
+    fgrid:   'ocean_hgrid.nc'
+  "NEP_BGCphys_GOFS":
+    pthrun:  ' '
+    pthoutp: '/work/Dmitry.Dukhovskoy/run_output/NEP_BGCphys_GOFS/'
+    pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
+    ftopo:   'topog.nc'
+    fgrid:   'ocean_hgrid.nc'
 GOFS3.0:
   "19.0":
     pthrun:  '/work/Dmitry.Dukhovskoy/GOFS3.0/expt_19.0/'
