@@ -11,13 +11,13 @@ forecasts:
 
 climatology:
   first_year: 1993
-  last_year: 2020
+  last_year: 2019
 
 domain:
   south_lat: 10
-  north_lat: 81
-  west_lon: 156
-  east_lon: 255
+  north_lat: 82
+  west_lon: 155
+  east_lon: 257
 
 filesystem:
   # Where to put data that will be used to force the model:
@@ -28,9 +28,16 @@ filesystem:
   yearly_river_files: /work/Dmitry.Dukhovskoy/NEP_input/glofas_runoff
   # Path to existing open boundary condition data:
   open_boundary_files: /work/Dmitry.Dukhovskoy/NEP_input/glorys_obc
-  # Path to ocean_static file without mask table:
+  # Path to existing open boundary condition data:
+  #   open_boundary_files: /work/acr/mom6/nwa12/glorys/updated
+  #   # Path to ocean_static file without mask table:
   ocean_static: /work/Dmitry.Dukhovskoy/NEP_input/topo_grid/ocean_static.nc
   # Path to the nudged analysis simulation that will be used for initial conditions:
   analysis_history: /archive/Dmitry.Dukhovskoy/fre/NEP/2024_04
   # Path to model output from individual forecast simulations:
   forecast_history: /archive/Dmitry.Dukhovskoy/fre/NEP/2024_04/NEP_forecast_2024-04_{year}-{month:02d}-e{ensemble:02d}/gfdl.ncrc5-intel22-prod/history/
+  # Path to SPEAR extracted monthly fields:
+  spear_month_ens: /work/Dmitry.Dukhovskoy/tmp/spear_subset/
+  # Path to SPEAR --> MOM6 OB gmapi indices for bilinear interpolation:
+  spear_mom_gmapi: /work/Dmitry.Dukhovskoy/NEP_input/spear_obc
+

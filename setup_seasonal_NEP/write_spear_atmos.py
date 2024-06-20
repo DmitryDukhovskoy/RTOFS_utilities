@@ -1,7 +1,7 @@
 """
 
   Original  Code by Andrew C. Ross
-  Editted to straightforward the logic and code readibility
+  Modified and edited to straightforward the logic and make it work for ipython
 
   the forecasts are forced from the atmosphere by different ensemble members 
   of GFDL's SPEAR seasonal prediction system. The SPEAR data is stored on 
@@ -34,12 +34,13 @@ try:
 except subprocess.CalledProcessError as err:
   print("Need to load module cdo prior to python session")
   print(err)
+  raise Exception("cdo module is missing")
 
 
 # Specify year, month, ensembles to 
 # generate atm fields from SPEAR 
-yr1     = 1995
-yr2     = 1995
+yr1     = 2006
+yr2     = 2006
 MM      = [1,4,7,10]
 ensmb   = [1,2,3,4,5,6,7,8,9,10]
 fconfig = 'config_nep.yaml'

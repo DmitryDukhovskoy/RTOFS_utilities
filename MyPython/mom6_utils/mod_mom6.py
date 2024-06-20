@@ -83,6 +83,10 @@ def read_mom6grid(fgrid, grdpnt='hgrid', grid='nonsymmetr'):
     elif grdpnt == 'vgrid':
       LON = XX[0::2, 1::2]
       LAT = YY[0::2, 1::2]
+  elif grid == 'supergrid':
+# supergrid is the same for all pnts, 
+    LON = XX
+    LAT = YY
 
   jdm = LAT.shape[0]
   idm = LAT.shape[1]
@@ -707,7 +711,7 @@ def fill_land3d(A3d, **kwargs):
   else:
     A2d = A3d[0,:,:].squeeze()
 
-  Inan = np.where(np.isnan(A2d.flatten()))[0]
+  Inan = np.where(np.isnan(A3d.flatten()))[0]
   nall = len(Inan)
   if nall == 0:  
     print('No nans found for land values')
@@ -760,7 +764,7 @@ def fill_land3d(A3d, **kwargs):
   A3df[0,:,:] = A2df
 
 # Fill deep layers:
-  print('Start filling deep laeyrs')
+#  print('Start filling deep laeyrs')
   for kk in range(1,kdim):
     A2d = A3df[kk,:,:].squeeze()
     JN,IN = np.where(np.isnan(A2d))

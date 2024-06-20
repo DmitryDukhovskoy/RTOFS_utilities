@@ -4,7 +4,9 @@
 # 
 # Keep fields on HYCOM vertical grid
 # 
-# Plot NEP domain on GOFS grid
+# For interpolation find mapping indices: 4 grid points on HYCOM grid around
+# MOM grid point
+# 
 import os
 import numpy as np
 import matplotlib.pyplot as plt

@@ -7,41 +7,48 @@ from pathlib import Path, PurePath
 ROOT = Path('/archive') / 'l1j' / 'spear_med' / 'rf_hist' / 'fcst' / 's_j11_OTA_IceAtmRes_L33'
 
 
-def get_spear_file(ystart, mstart, domain, freq, var):
-    """
-    Find the filename for SPEAR post-processed forecast output.
-    ystart: forecast start year
-    mstart: forecast start month
-    domain: diagnostic domain (e.g., ocean, ocean_z)
-    freq: output frequency (typically monthly or daily)
-    variable: post-processed diagnostic variable
-    """
-    ystart = int(ystart)
-    mstart = int(mstart)
-    # March files for leap years are named as if they start in February.
-    # Daily files are labeled as Feb 29. 
-    if isleap(ystart) and mstart == 3:
-        mstart_f = 2
-        dstart_f = 29
-    else:
-        mstart_f = mstart
-        dstart_f = 1
+def get_spear_file(ystart, mstart, domain, freq, var, fstr=False):
+  """
+  Find the filename for SPEAR post-processed forecast output.
+  ystart: forecast start year
+  mstart: forecast start month
+  domain: diagnostic domain (e.g., ocean, ocean_z)
+  freq: output frequency (typically monthly or daily)
+  variable: post-processed diagnostic variable
 
-    if mstart == 1:
-        yend = ystart
-        mend = 12
-    else:
-        yend = ystart + 1
-        mend = mstart - 1
+  fstr = True - return file name as a string
+  """
+  ystart = int(ystart)
+  mstart = int(mstart)
+  # March files for leap years are named as if they start in February.
+  # Daily files are labeled as Feb 29. 
+  if isleap(ystart) and mstart == 3:
+    mstart_f = 2
+    dstart_f = 29
+  else:
+    mstart_f = mstart
+    dstart_f = 1
 
-    dend_f = monthrange(yend, mend)[1]
+  if mstart == 1:
+    yend = ystart
+    mend = 12
+  else:
+    yend = ystart + 1
+    mend = mstart - 1
 
-    # monthly files don't have day in the filename, but daily do 
-    if freq == 'monthly':
-        fname = f'{domain}.{ystart}{mstart_f:02d}-{yend}{mend:02d}.{var}.nc'
-    elif freq == 'daily':
-        fname = f'{domain}.{ystart}{mstart_f:02d}{dstart_f:02d}-{yend}{mend:02d}{dend_f:02d}.{var}.nc'
-    return PurePath(fname)
+  dend_f = monthrange(yend, mend)[1]
+
+  # monthly files don't have day in the filename, but daily do 
+  if freq == 'monthly':
+    fname = f'{domain}.{ystart}{mstart_f:02d}-{yend}{mend:02d}.{var}.nc'
+  elif freq == 'daily':
+    fname = f'{domain}.{ystart}{mstart_f:02d}{dstart_f:02d}-{yend}{mend:02d}{dend_f:02d}.{var}.nc'
+  fname_posix = PurePath(fname)
+
+  if fstr:
+    return fname
+  else:
+    return fname_posix
 
 
 def get_spear_path(ystart, mstart, domain, freq, var, ens=None, root=ROOT):
