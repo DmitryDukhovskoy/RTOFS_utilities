@@ -61,15 +61,16 @@ def write_ds(ds, fout):
         unlimited_dims=['time']
     )
 
-
-def modulo(ds):
-    ds['time'] = np.arange(0, 365, dtype='float')
+def modulo(ds, ntsteps=365):
+  """
+    Add attributes for time var for climatology OBCs
+  """
+    ds['time'] = np.arange(0, ntsteps, dtype='float')
     ds['time'].attrs['units'] = 'days since 0001-01-01'
     ds['time'].attrs['calendar'] = 'noleap'
     ds['time'].attrs['modulo'] = ' '
     ds['time'].attrs['cartesian_axis'] = 'T'
     return ds
-
 
 def smooth_climatology(da, window=5):
     smooth = da.copy()

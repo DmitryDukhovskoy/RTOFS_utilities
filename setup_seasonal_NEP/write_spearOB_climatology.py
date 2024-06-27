@@ -37,8 +37,12 @@ sys.path.append(PPTHN + '/MyPython')
 sys.path.append(PPTHN + '/MyPython/mom6_utils')
 sys.path.append('./seasonal-workflow')
 from boundary import Segment
-import mod_mom6 as mom6util
-#importlib.reload(mom6util)
+import mod_time as mtime
+
+# Climatology derived for these years, started at mstart
+yr1    = 1993
+yr2    = 2020
+mstart = 1
 
 indir = Path('/work/acr/spear/processed/ensmean')
 outdir = Path('/work/acr/spear/climatology')
@@ -50,7 +54,8 @@ with open(fyaml) as ff:
 # MOM6 NEP topo/grid:
 pthtopo = gridfls['MOM6_NEP']['test']['pthgrid']
 fgrid   = gridfls['MOM6_NEP']['test']['fgrid']
-hgrid = xarray.open_dataset(os.path.join(pthtopo,fgrid))
+hgrid   = xarray.open_dataset(os.path.join(pthtopo,fgrid))
+hmask   = xarray.open_dataset(os.path.join(pthtopo, 'ocean_mask.nc')) 
 
 segments = [ Segment(1, 'north', hgrid, output_dir=outdir),
              Segment(2, 'east',  hgrid, output_dir=outdir),
@@ -59,14 +64,30 @@ segments = [ Segment(1, 'north', hgrid, output_dir=outdir),
 
 nOB = len(segments)
 
+# Time array for monthly clim:
+time_days = np.zeros((12))
+for mo in range(1,13):
+  jday = mtime.date2jday([yr1,mo,15])
+  time_days[mo-1] = jday
+
 # segments[0].__dict__
 
-static = xarray.open_dataset('/work/acr/spear/analysis/ocean_z.static.nc')
+#static = xarray.open_dataset('/work/acr/spear/analysis/ocean_z.static.nc')
+grid_spear = xarray.open_dataset('/work/Dmitry.Dukhovskoy/data/SPEAR/ocean_z.static.nc')
+icegrid_spear = xarray.open_dataset('/work/Dmitry.Dukhovskoy/data/SPEAR/ice.static.nc')
 
 fconfig = 'config_nep.yaml'
 with open(fconfig) as ff:
   config = safe_load(ff)
 spear_dir = os.path.join(config['filesystem']['spear_month_ens'], 'monthly_clim')
+
+# Domain lon/lat boundaries:
+#lonW = config['domain']['west_lon']
+#lonE = config['domain']['east_lon']
+#latN = config['domain']['north_lat']
+#latS = config['domain']['south_lat']
+
+
 
 # Check if mapping indices exist, gmapi:
 dirgmapi = config['filesystem']['spear_mom_gmapi']
@@ -79,7 +100,7 @@ dflgmapv = os.path.join(dirgmapi, flgmapv)
 # h-point indices
 if not os.path.isfile(dflgmaph):
   print(f'Mapping indices hpnt are missing, {dflgmaph}, deriving ...')
-  ds        = mutob.load_var(spear_dir, 'thetao')
+  ds        = mutob.load_var(spear_dir, 'thetao', yr1=yr1, yr2=yr2, mstart=mstart)
   lon_spear = ds.xh.data
   lat_spear = ds.yh.data
   mutob.spear2momOB_gmapi(segments, lon_spear, lat_spear, dflgmaph)
@@ -105,53 +126,114 @@ dsv = xarray.open_dataset(dflgmapv)
 
 icc = 0
 dsetOB = xarray.Dataset()
+for isgm in range(nOB):
+  nsgm = isgm+1
+  print(f'Processing lon/lat OB segment={nsgm}')
+  dset   = mutob.derive_obsegm_lonlat(hgrid, segments, isgm)
+  dsetOB = xarray.merge([dsetOB, dset])
+
 for varnm in ['thetao', 'so']:
-# Load monthly climaotology SPEAR data subset for NEP
-  ds = mutob.load_var(spear_dir, varnm)
+# Load monthly climatology SPEAR data subset for NEP
+  ds = mutob.load_var(spear_dir, varnm, fzint=True)
 
   for isgm in range(nOB):
     nsgm   = isgm+1
     print(f'Processing {varnm} OB segment={nsgm}')
     INDX   = dsh[f'indx_segm{nsgm:03d}'].data
     JNDX   = dsh[f'jndx_segm{nsgm:03d}'].data
-    dset   = mutob.derive_obsegment(hgrid, ds, segments, isgm, varnm, INDX, JNDX)
+    dset   = mutob.derive_obsegm_3D(hgrid, ds, segments, isgm, varnm, INDX, JNDX)
 #    dset   = xarray.Dataset({f"{varnm}_segment_{nsgm:03d}": darr})
     dsetOB = xarray.merge([dsetOB, dset])
 
 # Ssh - 1D sections
+# Load monthly climatology SPEAR data subset for NEP
+ds = mutob.load_var(spear_dir, 'ssh', fzint=False)
+
+for isgm in range(nOB):
+  nsgm  = isgm+1
+  print(f'Processing ssh OB segment={nsgm}')
+  INDX   = dsh[f'indx_segm{nsgm:03d}'].data
+  JNDX   = dsh[f'jndx_segm{nsgm:03d}'].data
+  dset   = mutob.derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX)
+#    dset   = xarray.Dataset({f"{varnm}_segment_{nsgm:03d}": darr})
+  dsetOB = xarray.merge([dsetOB, dset])
+
+
+# Plot rot angles:
+f_plt = False
+if f_plt: mutob.plot_rotangle(grid_spear, icegrid_spear)
+f_pltNEP = False
+if f_pltNEP: mutob.plot_rotangleNEP(hgrid, hmask)
 
 # UV fields
+# Derive rotation angle, rad and components of the rotation matrix
+# for rotating vectors onto true N/E grid from SPEAR
+r2d = 180./np.pi
+theta_rot, cosrot, sinrot = mutob.get_rotangle(icegrid_spear, fconfig, grid_spear)
+print(f"Rotation angle for SPEAR min/max: {np.min(theta_rot)*r2d:6.2f} " + \
+      f"/ {np.max(theta_rot)*r2d:6.2f}")
 
+# Load monthly climatology SPEAR data subset for NEP
+ds_uo = mutob.load_var(spear_dir, 'uo', fzint=True)
+ds_vo = mutob.load_var(spear_dir, 'vo', fzint=True)
 
-  climo = compute_climatology(ds)
-  climo = add_coords(climo)
-  # this wont work if using daily SSH
-  for mon in [3, 6, 9, 12]:
-    print(f'  month {mon:02d}')
-    mon_data = climo.sel(month=mon)
-    mon_data = add_valid_time(mon_data)
-    for seg in segments:
-      print('    ' + seg.segstr)
-      regridded = seg.regrid_tracer(
-          mon_data,
-          regrid_suffix='spear_tracer',
-          write=False
-      )
-      seg.to_netcdf(regridded, f'spear_{varnm}_i{mon:02d}_climo')
+for varnm in ['u', 'v']:
+  for isgm in range(nOB):
+    nsgm   = isgm+1
+    print(f'Processing {varnm} OB segment={nsgm}')
 
-print('uv')
-u_climo = add_coords(compute_climatology(load_var('uo')))
-v_climo = add_coords(compute_climatology(load_var('vo')))
-for mon in [3, 6, 9, 12]:
-    print(f'  month {mon:02d}')
-    u_mon = add_valid_time(u_climo.sel(month=mon))
-    v_mon = add_valid_time(v_climo.sel(month=mon))
-    for seg in segments:
-        print('    ' + seg.segstr)
-        regridded = seg.regrid_velocity(
-            u_mon, v_mon,
-            regrid_suffix='spear_velocity',
-            write=False
-        )
-        seg.to_netcdf(regridded, f'spear_uv_i{mon:02d}_climo')
+    if varnm == 'u':
+      INDX  = dsu[f'indx_segm{nsgm:03d}'].data
+      JNDX  = dsu[f'jndx_segm{nsgm:03d}'].data
+    elif varnm == 'v':
+      INDX  = dsv[f'indx_segm{nsgm:03d}'].data
+      JNDX  = dsv[f'jndx_segm{nsgm:03d}'].data
+
+    dset   = mutob.derive_obsegm_uv(hgrid, ds_uo, ds_vo, segments, isgm, theta_rot,\
+                                    varnm, INDX, JNDX)
+    dsetOB = xarray.merge([dsetOB, dset])
+
+for varnm in ['thetao','so','u','v']:
+  for segm in [1,2,3,4]:
+    vv  = f"{varnm}_segment_{segm:03d}"
+    vdz = f"dz_{varnm}_segment_{segm:03d}"
+    dm1 = f'lat_segment_{segm:03d}'
+    dm2 = f'lon_segment_{segm:03d}'
+    dsetOB[vv].attrs["coordinates"] = f"{dm1} {dm2}"
+    dsetOB[vdz].attrs["coordinates"] = f"{dm1} {dm2}"
+
+varnm='zos'
+for segm in [1,2,3,4]:
+  vv  = f"{varnm}_segment_{segm:03d}"
+  dm1 = f'lat_segment_{segm:03d}'
+  dm2 = f'lon_segment_{segm:03d}'
+  dsetOB[vv].attrs["coordinates"] = f"{dm1} {dm2}"
+
+dsetOB.attrs["history"] = f"Created from SPEAR monthly clim {yr1}-{yr2}"
+dsetOB.attrs["code"] = f"/home/Dmitry.Dukhovskoy/python/setup_seasonal_NEP/write_spearOB_climatology.py"
+
+encode = {
+  'time': dict(dtype='float64', _FillValue=1.0e20)
+}
+for varnm in ['lon','lat']:
+  for segm in [1, 2, 3, 4]:
+    encode.update({
+      f'{varnm}_segment_{segm:03d}': dict(dtype='float64', _FillValue=1.0e20)
+    })
+for varnm in ['zos', 'thetao', 'so', 'u', 'v']:
+  for segm in [1, 2, 3, 4]:
+    encode.update({
+    f'{varnm}_segment_{segm:03d}': dict(_FillValue=1.0e20),
+#    f'{varnm}_segment_{segm:03d}': dict(coordinates=f"lat_segment_{segm:03d} lon_segment_{segm:03d}")
+    })
+
+pthoutp = gridfls['MOM6_NEP']['seasonal_fcst']['pthoutp']
+fobc_out = os.path.join(pthoutp,f'OBCs_spear_clim_{yr1}-{yr2}_mstart{mstart:02d}.nc')
+print(f'Saving OBCs ---> {fobc_out}')
+dsetOB.to_netcdf(fobc_out, 
+                 format='NETCDF3_64BIT', 
+                 engine='netcdf4', 
+                 encoding=encode, 
+                 unlimited_dims='time')
+
 

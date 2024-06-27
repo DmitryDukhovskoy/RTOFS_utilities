@@ -111,10 +111,8 @@ for ystart in range(yr1,yr2+1):
         for f in extracted_files:
           print(f'{str(f)}')
           #open
-          ds = (
-              xarray.open_dataset(f)
-              .sel(lat=lat_slice, lon=lon_slice)
-          )
+          ds = xarray.open_dataset(f).sel(lat=lat_slice, lon=lon_slice)
+
           # Need to mask just the variable of interest and not the
           # coordinate/metadata variables 
           main_var = [x for x in ds.data_vars if len(ds[x].dims)==3][0]
