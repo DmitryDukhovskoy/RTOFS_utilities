@@ -283,6 +283,42 @@ def zz_zm_fromDP(dH, ssh, f_intrp=False, f_btm=True, f_ssh = True, \
 
   return ZZ, ZM
 
+def zz_zm_fromDZ(dZ, depth_negate = True):
+  """
+    Simple algorithm for getting layer interface depths (zz) and mid-point depths (zm)
+    from layer thicknesses (dZ)
+    in dZ 1st dimension is depth 
+    No bottom / ssh 
+  """
+  ndim = len(dZ.shape)
+  if ndim > 3:
+    raise Exception(f"Input dZ dim={ndim}, cannot be > 3")
+
+  dim2 = 1
+  dim3 = 1
+  if ndim == 1:
+    dim1 = dZ.shape[0]
+  elif ndim == 2:
+    dim1, dim2 = dZ.shape
+  elif ndim == 3:
+    dim1, dim2, dim3 = dZ.shape
+
+  ZZ = np.zeros((dim1+1,dim2,dim3)).squeeze()
+  ZM = np.zeros((dim1,dim2,dim3)).squeeze()
+  if depth_negate: dZ = -(abs(dZ))
+
+  if ndim == 1:
+    for kk in range(dim1): 
+      ZZ[kk+1] = ZZ[kk] + dZ[kk]
+      ZM[kk]   = 0.5*(ZZ[kk+1] + ZZ[kk])
+  else:
+    for kk in range(dim1): 
+      ZZ[kk+1,:] = ZZ[kk,:] + dZ[kk,:]
+      ZM[kk,:]   = 0.5*(ZZ[kk+1,:] + ZZ[kk,:])
+
+  return ZZ, ZM
+    
+
 def get_zz_zm(fina, f_btm=True, **kwargs):
   """
     Derive layer depths: ZZ - interface depths,
@@ -544,12 +580,12 @@ def collocateU2H(A2d, grid_shape, f_land0 = True):
     Collocation is done "as is", i.e.
     land values will be brought into H-point as is
     If these are nans or some filled values - double checl
-    f_land0 = Replace land values (nans) with 0 - good for u/v but 
+    f_land0 = Replace land values (nans) with 0 - ok for u/v but 
               not for T/S
 
     grid_shape = symmetr/ nonsymmetr
 
-    HYCOM grid:
+    MOM6 grid:
 
      Q(i-1,j) V(i,j)     Q(i,j)
      * -------|----------*
@@ -653,10 +689,13 @@ def collocateV2H(A2d, grid_shape, f_land0 = True):
 
   return A2dP
 
-def fill_land3d(A3d, **kwargs):
+def fill_land3d(A3d, vert2d=False,  **kwargs):
   """
     Fill NaNs with closest values
     2D or 3D arrays allowed
+    by default 2D is horizontal field and no bottom filled values performed
+    for vertical 2D sections make vert2d True
+
     First, the 1st layer is filled - land values interpolated from the closest ocean points
     Next (for 3D arrays) - below 1st layer: values are filled with the 1st lr value
  
@@ -711,6 +750,7 @@ def fill_land3d(A3d, **kwargs):
   else:
     A2d = A3d[0,:,:].squeeze()
 
+
   Inan = np.where(np.isnan(A3d.flatten()))[0]
   nall = len(Inan)
   if nall == 0:  
@@ -723,7 +763,6 @@ def fill_land3d(A3d, **kwargs):
 #    I1 = Inan[ikk]
 #    jj, ii = np.unravel_index(I1, (jdim,idim))
 #    kcc += 1
-
     imss = np.where(np.isnan(A2d[jj,:]))[0]
     nmss = len(imss)
     if nmss == 0: continue
@@ -732,6 +771,21 @@ def fill_land3d(A3d, **kwargs):
     i1d  = np.where(~np.isnan(A2d[jj,:]))[0]
     v1d  = A2d[jj,i1d]
 # Add endpoints for interpolation:
+#    print(f'jj={jj} len i1d={len(i1d)}')
+    if len(i1d) == 0:
+# Case all nans - wall OB or 2D vertical section below bottom
+# try above row or overall mean
+      v1d = np.zeros((2))
+      i1d = np.zeros((2))
+      i1d[0] = 0
+      i1d[1] = idim-1
+      if jj > 0:
+        v1d[0] = A2d[jj-1,0]
+        v1d[1] = A2d[jj-1,-1]
+      else:
+        v1d[0] = np.nanmean(A2d)
+        v1d[1] = np.nanmean(A2d)
+ 
     if not i1d[0] == 0:
       v1d = np.insert(v1d,0,v1d[0])
       i1d = np.insert(i1d,0,0)

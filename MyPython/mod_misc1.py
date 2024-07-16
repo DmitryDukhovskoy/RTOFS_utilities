@@ -1053,6 +1053,39 @@ def match_indices(IIr,JJr,LONr,LATr,LON,LAT):
 
   return II, JJ
 
+def find_closest_indx(LONr,LATr,LON,LAT):
+  """
+    Given lon/lat of points in LONr, LATr 1D arrays
+    Find corresponding (closest) on LON/LAT grid
+    LON, LAT - 1D (for Mercator grid) or 2D arrays
+  """
+  if type(LONr) == list:
+    LONr = np.array(LONr)
+  if type(LATr) == list:
+    LATr = np.array(LATr)
+
+  if len(LON.shape) == 1:
+    LAT, LON = np.meshgrid(LAT, LON, indexing='ij') 
+  elif len(LON.shape) > 2:
+    raise Exception("Dim of LON/LAT should be 1 or 2")
+
+  npnts = len(LONr)
+  II = (np.zeros((npnts))-999).astype(int)
+  JJ = (np.zeros((npnts))-999).astype(int)
+  for ii in range(npnts):
+    x0 = LONr[ii]
+    y0 = LATr[ii]
+
+    DST  = dist_sphcrd(y0, x0, LAT, LON)    
+    jmin, imin = np.where(DST == np.min(DST))
+    jmin = jmin[0]
+    imin = imin[0]
+
+    II[ii] = int(imin)
+    JJ[ii] = int(jmin)
+
+  return II, JJ
+
 def orientation(A,B,C):
   """
     Given 3 points: A(ax,ay), B(bx,by), C(cx,cy)
@@ -1074,11 +1107,49 @@ def orientation(A,B,C):
                           D>0 - point C is to the left
                           D=0 - point C is on the line AB
   """
-  ax, ay = A[0], A[1]
-  bx, by = B[0], B[1]
-  cx, cy = C[0], C[1]
+  ax, ay = A
+  bx, by = B
+  cx, cy = C
   
   D = (ax-cx)*(by-cy)-(ay-cy)*(bx-cx);
 
   return D
+
+def vector_projection(A, B):
+  """
+    Vector projection of A on vector B
+    A, B are 2-element arrays
+  """
+  ndim = len(A.shape)
+  if ndim == 1: A = np.expand_dims(A, axis=1)
+  ndim = len(B.shape)
+  if ndim == 1: B = np.expand_dims(B, axis=1)
+
+  lA = np.sqrt(np.dot(A.transpose(),A))[0][0]
+  lB = np.sqrt(np.dot(B.transpose(),B))[0][0]
+
+  cosT = np.dot(A.transpose(), B)[0][0]/(lA*lB)
+  prA  = lA*cosT
+  tht_deg = np.arccos(cosT)*180./np.pi
+
+  return prA, cosT, tht_deg
+
+def construct_vector(pnt1, pnt2, vect21=True):
+  """
+    Given 2 pnts, construct a vector from (x1,y1) --> (x2,y2)
+    pnt1, pnt2 - lists or np arrays (2 elements)
+    vect21 = return a 2,1 array for linear algebra operations
+    otherwise (2,0) array
+  """
+  x1, y1 = pnt1
+  x2, y2 = pnt2
+  Av = np.array([x2-x1,y2-y1])
+  if vect21:
+    Av = np.expand_dims(Av, axis=1)
+
+  return Av
+
+
+
+
 

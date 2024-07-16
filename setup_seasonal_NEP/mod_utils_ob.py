@@ -8,6 +8,8 @@ import importlib
 import numpy as np
 import sys
 import matplotlib.pyplot as plt
+from yaml import safe_load
+
 #import pickle
 PPTHN = []
 if len(PPTHN) == 0:
@@ -21,8 +23,10 @@ sys.path.append(PPTHN + '/MyPython')
 sys.path.append(PPTHN + '/MyPython/mom6_utils')
 sys.path.append('./seasonal-workflow')
  
+import mod_misc1 as mmisc1
 import mod_mom6 as mom6util
 importlib.reload(mom6util)
+from mod_utils_fig import bottom_text
 
 def load_var(spear_dir, varnm, yr1=1993, yr2=2020, mstart=1, fzint=False):
   """
@@ -85,6 +89,7 @@ def spear2momOB_gmapi(segments, lon_spear, lat_spear, dflout, fsave=True):
   nsgm = len(segments)
   for ii in range(nsgm):
     isgm = ii+1
+#    print(f"Segm = {isgm}")
     dset_segm = segments[ii]
     xOB   = dset_segm.coords.lon.data
     yOB   = dset_segm.coords.lat.data
@@ -93,9 +98,10 @@ def spear2momOB_gmapi(segments, lon_spear, lat_spear, dflout, fsave=True):
     INDX = np.zeros((npnts,4)).astype(int)-999
     JNDX = np.zeros((npnts,4)).astype(int)-999
     for ikk in range(npnts):
+      print(f"segment={isgm} ikk = {ikk}")
       x0 = xOB[ikk]
       y0 = yOB[ikk]
-      ixx, jxx = mrmom.find_gridpnts_box(x0, y0, lon_spear, lat_spear, dhstep=0.8) 
+      ixx, jxx = mrmom.find_gridpnts_box(x0, y0, lon_spear, lat_spear, dhstep=1.) 
       INDX[ikk,:] = ixx
       JNDX[ikk,:] = jxx
 
@@ -129,8 +135,8 @@ def spear2momOB_gmapi(segments, lon_spear, lat_spear, dflout, fsave=True):
 #      ax1.plot(x0,y0,'r*')
         ixx = INDX[ikk,:]
         jxx = JNDX[ikk,:]
-        xv  = np.append(lon_spear[ixx], lon_spear[ixx[0]])
-        yv  = np.append(lat_spear[jxx], lat_spear[jxx[0]])
+        xv  = np.append(lon_spear[jxx,ixx], lon_spear[jxx[0],ixx[0]])
+        yv  = np.append(lat_spear[jxx,ixx], lat_spear[jxx[0],ixx[0]])
         ax1.plot(xv, yv, 'o-')
 
       ax1.axis('scaled')
@@ -190,7 +196,7 @@ def derive_obsegm_lonlat(hgrid, segments, isgm):
 
  
 
-def derive_obsegm_3D(hgrid, ds, segments, isgm, varnm, INDX, JNDX, icegrid=[], rot_angle=[]):
+def derive_obsegm_3D(hgrid, ds, segments, isgm, varnm, INDX, JNDX, time_steps=[]):
   """
     Derive data set for an OB segment = isgm for variable = varnm
     Scalar (h-point) or u/v 3D fields (+ time dim)  --> 2D vertical sections 
@@ -198,13 +204,9 @@ def derive_obsegm_3D(hgrid, ds, segments, isgm, varnm, INDX, JNDX, icegrid=[], r
     hgrid - topo/grid for the climatology field (MOM6 NEP grid)
     segments - xarray with information for OB segments created in boundary.Segment
     isgm - segment # [0, 1, ...]
+    time_steps - array of time (days, or hours, or sec) since .... 
 
     INDX, JNDX - n x 4 arrays of grid points (gmapi) for bilinear interpolation
-
-    icegrid - spear static file with grid info, need rotation angles for
-              U-vectors rotation onto MOM NEP grid from SPEAR
-              alternatively, rotation angle rot_angle is provided
-              angle is from J-axis to true North dir (math convention + is c/clockwise)
 
  Use bilinear interpolation 
  Points are mapped onto a reference square for interpolation then 
@@ -234,17 +236,13 @@ def derive_obsegm_3D(hgrid, ds, segments, isgm, varnm, INDX, JNDX, icegrid=[], r
 # Make sure that gmapi is for the right section:
   assert npnts==len(INDX), "INDX and OB segments mismatch in length"
 
-# SPEAR grid coords:
-  if varnm == 'uo':
-    xSP   = ds.xq.data
-    ySP   = ds.yh.data
-  elif varnm == 'vo':
-    xSP   = ds.xh.data
-    ySP   = ds.yq.data
-  else:
-    xSP   = ds.xh.data
-    ySP   = ds.yh.data
- 
+# Read SPEAR grid, topo
+#  HHS, LONs, LATs = subset_spear_topo()
+  LONs, LATs = subset_spear_coord('h')
+# Make Longitudes same range:
+  xOB = np.where(xOB<0., xOB+360., xOB)
+  LONs = np.where(LONs<0., LONs+360., LONs)
+
   dtm   = ds.time.data
   AA    = ds[f'{varnm}'].data
   ntime = len(dtm) 
@@ -259,7 +257,7 @@ def derive_obsegm_3D(hgrid, ds, segments, isgm, varnm, INDX, JNDX, icegrid=[], r
 
   dz3d = np.tile(dz2d,(ntime,1,1))
 
-# Assuming 3D arrays and time dimenstion:
+# Assuming 3D arrays and time dimension:
   ndim = len(AA.shape)
   if ndim < 4:
     raise Exception(f'4D array (time, depth, y, x) is assumed, check array dim')
@@ -269,7 +267,7 @@ def derive_obsegm_3D(hgrid, ds, segments, isgm, varnm, INDX, JNDX, icegrid=[], r
   Ai = np.zeros((ntime,nzlev,ny,nx))+1.e30
 
   for itime in range(ntime):
-    print(f'Time = {itime+1}')
+    print(f'OBsegment = {nsgm} Time = {itime+1}')
     A   = AA[itime,:]
 # Fill missing values (bottom/land):
     dmm =  mom6util.fill_land3d(A)
@@ -283,21 +281,57 @@ def derive_obsegm_3D(hgrid, ds, segments, isgm, varnm, INDX, JNDX, icegrid=[], r
       y0 = yOB[ikk]
       II = np.squeeze(INDX[ikk,:])
       JJ = np.squeeze(JNDX[ikk,:])
-      II, JJ = mblnr.sort_gridcell_indx(II,JJ)
-      ii1, jj1 = II[0], JJ[0]
-      ii2, jj2 = II[1], JJ[1]
-      ii3, jj3 = II[2], JJ[2]
-      ii4, jj4 = II[3], JJ[3]
+#      II, JJ = mblnr.sort_gridcell_indx(II,JJ)
+      ii1, ii2, ii3, ii4 = II
+      jj1, jj2, jj3, jj4 = JJ
+#      ii1, jj1 = II[0], JJ[0]
+#      ii2, jj2 = II[1], JJ[1]
+#      ii3, jj3 = II[2], JJ[2]
+#      ii4, jj4 = II[3], JJ[3]
 
-      xx = xSP[II]
-      yy = ySP[JJ]
+      xx = LONs[JJ,II]
+      yy = LATs[JJ,II]
 
 # Use cartesian coordinates for mapping
       if x0 < 0.: x0 = x0+360.
       xx = np.where(xx<0., xx+360., xx)
-      XV, YV, x0c, y0c = mblnr.lonlat2xy_wrtX0(xx, yy, x0, y0)
-      xht, yht = mblnr.map_x2xhat(XV, YV, x0c, y0c)   # cartesian coord
+      f_repeated= check_repeated_vertices(xx,yy)
+      if f_repeated:
+        print(f"Bad box with coninciding vertices ikk={ikk}, approximate interpolation")
+        xht = 1.e-3
+        yht = 1.e-3
+      else:
+        xref     = x0-0.1
+        yref     = y0-0.1
+        XV, YV   = mblnr.lonlat2xy_wrtX0(xx, yy, xref, yref)
+        x0c, y0c = mblnr.lonlat2xy_pnt(x0, y0, xref, yref)
+        xht, yht = mblnr.map_x2xhat(XV, YV, x0c, y0c)   # cartesian coord
+  #      INp      = mmisc1.inpolygon_1pnt(x0c, y0c, XV, YV)
+  #      INp2    = mmisc1.inpolygon_1pnt(x0, y0, XX, YY)
+  # If the grid point inside the box, then mapping is the problem
+  # if not - then these are a few cases near singularities of SPEAR I/J axes
+  # over land where bounding boxes could not be located 
+  # In a few cases, box coordinates may repeat due to SPEAR singular I/J grid
+  # that does not change coordinates for I/J near singular regions (boxes are triangulars)
+  # THis results in singular matrix A for mappring
+  # For very thin  rotated, skewed quadrilaterals mapping does not work well
+  # Try to rotate the quadrilateral
+        if abs(xht) > 1 or abs(yht) > 1:
+          xht0 = xht
+          yht0 = yht
+          XVr, YVr, x0r, y0r  = rotate_box(XV, YV, x0c, y0c)
+          xht, yht = mblnr.map_x2xhat(XVr, YVr, x0r, y0r)
+#        print(f"ERR: ikk={ikk} Mapping ref box xht={xht0:5.1f} yht={yht0:5.1f}, fixed " +\
+#              f" xht={xht:5.1f}, yht={yht:5.1f}")
 
+        if abs(xht) > 1. or abs(yht) > 1.:
+# If nothing works, interpolate into the center
+# these should be very rare for locations on land where I / J axes converge 
+          print(f"Fixing by rotating ref BOX failed ikk={ikk} " +\
+                f"xht={xht:5.1f} yht={yht:5.1f}, approximate xhy, yht as middle pnt")
+          xht = 1.e-3
+          yht = 1.e-3
+        
       aa1 = np.squeeze(A3d[:,jj1,ii1])
       aa2 = np.squeeze(A3d[:,jj2,ii2])
       aa3 = np.squeeze(A3d[:,jj3,ii3])
@@ -326,7 +360,10 @@ def derive_obsegm_3D(hgrid, ds, segments, isgm, varnm, INDX, JNDX, icegrid=[], r
     dz3d = np.expand_dims(dz3d, axis=3)
   nxsgm = [x for x in range(0,nx)]
   nysgm = [x for x in range(0,ny)]
-  stime = [x for x in range(1,ntime+1)]
+  if len(time_steps) == 0:
+    stime = [x for x in range(1,ntime+1)]
+  else:
+    stime = time_steps
   nzsgm = [x for x in range(0,nzlev)]
   sgmnm = f"segment_{nsgm:03d}"
   dim1  = "time"
@@ -344,7 +381,7 @@ def derive_obsegm_3D(hgrid, ds, segments, isgm, varnm, INDX, JNDX, icegrid=[], r
   return dset_segm
    
  
-def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX):
+def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=[]):
   """
     Derive data set for an OB segment = isgm for variable = varnm
     SSH fields at h-points 2D fields --> 1D OB segment 
@@ -376,10 +413,13 @@ def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX):
 # Make sure that gmapi is for the right section:
   assert npnts==len(INDX), "INDX and OB segments mismatch in length"
 
-# SPEAR grid coords:
-  xSP   = ds.xh.data
-  ySP   = ds.yh.data
- 
+# Read SPEAR grid, topo
+#  HHS, LONs, LATs = subset_spear_topo()
+  LONs, LATs = subset_spear_coord('h')
+# Make Longitudes same range:
+  xOB = np.where(xOB<0., xOB+360., xOB)
+  LONs = np.where(LONs<0., LONs+360., LONs)
+
   dtm   = ds.time.data
   AA    = ds['ssh'].data
   ntime = len(dtm) 
@@ -406,20 +446,37 @@ def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX):
       y0 = yOB[ikk]
       II = np.squeeze(INDX[ikk,:])
       JJ = np.squeeze(JNDX[ikk,:])
-      II, JJ = mblnr.sort_gridcell_indx(II,JJ)
-      ii1, jj1 = II[0], JJ[0]
-      ii2, jj2 = II[1], JJ[1]
-      ii3, jj3 = II[2], JJ[2]
-      ii4, jj4 = II[3], JJ[3]
+#      II, JJ = mblnr.sort_gridcell_indx(II,JJ)
+      ii1, ii2, ii3, ii4 = II
+      jj1, jj2, jj3, jj4 = JJ
 
-      xx = xSP[II]
-      yy = ySP[JJ]
+      xx = LONs[JJ,II]
+      yy = LATs[JJ,II]
 
 # Use cartesian coordinates for mapping
       if x0 < 0.: x0 = x0+360.
       xx = np.where(xx<0., xx+360., xx)
-      XV, YV, x0c, y0c = mblnr.lonlat2xy_wrtX0(xx, yy, x0, y0)
+      xref     = x0-0.1
+      yref     = y0-0.1
+      XV, YV   = mblnr.lonlat2xy_wrtX0(xx, yy, xref, yref)
+      x0c, y0c = mblnr.lonlat2xy_pnt(x0, y0, xref, yref)
       xht, yht = mblnr.map_x2xhat(XV, YV, x0c, y0c)   # cartesian coord
+# if mapping does not work Try to rotate the quadrilateral
+      if abs(xht) > 1 or abs(yht) > 1:
+        xht0 = xht
+        yht0 = yht
+        XVr, YVr, x0r, y0r  = rotate_box(XV, YV, x0c, y0c)
+        xht, yht = mblnr.map_x2xhat(XVr, YVr, x0r, y0r)
+#        print(f"ERR: ikk={ikk} Mapping ref box xht={xht0:5.1f} yht={yht0:5.1f}, fixed " +\
+#              f" xht={xht:5.1f}, yht={yht:5.1f}")
+
+        if abs(xht) > 1. or abs(yht) > 1.:
+# If nothing works, interpolate into the center
+# these should be very rare for locations on land where I / J axes converge 
+          print(f"Fixing by rotating ref BOX failed ikk={ikk} " +\
+                f"xht={xht:5.1f} yht={yht:5.1f}, approximate xhy, yht as middle pnt")
+          xht = 1.e-3
+          yht = 1.e-3
 
       aa1 = np.squeeze(A2d[jj1,ii1])
       aa2 = np.squeeze(A2d[jj2,ii2])
@@ -445,7 +502,10 @@ def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX):
 # Construct data set:
   nxsgm = [x for x in range(0,nx)]
   nysgm = [x for x in range(0,ny)]
-  stime = [x for x in range(1,ntime+1)]
+  if len(time_steps)==0:
+    stime = [x for x in range(1,ntime+1)]
+  else:
+    stime = time_steps
   sgmnm = f"segment_{nsgm:03d}"
   dim1  = "time"
   dim2  = f"ny_{sgmnm}"
@@ -456,7 +516,8 @@ def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX):
 
   return dset_segm
 
-def derive_obsegm_uv(hgrid, ds_uo, ds_vo, segments, isgm, theta_rot, varnm, INDX, JNDX):
+def derive_obsegm_uv(hgrid, ds_uo, ds_vo, segments, isgm, theta_rot, varnm, \
+                     INDX, JNDX, time_steps=[]):
   """
     Derive data set for an OB segment = isgm for U and V components
     Scalar (h-point) or u/v 3D fields (+ time dim)  --> 2D vertical sections 
@@ -500,13 +561,15 @@ def derive_obsegm_uv(hgrid, ds_uo, ds_vo, segments, isgm, theta_rot, varnm, INDX
 # SPEAR grid coords:
 # SPEAR grid coords:
   if varnm == 'u':
-    xSP   = ds_uo.xq.data
-    ySP   = ds_uo.yh.data
+    LONs, LATs = subset_spear_coord('u')
     ds    = ds_uo
   elif varnm == 'v':
-    xSP   = ds_vo.xh.data
-    ySP   = ds_vo.yq.data
+    LONs, LATs = subset_spear_coord('v')
     ds    = ds_vo
+
+# Make Longitudes same range:
+  xOB = np.where(xOB<0., xOB+360., xOB)
+  LONs = np.where(LONs<0., LONs+360., LONs)
 
   dtm   = ds.time.data
   ntime = len(dtm) 
@@ -567,20 +630,52 @@ def derive_obsegm_uv(hgrid, ds_uo, ds_vo, segments, isgm, theta_rot, varnm, INDX
       y0 = yOB[ikk]
       II = np.squeeze(INDX[ikk,:])
       JJ = np.squeeze(JNDX[ikk,:])
-      II, JJ = mblnr.sort_gridcell_indx(II,JJ)
-      ii1, jj1 = II[0], JJ[0]
-      ii2, jj2 = II[1], JJ[1]
-      ii3, jj3 = II[2], JJ[2]
-      ii4, jj4 = II[3], JJ[3]
+#      II, JJ = mblnr.sort_gridcell_indx(II,JJ)
+      ii1, ii2, ii3, ii4 = II
+      jj1, jj2, jj3, jj4 = JJ
 
-      xx = xSP[II]
-      yy = ySP[JJ]
+      xx = LONs[JJ,II]
+      yy = LATs[JJ,II]
 
 # Use cartesian coordinates for mapping
       if x0 < 0.: x0 = x0+360.
       xx = np.where(xx<0., xx+360., xx)
-      XV, YV, x0c, y0c = mblnr.lonlat2xy_wrtX0(xx, yy, x0, y0)
-      xht, yht = mblnr.map_x2xhat(XV, YV, x0c, y0c)   # cartesian coord
+      f_repeated= check_repeated_vertices(xx,yy)
+      if f_repeated: 
+        print(f"Bad box with coninciding vertices ikk={ikk}, approximate interpolation")
+        xht = 1.e-3
+        yht = 1.e-3
+      else:
+        xref     = x0-0.1
+        yref     = y0-0.1
+        XV, YV   = mblnr.lonlat2xy_wrtX0(xx, yy, xref, yref)
+        x0c, y0c = mblnr.lonlat2xy_pnt(x0, y0, xref, yref)
+        xht, yht = mblnr.map_x2xhat(XV, YV, x0c, y0c)   # cartesian coord
+  #      INp      = mmisc1.inpolygon_1pnt(x0c, y0c, XV, YV)
+  #      INp2    = mmisc1.inpolygon_1pnt(x0, y0, XX, YY)
+  # If the grid point inside the box, then mapping is the problem
+  # if not - then these are a few cases near singularities of SPEAR I/J axes
+  # over land where bounding boxes could not be located 
+  # In a few cases, box coordinates may repeat due to SPEAR singular I/J grid
+  # that does not change coordinates for I/J near singular regions (boxes are triangulars)
+  # THis results in singular matrix A for mappring
+  # For very thin  rotated, skewed quadrilaterals mapping does not work well
+  # Try to rotate the quadrilateral
+        if abs(xht) > 1 or abs(yht) > 1:
+          xht0 = xht
+          yht0 = yht
+          XVr, YVr, x0r, y0r  = rotate_box(XV, YV, x0c, y0c)
+          xht, yht = mblnr.map_x2xhat(XVr, YVr, x0r, y0r)
+#        print(f"ERR: ikk={ikk} Mapping ref box xht={xht0:5.1f} yht={yht0:5.1f}, fixed " +\
+#              f" xht={xht:5.1f}, yht={yht:5.1f}")
+
+        if abs(xht) > 1. or abs(yht) > 1.:
+# If nothing works, interpolate into the center
+# these should be very rare for locations on land where I / J axes converge 
+          print(f"Fixing by rotating ref BOX failed ikk={ikk} " +\
+                f"xht={xht:5.1f} yht={yht:5.1f}, approximate xhy, yht as middle pnt")
+          xht = 1.e-3
+          yht = 1.e-3
 
 # Angle in radians!
       tht1 = theta_rot[jj1,ii1]
@@ -649,7 +744,10 @@ def derive_obsegm_uv(hgrid, ds_uo, ds_vo, segments, isgm, theta_rot, varnm, INDX
     dz3d = np.expand_dims(dz3d, axis=3)
   nxsgm = [x for x in range(0,nx)]
   nysgm = [x for x in range(0,ny)]
-  stime = [x for x in range(1,ntime+1)]
+  if len(time_steps) == 0:
+    stime = [x for x in range(1,ntime+1)]
+  else:
+    stime = time_steps
   nzsgm = [x for x in range(0,nzlev)]
   sgmnm = f"segment_{nsgm:03d}"
   dim1  = "time"
@@ -703,7 +801,6 @@ def get_rotangle(icegrid_spear, fconfig, grid_spear):
   from yaml import safe_load
   import matplotlib.pyplot as plt
   from matplotlib import colormaps
-  from mod_utils_fig import bottom_text
 
   with open(fconfig) as ff:
     config = safe_load(ff)
@@ -786,6 +883,164 @@ def get_rotangle(icegrid_spear, fconfig, grid_spear):
 
 
   return theta, cosrot, sinrot 
+
+def segm_topo(nsegm, HHM, hgrid):
+  """
+    Derive bottom profile, lon, lat along the OB segment
+  """
+  import mod_misc1 as mmsc1
+
+  if nsegm == 1:
+    bndry = 'north'
+  elif nsegm == 2:
+    bndry = 'east'
+  elif nsegm == 3:
+    bndry = 'south'
+  elif nsegm == 4:
+    bndry = 'west'
+  else:
+    raise Exception(f"N of boundaries should be 4 for NEP, nsegm={nsegm}")
+
+  if bndry == 'west':
+    lon_segm = hgrid['x'].isel(nxp=0).data
+    lat_segm = hgrid['y'].isel(nxp=0).data
+    Hbtm     = HHM[:,0].squeeze()
+  elif bndry == 'north':
+    lon_segm = hgrid['x'].isel(nyp=-1).data
+    lat_segm = hgrid['y'].isel(nyp=-1).data
+    Hbtm     = HHM[-1,:].squeeze()
+  elif bndry == 'east':
+    lon_segm = hgrid['x'].isel(nxp=-1).data
+    lat_segm = hgrid['y'].isel(nxp=-1).data
+    Hbtm     = HHM[:,-1].squeeze()
+  elif bndry == 'south':
+    lon_segm = hgrid['x'].isel(nyp=0).data
+    lat_segm = hgrid['y'].isel(nyp=0).data
+    Hbtm     = HHM[0,:].squeeze()
+
+# Calculate distance along the OB segment:
+  npnts = len(lat_segm)
+  dL = np.zeros((npnts))
+  for ikk in range(npnts-1):
+    dltX = mmsc1.dist_sphcrd(lat_segm[ikk], lon_segm[ikk], lat_segm[ikk+1], lon_segm[ikk+1])*1.e-3
+    dL[ikk+1] = dltX
+  dist_segm = np.cumsum(dL)
+#  dist_segm = mmsc1.dist_sphcrd(lat_segm[0], lon_segm[0], lat_segm, lon_segm)*1.e-3
+  dist_btm  = dist_segm[0:-1:2].copy()
+  if dist_btm[-1] < dist_segm[-1]:
+    dist_btm[-1] = dist_segm[-1]
+
+  nbpnts    = len(lon_segm)  # supergrid
+  nhpnts    = len(Hbtm)
+  dim1_name = 'supergrid_pnts'
+  dim2_name = 'grid_pnts'
+  nxsegm    = [x for x in range(nbpnts)]
+  nxbotm    = [x for x in range(nhpnts)]
+  darr_topo = xarray.DataArray(Hbtm, dims=(dim2_name), coords={dim2_name: nxbotm})
+  darr_lon  = xarray.DataArray(lon_segm, dims=(dim1_name), coords={dim1_name: nxsegm})
+  darr_lat  = xarray.DataArray(lat_segm, dims=(dim1_name), coords={dim1_name: nxsegm})
+  darr_dist = xarray.DataArray(dist_segm, dims=(dim1_name), coords={dim1_name: nxsegm})
+  darr_bdx  = xarray.DataArray(dist_btm, dims=(dim2_name), coords={dim2_name: nxbotm})
+  darr_name = xarray.DataArray([bndry], dims=("NL"), coords={"NL": [1]})
+
+  dset_segm = xarray.Dataset({"segm_name": darr_name, \
+                              "topo_segm": darr_topo, \
+                              "lon_segm": darr_lon, \
+                              "lat_segm": darr_lat, \
+                              "dist_supergrid": darr_dist, \
+                              "dist_grid": darr_bdx})
+
+  return dset_segm
+
+def discard_repeated_indx(II, JJ, keep_last=False):
+  """
+    Remove repeated indices, i.e. eliminate same grid points
+  """
+  npnts = len(II)
+  dL = np.zeros((npnts))
+  for ikk in range(npnts-1):
+    dltX = np.sqrt((II[ikk]-II[ikk+1])**2 + (JJ[ikk]-JJ[ikk+1])**2)
+    dL[ikk+1] = dltX
+
+# Eliminate same points:
+  dL[0] = 1.e-6
+  Ikeep = np.where(dL > 1.e-20)[0]  
+  Isub  = II[Ikeep]
+  Jsub  = JJ[Ikeep]
+  if keep_last:
+    if Isub[-1] != II[-1] and Jsub[-1] != JJ[-1]:
+      Isub = np.append(Isub, II[-1])
+      Jsub = np.append(Jsub, JJ[-1])
+
+  return Isub, Jsub
+
+
+def segm_topo_spear(II, JJ, lon_spear, lat_spear, HHS, nsegm=None):
+  """
+    Derive bottom profile, lon, lat along a  segment for SPEAR
+    nsegm - NEP OB segment # if needed
+    HHS - spear topo
+    lon_spear, lat_spear - lon/ lat of the domain (typically 2D arrays)
+    assumed to be at h-points - similar to topography
+  """
+  import mod_misc1 as mmsc1
+
+  if nsegm == 1:
+    bndry = 'north'
+  elif nsegm == 2:
+    bndry = 'east'
+  elif nsegm == 3:
+    bndry = 'south'
+  elif nsegm == 4:
+    bndry = 'west'
+  else:
+    bndry = 'SPEAR segment'
+ 
+  if len(lon_spear.shape) == 1:
+    lon_segm = lon_spear[II]
+    lat_segm = lat_spear[JJ]
+  else: 
+    lon_segm = lon_spear[JJ,II]
+    lat_segm = lat_spear[JJ,II]
+  Hbtm     = HHS[JJ,II]
+
+# Calculate distance along the OB segment:
+  npnts = len(lat_segm)
+  dL = np.zeros((npnts))
+  for ikk in range(npnts-1):
+    dltX = mmsc1.dist_sphcrd(lat_segm[ikk], lon_segm[ikk], lat_segm[ikk+1], lon_segm[ikk+1])*1.e-3
+    dL[ikk+1] = dltX
+
+# Eliminate same points:
+#  dL[0] = 1.e-6
+#  Ikeep = np.where(dL > 1.e-20)[0]  
+
+  dist_segm = np.cumsum(dL)
+#  dist_segm = mmsc1.dist_sphcrd(lat_segm[0], lon_segm[0], lat_segm, lon_segm)*1.e-3
+  dist_btm  = dist_segm.copy()
+  if dist_btm[-1] < dist_segm[-1]:
+    dist_btm[-1] = dist_segm[-1]
+
+  nbpnts    = len(lon_segm)  #
+  nhpnts    = len(Hbtm)
+  dim1_name = 'var_pnts'
+  dim2_name = 'hgrid_pnts'
+  nxsegm    = [x for x in range(nbpnts)]
+  nxbotm    = [x for x in range(nhpnts)]
+  darr_topo = xarray.DataArray(Hbtm, dims=(dim2_name), coords={dim2_name: nxbotm})
+  darr_lon  = xarray.DataArray(lon_segm, dims=(dim1_name), coords={dim1_name: nxsegm})
+  darr_lat  = xarray.DataArray(lat_segm, dims=(dim1_name), coords={dim1_name: nxsegm})
+  darr_dist = xarray.DataArray(dist_segm, dims=(dim1_name), coords={dim1_name: nxsegm})
+  darr_bdx  = xarray.DataArray(dist_btm, dims=(dim2_name), coords={dim2_name: nxbotm})
+  darr_name = xarray.DataArray([bndry], dims=("NL"), coords={"NL": [1]})
+
+  dset_segm = xarray.Dataset({"segm_name": darr_name, \
+                              "topo_segm": darr_topo, \
+                              "lon_segm": darr_lon, \
+                              "lat_segm": darr_lat, \
+                              "dist_supergrid": darr_dist, \
+                              "dist_grid": darr_bdx})
+  return dset_segm
 
 def plot_rotangle(grid_spear, icegrid_spear, lon_slice=None, lat_slice=None):
   """
@@ -921,4 +1176,264 @@ def plot_vectors(u1, v1, ur, vr, nfig=1):
   ax1.set_title('Original: black, Rotated: Red')
 
   return
+
+def subset_spear_topo():
+  """
+    Subset SPEAR topo grid to NEP domain
+  """
+  fyaml = 'pypaths_gfdlpub.yaml'
+  with open(fyaml) as ff:
+    gridfls = safe_load(ff)
+
+  fconfig = 'config_nep.yaml'
+  with open(fconfig) as ff:
+    config = safe_load(ff)
+  spear_dir = os.path.join(config['filesystem']['spear_month_ens'], 'monthly_clim')
+  spear_topo_dir = config['filesystem']['spear_topo_grid']
+  ftopo_spear = os.path.join(spear_topo_dir,'ocean_z.static.nc')
+  spear_topo = xarray.open_dataset(ftopo_spear)
+  lonW = config['domain']['west_lon']
+  lonE = config['domain']['east_lon']
+  LONh = xarray.open_dataset(ftopo_spear).variables['geolon'].data
+
+  if lonW > np.max(LONh):
+    lonW = lonW-360.
+  elif lonW < np.min(LONh):
+    lonW = lonW+360.
+
+  if lonE > np.max(LONh):
+    lonE = lonE-360.
+  elif lonE < np.min(LONh):
+    lonE = lonE+360.
+
+  lon_slice = slice(lonW, lonE)
+  lat_slice = slice(config['domain']['south_lat'], config['domain']['north_lat'])
+  ds_grid_spear  = xarray.open_dataset(ftopo_spear).sel(xh=lon_slice, xq=lon_slice, \
+                   yh=lat_slice, yq=lat_slice)
+  HHS = ds_grid_spear.variables['depth_ocean'].data
+  HHS = -abs(HHS)
+  HHS = np.where(np.isnan(HHS), 0.5, HHS)
+  LONs = ds_grid_spear.variables['geolon'].data
+  LATs = ds_grid_spear.variables['geolat'].data
  
+  return HHS, LONs, LATs
+
+def rotate_box(XV, YV, x0c, y0c):
+  """
+    For tilted, rotated quadrilaterals mapping does not work well
+    Try to rotate the box to align it with X/Y axes
+    XV, YV coordinates for 4 vertices
+    x0c, y0c - coordinates of the grid point inside the box
+    rotate around the 1st vertex
+  """
+  XR = XV.copy()
+  YR = YV.copy()
+#  x00c = x0c
+#  y00c = y0c
+  x0c = x0c-XV[0]
+  y0c = y0c-YV[0]  
+  XV = XV-XV[0]
+  YV = YV-YV[0]
+
+  x1, x2, x3, x4 = XV
+  y1, y2, y3, y4 = YV
+  Av  = mmisc1.construct_vector([x1,y1],[x2, y2])
+  Bv  = mmisc1.construct_vector([x1,y1],[x1+1.,y1]) # horizontal axis
+  prA, cosT, tht = mmisc1.vector_projection(Av, Bv) 
+  if Av[1,0] < 0.: tht = -tht
+
+  tht_rad = tht*np.pi/180.
+  RR = np.array([[np.cos(tht_rad), np.sin(tht_rad)],[np.sin(-tht_rad), np.cos(tht_rad)]])
+
+  for ii in range(4):
+    U  = np.array([[XV[ii]],[YV[ii]]])
+    Ur = np.matmul(RR,U).squeeze()
+    XR[ii] = Ur[0]
+    YR[ii] = Ur[1]
+
+  U = np.array([[x0c],[y0c]])
+  Ur = np.matmul(RR,U).squeeze()
+  x0r = Ur[0]
+  y0r = Ur[1]
+
+  return XR, YR, x0r, y0r 
+
+def check_repeated_vertices(xx,yy):
+  """
+    Fix repeated vertices with identical x,y coordinates
+  """
+  DD = np.zeros((4))
+  for ii in range(4):
+    x1 = xx[ii]
+    y1 = yy[ii]
+    if ii == 3:
+      x2 = xx[0]
+      y2 = yy[0]
+    else:
+      x2 = xx[ii+1]
+      y2 = yy[ii+1]
+    DD[ii]   = mmisc1.dist_sphcrd(y1, x1, y2, x2)
+ 
+  f_repeat = False
+  if np.min(DD) < 1.e-3: f_repeat = True
+   
+  return f_repeat
+  
+def subset_spear_coord(grid_point):
+  """
+    Subset SPEAR geogr coord to NEP domain
+    grid_point = 'h','u','v' for staggerd grid
+  """
+  fyaml = 'pypaths_gfdlpub.yaml'
+  with open(fyaml) as ff:
+    gridfls = safe_load(ff)
+
+  fconfig = 'config_nep.yaml'
+  with open(fconfig) as ff:
+    config = safe_load(ff)
+  spear_dir = os.path.join(config['filesystem']['spear_month_ens'], 'monthly_clim')
+  spear_topo_dir = config['filesystem']['spear_topo_grid']
+  ftopo_spear = os.path.join(spear_topo_dir,'ocean_z.static.nc')
+  spear_topo = xarray.open_dataset(ftopo_spear)
+  lonW = config['domain']['west_lon']
+  lonE = config['domain']['east_lon']
+  LONh = xarray.open_dataset(ftopo_spear).variables['geolon'].data
+
+  if lonW > np.max(LONh):
+    lonW = lonW-360.
+  elif lonW < np.min(LONh):
+    lonW = lonW+360.
+
+  if lonE > np.max(LONh):
+    lonE = lonE-360.
+  elif lonE < np.min(LONh):
+    lonE = lonE+360.
+
+  lon_slice = slice(lonW, lonE)
+  lat_slice = slice(config['domain']['south_lat'], config['domain']['north_lat'])
+  ds_grid_spear  = xarray.open_dataset(ftopo_spear).sel(xh=lon_slice, xq=lon_slice, \
+                   yh=lat_slice, yq=lat_slice)
+  if grid_point == 'h':
+    LONs = ds_grid_spear.variables['geolon'].data
+    LATs = ds_grid_spear.variables['geolat'].data
+  elif grid_point == 'u':
+    LONs = ds_grid_spear.variables['geolon_u'].data
+    LATs = ds_grid_spear.variables['geolat_u'].data
+  elif grid_point == 'v':
+    LONs = ds_grid_spear.variables['geolon_v'].data
+    LATs = ds_grid_spear.variables['geolat_v'].data
+ 
+  return LONs, LATs
+
+def minmax_clrmap(dmm, pmin=10, pmax=90, cpnt=0.01, fsym=False):
+  """
+  Find min/max limits for colormap 
+  discarding pmin and 1-pmax min/max values
+  cpnt - decimals to leave, if cpnt=0 - round to the nearest integer
+  """
+  dmm = dmm[~np.isnan(dmm)]
+  a1  = np.percentile(dmm,pmin)
+  a2  = np.percentile(dmm,pmax)
+  if cpnt == 0:
+   rmin = np.floor(a1)
+   rmax = np.ceil(a2)
+  else:
+    cff = 1./cpnt
+    rmin = cpnt*(int(a1*cff))
+    rmax = cpnt*(int(a2*cff))
+
+  if fsym and (rmin<0. and rmax>0.) :
+    dmm = max([abs(rmin),abs(rmax)])
+    rmin = -dmm
+    rmax = dmm
+
+  return rmin,rmax
+
+def plot_xsection(A2d, X, Z, Hbtm, Xbtm, clrmp, rmin, rmax, xl1, xl2, sttl='OB section', stxt='', fgnmb=1):
+  """
+    2D vertical section
+  """
+  from matplotlib.patches import Polygon
+
+  yl1 = np.ceil(np.min(Hbtm))
+
+  plt.ion()
+  fig1 = plt.figure(fgnmb,figsize=(9,8))
+  plt.clf()
+  ax1 = plt.axes([0.1, 0.25, 0.8, 0.7])
+  im1 = ax1.pcolormesh(X, Z, A2d, \
+                 cmap=clrmp,\
+                 vmin=rmin, \
+                 vmax=rmax)
+
+  # Patch bottom:
+  verts = [(np.min(Xbtm),-8000),*zip(Xbtm,Hbtm),(np.max(Xbtm),-8000)]
+  poly = Polygon(verts, facecolor='0.6', edgecolor='0.6')
+  ax1.add_patch(poly)
+
+  ax1.set_xlim([xl1, xl2])
+  ax1.set_ylim([yl1, 0])
+
+  ax2 = fig1.add_axes([ax1.get_position().x1+0.02,
+               ax1.get_position().y0,0.02,
+               ax1.get_position().height])
+  clb = plt.colorbar(im1, cax=ax2, extend='both')
+  ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
+  ax2.set_yticklabels(ax2.get_yticks())
+  ticklabs = clb.ax.get_yticklabels()
+  clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+  clb.ax.tick_params(direction='in', length=12)
+  plt.sca(ax1)
+  
+  ax1.set_title(sttl)
+
+  if len(stxt) > 0:
+    ax3 = plt.axes([0.1, 0.2, 0.8, 0.1])
+    ax3.text(0, 0.01, stxt)
+    ax3.axis('off')
+
+  return 
+
+
+def plot_OBpoints(xOB, yOB, INDX, JNDX, LONs, LATs, lon_topo, lat_topo, \
+                  hlon, hlat, HHM, HHS, fgnmb=1):
+  """
+    Plot OB segments NEP and SPEAR grid points for interp
+  """
+  xOB = np.where(xOB<0., xOB+360., xOB)
+  LONs = np.where(LONs<0., LONs+360., LONs)
+
+  plt.ion()
+  fig1 = plt.figure(fgnmb,figsize=(9,8))
+  plt.clf()
+  ax1 = plt.axes([0.1, 0.25, 0.8, 0.7])
+
+  ax1.plot(xOB, yOB, '.-')
+  hcntr = [x for x in range(-5000,-10, 500)]
+  ax1.contour(hlon, hlat, HHM,[0], colors=[(0,0,0)])
+  ax1.contour(hlon, hlat, HHM, hcntr, linestyles='solid', colors=[(0.7,0.7,0.7)])
+  ax1.contour(lon_topo, lat_topo, HHS, [0], colors=[(1,0,0)])
+
+  npp, _ = INDX.shape
+  for ii in range(npp):
+    I = INDX[ii,:]
+    J = JNDX[ii,:]
+# Discard same grid points:
+    D = 0.1
+    if ii > 0:
+      D = np.sqrt(np.sum((INDX[ii,:]-INDX[ii-1,:])**2) + np.sum((JNDX[ii,:]-JNDX[ii-1,:])**2))
+    if D < 1.e-20: continue
+
+    I = np.append(I, I[0])
+    J = np.append(J, J[0])
+    ax1.plot(LONs[J,I], LATs[J,I], '.-')
+
+  ax1.axis('scaled')
+
+  ax1.set_title('OB segment NEP and SPEAR boudning boxes for interpolation\n' + \
+                'Red: SPEAR coastline, Black: NEP coastline')
+  btx = 'mod_utils_ob.py:plot_OBpoints'
+  bottom_text(btx)
+  
+  return
+

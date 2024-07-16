@@ -68,7 +68,9 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5):
   JJ,II = np.where((LAT > y0-dy) & (LAT < y0+dy))
 
   def find_closest_point(y0, x0, LON, LAT, JJ, II):
-#      Find closest point within a subset of points given JJ, II indices
+    """
+      Find closest point within a subset of points given JJ, II indices
+    """
     XX = LON[JJ,II]
     YY = LAT[JJ,II]
     DD   = mmisc1.dist_sphcrd(y0,x0,YY,XX)
@@ -83,23 +85,23 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5):
     return jmin, imin, xmin, ymin
 
   jv1, iv1, xv1, yv1   = find_closest_point(y0, x0, LON, LAT, JJ, II) 
-  xref = xv1-0.1
-  yref = yv1-0.1
-  xv1c, yv1c = mblnr.lonlat2xy_pnt(xv1, yv1, xref, yref)
-  x0c, y0c   = mblnr.lonlat2xy_pnt(x0, y0, xref, yref)
+  xv1c, yv1c, x0c, y0c = mblnr.lonlat2xy_pnt(xv1,yv1, x0=x0, y0=y0)
+  xc, yc, _, _ = mblnr.lonlat2xy_pnt(LON[jv1-1,iv1],LAT[jv1-1, iv1], x0=x0, y0=y0)
+  xc, yc, _, _ = mblnr.lonlat2xy_pnt(LON[jv1+1,iv1],LAT[jv1+1, iv1], x0=x0, y0=y0)
+  xc, yc, _, _ = mblnr.lonlat2xy_pnt(LON[jv1-1,iv1-1],LAT[jv1-1, iv1-1], x0=x0, y0=y0)
+  xc, yc, _, _ = mblnr.lonlat2xy_pnt(LON[jv1+1,iv1-1],LAT[jv1+1, iv1-1], x0=x0, y0=y0)
+
 # Find grid points around x0,y0:
-# First guess for xv2: 
 # start by finding 2nd point by moving +/- 1 grid point along I axis
   di  = np.sign(x0c-xv1c)
   din = di
   icc = 0 
   iv2 = iv1
-  jv2 = jv1
   while din == di:
     iv2  = int(iv2 + di)
-    xv2  = LON[jv2,iv2]
-    yv2  = LAT[jv2,iv2]
-    xv2c, yv2c = mblnr.lonlat2xy_pnt(xv2, yv2, xref, yref)
+    xv2  = LON[jv1,iv2]
+    yv2  = LAT[jv1,iv2]
+    xv2c, yv2c, _, _ = mblnr.lonlat2xy_pnt(xv2, yv2, x0=x0, y0=y0)
     din = np.sign(x0c-xv2c)
     icc += 1
 #    if abs(din) > abs(di) and np.sign(din) == np.sign(di):
@@ -108,154 +110,49 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5):
       print(f"ERR: x0={x0} y0={y0} search direction wrong di={di} din={din}")
       raise Exception(f"cannot find enclosed box, icc={icc} tries")
 
-# Define pnt orientation wrt to this line to find which 
-# direction to search for another vertex
+# Define pnt orientation wrt to this line to find which direction to search for another vertex
 # along J axis
-# if at the bndry - ignore, nothing can do
-  Dxv2 = np.sign(mmisc1.orientation([xv1c,yv1c],[xv2c,yv2c],[x0c,y0c]))
-  F_bndry = False
-  if jv1+1 >= mm:
-    Djp1 = - Dxv2
-    F_bndry = True
-  else:
-    y1p1 = LAT[jv1+1, iv1]
-    x1p1 = LON[jv1+1, iv1]
-    x1p1c, y1p1c = mblnr.lonlat2xy_pnt(x1p1, y1p1, xref, yref)
-    Djp1 = np.sign(mmisc1.orientation([xv1c,yv1c],[xv2c,yv2c],[x1p1c,y1p1c]))
+  Dpnt0  = np.sign(mmisc1.orientation([xv1c,yv1c],[xv2c,yv2c],[x0c,y0c]))
+  y1p1 = LAT[jv1+1, iv1]
+  x1p1 = LON[jv1+1, iv1]
+  x1p1c, y1p1c, _, _ = mblnr.lonlat2xy_pnt(x1p1, y1p1, x0=x0, y0=y0)
+  Djp1 = np.sign(mmisc1.orientation([xv1c,yv1c],[xv2c,yv2c],[x1p1c,y1p1c]))
 
-# Singularity points:
-# check if the grid points are same locations for varying j or i
-# these points are over land - can be ignored
-    D = mmisc1.dist_sphcrd(yv1, xv1, y1p1, x1p1)
-    if D < 1.e-3:
-      F_bndry = True
-      Djp1 = - Dxv2
-      
-  if Djp1 != Dxv2:
-# Try opposite direction from pnt 1 along J:
-# Ignore the bndry
-    if jv1-1 < 0:
-      dirj = 1
-      F_bndry = True
-    else:
-      y1m1 = LAT[jv1-1, iv1]
-      x1m1 = LON[jv1-1, iv1]
-      x1m1c, y1m1c = mblnr.lonlat2xy_pnt(x1m1, y1m1, xref, yref)
-      Djm1 = np.sign(mmisc1.orientation([xv1c,yv1c],[xv2c,yv2c],[x1m1c,y1m1c]))
+#  Av = np.array([x0c-xv1c, y0c-yv1c])
+#  Bv = np.array([x1p1c-xv1c, y1p1c-yv1c])
+#  prj_x0j, cosT = mmisc1.vector_projection(Av, Bv)
 
-      if Djm1 != Dxv2 and not F_bndry:
-        print(f"ERR: Cannot find direction to include pnt {x0} {y0}")
-        raise Exception(f"Unexpected: orientations same Djp1={Djp1} Djm1={Djm1}")
+   
 
-      dirj = -1
-  else:
-    dirj = 1
-
-# Find a 3rd vertex along J-axis moving in direction = dirj 
-# such that the pnt (x0,y0) projected onto J falls within the 
-# segment (vrtx1 - vrtx3)
-  iv3 = iv1
-  jv3 = jv1 + dirj
-  xv3 = LON[jv3,iv3]
-  yv3 = LAT[jv3,iv3]
-  xv3c, yv3c = mblnr.lonlat2xy_pnt(xv3, yv3, xref, yref)
-  Bv  = mmisc1.construct_vector([xv1c, yv1c],[xv3c, yv3c]) 
-  Av  = mmisc1.construct_vector([xv1c, yv1c],[x0c, y0c])
-  prA, cosT, tht = mmisc1.vector_projection(Av, Bv)
-  lBv = np.sqrt(np.dot(Bv.transpose(), Bv))[0][0]
-  prA = abs(prA)
 
   icc = 0
-  while prA > lBv:
-# if projection is outside then extend the side to include the point in the box
-# may run ouside the domain!
-    jv3 = jv3 + dirj
-    if jv3 >= mm or jv3 < 0: 
-      F_bndry = True
-      jv3 = jv3 - dirj
-      break
-
-    xv3 = LON[jv3,iv3]
-    yv3 = LAT[jv3,iv3]
-    xv3c, yv3c = mblnr.lonlat2xy_pnt(xv3, yv3, xref, yref)
-    Bv  = mmisc1.construct_vector([xv1c, yv1c],[xv3c, yv3c]) 
-    prA, cosT, tht = mmisc1.vector_projection(Av, Bv)
-    lBv_new = np.sqrt(np.dot(Bv.transpose(), Bv))[0][0]
-    if lBv_new < lBv:
-      print(f"ERR: unexpected side xv3 not increasing, new: {lBv_new} old: {lBv}")
-      raise Exception("unexpected edge length decreasing when choosing xv3")
-
+  while djn == dj:
+    jv2 = int(jv2 + np.sign(dj))
+    yv2 = LAT[jv2,iv1]
+    djn = y0-yv2
     icc += 1
-    if icc > 10:
-      raise Exception(f"cannot find jv3 # steps={icc}")    
-
-#ax1.plot(x0c,y0c,'r*')
-#ax1.plot(xv1c,yv1c,'ro')
-#ax1.plot(xv2c,yv2c,'go')
-#ax1.plot(xv3c,yv3c,'bo')
-
-# Check if first guess of xv2, yv2 was correct to include the point x0, y0:
-  Dv2 = np.sign(mmisc1.orientation([xv1c,yv1c],[xv3c,yv3c],[xv2c,yv2c]))
-  Dp0 = np.sign(mmisc1.orientation([xv1c,yv1c],[xv3c,yv3c],[x0c,y0c]))
-  if Dp0 == 0: Dp0 = Dv2 # allow pnt to be on the line
-  if Dv2 != Dp0:
-# need to switch vertex x2 to opposite
-# only one of those should be not 0:
-    diri = np.sign(iv1-iv2)
-    dirj = np.sign(jv1-jv2)
-
-    icc = 0    
-    while Dv2 != Dp0:
-      iv2 = int(iv2 + diri)
-      jv2 = int(jv2 + dirj)
-      if iv2 < 0 or iv2 >= nn or jv2 < 0 or jv2 >= mm:
-        F_bndry = True
-        break
-      xv2 = LON[jv2,iv2]
-      yv2 = LAT[jv2,iv2]
-      xv2c, yv2c = mblnr.lonlat2xy_pnt(xv2, yv2, xref, yref)
-      Dv2 = np.sign(mmisc1.orientation([xv1c,yv1c],[xv3c,yv3c],[xv2c,yv2c]))
+    if abs(djn) > abs(dj) and np.sign(djn) == np.sign(dj):
+      raise Exception(f"x0={x0} y0={y0} search direction wrong dj={dj} djn={djn}")
   
-      icc += 1 
-      if icc > 10:
-        raise Excpetion(f"adjusting vx2: too many steps {icc}")
+    if icc > 50:
+      print(f"ERR: x0={x0} y0={y0} search direction wrong dj={dj} djn={djn}")
+      raise Exception(f"cannot find enclosed box, icc={icc} tries")
 
-# Vertx 4: best guess use vertex 2 and vertex 3:
-  iv4 = iv2
-  jv4 = jv3
-
+ 
 # Construct a box enclosing the point x0, y0 and check: 
-  IV = [iv1, iv2, iv4, iv3]
-  JV = [jv1, jv2, jv4, jv3]
-#  IV, JV = mblnr.sort_gridcell_indx(IV, JV)
-#  IV0 = IV.astype(int)
-#  JV0 = JV.astype(int)
+  IV = [iv1, iv1, iv2, iv2]
+  JV = [jv1, jv2, jv2, jv1]
+  IV, JV = mblnr.sort_gridcell_indx(IV, JV)
   IV0 = IV.copy()
   JV0 = JV.copy()
 
-# Convert box vertices into Cartesian coord wrt a reference pnt = centroid
+# Convert box vertices into Cartesian coord wrt x0,y0
   XX  = LON[JV,IV]
   YY  = LAT[JV,IV]
-  XXc = 0.25*np.sum(XX)
-  YYc = 0.25*np.sum(YY)
-  XV, YV  = mblnr.lonlat2xy_wrtX0(XX, YY, XXc, YYc)
-  x0c, y0c = mblnr.lonlat2xy_pnt(x0,y0, XXc, YYc)
+  XV, YV, x0c, y0c = mblnr.lonlat2xy_wrtX0(XX, YY, x0, y0)
   INp     = mmisc1.inpolygon_1pnt(x0c, y0c, XV, YV)
   INp2    = mmisc1.inpolygon_1pnt(x0, y0, XX, YY)
 
-  if F_bndry:
-    if not INp:
-      print(f"WARNING: x0={x0:6.2f} y0={y0:6.2f} on " +\
-            f"bndry of outerdomain, cannot enclose")
-    ixx = np.array(IV).astype(int)
-    jxx = np.array(JV).astype(int)
-    return ixx, jxx
-
-# Most of cases should be handled by the above algorithm
-# for very non-orthogonal I/J grid lines near singularities in 
-# tripolar grids the point may still be outside the box
-# Try this:
-# Adjust sides to include the pnt if it is not in the box
   SIDE2V = {
      "side1": [0, 1],
      "side2": [1, 2],
@@ -291,10 +188,6 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5):
       iv2 = IV[k2]
       jv1 = JV[k1]
       jv2 = JV[k2]
-      xg1 = XX[k1]
-      yg1 = YY[k1]
-      xg2 = XX[k2]
-      yg2 = YY[k2]
 
       Dcentr = np.sign(mmisc1.orientation([x1,y1],[x2,y2],[xC,yC]))
       Dpnt0  = np.sign(mmisc1.orientation([x1,y1],[x2,y2],[x0c,y0c]))
@@ -316,40 +209,53 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5):
         if dx2xc != dx2x0: div2 = dx2x0
         if dy1yc != dy1y0: djv1 = dy1y0
         if dy2yc != dy2y0: djv2 = dy2y0
+        iv1 = int(iv1+div1)
+        iv2 = int(iv2+div2)
+        jv1 = int(jv1+djv1)
+        jv2 = int(jv2+djv2)
 
-        icc = 0
-        while Dcentr != Dpnt0:
-          iv1 = int(iv1+div1)
-          iv2 = int(iv2+div2)
-          jv1 = int(jv1+djv1)
-          jv2 = int(jv2+djv2)
+# Moving only 1 vertex - end up with trapezoid - not good
+# Move the whole side adjusting both vertices
+# This should give a box (parallelepipid) that includes the point
+# Find the side that need to move
+        if abs(div1) > 0 or abs(djv1) > 0:
+          sdA, sdB = V2SIDE[f"vertex{k1}"]
+          dltI = div1
+          dltJ = djv1
+        elif abs(div2) > 0 or abs(djv2) > 0:
+          sdA, sdB = V2SIDE[f"vertex{k1}"]
+          dltI = div2
+          dltJ = djv2
+        else:
+          raise Exception(f"Unexpected all di,dj zeros: {div1}, {div2}, {djv1}, {djv2}")
 
-          IV[k1] = iv1
-          IV[k2] = iv2
-          JV[k1] = jv1
-          JV[k2] = jv2
-          XX  = LON[JV,IV]
-          YY  = LAT[JV,IV]
-          xC = 0.25*np.sum(XX)
-          yC = 0.25*np.sum(YY)
-          XV, YV  = mblnr.lonlat2xy_wrtX0(XX, YY, xC, yC)
-          x0c, y0c = mblnr.lonlat2xy_pnt(x0,y0, xC, yC)
-          INp     = mmisc1.inpolygon_1pnt(x0c, y0c, XV, YV)
+        if sdA == iside:
+          sdMV = sdB
+        elif sdB == iside:
+          sdMV = sdA
+        else:
+          raise Exception(f"Unexpected sides {sdA} {sdB}, one should be {iside}")
 
-          if INp: break
+        kmv1, kmv2 = SIDE2V[f"side{sdMV}"]
+        IV[kmv1] = IV[kmv1] + dltI 
+        IV[kmv2] = IV[kmv2] + dltI 
+        JV[kmv1] = JV[kmv1] + dltJ 
+        JV[kmv2] = JV[kmv2] + dltJ 
 
-          x1 = XV[k1]
-          x2 = XV[k2]
-          y1 = YV[k1]
-          y2 = YV[k2]
-          Dcentr = np.sign(mmisc1.orientation([x1,y1],[x2,y2],[xC,yC]))
-          Dpnt0  = np.sign(mmisc1.orientation([x1,y1],[x2,y2],[x0c,y0c]))
+        assert np.min(IV) >= 0
+        assert np.min(JV) >= 0
+        assert np.max(IV) < nn
+        assert np.max(JV) < mm
 
-          icc += 1
-          if icc > 10: 
-            raise Exception(f"Couldnot adjust side to include point #iter={icc}")
-
-
+        XX  = LON[JV,IV]
+        YY  = LAT[JV,IV]
+        XV, YV, x0c, y0c = mblnr.lonlat2xy_wrtX0(XX, YY, x0, y0)
+        INp = mmisc1.inpolygon_1pnt(x0c, y0c, XV, YV)
+        if INp: break
+      
+      icc += 1
+      if icc>4: 
+        raise Exception(f"Could not adjust grid box to include x0={x0} y0={y0}")      
     
   ixx = np.array(IV).astype(int)
   jxx = np.array(JV).astype(int)

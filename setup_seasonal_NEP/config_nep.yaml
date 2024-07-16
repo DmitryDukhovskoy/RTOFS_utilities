@@ -15,9 +15,9 @@ climatology:
 
 domain:
   south_lat: 10
-  north_lat: 82
-  west_lon: 155
-  east_lon: 257
+  north_lat: 85
+  west_lon: 150
+  east_lon: 290
 
 filesystem:
   # Where to put data that will be used to force the model:
@@ -40,4 +40,6 @@ filesystem:
   spear_month_ens: /work/Dmitry.Dukhovskoy/tmp/spear_subset/
   # Path to SPEAR --> MOM6 OB gmapi indices for bilinear interpolation:
   spear_mom_gmapi: /work/Dmitry.Dukhovskoy/NEP_input/spear_obc
-
+  # SPEAR topo and grid ocean_z.static.nc and sea ice static files:
+  spear_topo_grid: /work/Dmitry.Dukhovskoy/data/SPEAR
+ 

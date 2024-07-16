@@ -41,6 +41,10 @@ def sort_gridcell_indx(II, JJ, fsens='positive'):
     need to put them in c/clckwize (positive) or clockwize (negative)
     order
 
+    Note: works only for simple cases for quadrilateral recatngular box !!!
+    i.e. there are only 2 different pairs of values for I and J
+    this does not work for "trapezoid" shaped box and similar
+
     assumed: indices represent vertices of a grid box:
     i = 0,1,2,3
 
@@ -123,11 +127,11 @@ def phi_x0y0(phi,x1,y1):
   return bb1
 
 
-def map_x2xhat(XX,YY,x0,y0):
+def map_x2xhat(XV,YV,x0,y0):
   """
     Map a point from a quadrilateral (x1,y1), ..., (x4,y4) 
     to a reference square
-    (-1,-1), ..., (-1,1)
+    (-1,-1), (1,-1), (1,1), (-1,1)
     The mapping is of the form:
     xhat = a1+a2*x+a3*y+a4*x*y = Alf*XY0
     yhat = b1+b2*x+b3*y+b4*x*y = Bet*XY0
@@ -141,14 +145,14 @@ def map_x2xhat(XX,YY,x0,y0):
    same for b coefficients
 
    Input: 
-     XX, YY - X, Y coordinates of 4 nodes, as 1D vectors of a grid cell
+     XV, YV - X, Y coordinates of 4 nodes, as 1D vectors of a grid cell
               encompassing the interpolation point
      x0,y0 - coordinates of the interpolation point (same unites as X,Y)
   """
-  AA=np.array([[1, XX[0], YY[0], XX[0]*YY[0]],\
-               [1, XX[1], YY[1], XX[1]*YY[1]],\
-               [1, XX[2], YY[2], XX[2]*YY[2]],\
-               [1, XX[3], YY[3], XX[3]*YY[3]]])
+  AA=np.array([[1, XV[0], YV[0], XV[0]*YV[0]],\
+               [1, XV[1], YV[1], XV[1]*YV[1]],\
+               [1, XV[2], YV[2], XV[2]*YV[2]],\
+               [1, XV[3], YV[3], XV[3]*YV[3]]])
 
 #  AA = np.float64(AA)
   AAinv = np.linalg.inv(AA)
@@ -165,10 +169,10 @@ def map_x2xhat(XX,YY,x0,y0):
 
   return xhat, yhat
 
-def map_xhat2x(XX,YY,xht,yht):
+def map_xhat2x(XV, YV, xht, yht):
   """
     Inversing mapping from a reference quadrilateral ---> original
-    quadrilateral with vertices XX, YY
+    quadrilateral with vertices XV, YV
     The mapping is:
     a1+a2*xhat+a3*yhat+a4*xhat*yhat = x
     b1+b2*xhat+b3*yhat+b4*xhat*yhat = y
@@ -183,8 +187,8 @@ def map_xhat2x(XX,YY,xht,yht):
     ...
 
   """
-  XX    = np.expand_dims(XX, axis=0)
-  YY    = np.expand_dims(YY, axis=0)
+  XV    = np.expand_dims(XV, axis=0)
+  YV    = np.expand_dims(YV, axis=0)
 
   AA = np.array([[1, -1, -1,  1],\
                  [1,  1, -1, -1],\
@@ -192,8 +196,8 @@ def map_xhat2x(XX,YY,xht,yht):
                  [1, -1,  1, -1]])
 
   AAinv = np.linalg.inv(AA)
-  Alf   = np.matmul(AAinv,XX.transpose())
-  Bet   = np.matmul(AAinv,YY.transpose())
+  Alf   = np.matmul(AAinv,XV.transpose())
+  Bet   = np.matmul(AAinv,YV.transpose())
   ST0   = np.transpose(np.array([[1, xht, yht, xht*yht]]))
   xx0   = np.dot(Alf.transpose(), ST0)[0][0]
   yy0   = np.dot(Bet.transpose(), ST0)[0][0]
@@ -266,36 +270,74 @@ def blinrint(xht,yht,HT):
 
   return Hi
 
-def lonlat2xy_wrtX0(XX, YY, x0, y0, dltx=1.):
+def lonlat2xy_wrtX0(XX, YY, x0, y0):
   """
     Convert lon/lat coordinates of 4 quadrilateral vertices XX, YY
-    into cartisian coordinates (meters) wrt to a point (x0,y0)
+    into cartisian coordinates (meters) wrt to a ref point x0, y0
+    so that x0,y0 --> 0,0
+
+    Note: not recommended to use x0 y0 if it is outside the quadrilateral
+    as it warps the quadrilateral 
+    better to use centroid as a reference
+    or some other reference pnt 
+    and XX, YY ---> +/- distance from 0,0
+  """
+  import mod_misc1 as mmisc1
+
+  xrf = x0
+  if xrf < -180.:
+    xrf = xrf+360.
+  yrf = y0
+
+# Define positive east and north vectors
+# originating at the reference point
+  Ev  = mmisc1.construct_vector([x0, y0], [x0+10., y0])
+  Nv  = mmisc1.construct_vector([x0, y0], [x0, y0+10.])
+  XV  = np.zeros((4))
+  YV  = np.zeros((4))
+  for ipp in range(0,4):
+    xx = XX[ipp]
+    yy = YY[ipp]
+    Av  = mmisc1.construct_vector([x0, y0],[xx, yy])
+    prAE, cosT, tht = mmisc1.vector_projection(Av, Ev)
+    prAN, cosT, tht = mmisc1.vector_projection(Av, Nv) 
+    dlx     = mmisc1.dist_sphcrd(yrf, xrf, yrf, xx)
+    dly     = mmisc1.dist_sphcrd(yrf, xrf, yy, xrf)
+    XV[ipp] = np.sign(prAE)*dlx
+    YV[ipp] = np.sign(prAN)*dly
+  x0c = 0.
+  y0c = 0.
+
+  return XV, YV
+
+def lonlat2xy_pnt(xx, yy, x0, y0):
+  """
+    Convert lon/lat coordinates of 1 point
+    into cartisian coordinates (meters) wrt to a reference point (x0, y0)
 
     so that x0,y0 --> 0,0
     and XX, YY ---> +/- distance from 0,0
   """
   import mod_misc1 as mmisc1
 
-  xrf = x0-1.
+  xrf = x0
   if xrf < -180.:
     xrf = xrf+360.
-  yrf = y0-1.
-  xd0 = mmisc1.dist_sphcrd(y0,xrf,y0,x0)
-  yd0 = mmisc1.dist_sphcrd(yrf,x0,y0,x0)
+  yrf = y0
 
-  XV  = np.zeros((4))
-  YV  = np.zeros((4))
-  for ipp in range(0,4):
-    dlx     = mmisc1.dist_sphcrd(YY[ipp],xrf,YY[ipp],XX[ipp]) - xd0
-    dly     = mmisc1.dist_sphcrd(yrf,XX[ipp],YY[ipp],XX[ipp]) - yd0
-    XV[ipp] = dlx
-    YV[ipp] = dly
+# Define positive east and north vectors
+# originating at the reference point
+  Ev  = mmisc1.construct_vector([x0, y0], [x0+10., y0])
+  Nv  = mmisc1.construct_vector([x0, y0], [x0, y0+10.])
+  Av  = mmisc1.construct_vector([x0, y0],[xx, yy])
+  prAE, cosT, tht = mmisc1.vector_projection(Av, Ev)
+  prAN, cosT, tht = mmisc1.vector_projection(Av, Nv) 
+  dlx = mmisc1.dist_sphcrd(yrf, xrf, yrf, xx)
+  dly = mmisc1.dist_sphcrd(yrf, xrf, yy, xrf)
+  XV  = np.sign(prAE)*dlx
+  YV  = np.sign(prAN)*dly
 
-  return XV, YV, 0., 0. 
-
-
-
-
+  return XV, YV
 
 
-
+  

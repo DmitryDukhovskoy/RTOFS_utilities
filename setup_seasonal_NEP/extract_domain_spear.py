@@ -65,14 +65,14 @@ for varnm in VARS:
 
   lonW = config['domain']['west_lon']
   lonE = config['domain']['east_lon']
-  if lonW > max(LON):
+  if lonW > np.max(LON):
     lonW = lonW-360.
-  elif lonW < min(LON):
+  elif lonW < np.min(LON):
     lonW = lonW+360.
 
-  if lonE > max(LON):
+  if lonE > np.max(LON):
     lonE = lonE-360.
-  elif lonE < min(LON):
+  elif lonE < np.min(LON):
     lonE = lonE+360.
 
   # Note conversion from [-180, 180] to [0, 360]
