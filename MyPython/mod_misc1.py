@@ -707,7 +707,7 @@ class SEGMENTS():
 #    self.Tht2Sct1   = Tht2Sct1
 #    self.Tht2Sct2   = Tht2Sct2
 
-def define_segments(IJ, DX, DY, curve_ornt='positive', arctic_patch=False):
+def define_segments(IJ, DX, DY, curve_ornt='positive', check_pole=True):
   """
     Given poly-segment section connected at vertices IJ[iS:iE, jS:jE]
     find grid indices connecting the vertices
@@ -755,7 +755,7 @@ isgm-1   *          :
     actual norm vector of the section line(s) 
     This norm is LegNorm (is the same for 1 leg) 
     
-    arctic_patch - default false, meaning global grid has discontinuity
+    check_pole - default True, meaning global grid has discontinuity
             at the N Pole, i.e. a line across the Arctic Ocean (Alaska - Fram)
             has 2 discontinuous segments on the grid
 
@@ -783,7 +783,8 @@ isgm-1   *          :
     JJv = [Js,Je]
 #
 # Check if this segment is over the N. Pole:
-    if int(Js) == (jdm-1) and int(Je) == (jdm-1) and (not arctic_patch):
+    if int(Js) == (jdm-1) and int(Je) == (jdm-1) and (check_pole):
+      print(f'Segment is over the N. Pole, skipping leg {ileg}')
       continue
 
 #    II, JJ = mmisc.xsect_indx(IIv,JJv)
@@ -799,6 +800,7 @@ isgm-1   *          :
 
     Isgm    = np.append(Isgm, II)
     Jsgm    = np.append(Jsgm, JJ)
+#    print(f'(1) Isgm={Isgm[:10]}')
 
     nsgm = len(II)
     for isgm in range(nsgm):

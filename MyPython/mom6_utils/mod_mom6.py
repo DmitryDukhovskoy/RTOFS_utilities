@@ -283,6 +283,39 @@ def zz_zm_fromDP(dH, ssh, f_intrp=False, f_btm=True, f_ssh = True, \
 
   return ZZ, ZM
 
+def zm2zz (ZM):
+  """
+    Derive layer interface depths from layer mid-points
+    1st dimension is depth for ZM
+  """
+  ndim = len(ZM.shape)
+  if ndim > 3:
+    raise Exception(f"Input dZ dim={ndim}, cannot be > 3")
+
+  dim2 = 1
+  dim3 = 1
+  if ndim == 1:
+    dim1 = ZM.shape[0]
+  elif ndim == 2:
+    dim1, dim2 = ZM.shape
+  elif ndim == 3:
+    dim1, dim2, dim3 = ZM.shape
+
+  ZZ = np.zeros((dim1+1,dim2,dim3)).squeeze()
+  zz_negate = np.min(ZM) < 0.  
+
+  for kk in range(dim1):
+    if ndim == 1:
+      dz = abs(ZM[kk] - ZZ[kk])
+      if zz_negate: dz = -dz
+      ZZ[kk+1] = ZM[kk] + dz
+    else:
+      dz = abs(ZM[kk,:] - ZZ[kk,:])
+      if zz_negate: dz = -dz
+      ZZ[kk+1,:] = ZM[kk,:] + dz
+    
+  return ZZ  
+
 def zz_zm_fromDZ(dZ, depth_negate = True):
   """
     Simple algorithm for getting layer interface depths (zz) and mid-point depths (zm)

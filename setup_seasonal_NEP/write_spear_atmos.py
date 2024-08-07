@@ -42,8 +42,8 @@ except subprocess.CalledProcessError as err:
 
 # Specify year, month, ensembles to 
 # generate atm fields from SPEAR 
-yr1     = 2006
-yr2     = 2009
+yr1     = 2010
+yr2     = 2010
 MM      = [1,4,7,10]
 ensmb   = [1,2,3,4,5,6,7,8,9,10]
 fconfig = 'config_nep.yaml'

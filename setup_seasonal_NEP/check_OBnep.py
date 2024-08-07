@@ -34,8 +34,8 @@ import mod_utils as mutil
 importlib.reload(mutil)
 
 varnm  = 'thetao' # so thetao uspd
-imonth = 7
-nsegm  = 2
+imonth = 10
+nsegm  = 1
 
 # Climatology derived for these years, started at mstart
 yr1    = 1993
@@ -119,6 +119,9 @@ elif segm_nm == 'south':
   if varnm == 'so':
     rmin = 34.0
     rmax = 34.9
+  else:
+    rmin = 0.
+    rmax = 28.
 elif segm_nm == 'west':
   xl1 = 0
   if varnm == 'so':

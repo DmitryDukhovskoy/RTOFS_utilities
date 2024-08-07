@@ -15,7 +15,7 @@ MOM6_NEP:
     fgrid:   'ocean_hgrid.nc'
   "seasonal_fcst":
     pthrun:  ' '
-    pthoutp: '/work/Dmitry.Dukhovskoy/NEP_input/spear_obc/'
+    pthoutp: '/archive/Dmitry.Dukhovskoy/fre/NEP/seasonal_ensembles/{expt}/gfdl.ncrc5-intel22-repro/history'
     pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
     ftopo:   'topog.nc'
     fgrid:   'ocean_hgrid.nc'
@@ -31,10 +31,34 @@ MOM6_NEP:
     pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
     ftopo:   'topog.nc'
     fgrid:   'ocean_hgrid.nc'
-GOFS3.0:
-  "19.0":
-    pthrun:  '/work/Dmitry.Dukhovskoy/GOFS3.0/expt_19.0/'
-    pthoutp: ' '
-    pthgrid: '/work/Dmitry.Dukhovskoy/GOFS3.0/topo_grid/'
-    ftopo:   'depth_GLBb0.08_07'
-    fgrid:   'regional.grid'
+ANLS_NEP:
+  "xsct_SOB":
+    II:  [0, 341]
+    JJ:  [0, 0]
+    smin: 33.5
+    smax: 35.5
+    tmin: 0.
+    tmax: 28.
+  "xsct_WOB":
+    II:  [0, 0]
+    JJ:  [0, 815]
+    smin: 34.0
+    smax: 34.9
+    tmin: 5.
+    tmax: 25.
+  "xsct_NOB":
+    II:  [197, 341]
+    JJ:  [815, 815]
+    smin: 29.
+    smax: 35.
+    tmin: -2.
+    tmax: 1.
+  "xsct_EOB":
+    II:  [341, 341]
+    JJ:  [0, 815]
+    smin: 29.
+    smax: 35.
+    tmin: -2.
+    tmax: 2.
+
+

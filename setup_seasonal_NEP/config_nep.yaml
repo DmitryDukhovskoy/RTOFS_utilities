@@ -24,8 +24,10 @@ filesystem:
   model_input_data: /work/Dmitry.Dukhovskoy/NEP_input/fcst_forcing
   # Where to put results from the model simulations:
   model_output_data: /work/Dmitry.Dukhovskoy/run_output/NEP_season_fcst
-  # Path to existing daily river files (one file per year, padded):
-  yearly_river_files: /work/Dmitry.Dukhovskoy/NEP_input/glofas_runoff
+  # Existing daily river files (one file per year, padded):
+  yearly_river_files: /work/Dmitry.Dukhovskoy/NEP_input/glofas_runoff/glofas_hill_dis_runoff_mac_{year}.nc
+  # Path to river climatology:
+  river_clim_path: /work/Dmitry.Dukhovskoy/NEP_input/glofas_runoff/
   # Path to existing open boundary condition data:
   open_boundary_files: /work/Dmitry.Dukhovskoy/NEP_input/glorys_obc
   # Path to existing open boundary condition data:
@@ -40,6 +42,10 @@ filesystem:
   spear_month_ens: /work/Dmitry.Dukhovskoy/tmp/spear_subset/
   # Path to SPEAR --> MOM6 OB gmapi indices for bilinear interpolation:
   spear_mom_gmapi: /work/Dmitry.Dukhovskoy/NEP_input/spear_obc
+  # Path to seasonal forecast output test:
+  nep_seasfcst_test: /work/Dmitry.Dukhovskoy/run_output/NEP_season_fcst/test
+  # Path to NEP restart fields:
+  nep_seas_restart:
   # SPEAR topo and grid ocean_z.static.nc and sea ice static files:
   spear_topo_grid: /work/Dmitry.Dukhovskoy/data/SPEAR
  
