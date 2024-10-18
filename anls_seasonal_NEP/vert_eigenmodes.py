@@ -1,5 +1,14 @@
 """
-  Plot sections with vertical distribution of T or S
+  Compute and plot vertical eigenvectors for modes = 1,...  computed from 
+  Strum-Louivelle problem for the vertical modes W
+  Obtained from linearized equation for long waves using
+  separation of variables
+
+  Similar approached used for deriving the 1st barocl. radius which is 
+  the 1st mode 
+
+  Based on my code for the Rossby R
+
 """
 import os
 import numpy as np
@@ -11,6 +20,7 @@ import xarray
 from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
+import importlib
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
@@ -29,35 +39,30 @@ import mod_time as mtime
 import mod_utils as mutil
 import mod_misc1 as mmisc
 #import mod_valid_utils as mvutil
-import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
-import mod_anls_seas as manseas
 import mod_utils_ob as mutob
 importlib.reload(mutob)
+import mod_anls_seas as manseas
+import mod_solver as msolv
 
 # experiment: year start, month start, ...
 # change dayrun to plot desired date output - # of days since start date
-# in daily-mean output fields: date is in the middle of the averaging period
-varnm  = 'salin'  # temp (potential) / salin
-f_insitu = True    # convert to in situ 
-sctnm  = 'xsct_BerSea' 
-# Start of the run - needed only for seasonal forecasts:
+sctnm  = 'xsct_25N' 
 YRS    = 1993 # year start of the forecast
 MOS    = 4
 DDS    = 1    
-nens   = 2    # ens # for ensemble runs
-dnmbR  = mtime.datenum([1993,11,15])  # day to plot
+nens   = 2
+mode   = 2  # 1st mode 1st barocl R or 2nd mode
+dnmbR  = mtime.datenum([1993,8,15])  # day to plot
 
-if varnm == 'salin': f_insitu = False
 
 #expt    = "seasonal_fcst"
 #runname = f'NEPphys_frcst_climOB_{YRS}-{MOS:02d}-e{nens:02d}'
-expt    = 'NEP_BGCphys_GOFS'
-runname = 'NEP_physics_GOFS-IC'
-#expt    = 'NEP_seasfcst_LZRESCALE'
-#runname = 'NEPphys_LZRESCALE_climOB_1993_04-e02'
-dnmbS   = mtime.datenum([YRS,MOS,DDS]) 
-#dnmbR   = dnmbS + dayrun - 1
+#expt    = 'NEP_BGCphys_GOFS'
+#runname = 'NEP_physics_GOFS-IC'
+expt    = 'NEP_seasfcst_LZRESCALE'
+runname = 'NEPphys_LZRESCALE_climOB_1993_04-e02'
+dnmbS   = mtime.datenum([YRS,MOS,DDS])
 dayrun  = dnmbR - dnmbS + 1 # day to plot:  model forecast day run - closest output will be plotted
 
 dvR = mtime.datevec(dnmbR)
@@ -66,10 +71,6 @@ print(f'Expt: {expt} Run: {runname} Plot date: {dvR[0]}/{dvR[1]}/{dvR[2]}')
 fyaml = 'paths_seasfcst.yaml'
 with open(fyaml) as ff:
   pthseas = safe_load(ff)
-
-fyaml = 'pypaths_gfdlpub.yaml'
-with open(fyaml) as ff:
-  gridfls = safe_load(ff)
 
 if expt == 'seasonal_fcst':
   pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(runname=runname)
@@ -87,10 +88,6 @@ hmask      = xarray.open_dataset(os.path.join(pthtopo, 'ocean_mask.nc'))
 dstopo_nep = xarray.open_dataset(os.path.join(pthtopo, ftopo_mom))
 dfgrid_mom = os.path.join(pthtopo, fgrid)
 ndav       = pthseas['MOM6_NEP'][expt]['ndav']  # # of days output averaged
-
-# Function to print mouse click event coordinates
-def onclick(event):
-   print([event.xdata, event.ydata])
 
 # Hgrid lon. lat:
 hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
@@ -140,53 +137,105 @@ dnmb_av1 = dnmb0 - np.floor(ndav/2)
 #if dnmb_av1 < dnmbS: dnmb_av1=dnmbS
 dnmb_av2 = dnmb_av1 + ndav-1
 
-
 dset   = xarray.open_dataset(dfmom6)
 
 ZM  = -dset['zl'].data
-if varnm == 'temp':
-  A2d = dset['potT'].data[0,:,JJ,II].squeeze()
-  if f_insitu:
-    S2d = dset['salt'].data[0,:,JJ,II].squeeze()
-    S2d = np.transpose(S2d)
-else:
-  A2d = dset['salt'].data[0,:,JJ,II].squeeze()
-A2d = np.transpose(A2d)
+T2d = dset['potT'].data[0,:,JJ,II].squeeze()
+T2d = np.transpose(T2d)
+S2d = dset['salt'].data[0,:,JJ,II].squeeze()
+S2d = np.transpose(S2d)
 ZZ  = mmom6.zm2zz(ZM)
 
 # For plotting - fill land/bottom and smooth 2D field:
 #A2di = mmom6.fill_bottom(A2d, ZZ, Hbtm)
 
-# Convert to in situ to compare with obs. data
-if f_insitu:
-  import mod_regmom as mregmom
-  Tsitu = A2d.copy()
-  npnts = Tsitu.shape[1]
-  for ii in range(npnts):
-    T1d = A2d[:,ii].copy()
-    if np.isnan(T1d[0]): continue
- 
-    S1d = S2d[:,ii].copy()
-#    Tp = mregmom.insitu2pot_1D(T1d, S1d, ZM, YY[ii], printT=True)
-    Ts = mregmom.pot2insitu_1D(T1d, S1d, ZM, YY[ii])
-    Tsitu[:,ii] = Ts
+# Convert potT --> in situ
+print('Converting potential T ----> in situ')
+import mod_regmom as mregmom
+npnts = T2d.shape[1]
+for ii in range(npnts):
+  T1d = T2d[:,ii].copy()
+  if np.isnan(T1d[0]): continue
+  S1d = S2d[:,ii].copy()
+  Ts = mregmom.pot2insitu_1D(T1d, S1d, ZM, YY[ii])
+  T2d[:,ii] = Ts
 
-  A2d = Tsitu.copy()
-  
+# Get N2 profiles:
+# 1st N2 value is below surface, 
+# Use BC (phi[0] = 0) to solve e/problem
+# Z_phi[0] is not 0
+N2, Z_phi = manseas.calc_N2(T2d, S2d, ZM, YY)
 
-if varnm == 'salin':
-#  clrmp = mutil.colormap_salin(clr_ramp=[1,0.85,1])
-  clrmp = mclrmps.colormap_salin2()
-  clrmp.set_bad(color=[0.2, 0.2, 0.2])
-  rmin = pthseas['ANLS_NEP'][sctnm]['smin']
-  rmax = pthseas['ANLS_NEP'][sctnm]['smax']
-elif varnm == 'temp':
-  clrmp = mclrmps.colormap_temp(clr_ramp=[0.9,0.8,1])
+ZZphi = np.zeros((len(Z_phi)+1))  # add surface to match Phi[0] surface
+ZZphi[1:] = Z_phi
+# Find layer thicknesses between phi-pnts - where density is
+# either layer mid-points or layer interfaces - depending where
+# T/S points are
+dZlr_phi = abs(np.diff(ZM))
+
+# Solve Sturm-Liouville:
+print(f'Solving Strum-Liouville, requested mode={mode}')
+npnts  = len(II)
+EVct   = np.zeros((T2d.shape))*np.nan
+CPhase = np.zeros((npnts))*np.nan
+Rbrcl  = np.zeros((npnts))*np.nan
+for ik in range(npnts):
+  Hb0 = Hbtm[ik]
+  if Hb0 >=0: continue
+  N2z = N2[:,ik].copy()
+
+  # Filter N-point running mean
+  N2zF = msolv.runmn_dz(N2z, dZlr_phi, mnwnd=5)
+
+  # NaNs for bottom values:
+  # kbtm - near-bottom value for phi(z)
+  if abs(Hb0) < abs(Z_phi[-1]): 
+    D = Z_phi - Hb0
+    kbtm = np.where(D <= 0.)[0][0] - 1
+    N2z[kbtm+1:]  = np.nan
+    N2zF[kbtm+1:] = np.nan
+  else:
+# Truncate profile to the deepest level, make a bottom
+# to keep Phi correct size
+    kbtm = len(Z_phi)-1
+    N2z[-1] = np.nan
+    N2zF[-1] = np.nan
+
+# Skip shallow regions
+# for small kbtm - problem creating a matrix and solving it
+  if kbtm < 5:
+    print(f'Shallow location: Hbtm={Hb0:.2f} m')
+    continue
+
+  Phi, Rrsb, Cphs = manseas.solve_SturmLiouville(N2zF, Hb0, Z_phi, \
+                           YY[ik], mode=mode)
+# For modes > 1:
+# Make same +/- pattern with + in the upper ocean  
+  if mode > 1:
+    ineg = np.where(Phi < -1.e-23)[0][0]
+    if ineg > 2: Phi = -Phi
+
+  nphi = len(Phi)
+  EVct[:nphi,ik] = Phi
+  CPhase[ik] = Cphs
+  Rbrcl[ik]  = Rrsb
+
+
+import mod_colormaps as mclrmp
+
+if mode == 1:
+# Make sure all vectors are of the same sign:
+  EVct = np.where(EVct > 0., -EVct, EVct)
+  rmin, rmax = mclrmp.minmax_clrmap(EVct)
+
+  clrmp_name = 'YlGnBu_r'
+  clr_ramp   = [1, 1, 1]   # add white color at the end of the colormap
+  clrmp = mclrmp.addendclr_colormap(clrmp_name, clr_ramp, nramp=0.1, ramp_start=False)
+  clrmp.set_bad(color=[0.1, 0.1, 0.1])
+elif mode > 1:
+  rmin, rmax = mclrmp.minmax_clrmap(EVct, pmin=5, pmax=95, fsym=True)
+  clrmp = mclrmp.colormap_ssh(cpos='Oranges', cneg='Blues_r', nclrs=200)
   clrmp.set_bad(color=[1,1,1])
-  rmin = pthseas['ANLS_NEP'][sctnm]['tmin']
-  rmax = pthseas['ANLS_NEP'][sctnm]['tmax']
-  if sctnm == 'xsct_BerSea' and (MM0>6 and MM0<=12):
-    rmax = 10.
 
 # Indices:
 #Xdist = np.arange(len(Hbtm))
@@ -212,15 +261,18 @@ lon2 = XX[-1]
 lat2 = YY[-1]
 stxt = f"X-axis: Distance (km) along section from {lon1:5.2f}W, {lat1:5.2f}N to {lon2:5.2f}W, {lat2:5.2f}N"
 
-if f_insitu and varnm=='temp':
-  sttl = f"{runname} Tinsitu avrg: {yrs}/{mms}/{dds}-{yre}/{mme}/{dde} {sctnm}"
-else:
-  sttl = f"{runname} {varnm} avrg: {yrs}/{mms}/{dds}-{yre}/{mme}/{dde} {sctnm}"
+sttl = f"{runname} barocl eigenvector {mode}, avrg: {yrs}/{mms}/{dds}-{yre}/{mme}/{dde} {sctnm}"
+btx = 'vert_eigenmodes.py'
 
-btx = 'plot_xsectTS.py'
-mxsct.plot_xsection(A2d, Xdist, ZM, Hbtm, Xdist, clrmp, rmin, rmax, \
-                    xl1, xl2, sttl=sttl, stxt=stxt, fgnmb=1, \
+if mode == 1:
+  mxsct.plot_xsection(EVct, Xdist, ZZphi, Hbtm, Xdist, clrmp, rmin, rmax, \
+                    xl1, xl2, sttl=sttl, stxt=stxt, \
                     plot_map=HH, I_indx=II, J_indx=JJ, btx=btx)
+else:
+  mxsct.plot_xsection(EVct, Xdist, ZZphi, Hbtm, Xdist, clrmp, rmin, rmax, \
+                    xl1, xl2, sttl=sttl, stxt=stxt, \
+                    plot_map=HH, I_indx=II, J_indx=JJ, btx=btx, contours=[0.])
+
 
 #bottom_text(btx)
 
@@ -234,7 +286,6 @@ if f_chck:
 
   ax1.contour(HH,[0], colors=[(0,0,0)])
   ax1.contour(HH,[-1000], linestyles='solid', colors=[(0,0.6,0.9)])
-  ax1.contour(HH,[-500], linestyles='solid', colors=[(1,0.6,0.)])
   ax1.contour(hlat,[x for x in range(10,88,5)], linestyles='solid', colors=[(0.8, 0.8, 0.8)])
   ax1.contour(hlat, [55.125], linestyles='solid', colors=[(1., 0.4, 0.)])
   ax1.axis('scaled')

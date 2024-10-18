@@ -316,6 +316,40 @@ def zm2zz (ZM):
     
   return ZZ  
 
+def zz2zm (ZZ):
+  """
+    Derive layer mid- depths from layer interface depths
+    1st dimension is depth for ZZ
+  """
+  ndim = len(ZZ.shape)
+  if ndim > 3:
+    raise Exception(f"Input dZ dim={ndim}, cannot be > 3")
+
+  dim2 = 1
+  dim3 = 1
+  if ndim == 1:
+    dim1 = ZZ.shape[0]
+  elif ndim == 2:
+    dim1, dim2 = ZZ.shape
+  elif ndim == 3:
+    dim1, dim2, dim3 = ZZ.shape
+
+  ZM = np.zeros((dim1-1,dim2,dim3)).squeeze()
+  zm_negate = np.min(ZZ) < 0.
+
+  for kk in range(dim1-1):
+    if ndim == 1:
+      dz = abs(ZZ[kk+1] - ZZ[kk])
+      if zm_negate: dz = -dz
+#      print(f'kk={kk} dz={dz:5.2f} ZZ={ZZ[kk]}')
+      ZM[kk] = ZZ[kk] + 0.5*dz
+    else:
+      dz = abs(ZZ[kk+1,:] - ZZ[kk,:])
+      if zm_negate: dz = -dz
+      ZM[kk,:] = ZZ[kk,:] + 0.5*dz
+
+  return ZM
+
 def zz_zm_fromDZ(dZ, depth_negate = True):
   """
     Simple algorithm for getting layer interface depths (zz) and mid-point depths (zm)
@@ -405,7 +439,7 @@ def get_zz_zm(fina, f_btm=True, **kwargs):
 def remove_ssh_lrthk(ssh, HH, dH):
   """
   Remove ssh from layer thicknesses such that
-  dH[0,:,:] = 0 otherwise dH[0,:,:] = ssh
+  sum_over_z(dH[:,j,j])-HH[j,i] = 0 otherwise sum(dH[:,j,i])-HH[j,i] = ssh
 
   dH is 3D array of layer thicknesses
   HH - botom bathymetry 2D
@@ -436,6 +470,9 @@ def create_time_array(date1, date2, dday, date_mat=False):
   """
   import mod_time as mtime
   importlib.reload(mtime)
+
+  if isinstance(date1, float) or isinstance(date1, int):
+    date_mat = True
 
   if not date_mat:
 #    yr1, mo1, mday1 = date1 
@@ -571,7 +608,11 @@ def fill_bottom(A2d, ZZ, Hbtm, fill_land=True):
       z0 = ZZ[:,ii]
 
     dZb = ZZ-hb0
+#    print(f'ii={ii} minZZ={np.min(ZZ):4.1f} hb={hb0:4.1f}')
+# If bottom deeper than the deepest interface:
+    if abs(ZZ[-1]) < abs(hb0): continue
     izb = min(np.where(dZb <= 1.e-3)[0])
+
     A2df[izb:,ii] = A2d[izb-1,ii]
     
   return A2df

@@ -19,6 +19,12 @@ MOM6_NEP:
     pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
     ftopo:   'topog.nc'
     fgrid:   'ocean_hgrid.nc'
+  "seasonal_fcst_daily":
+    pthrun:  ' '
+    pthoutp: '/work/Dmitry.Dukhovskoy/NEP_input/spear_obc_daily/'
+    pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
+    ftopo:   'topog.nc'
+    fgrid:   'ocean_hgrid.nc'
   "NEP_BGCphys":
     pthrun:  ' '
     pthoutp: '/work/Dmitry.Dukhovskoy/run_output/NEP_BGCphys/'

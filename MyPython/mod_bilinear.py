@@ -266,9 +266,51 @@ def blinrint(xht,yht,HT):
   p3x = phi_x0y0(phi3,xht,yht)
   p4x = phi_x0y0(phi4,xht,yht)
 
-  Hi = (HT[0]*p1x + HT[1]*p2x + HT[2]*p3x + HT[3]*p4x)[0]
+  Hi = (HT[0]*p1x + HT[1]*p2x + HT[2]*p3x + HT[3]*p4x)
 
   return Hi
+
+def rotate_box(XV, YV, x0c, y0c):
+  """
+    For tilted, rotated quadrilaterals mapping does not work well
+    Try to rotate the box to align it with X/Y axes
+    XV, YV coordinates for 4 vertices
+    x0c, y0c - coordinates of the grid point inside the box where values are interpolated
+               if this is not needed then can provide any x0c, y0c inside the box
+    rotate around the 1st vertex
+  """
+  XR = XV.copy()
+  YR = YV.copy()
+#  x00c = x0c
+#  y00c = y0c
+  x0c = x0c-XV[0]
+  y0c = y0c-YV[0]
+  XV = XV-XV[0]
+  YV = YV-YV[0]
+
+  x1, x2, x3, x4 = XV
+  y1, y2, y3, y4 = YV
+  Av  = mmisc1.construct_vector([x1,y1],[x2, y2])
+  Bv  = mmisc1.construct_vector([x1,y1],[x1+1.,y1]) # horizontal axis
+  prA, cosT, tht = mmisc1.vector_projection(Av, Bv)
+  if Av[1,0] < 0.: tht = -tht
+
+  tht_rad = tht*np.pi/180.
+  RR = np.array([[np.cos(tht_rad), np.sin(tht_rad)],[np.sin(-tht_rad), np.cos(tht_rad)]])
+
+  for ii in range(4):
+    U  = np.array([[XV[ii]],[YV[ii]]])
+    Ur = np.matmul(RR,U).squeeze()
+    XR[ii] = Ur[0]
+    YR[ii] = Ur[1]
+
+  U = np.array([[x0c],[y0c]])
+  Ur = np.matmul(RR,U).squeeze()
+  x0r = Ur[0]
+  y0r = Ur[1]
+
+  return XR, YR, x0r, y0r
+
 
 def lonlat2xy_wrtX0(XX, YY, x0, y0):
   """

@@ -73,14 +73,36 @@ def adddays_date(rdate,ndays):
 
   return rbgrd
 
-def jday2dnmb(YR,jday,ldate_ref=[1,1,1]):
+def jday2dnmb(YR, jday, ldate_ref=[1,1,1]):
   """
     Convert Year and year day (jday) to date number dnmb
     wrt to ref. date ldate_ref
-  """
-  dnmb0 = datenum([YR,1,1])
-  dnmb  = dnmb0 + jday-1
 
+    type of YR and jday should be the same (int, list or array)
+  """
+#  if isinstance(YR, float): YR=int(YR)
+#  if isinstance(jday, float): jday=int(jday)
+#  print(f'YR={YR} jday={jday}')
+#  print(type(YR))
+  if isinstance(YR, list): YR = np.array(YR)
+  if isinstance(jday, list): jday = np.array(jday)
+  if isinstance(YR, np.generic): 
+    YR = YR.item()
+  if isinstance(jday, np.generic): 
+    jday =  jday.item()
+#  print(type(YR))
+
+  if isinstance(YR, np.ndarray):
+    nyr = len(YR)
+    dnmb = np.zeros((nyr))
+    for ii in range(nyr):
+#      print(f'ii={ii} {YR[ii]} {jday[ii]}')
+      dnmb0 = datenum([YR[ii],1,1])
+      dnmb[ii]  = dnmb0 + jday[ii]-1
+  else:
+    dnmb0 = datenum([YR,1,1])
+    dnmb  = dnmb0 + jday-1
+      
   return dnmb 
 
 def dnmb2jday(dnmb):
@@ -187,7 +209,11 @@ def datevec(dnmb,ldate_ref=[1,1,1]):
   For datenum computed wrt to reference date - see datenum
   convert datenum back to [YR,MM,DD,HR,MN]
   """
+  if isinstance(dnmb, np.generic): 
+    dnmb = dnmb.item()
 
+  if not (isinstance(dnmb, int) or isinstance(dnmb, float)):
+    raise Exception('dnmb should be int or float, for array use datevec2D')
   lr = len(ldate_ref)
   YRr = ldate_ref[0]
   MMr = ldate_ref[1]

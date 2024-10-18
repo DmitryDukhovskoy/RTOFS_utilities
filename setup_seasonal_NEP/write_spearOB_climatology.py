@@ -2,12 +2,9 @@
   Use subset of SPEAR monthly climatology fields
   derived in derive_monthly_clim_spear.py
 
-  boundary/Segments functions are based  on Andrew C. Ross 
-
   Note SPEAR U,V are on MOM staggerd C-grid
  
   OB segments are on the supergrid
- 
 """
 
 import datetime as dt

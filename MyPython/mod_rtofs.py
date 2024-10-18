@@ -19,8 +19,17 @@ def find_indx_lonlat(x0, y0, X0, Y0):
   Output: ii0, jj0 - indices closest to x0,y0 (lon, lat)
           ip0, jp0 - indices relative to 1st pnt in the section
   """
-  if x0 > 180.:
-    x0 = x0-360.
+  ndimx = len(X0.shape)
+  ndimy = len(Y0.shape)
+  if ndimx == 1 and ndimy ==1:
+    X0, Y0 = np.meshgrid(X0, Y0)
+ 
+  if np.min(X0) < 0.:
+    if x0 > 180.:
+      x0 = x0-360.
+
+  if np.max(X0) > 180.:
+    if x0 < 0.: x0 = x0+360.
 
   XX = X0.copy()
   YY = Y0.copy()
@@ -139,7 +148,7 @@ def interp_indx2lonlat(ii0,jj0,LON,LAT):
   JDM = LON.shape[0]
   IDM = LON.shape[1]
 
-# Find 4 nodes around x0,y0
+# Find 4 nodes around ii0,jj0
 # arranging counter-clockwise 
   iv1 = int(np.floor(ii0))
   jv1 = int(np.floor(jj0))
@@ -168,8 +177,6 @@ def interp_indx2lonlat(ii0,jj0,LON,LAT):
   if (np.max(XX)-np.min(XX)) > 180.:
     II =  np.where(XX<0)
     XX[II] = XX[II]+360.
-    if x0 < 0.:
-      x0 = x0+360.
 
 # Vector of indices:
   IX = np.array([iht1,iht2,iht2,iht1])

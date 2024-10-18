@@ -32,6 +32,7 @@ ens    = 10
 regn   = 'NEP'
 tmpdir = os.path.join(pthtmp,f"{YR}",f"ens{ens:02d}")
 
+f_ssh = True
 VARS = ['SSH','so','thetao','vo','uo']
 
 for varnm in VARS:
@@ -40,6 +41,8 @@ for varnm in VARS:
   fvo    = False
   fuo    = False
   if varnm == 'SSH':
+    if ~f_ssh:
+      continue
     prefix = 'ice'
     fice = True
   elif varnm == 'vo':

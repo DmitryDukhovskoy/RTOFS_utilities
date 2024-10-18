@@ -53,6 +53,29 @@ def load_var(spear_dir, varnm, yr1=1993, yr2=2020, mstart=1, fzint=False):
 
   return dset_out
 
+def read_spear_output(pthspear, varnm, flnm, fzint=False):
+  """
+    Read SPEAR output fields
+    These could be from regional subset fields
+    fzint = True - include z layer interface depths into returned dataset
+  """
+  dflinp = os.path.join(pthspear,flnm)
+  if not varnm == 'ssh':
+    spear_var = xarray.open_dataset(dflinp).rename({'z_l': 'z'})
+  else:
+    spear_var = xarray.open_dataset(dflinp)
+    fzint = False
+
+# Make sure missing/fill value was properly used
+#  assert np.abs(spear_var).max() < 1e5
+
+  if fzint:
+    zzi = spear_var.z_i
+    dset_out = xarray.Dataset({f"{varnm}": spear_var[varnm], "z_interf": zzi})
+  else:
+    dset_out = xarray.Dataset({f"{varnm}":spear_var[varnm]})
+
+  return dset_out
 
 
 def add_valid_time(ds):
@@ -432,12 +455,12 @@ def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=[]):
   Ai = np.zeros((ntime,ny,nx))+1.e30
 
   for itime in range(ntime):
-    print(f'Time = {itime+1}')
+    print(f'interpolating ssh, Time = {itime+1}')
     A   = AA[itime,:]
 # Fill missing values (bottom/land):
     dmm =  mom6util.fill_land3d(A)
-    assert np.max(abs(dmm)) < 1.e20, "Bottom/land not filled correctly"
-    assert not np.isnan(np.max(abs(dmm))), "Bottom/land not filled correctly"
+    assert np.max(abs(dmm)) < 1.e20, "Bottom/land not filled correctly: No huge values are allowed"
+    assert not np.isnan(np.max(abs(dmm))), "Bottom/land not filled correctly: no NaN values are allowed"
     A2d = dmm.copy()
 
 # Horizontal interpolation - bilinear
@@ -502,7 +525,8 @@ def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=[]):
 # Construct data set:
   nxsgm = [x for x in range(0,nx)]
   nysgm = [x for x in range(0,ny)]
-  if len(time_steps)==0:
+  if not len(time_steps) == ntime:
+    print(f"Provided time_steps len={len(time_steps)} does not match N of records {ntime}, use {ntime} for Time")
     stime = [x for x in range(1,ntime+1)]
   else:
     stime = time_steps
@@ -610,7 +634,7 @@ def derive_obsegm_uv(hgrid, ds_uo, ds_vo, segments, isgm, theta_rot, varnm, \
     thetaNEP = -hgrid['angle_dx'].isel(nyp=0).data  
 
   for itime in range(ntime):
-    print(f'Time = {itime+1}')
+    print(f'{varnm} Time = {itime+1}')
     A   = U4D[itime,:]
 # Fill missing values (bottom/land):
     dmm =  mom6util.fill_land3d(A)
@@ -1325,6 +1349,121 @@ def subset_spear_coord(grid_point):
  
   return LONs, LATs
 
+def interp_OBsegm_mnth2daily(dset, ndays, nsgm, varnm, npol=3):
+  """
+    Interpolate in time OB segment data from monthly --> daily
+    npol - degree of the interpolating polynomial where enough data points
+    assumed time of the monthly fields = day 15 of each month
+    time before the 1st data pnt and after the last data point = keep constant 
+  """
+  import mod_interp1D as minterp
+
+  print(f'Time interpolation: {varnm} OB={nsgm} ndays={ndays}')
+
+  Nnodes = npol+1
+  Nlft = int(np.floor(Nnodes/2))
+  Nrht = int(Nnodes - Nlft)
+  time_mo    = dset.time.data   # year days for monthly data - mid of the months
+  time_steps = [x for x in range(ndays)] #Interpolation time points - 
+                                         # days since day 1 of the forecast 
+  huge = 1.e20   # nan values
+  assert npol < 5, "Polynomials of a degree > 4 are not supported"
+
+#  time_day = np.array([x for x in range(1,ndays+1)])
+  fldnm = f'{varnm}_segment_{nsgm:03d}'  
+  xdim  = f'nx_segment_{nsgm:03d}'
+  ydim  = f'ny_segment_{nsgm:03d}'
+  zdim  = f'nz_segment_{nsgm:03d}'
+  nx    = len(dset[xdim])
+  ny    = len(dset[ydim])
+  nz    = len(dset[zdim])
+  npnts = max([nx,ny])
+  npmin = min([nx,ny])
+# Check these are 2D sections:
+  assert npmin == 1, f"Expected 2D OB sections: check nx={nx} ny={ny}"
+  if ny == 1:
+    Lx = True
+  else:
+    Lx = False
+
+#  Ai = np.zeros((ndays,nz,ny,nx))*np.nan
+  Ai = np.zeros((ndays,nz,npnts))*np.nan 
+  for ii in range(ndays):
+    jday0 = ii+1
+    if jday0 <= time_mo[0]:
+      if Lx: 
+#        Ai[ii,:] = dset[fldnm].isel(time=0, f'{ydim}'=0).data
+        Ai[ii,:] = dset[fldnm].data[0,:,0,:]
+      else:
+        Ai[ii,:] = dset[fldnm].data[0,:,:,0]
+    elif jday0 >= time_mo[-1]:
+      if Lx: 
+        Ai[ii,:] = dset[fldnm].data[-1,:,0,:]
+      else:
+        Ai[ii,:] = dset[fldnm].data[-1,:,:,0]
+    else:
+# Do interpolation
+      kmin = np.where(time_mo <= jday0)[0] 
+      kmax = np.where(time_mo > jday0)[0]
+      Indx = np.zeros((Nnodes))
+      if len(kmin) >= Nlft and len(kmax) >= Nrht:
+        Indx = np.array([x for x in range(kmin[-Nlft],kmin[-Nlft]+Nnodes)])
+      elif len(kmin) < Nlft:
+        Indx = np.array([x for x in range(kmin[0], kmin[0]+Nnodes)])
+      elif len(kmax) < Nrht:
+        Indx = np.array([x for x in reversed(range(kmax[-1], kmax[-1]-Nnodes, -1))])
+      else:
+        raise Exception(f'polyn order {npol}, Nlft={Nlft}, Nrht={Nrht}, Check kmin kmax')
+
+      A2d = dset[fldnm].data[Indx[0],:,:,:].squeeze()
+      A2d = np.where(A2d > 0.1*huge, np.nan, A2d)
+      J,I = np.where(~np.isnan(A2d))
+      nj = len(J)
+      Y = np.zeros((nj,Nnodes))    # node values at Nnodes time points
+      X = np.zeros((nj,Nnodes))    # time points
+      for inode in range(Nnodes):
+        X[:,inode] = X[:,inode] + time_mo[Indx[inode]] # time nodes
+        Y[:,inode] = dset[fldnm].data[Indx[inode],:,:,:].squeeze()[J,I]
+
+      Yi = minterp.lagr_polynom2D(X, Y, jday0, axis_interp=1)
+      A2d[J,I] = Yi
+      Ai[ii,:] = A2d.copy()
+
+  dz2d  = dset[f"dz_{varnm}_segment_{nsgm:03d}"].isel(time=0).data.squeeze()
+  if Lx: 
+    Ai = np.expand_dims(Ai, axis=2)
+    dz2d = np.expand_dims(dz2d, axis=1)
+  else:
+    Ai = np.expand_dims(Ai, axis=3)
+    dz2d = np.expand_dims(dz2d, axis=2)
+  dz3d = np.tile(dz2d,(ndays,1,1,1))
+
+  print(f'Time interpolation end: min/max {np.nanmin(Ai):8.3f}/{np.nanmax(Ai):8.3f}')
+
+# Replace nans:
+  Ai = np.where(np.isnan(Ai), huge, Ai)
+
+# Construct data set of time-interpolated OB sections:
+
+  nxsgm = [x for x in range(0,nx)]
+  nysgm = [x for x in range(0,ny)]
+  stime = time_steps
+  nzsgm = [x for x in range(0,nz)]
+  sgmnm = f"segment_{nsgm:03d}"
+  dim1  = "time"
+  dim2  = f"nz_{sgmnm}"
+  dim3  = f"ny_{sgmnm}"
+  dim4  = f"nx_{sgmnm}"
+  darr_var = xarray.DataArray(Ai, dims=(dim1, dim2, dim3, dim4),
+             coords={dim1: stime, dim2: nzsgm, dim3: nysgm, dim4: nxsgm})
+  darr_dz  = xarray.DataArray(dz3d, dims=(dim1, dim2, dim3, dim4),
+             coords={dim1: stime, dim2: nzsgm, dim3: nysgm, dim4: nxsgm})
+#  f"{varnm}_segment_{nsgm:03d}"
+  dset_segmTI = xarray.Dataset({f"{varnm}_segment_{nsgm:03d}": darr_var, \
+           f"dz_{varnm}_segment_{nsgm:03d}": darr_dz})
+
+  return dset_segmTI
+
 def minmax_clrmap(dmm, pmin=10, pmax=90, cpnt=0.01, fsym=False):
   """
   Find min/max limits for colormap 
@@ -1349,7 +1488,8 @@ def minmax_clrmap(dmm, pmin=10, pmax=90, cpnt=0.01, fsym=False):
 
   return rmin,rmax
 
-def plot_xsection(A2d, X, Z, Hbtm, Xbtm, clrmp, rmin, rmax, xl1, xl2, sttl='OB section', stxt='', fgnmb=1):
+def plot_xsection(A2d, X, Z, Hbtm, Xbtm, clrmp, rmin, rmax, \
+                  xl1, xl2, sttl='OB section', stxt='', fgnmb=1, btx=''):
   """
     2D vertical section
   """
@@ -1391,6 +1531,8 @@ def plot_xsection(A2d, X, Z, Hbtm, Xbtm, clrmp, rmin, rmax, xl1, xl2, sttl='OB s
     ax3 = plt.axes([0.1, 0.2, 0.8, 0.1])
     ax3.text(0, 0.01, stxt)
     ax3.axis('off')
+
+  if len(btx) > 0:  bottom_text(btx)
 
   return 
 
@@ -1436,4 +1578,97 @@ def plot_OBpoints(xOB, yOB, INDX, JNDX, LONs, LATs, lon_topo, lat_topo, \
   bottom_text(btx)
   
   return
+
+def OBsegm_clrmp_rminrmax(segm_nm, varnm, Xbtm=[]):
+  """
+    Select colormap, min max limits for plotting NEP OB sections
+  """
+  import mod_utils as mutil
+  if varnm == 'so':
+    clrmp = mutil.colormap_salin(clr_ramp=[1,0.85,1])
+    clrmp.set_bad(color=[0.2, 0.2, 0.2])
+  elif varnm == 'thetao':
+    clrmp = mutil.colormap_temp(clr_ramp=[0.9,0.8,1])
+    clrmp.set_bad(color=[1,1,1])
+
+  if segm_nm == 'north':
+    xl1 = 1900.
+    if varnm == 'thetao':
+      rmin = -2.
+      rmax = 1.
+    if varnm == 'so':
+      rmin = 29.
+      rmax = 35.
+  elif segm_nm == 'east':
+    xl1 = 5800
+    if varnm == 'thetao':
+      rmin = -2.
+      rmax = 2.
+    if varnm == 'so':
+      rmin = 29.
+      rmax = 35.
+  elif segm_nm == 'south':
+    xl1 = 0
+    if varnm == 'so':
+      rmin = 34.0
+      rmax = 34.9
+    else:
+      rmin = 0.
+      rmax = 28.
+  elif segm_nm == 'west':
+    xl1 = 0
+    if varnm == 'so':
+      rmin = 34.0
+      rmax = 34.9
+    else:
+      rmin = 0.
+      rmax = 25.0
+  else:
+    xl1 = 0
+
+  if len(Xbtm) > 0:
+    xl2  = max(Xbtm)
+  else:
+    xl2 = 1.e9
+
+  return clrmp, rmin, rmax, xl1, xl2 
+
+def find_NEPoutput_day(pthoutp, dnmbR, ndav, fld='oceanm'):
+  """
+    In the output dir within saved files find output date closest to
+    desired date
+    file naming assumed: fld_YYYY_DAY.nc
+  """
+  import os
+  import mod_time as mtime
+
+# Find 1st ouptut date:
+  LF = os.listdir(pthoutp)
+  YR0 = np.zeros((len(LF)))
+  JD0 = np.zeros((len(LF)))
+  icc = -1
+  for fls in LF:
+    icc += 1
+    bsname = fls.split(".")[0]
+    fld_name =  bsname.split("_")[0]
+    if not fld_name == fld: continue
+    yrf    = int(bsname.split("_")[1])
+    jday   = int(bsname.split("_")[2])
+    YR0[icc] = yrf
+    JD0[icc] = jday
+  
+  D     = np.sqrt(YR0**2 + JD0**2)   
+  ii    = np.argmin(D) 
+  yr1   = YR0[ii]
+  jday1 = JD0[ii]
+  dnmb1 = mtime.jday2dnmb(yr1,jday1)
+  DOUTP = np.arange(dnmb1, dnmb1+367, ndav)
+  D     = np.abs(DOUTP - dnmbR)
+  ii    = np.argmin(D)
+  dnmb_out  = DOUTP[ii]
+  DVout = mtime.datevec(dnmb_out)
+  yrout, mout, dout = DVout[:3]
+  _, jdayout = mtime.dnmb2jday(dnmb_out)
+
+  return int(yrout), int(mout), int(dout), int(jdayout)
 

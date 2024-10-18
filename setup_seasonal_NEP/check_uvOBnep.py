@@ -29,12 +29,14 @@ sys.path.append('./seasonal-workflow')
 from boundary import Segment
 import mod_time as mtime
 import mod_mom6 as mmom6
+import mod_colormaps as mclrmp
 from mod_utils_fig import bottom_text
 import mod_utils as mutil
 importlib.reload(mutil)
 
-imonth = 1
-nsegm  = 3
+imonth  = 4
+nsegm   = 4  # OB segment: 1 - North, 2 - East, 3- South, 4 - West
+pltUnrm = True  # plot U component normal to OB, if not - plot speed
 
 # Climatology derived for these years, started at mstart
 yr1    = 1993
@@ -77,8 +79,10 @@ ZZ, ZM = mmom6.zz_zm_fromDZ(dZ)
 S2d = np.sqrt(U2d**2 + V2d**2)
 
 #rmin, rmax = mutob.minmax_clrmap(S2d, cpnt=0)
-
-clrmp = mutil.colormap_temp(clr_ramp=[0.95,0.92,1])
+if pltUnrm:
+  clrmp = mclrmp.colormap_ssh(cpos='Reds') 
+else:
+  clrmp = mclrmp.colormap_temp(clr_ramp=[0.95,0.92,1])
 clrmp.set_bad(color=[1,1,1])
 
 
@@ -99,25 +103,36 @@ if segm_nm == 'north':
   xl1 = 1900.
   rmin = 0.
   rmax = 0.1
+  Unrm = V2d
 elif segm_nm == 'east':
   xl1 = 5800
   rmin = 0.
   rmax = 0.1
+  Unrm = U2d
 elif segm_nm == 'south':
   xl1 = 0
   rmin = 0.
-  rmax = 0.2
+  rmax = 0.1
+  Unrm = V2d
 elif segm_nm == 'west':
   xl1 = 0
   rmin = 0.
-  rmax = 0.2
+  rmax = 0.1
+  Unrm = U2d
 else:
   xl1 = 0
 
+if pltUnrm: rmin = -rmax
+
 xl2  = max(Xbtm)
 
-sttl = f"NEP OB: |U| M={imonth} OB={segm_nm}"
-mutob.plot_xsection(S2d, X, ZM, Hbtm, Xbtm, clrmp, rmin, rmax, xl1, xl2, sttl=sttl, stxt=stxt, fgnmb=1)
+if pltUnrm:
+  sttl = f"NEP OB: U_norm (>0 with I/J axis)  M={imonth} OB={segm_nm}"
+  mutob.plot_xsection(Unrm, X, ZM, Hbtm, Xbtm, clrmp, rmin, rmax, \
+                      xl1, xl2, sttl=sttl, stxt=stxt, fgnmb=1)
+else:
+  sttl = f"NEP OB: |U| M={imonth} OB={segm_nm}"
+  mutob.plot_xsection(S2d, X, ZM, Hbtm, Xbtm, clrmp, rmin, rmax, xl1, xl2, sttl=sttl, stxt=stxt, fgnmb=1)
 
 btx = 'check_uvOBnep.py'
 bottom_text(btx)

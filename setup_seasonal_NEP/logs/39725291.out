@@ -1,0 +1,368 @@
+#####################################################################
+JobID 39725291 - begin Thu Oct 10 16:45:19 EDT 2024
+---------------------------------------------------------------------
+Job Name: subset_spear_ocean.sh
+User: Dmitry.Dukhovskoy
+Host: pp058
+Scratch TMPDIR: /vftmp/Dmitry.Dukhovskoy/job39725291
+Submit host: an200
+#####################################################################
++ unset _mlshdbg
++ '[' 0 = 1 ']'
++ unset _mlre _mlIFS
++ '[' -n x ']'
++ _mlIFS=' 	
+'
++ IFS=' '
++ '[' -n '' ']'
+++ /usr/bin/tclsh /usr/local/Modules/5.1.1/libexec/modulecmd.tcl bash autoinit
++ _mlcode='_module_raw() {
+   eval "$(/usr/bin/tclsh /usr/local/Modules/5.1.1/libexec/modulecmd.tcl bash "$@")";
+   _mlstatus=$?;
+   return $_mlstatus;
+};
+module() {
+   local _mlredir=0;
+   if [ -n "${MODULES_REDIRECT_OUTPUT+x}" ]; then
+      if [ "$MODULES_REDIRECT_OUTPUT" = '\''0'\'' ]; then
+         _mlredir=0;
+      elif [ "$MODULES_REDIRECT_OUTPUT" = '\''1'\'' ]; then
+         _mlredir=1;
+      fi;
+   fi;
+   case " $@ " in
+      *'\'' --no-redirect '\''*) _mlredir=0 ;;
+      *'\'' --redirect '\''*) _mlredir=1 ;;
+   esac;
+   if [ $_mlredir -eq 0 ]; then
+      _module_raw "$@";
+   else
+      _module_raw "$@" 2>&1;
+   fi;
+};
+ml() { module ml "$@"; };
+MODULES_CMD=/usr/local/Modules/5.1.1/libexec/modulecmd.tcl; export MODULES_CMD;
+ENV=/usr/local/Modules/5.1.1/init/profile.sh; export ENV;
+unset __MODULES_AUTOINIT_INPROGRESS;
+BASH_ENV=/usr/local/Modules/5.1.1/init/bash; export BASH_ENV;
+MODULESHOME=/usr/local/Modules/5.1.1; export MODULESHOME;
+test 0;'
++ _mlret=0
++ '[' -n x ']'
++ IFS=' 	
+'
++ unset _mlIFS
++ unset _mlre _mlv _mlrv
++ '[' 0 -eq 0 ']'
++ eval '_module_raw() {
+   eval "$(/usr/bin/tclsh /usr/local/Modules/5.1.1/libexec/modulecmd.tcl bash "$@")";
+   _mlstatus=$?;
+   return $_mlstatus;
+};
+module() {
+   local _mlredir=0;
+   if [ -n "${MODULES_REDIRECT_OUTPUT+x}" ]; then
+      if [ "$MODULES_REDIRECT_OUTPUT" = '\''0'\'' ]; then
+         _mlredir=0;
+      elif [ "$MODULES_REDIRECT_OUTPUT" = '\''1'\'' ]; then
+         _mlredir=1;
+      fi;
+   fi;
+   case " $@ " in
+      *'\'' --no-redirect '\''*) _mlredir=0 ;;
+      *'\'' --redirect '\''*) _mlredir=1 ;;
+   esac;
+   if [ $_mlredir -eq 0 ]; then
+      _module_raw "$@";
+   else
+      _module_raw "$@" 2>&1;
+   fi;
+};
+ml() { module ml "$@"; };
+MODULES_CMD=/usr/local/Modules/5.1.1/libexec/modulecmd.tcl; export MODULES_CMD;
+ENV=/usr/local/Modules/5.1.1/init/profile.sh; export ENV;
+unset __MODULES_AUTOINIT_INPROGRESS;
+BASH_ENV=/usr/local/Modules/5.1.1/init/bash; export BASH_ENV;
+MODULESHOME=/usr/local/Modules/5.1.1; export MODULESHOME;
+test 0;'
+++ MODULES_CMD=/usr/local/Modules/5.1.1/libexec/modulecmd.tcl
+++ export MODULES_CMD
+++ ENV=/usr/local/Modules/5.1.1/init/profile.sh
+++ export ENV
+++ unset __MODULES_AUTOINIT_INPROGRESS
+++ BASH_ENV=/usr/local/Modules/5.1.1/init/bash
+++ export BASH_ENV
+++ MODULESHOME=/usr/local/Modules/5.1.1
+++ export MODULESHOME
+++ test 0
++ export -f _module_raw
++ export -f module
+++ type -t ml
++ '[' function = function ']'
++ export -f ml
++ '[' 4 -ge 3 ']'
++ [[ hxB =~ i ]]
++ [[ ! :/usr/local/Modules/5.1.1/bin:/home/gfdl/bin2:/usr/local/bin:/bin:/usr/bin:.:/home/Dmitry.Dukhovskoy/bin: =~ :/usr/local/Modules/5\.1\.1/bin: ]]
++ '[' '!' -n x ']'
+++ manpath
++ [[ ! :/usr/local/Modules/5.1.1/share/man:/home/gfdl/man:/usr/local/man:/usr/share/man: =~ :/usr/local/Modules/5\.1\.1/share/man: ]]
++ unset _mlcode _mlret
++ '[' -n '' ']'
++ set -u
++ module load python/3.9 gcp
++ local _mlredir=0
++ '[' -n '' ']'
++ case " $@ " in
++ '[' 0 -eq 0 ']'
++ _module_raw load python/3.9 gcp
+++ /usr/bin/tclsh /usr/local/Modules/5.1.1/libexec/modulecmd.tcl bash load python/3.9 gcp
+Loading python/3.9 <deprecated>
+  Loading requirement: conda
+
+Loading gcp/2.3
+  Loading requirement: globus/system-or-6.0 perlbrew/5.38.2
++ eval 'LD_LIBRARY_PATH=/usr/local/globus/6.0.1506371041/lib:/usr/local/globus/6.0.1506371041/lib64; export LD_LIBRARY_PATH;
+GLOBUS_PATH=/usr/local/globus/6.0.1506371041; export GLOBUS_PATH;
+CARTOPY_DATA_DIR=/app/conda/share/cartopy; export CARTOPY_DATA_DIR;
+MANPATH=/home/fms/local/perlbrew/perls/perl-5.38.2/man:/app/conda/miniconda/envs/python-3.9-20220720/share/man:/app/conda/miniconda/envs/python-3.9-20220720/man:/usr/local/Modules/5.1.1/share/man:/home/gfdl/man:/usr/local/man:/usr/share/man; export MANPATH;
+GLOBUS_TCP_PORT_RANGE=40000,46999; export GLOBUS_TCP_PORT_RANGE;
+CONDA_PREFIX=/app/conda/miniconda/envs/python-3.9-20220720; export CONDA_PREFIX;
+LOADEDMODULES=conda:python/3.9:globus/system-or-6.0:perlbrew/5.38.2:gcp/2.3; export LOADEDMODULES;
+_LMFILES_=/app/conda/modulefiles/conda:/app/conda/modulefiles/python/3.9:/usr/local/Modules/modulefiles/globus/system-or-6.0:/home/fms/local/modulefiles/perlbrew/5.38.2:/home/fms/local/modulefiles/gcp/2.3; export _LMFILES_;
+PERLBREW_MANPATH=/home/fms/local/perlbrew/perls/perl-5.38.2/man; export PERLBREW_MANPATH;
+PERLBREW_HOME=/home/Dmitry.Dukhovskoy/.perlbrew; export PERLBREW_HOME;
+_CE_CONDA=; export _CE_CONDA;
+_CE_M=; export _CE_M;
+__MODULES_LMSOURCESH=conda\&sh\ /app/conda/miniconda/etc/profile.d/conda.sh\|prepend-path\ PATH\ /app/conda/miniconda/condabin\|set-function\ __add_sys_prefix_to_path\ \{\}\|set-function\ __conda_activate\ \{\}\|set-function\ __conda_exe\ \{\}\|set-function\ __conda_hashr\ \{\}\|set-function\ __conda_reactivate\ \{\}\|set-function\ conda\ \{\}\|setenv\ _CE_CONDA\ \{\}\|setenv\ _CE_M\ \{\}\|setenv\ CONDA_EXE\ /app/conda/miniconda/bin/conda\|setenv\ CONDA_PYTHON_EXE\ /app/conda/miniconda/bin/python\|setenv\ CONDA_SHLVL\ 0; export __MODULES_LMSOURCESH;
+__MODULES_LMTAG=conda\&deprecated\&auto-loaded:python/3.9\&deprecated:globus/system-or-6.0\&auto-loaded:perlbrew/5.38.2\&auto-loaded; export __MODULES_LMTAG;
+PKG_CONFIG_PATH=/app/conda/miniconda/envs/python-3.9-20220720/lib/pkgconfig; export PKG_CONFIG_PATH;
+PERLBREW_PERL=perl-5.38.2; export PERLBREW_PERL;
+MYPROXY_SERVER=myproxy1.princeton.rdhpcs.noaa.gov; export MYPROXY_SERVER;
+__MODULES_LMPREREQ=python/3.9\&conda:gcp/2.3\&globus\&perlbrew; export __MODULES_LMPREREQ;
+CONDA_EXE=/app/conda/miniconda/bin/conda; export CONDA_EXE;
+MYPROXY_SERVER_DN=/DC=gov/DC=noaa/DC=rdhpcs/OU=Certificate\ Authorities/CN=host/myproxy1.princeton.rdhpcs.noaa.gov; export MYPROXY_SERVER_DN;
+CONDA_PYTHON_EXE=/app/conda/miniconda/bin/python; export CONDA_PYTHON_EXE;
+__MODULES_LMALTNAME=globus/system-or-6.0\&globus/default\&globus\&as\|globus/latest:perlbrew/5.38.2\&perlbrew/default\&perlbrew\&as\|perlbrew/latest:gcp/2.3\&gcp/default\&gcp; export __MODULES_LMALTNAME;
+X509_CERT_DIR=/etc/grid-security/certificates; export X509_CERT_DIR;
+__MODULES_LMCONFLICT=python/3.9\&python\&python3:perlbrew/5.38.2\&perlbrew:gcp/2.3\&gcp; export __MODULES_LMCONFLICT;
+PROJ_LIB=/app/conda/miniconda/envs/python-3.9-20220720/share/proj; export PROJ_LIB;
+CONDA_DEFAULT_ENV=python-3.9-20220720; export CONDA_DEFAULT_ENV;
+GLOBUS_LOCATION=/usr/local/globus/6.0.1506371041; export GLOBUS_LOCATION;
+X509_USER_PROXY=/home/Dmitry.Dukhovskoy/.globus/x509up_u; export X509_USER_PROXY;
+CONDA_ENV=/app/conda/miniconda/envs/python-3.9-20220720; export CONDA_ENV;
+PATH=/usr/local/gcp/2.3.36:/home/fms/local/perlbrew/bin:/home/fms/local/perlbrew/perls/perl-5.38.2/bin:/usr/local/globus/6.0.1506371041/bin:/app/conda/miniconda/envs/python-3.9-20220720/bin:/app/conda/miniconda/condabin:/usr/local/Modules/5.1.1/bin:/home/gfdl/bin2:/usr/local/bin:/bin:/usr/bin:.:/home/Dmitry.Dukhovskoy/bin; export PATH;
+CONDA_SHLVL=0; export CONDA_SHLVL;
+PERLBREW_ROOT=/home/fms/local/perlbrew; export PERLBREW_ROOT;
+GCP_GLOBUS_SDK=/usr/local/gcp/2.3.36/globus-sdk; export GCP_GLOBUS_SDK;
+__conda_hashr () { if [ -n "${ZSH_VERSION:+x}" ]; then
+        \rehash;
+    else
+        if [ -n "${POSH_VERSION:+x}" ]; then
+            :;
+        else
+            \hash -r;
+        fi;
+    fi; }; export -f __conda_hashr;
+__conda_exe () { ( __add_sys_prefix_to_path;
+    "$CONDA_EXE" $_CE_M $_CE_CONDA "$@" ); }; export -f __conda_exe;
+__add_sys_prefix_to_path () { if [ -n "${_CE_CONDA}" ] && [ -n "${WINDIR+x}" ]; then
+        SYSP=$(\dirname "${CONDA_EXE}");
+    else
+        SYSP=$(\dirname "${CONDA_EXE}");
+        SYSP=$(\dirname "${SYSP}");
+    fi;
+    if [ -n "${WINDIR+x}" ]; then
+        PATH="${SYSP}/bin:${PATH}";
+        PATH="${SYSP}/Scripts:${PATH}";
+        PATH="${SYSP}/Library/bin:${PATH}";
+        PATH="${SYSP}/Library/usr/bin:${PATH}";
+        PATH="${SYSP}/Library/mingw-w64/bin:${PATH}";
+        PATH="${SYSP}:${PATH}";
+    else
+        PATH="${SYSP}/bin:${PATH}";
+    fi;
+    \export PATH; }; export -f __add_sys_prefix_to_path;
+conda () { \local cmd="${1-__missing__}";
+    case "$cmd" in 
+        activate | deactivate)
+            __conda_activate "$@"
+        ;;
+        install | update | upgrade | remove | uninstall)
+            __conda_exe "$@" || \return;
+            __conda_reactivate
+        ;;
+        *)
+            __conda_exe "$@"
+        ;;
+    esac; }; export -f conda;
+__conda_reactivate () { \local ask_conda;
+    ask_conda="$(PS1="${PS1:-}" __conda_exe shell.posix reactivate)" || \return;
+    \eval "$ask_conda";
+    __conda_hashr; }; export -f __conda_reactivate;
+__conda_activate () { if [ -n "${CONDA_PS1_BACKUP:+x}" ]; then
+        PS1="$CONDA_PS1_BACKUP";
+        \unset CONDA_PS1_BACKUP;
+    fi;
+    \local ask_conda;
+    ask_conda="$(PS1="${PS1:-}" __conda_exe shell.posix "$@")" || \return;
+    \eval "$ask_conda";
+    __conda_hashr; }; export -f __conda_activate;
+test 0;'
+++ LD_LIBRARY_PATH=/usr/local/globus/6.0.1506371041/lib:/usr/local/globus/6.0.1506371041/lib64
+++ export LD_LIBRARY_PATH
+++ GLOBUS_PATH=/usr/local/globus/6.0.1506371041
+++ export GLOBUS_PATH
+++ CARTOPY_DATA_DIR=/app/conda/share/cartopy
+++ export CARTOPY_DATA_DIR
+++ MANPATH=/home/fms/local/perlbrew/perls/perl-5.38.2/man:/app/conda/miniconda/envs/python-3.9-20220720/share/man:/app/conda/miniconda/envs/python-3.9-20220720/man:/usr/local/Modules/5.1.1/share/man:/home/gfdl/man:/usr/local/man:/usr/share/man
+++ export MANPATH
+++ GLOBUS_TCP_PORT_RANGE=40000,46999
+++ export GLOBUS_TCP_PORT_RANGE
+++ CONDA_PREFIX=/app/conda/miniconda/envs/python-3.9-20220720
+++ export CONDA_PREFIX
+++ LOADEDMODULES=conda:python/3.9:globus/system-or-6.0:perlbrew/5.38.2:gcp/2.3
+++ export LOADEDMODULES
+++ _LMFILES_=/app/conda/modulefiles/conda:/app/conda/modulefiles/python/3.9:/usr/local/Modules/modulefiles/globus/system-or-6.0:/home/fms/local/modulefiles/perlbrew/5.38.2:/home/fms/local/modulefiles/gcp/2.3
+++ export _LMFILES_
+++ PERLBREW_MANPATH=/home/fms/local/perlbrew/perls/perl-5.38.2/man
+++ export PERLBREW_MANPATH
+++ PERLBREW_HOME=/home/Dmitry.Dukhovskoy/.perlbrew
+++ export PERLBREW_HOME
+++ _CE_CONDA=
+++ export _CE_CONDA
+++ _CE_M=
+++ export _CE_M
+++ __MODULES_LMSOURCESH='conda&sh /app/conda/miniconda/etc/profile.d/conda.sh|prepend-path PATH /app/conda/miniconda/condabin|set-function __add_sys_prefix_to_path {}|set-function __conda_activate {}|set-function __conda_exe {}|set-function __conda_hashr {}|set-function __conda_reactivate {}|set-function conda {}|setenv _CE_CONDA {}|setenv _CE_M {}|setenv CONDA_EXE /app/conda/miniconda/bin/conda|setenv CONDA_PYTHON_EXE /app/conda/miniconda/bin/python|setenv CONDA_SHLVL 0'
+++ export __MODULES_LMSOURCESH
+++ __MODULES_LMTAG='conda&deprecated&auto-loaded:python/3.9&deprecated:globus/system-or-6.0&auto-loaded:perlbrew/5.38.2&auto-loaded'
+++ export __MODULES_LMTAG
+++ PKG_CONFIG_PATH=/app/conda/miniconda/envs/python-3.9-20220720/lib/pkgconfig
+++ export PKG_CONFIG_PATH
+++ PERLBREW_PERL=perl-5.38.2
+++ export PERLBREW_PERL
+++ MYPROXY_SERVER=myproxy1.princeton.rdhpcs.noaa.gov
+++ export MYPROXY_SERVER
+++ __MODULES_LMPREREQ='python/3.9&conda:gcp/2.3&globus&perlbrew'
+++ export __MODULES_LMPREREQ
+++ CONDA_EXE=/app/conda/miniconda/bin/conda
+++ export CONDA_EXE
+++ MYPROXY_SERVER_DN='/DC=gov/DC=noaa/DC=rdhpcs/OU=Certificate Authorities/CN=host/myproxy1.princeton.rdhpcs.noaa.gov'
+++ export MYPROXY_SERVER_DN
+++ CONDA_PYTHON_EXE=/app/conda/miniconda/bin/python
+++ export CONDA_PYTHON_EXE
+++ __MODULES_LMALTNAME='globus/system-or-6.0&globus/default&globus&as|globus/latest:perlbrew/5.38.2&perlbrew/default&perlbrew&as|perlbrew/latest:gcp/2.3&gcp/default&gcp'
+++ export __MODULES_LMALTNAME
+++ X509_CERT_DIR=/etc/grid-security/certificates
+++ export X509_CERT_DIR
+++ __MODULES_LMCONFLICT='python/3.9&python&python3:perlbrew/5.38.2&perlbrew:gcp/2.3&gcp'
+++ export __MODULES_LMCONFLICT
+++ PROJ_LIB=/app/conda/miniconda/envs/python-3.9-20220720/share/proj
+++ export PROJ_LIB
+++ CONDA_DEFAULT_ENV=python-3.9-20220720
+++ export CONDA_DEFAULT_ENV
+++ GLOBUS_LOCATION=/usr/local/globus/6.0.1506371041
+++ export GLOBUS_LOCATION
+++ X509_USER_PROXY=/home/Dmitry.Dukhovskoy/.globus/x509up_u
+++ export X509_USER_PROXY
+++ CONDA_ENV=/app/conda/miniconda/envs/python-3.9-20220720
+++ export CONDA_ENV
+++ PATH=/usr/local/gcp/2.3.36:/home/fms/local/perlbrew/bin:/home/fms/local/perlbrew/perls/perl-5.38.2/bin:/usr/local/globus/6.0.1506371041/bin:/app/conda/miniconda/envs/python-3.9-20220720/bin:/app/conda/miniconda/condabin:/usr/local/Modules/5.1.1/bin:/home/gfdl/bin2:/usr/local/bin:/bin:/usr/bin:.:/home/Dmitry.Dukhovskoy/bin
+++ export PATH
+++ CONDA_SHLVL=0
+++ export CONDA_SHLVL
+++ PERLBREW_ROOT=/home/fms/local/perlbrew
+++ export PERLBREW_ROOT
+++ GCP_GLOBUS_SDK=/usr/local/gcp/2.3.36/globus-sdk
+++ export GCP_GLOBUS_SDK
+++ export -f __conda_hashr
+++ export -f __conda_exe
+++ export -f __add_sys_prefix_to_path
+++ export -f conda
+++ export -f __conda_reactivate
+++ export -f __conda_activate
+++ test 0
++ _mlstatus=0
++ return 0
++ export DTMP=/vftmp/Dmitry.Dukhovskoy/job39725291
++ DTMP=/vftmp/Dmitry.Dukhovskoy/job39725291
++ export WD=/work/Dmitry.Dukhovskoy/tmp/spear_subset/scripts
++ WD=/work/Dmitry.Dukhovskoy/tmp/spear_subset/scripts
++ export DPYTH=/home/Dmitry.Dukhovskoy/python/setup_seasonal_NEP
++ DPYTH=/home/Dmitry.Dukhovskoy/python/setup_seasonal_NEP
++ export extrpy=extract_domain_spear.py
++ extrpy=extract_domain_spear.py
++ /bin/mkdir -pv /work/Dmitry.Dukhovskoy/tmp/spear_subset/scripts
++ [[ 4 < 4 ]]
++ YR1=1993
++ YR2=1994
++ MS=4
++ ens=1
++ echo 'Extracting SPEAR monthly means for 1993-1994 month_start=4 ensemble=1'
+Extracting SPEAR monthly means for 1993-1994 month_start=4 ensemble=1
++ cd /work/Dmitry.Dukhovskoy/tmp/spear_subset/scripts
++ (( ystart=1993 ))
++ (( ystart<=1994 ))
++ RT=/archive/l1j/spear_med/rf_hist/fcst/s_j11_OTA_IceAtmRes_L33
+++ awk '{printf("%02d",$1)}'
+++ echo 4
++ mstart=04
++ subdir1=i19930401_OTA_IceAtmRes_L33
++ ((  1993 == 2020  ))
++ (( ( 1993 >= 2015  && 1993 <=2019 ) || 1993 == 2021  ))
+++ awk '{printf("%02d",$1)}'
+++ echo 1
++ nens=01
++ DOCN=/archive/l1j/spear_med/rf_hist/fcst/s_j11_OTA_IceAtmRes_L33/i19930401_OTA_IceAtmRes_L33/pp_ens_01/ocean_z/ts/monthly/1yr
++ DICE=/archive/l1j/spear_med/rf_hist/fcst/s_j11_OTA_IceAtmRes_L33/i19930401_OTA_IceAtmRes_L33/pp_ens_01/ice/ts/monthly/1yr
++ DTMPOUT=/vftmp/Dmitry.Dukhovskoy/job39725291/199304/ens01
++ echo 'TMP dir = /vftmp/Dmitry.Dukhovskoy/job39725291/199304/ens01'
+TMP dir = /vftmp/Dmitry.Dukhovskoy/job39725291/199304/ens01
++ /bin/mkdir -pv /vftmp/Dmitry.Dukhovskoy/job39725291/199304/ens01
+/bin/mkdir: created directory '/vftmp/Dmitry.Dukhovskoy/job39725291/199304'
+/bin/mkdir: created directory '/vftmp/Dmitry.Dukhovskoy/job39725291/199304/ens01'
++ cd /archive/l1j/spear_med/rf_hist/fcst/s_j11_OTA_IceAtmRes_L33/i19930401_OTA_IceAtmRes_L33/pp_ens_01/ocean_z/ts/monthly/1yr
++ for varnm in so thetao vo uo
+++ ls ocean_z.199304-199403.so.nc
++ flnm=ocean_z.199304-199403.so.nc
++ echo 'unstaging ocean_z.199304-199403.so.nc'
+unstaging ocean_z.199304-199403.so.nc
++ dmget ocean_z.199304-199403.so.nc
++ wait
++ /bin/cp ocean_z.199304-199403.so.nc /vftmp/Dmitry.Dukhovskoy/job39725291/199304/ens01/.
++ for varnm in so thetao vo uo
+++ ls ocean_z.199304-199403.thetao.nc
++ flnm=ocean_z.199304-199403.thetao.nc
++ echo 'unstaging ocean_z.199304-199403.thetao.nc'
+unstaging ocean_z.199304-199403.thetao.nc
++ dmget ocean_z.199304-199403.thetao.nc
++ wait
++ /bin/cp ocean_z.199304-199403.thetao.nc /vftmp/Dmitry.Dukhovskoy/job39725291/199304/ens01/.
++ for varnm in so thetao vo uo
+++ ls ocean_z.199304-199403.vo.nc
++ flnm=ocean_z.199304-199403.vo.nc
++ echo 'unstaging ocean_z.199304-199403.vo.nc'
+unstaging ocean_z.199304-199403.vo.nc
++ dmget ocean_z.199304-199403.vo.nc
+slurmstepd: error: *** JOB 39725291 ON pp058 CANCELLED AT 2024-10-10T17:45:26 DUE TO TIME LIMIT ***
+#####################################################################
+Job Name: subset_spear_ocean.sh
+User: Dmitry.Dukhovskoy
+Host: pp058
+Removed TMPDIR: /vftmp/Dmitry.Dukhovskoy/job39725291
+Submit host: an200
+---------------------------------------------------------------------
+JobID 39725291 - end Thu Oct 10 17:45:26 EDT 2024
+#####################################################################
+Account              cefi
+Partition            batch
+Constraints          -
+NCPUS                1
+Timelimit            01:00:00
+Elapsed              01:00:09
+UserCPU              00:00:00
+SystemCPU            00:00:01
+NodeMem              45.9G
+MaxRSS               4.8M
+ExitCode             0:0
+State                TIMEOUT
+Comment              -

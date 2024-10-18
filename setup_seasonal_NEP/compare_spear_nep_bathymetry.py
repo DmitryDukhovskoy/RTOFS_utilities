@@ -131,6 +131,7 @@ II, JJ    = mutob.discard_repeated_indx(II, JJ, keep_last=True)
 dset_segm = mutob.segm_topo_spear(II, JJ, LONS, LATS, HHS, nsegm=nsegm)
 
 # Det vertical grid and 2D section from SPEAR:
+ds = mutob.load_var(spear_dir, 'uo', fzint=True)
 ZZ  = -ds.variables['z_interf'].data
 dZ  = np.diff(ZZ)
 _, ZM = mmom6.zz_zm_fromDZ(dZ)

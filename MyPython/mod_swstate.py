@@ -36,7 +36,7 @@ def sw_press(zz,LAT):
   zz=np.abs(zz)  
 ##      breakpoint()
 # Check shapes 
-
+  zdim = 0
   if isinstance(zz,np.ndarray):
     if not isinstance(LAT,np.ndarray):
       print('ERROR: Depth Z is array and LAT is not array')
@@ -48,13 +48,16 @@ def sw_press(zz,LAT):
         print('ERROR: Z dim={0}, Lat dim={1}, should be equal'.format(zdim,ldim))
         raise Exception('dimensions disagree Z and Lat')
 
- 
   deg2rad = np.pi/180.
   X    = np.sin(np.abs(LAT)*deg2rad)
   C1   = 5.92e-3+X**2*5.25e-3
-  pres_db = ((1.-C1)-np.sqrt(((1.-C1)**2)-(8.84e-6*zz)))/(4.42e-6) # dbar
-  pres_pa = pres_db*1.e4  # Pa
+  pres_db = ((1.-C1)-np.sqrt(((1.-C1)**2)-(zz*8.84e-6)))/(4.42e-6) # dbar
+#  pres_db = ( (1.-C1) - (((1.-C1)**2)-(zz*8.84e-6))**0.5 )/(4.42e-6) # dbar
+# Make sure pressure = 0 at the surface
+  if zdim > 0:
+    pres_db = np.where(zz < 1.e-5, 0., pres_db) 
 
+  pres_pa = pres_db*1.e4  # Pa
 
   return pres_db, pres_pa
 

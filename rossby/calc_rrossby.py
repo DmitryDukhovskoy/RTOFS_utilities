@@ -11,6 +11,8 @@
 # (2) a few cases when min(eig/value)>0 --- check out
 #
 # !!!!!!!!!!!!!!!!
+# 
+# Dmitry Dukhovskoy, May - June 2022, NOAA NCEI
 #
 ##reset -f 
 from IPython import get_ipython

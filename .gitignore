@@ -38,4 +38,7 @@ README.*
 **/bkp/*
 .*.swp
 
+# Somebody else's codes #
+#########################
+**/TEOS_10/*
 

@@ -1151,6 +1151,122 @@ def construct_vector(pnt1, pnt2, vect21=True):
 
   return Av
 
+def shuffle3D_lon180(A3d, lon, conv360=True):
+  """
+    Global 3D array on Mercator grid, lon = 1D array
+    lon = [-180, 180]
+    want to rearrange to lon = [0, 360] such that -180/180 is in the middle of the data set
+  """  
+  if np.min(lon>=0.): 
+    lon = np.where(lon>180, lon-360., lon)
+
+  lon1 = lon[0]
+  lon2 = lon[-1]
+  if lon1 > lon2:
+    raise Exception(f"Input lon needs to be increasing but lon1={lon1} lon2={lon2}")
+
+  ilon0 = np.where(lon>=0)[0][0] 
+  lonR  = np.concatenate((lon[ilon0:],lon[:ilon0]))
+  if conv360: 
+    lonR = np.where(lonR<0, lonR+360., lonR)
+
+  A3dR = np.concatenate((A3d[:,:,ilon0:], A3d[:,:,:ilon0]), axis=2)
+
+  return A3dR, lonR
+
+
+def convert_polarXY_lonlat(X, Y, RE=6378137.0, E=0.08181919, SLAT=70., North=True, \
+                           LON0_dir = -45., units='m'):
+  """
+  Transform polar X, Y coordinates (m) to geogr. lon/lat
+  in N. hemisphere  and S. hemisphere (has not checked yet S.Hem.)
+  The code is based on fortran version :
+  https://github.com/nsidc/polarstereo-latlon-convert-fortran/blob/main/locate/locate.for
+  as well as matlab version:
+  https://www.mathworks.com/matlabcentral/fileexchange/32907-polar-stereographic-coordinate-transformation-map-to-lat-lon
+
+  With modifications to make it work for ice conc grid 
+     RE      : Radius of ellipsoid, WGS84
+     E       : Eccentricity, WGS84
+     E2      : Eccentricity squared
+     SLAT    : Standard latitude for the SSM/I grids is 70 degrees
+               Latitude of 0 distortion, i.e. where a projection plane 
+               tangent to the Earth surface
+     LON0_dir : orientation of the 0 longitude wth to X axis on polar grid
+                sign = math sense (+ c/clockwise)
+
+  Test:
+  X=-3850e3 Y=5850e3 =>  lon = 168.35, lat=30.98  - left upper corner of NSDIC grid
+  X=3750e3  Y=5850e3 =>  lat=31.37 lon=102.34
+  X=3750e3  Y=-5350e3 => lat=34.35 lon=350.03
+
+  """
+
+# If the standard latitude is in S. Hemisph - switch signs
+  sgn = 1.
+  if SLAT < 0:
+    sgn  = -1.
+    SLAT = -SLAT
+    LON0_dir = -LON0_dir
+    X = -X # 
+    Y = -Y #
+
+# Keep everything in meters, input X, Y - meters
+  cff = 1. 
+  if not units == 'm':
+    cff = 1.e3
+
+  X = X*cff
+  Y = Y*cff
+
+# See dimensions:
+  if isinstance(X, np.ndarray):
+    ndim = len(X.shape)
+  else:
+    ndim = 0
+
+  deg2rad = np.pi/180.
+  E2    = E**2
+  phi0  = SLAT*deg2rad
+  lmbd0 = LON0_dir*deg2rad
+
+  rho  = np.sqrt(X**2 + Y**2)
+
+  if ndim == 0:
+    if rho < 0.1:
+      alat = sgn*90.
+      alon = 0.
+      return alon, alat
+
+  cm  = np.cos(phi0)/(np.sqrt(1.-E2*((np.sin(phi0))**2)))
+  a0  = np.tan((np.pi/4.) - (phi0/2.))
+  a1  = ((1.-E*np.sin(phi0))/(1.0+E*np.sin(phi0)))**(E/2.)
+  t_c = a0/a1 
+
+  if (abs(SLAT-90.) < 1.e-5): 
+    TT = rho*np.sqrt((1.+E)**(1.+E)*(1.-E)**(1.-E))/2./RE
+  else:
+    TT = rho*t_c/(RE*cm)
+
+# Find phi using a series:
+  chi  = np.pi/2. - 2.*np.arctan(TT)
+  b1   = (E2/2. + 5.*(E2**2)/24. + (E**6)/12 + 13.*(E**8)/360)*np.sin(2.*chi)
+  b2   = (7*(E**4)/48. + 29.*(E**6)/240. + 811*(E**8)/11520.)*np.sin(4.*chi)
+  b3   = (7.*(E**6)/120.+81.*(E**8)/1120.)*np.sin(6.*chi)
+  b4   = (4279.*(E**8)/161280.)*np.sin(8.*chi)
+  phi  = chi + b1 + b2 + b3 + b4
+
+# Adjust sign and long rotation
+  phi  = sgn*phi
+  lmbd = np.arctan2(Y, X) - sgn*lmbd0
+
+  lon = lmbd*180./np.pi
+  lat = phi*180./np.pi
+
+# Make long -180, 180
+  lon = ((lon+180.)%360.) - 180.
+
+  return lon, lat
 
 
 

@@ -34,9 +34,9 @@ from mod_utils_fig import bottom_text
 import mod_utils as mutil
 importlib.reload(mutil)
 
-klr    = 1  # model layer to plot
-imonth = 1
-nsegm  = 4  # 1,2,3,4
+klr    = 30  # model layer to plot: lr 40 = -277 m, lr31 = -100
+imonth = 4
+nsegm  = 1  # 1,2,3,4
 
 # Climatology derived for these years, started at mstart
 yr1    = 1993
@@ -90,7 +90,8 @@ U2d       = dsetOB[uds].isel(time=imonth-1).data.squeeze()  # 2D section
 V2d       = dsetOB[vds].isel(time=imonth-1).data.squeeze()  # 2D section
 segm_nm   = dset_segm['segm_name'].data[0]
 Hbtm      = dset_segm['topo_segm'].data
-
+dZ        = dsetOB[f'dz_u_segment_{nsegm:03d}'].data[0,:,0,0].squeeze()
+ZZ, ZM    = mmom6.zz_zm_fromDZ(dZ)
 
 if segm_nm == 'north':
   uscl = 700.
@@ -174,7 +175,8 @@ for kk in range(1, lindx, dstep):
 ax1.set_xlim([xl1, xl2])
 ax1.set_ylim([yl1, yl2])
 
-sttl = f"NEP OB: U z_lr={klr} M={imonth} OB={nsegm} {segm_nm}"
+z_lr = ZM[klr-1]
+sttl = f"NEP OB: U z_lr={z_lr:4.0f}m lr={klr}  M={imonth} OB={nsegm} {segm_nm}"
 ax1.set_title(sttl)
 ax1.set_xlabel('NEP I grid points')
 ax1.set_ylabel('NEP J grid points')

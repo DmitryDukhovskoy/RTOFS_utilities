@@ -88,12 +88,13 @@ def eig_unfoldA(kbtm,AA):
   return w, v
 
 
-def runmn(B0,ZZ,mnwnd=5):
+def runmn(B0, ZZ, mnwnd=5):
   """
     Running mean, mnwnd - averaging window should be odd
     uneven depth levels are allowed
     ZZ - interface depths, values B0 are in the mid-points
          i.e. ZZ length = B0 length+1
+    Careful with nans! 
   """
   import math
   if math.floor((mnwnd-1)/2)*2 != mnwnd-1:
@@ -116,8 +117,44 @@ def runmn(B0,ZZ,mnwnd=5):
 #      print('Averaging ksb = {0}'.format(ksb))
       dz = np.abs(ZZ[ksb]-ZZ[ksb+1])
       dz_sum = dz_sum+dz
+      B0n = B0[ksb]
+#      B0n = np.where(np.isnan(B0), np.nanmean(B0), B0)  # to ignore nans
       b_sum = b_sum+B0[ksb]*dz
 #    print('  ')
+    BF[kk] = b_sum/dz_sum
+
+  return BF
+
+def runmn_dz(B0, dZ, mnwnd=5):
+  """
+    Running mean, mnwnd - averaging window should be odd
+    uneven depth levels are allowed
+    dZ - layer thicknesses, B0 values are in the middle of these 
+         layers 
+    len(dZ) = len(B0)
+  """
+  import math
+  if math.floor((mnwnd-1)/2)*2 != mnwnd-1:
+    print('Averaging window {0} should be odd, adding 1==> {1}'.
+           format(mnwnd,mnwnd+1))
+    mnwnd = mnwnd+1
+
+  dk = math.floor((mnwnd-1)/2)
+  nlev = B0.shape[0]
+  BF = np.zeros(nlev)
+  for kk in range(nlev):
+    k1 = kk-dk
+    k2 = kk+dk
+    k1 = max(0,k1)
+    k2 = min(nlev-1,k2)
+
+    dz_sum = 0.
+    b_sum = 0.
+    for ksb in range(k1,k2+1):
+#      print('Averaging ksb = {0}'.format(ksb))
+      dz = dZ[ksb]
+      dz_sum = dz_sum+dz
+      b_sum = b_sum+B0[ksb]*dz
     BF[kk] = b_sum/dz_sum
 
   return BF
@@ -150,36 +187,6 @@ def eig_wkb(kbtm,N2z,ZZ,phi,mode=1):
 
   return Lmb
 
-
-
-def Housholder_Atridiag(A0):
-  """
-    Factorization A=QR using Householder transformation
-    Matrix A is square tridiagonal real not required to be symmetric, 
-    only nbnd elements are kept
-    in each row (subdiagonal, diagonal, superdiagonal)
-
-    For each step k - have 1 vector = kth column of A
-    and submatrix sA=A(k+1:end,k+1:end) that is updated
-    (see Bjork p 53 for an algorithm)
-
-    Idea is that H*sA=(H*sA(:,i) H*sA(:,2) ... H*sA(:,end))
-    denote a(j)=sA(:,j) is a vector
-    Then H*a(j) = (I+alf*u*u')*a(j)= ...
-    so do not need to form matrix H
-    Keep u(k) vectors for reconstructing H(k) matrices
-    H(k)=I+alf*u*u'
-    I'm using different version of this formula:
-    H(k)=I-2*u*u', where u = w/||w||2
-    and w = v+gamma*e1, gamma = ||v||2
-    In this case, need to keep only u
-    A0(mm+1,:)=0; % extra row for u
-
-  """
-  mm = A0.shape[0]
-  nbnd = A0.shape[1]
-
-  
 
 
 

@@ -48,4 +48,6 @@ filesystem:
   nep_seas_restart:
   # SPEAR topo and grid ocean_z.static.nc and sea ice static files:
   spear_topo_grid: /work/Dmitry.Dukhovskoy/data/SPEAR
+  # temporary spear files subset to NEP domain for deriving OBC, etc:
+  nep_spear_subset: /work/Dmitry.Dukhovskoy/tmp/spear_subset/{year}/ens{ens:02d}
  

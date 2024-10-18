@@ -1,0 +1,1 @@
+/home/Dmitry.Dukhovskoy/scripts/seasonal_fcst/subset_spear_ocean.sh

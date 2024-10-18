@@ -16,6 +16,9 @@
 # (3) R is small in the Indonisian seas - too shallow?
 # 
 # !!!!!!!!!!!!!!!!
+# 
+# Dmitry Dukhovskoy, May - June 2022, NOAA NCEI
+#
 #
 import os
 import numpy as np

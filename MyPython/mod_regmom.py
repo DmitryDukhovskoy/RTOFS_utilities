@@ -536,6 +536,113 @@ def derive_TSprof_WOA23(seas, YR, Xp, Yp, grd=0.25, conv2pot=True):
 
   return Tprf, Sprf, ZZ
 
-  
+def insitu2pot_3D(T3d, S3d, ZZ, LAT, z_ref=0, uref='m'):
+  """
+    Convert in situ T to potential with pressure 
+      reference: z_ref either in m (depth) 
+      or dbar (pressure)
+    T, S, Z - 3D arrays, lat0 - local latitude (2D array)
+    ZZ - can be 1D or 3D array
+  """
+  import mod_swstate as msw
+  import mod_misc1 as mmisc
+
+  kdm, jdm, idm = T3d.shape
+  if len(ZZ.shape) == 1:
+    Z3d = np.tile(ZZ, idm*jdm).reshape((idm,jdm,kdm))
+    Z3d   = np.transpose(Z3d, (2, 1, 0))
+  elif len(ZZ.shape) == 3:
+    Z3d = ZZ
+  else:
+    raise Excpetion('ZZ array should be either 1D or 3D')
+
+  Zref = np.zeros((jdm,idm)) 
+  if uref == 'm':
+    if abs(z_ref) < 1.e-3:
+      prref_db = np.zeros((jdm,idm))
+      prref_pa = np.zeros((jdm,idm))
+    else:
+      prref_db, prref_pa = msw.sw_press(Zref, LAT)
+  else:
+    prref_db = np.zeros((jdm,idm))
+    prref_pa = np.zeros((jdm,idm))
+ 
+  Tpot = np.zeros((kdm,jdm,idm))
+  for klr in range(kdm):
+    print(f'Converting T in situ --> T pot, layer {klr}')
+    temp = T3d[klr,:].squeeze()
+    sal  = S3d[klr,:].squeeze()
+    z0   = Z3d[klr,:].squeeze()
+    pr_db, pr_pa = msw.sw_press(z0, LAT)
+    tp = msw.sw_ptmp(sal, temp, pr_db, prref_db)
+    Tpot[klr,:] = tp
+
+  return Tpot
+
+def insitu2pot_1D(T1d, S1d, Z1d, lat0, z_ref=0, uref='m', printT=False):
+  """
+    Convert in situ T to potential with pressure reference: z_ref either in m (depth) 
+    or dbar (pressure)
+    T, S, Z - 1D arrays, 1 profile, lat0 - local latitude
+  """
+  import mod_swstate as msw
+  import mod_misc1 as mmisc
+
+  if uref == 'm':
+    prref_db, prref_pa = msw.sw_press(z_ref, lat0)
+  else:
+    prref_db = z_ref
+
+  Tpot = np.zeros((len(T1d)))
+  for klr in range(len(T1d)):
+    temp = T1d[klr]
+    sal  = S1d[klr]
+    z0   = Z1d[klr]
+    if np.isnan(temp): continue
+    pr_db, pr_pa = msw.sw_press(z0, lat0)
+    Tpot[klr] = msw.sw_ptmp(sal, temp, pr_db, prref_db)
+
+  if printT:
+    mmisc.print_3col(Z1d,T1d,Tpot)
+
+  return Tpot
+ 
+def pot2insitu_1D(T1d, S1d, Z1d, lat0, z_ref=0, uref='m', printT=False):
+  """
+    Convert potential T to insitu with pressure reference for T potential: 
+    z_ref either in m (depth) 
+    or dbar (pressure)
+    Z1d - depths (m) for computing in situ T
+    T, S, Z - 1D arrays, 1 profile, lat0 - local latitude
+  """
+  import mod_swstate as msw
+  import mod_misc1 as mmisc
+
+  if uref == 'm':
+    pr_db, _ = msw.sw_press(z_ref, lat0)
+  else:
+    pr_db = z_ref
+
+  Tsitu = np.zeros((len(T1d)))
+  for klr in range(len(T1d)):
+    temp = T1d[klr]
+    sal  = S1d[klr]
+    z0   = Z1d[klr]
+    if np.isnan(temp): continue
+    prref_db, _ = msw.sw_press(z0, lat0)
+    Tsitu[klr] = msw.sw_ptmp(sal, temp, pr_db, prref_db)
+
+  if printT:
+    mmisc.print_3col(Z1d,T1d,Tsitu)
+
+  return Tsitu
+
+
+
+
+
+
+
+
 
 
