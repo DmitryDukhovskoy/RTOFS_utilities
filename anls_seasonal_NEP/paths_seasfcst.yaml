@@ -20,6 +20,7 @@ MOM6_NEP:
   "seasonal_fcst":
     pthrun:  ' '
     pthoutp: '/archive/Dmitry.Dukhovskoy/fre/NEP/seasonal_ensembles/{runname}/gfdl.ncrc5-intel22-repro/history'
+    pthwoutp: '/work/Dmitry.Dukhovskoy/run_output/seasonal_ensembles_climOB/{runname}'
     pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
     ftopo:   'topog.nc'
     fgrid:   'ocean_hgrid.nc'

@@ -76,7 +76,8 @@ if not expt == 'seasonal_fcst':
   DDS =  pthseas['MOM6_NEP'][expt]['day_start']
 
 if expt == 'seasonal_fcst':
-  pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(runname=runname)
+#  pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(runname=runname)
+  pthfcst  = pthseas['MOM6_NEP'][expt]['pthwoutp'].format(runname=runname)
 else:
   dnmb0    = dnmbR
   dv0      = mtime.datevec(dnmb0)

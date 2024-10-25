@@ -39,7 +39,7 @@ import mod_utils as mutil
 
 # Climatology derived for these years, started at mstart
 # Inidicate start of the SPEAR forecast:
-ens        = 1
+ens_spear  = 1     # SPEAR ens run used for creating OB
 yr_start   = 1993
 mo_start   = 4
 dnmb_start = mtime.datenum([yr_start,mo_start,1])
@@ -134,7 +134,7 @@ icc = 0
 dsetOB = xarray.Dataset()
 for isgm in range(nOB):
   nsgm = isgm+1
-  print(f'Processing lon/lat OB segment={nsgm}')
+  print(f'\nProcessing lon/lat OB segment={nsgm}')
   dset   = mutob.derive_obsegm_lonlat(hgrid, segments, isgm)
   dsetOB = xarray.merge([dsetOB, dset])
 
@@ -149,6 +149,7 @@ for imo in range(1,13):
 # Time for daily fields wrt to day 1 of the f/cast:
 time_days = np.array([x for x in range(1,ndays+1)])
 
+#A = STOP
 # Check interpolated fields at a given location:
 nsgm_chck = 2
 ichck = 1201
@@ -160,7 +161,7 @@ icc = -1
 # Prepare 1 year of data
 npol = 3  # degree of interpolating polynom for temporal interp. monthly --> daily fields
 spear_dir = config['filesystem']['nep_spear_subset'].\
-                   format(year=dv_start[0], ens=ens)
+                   format(year=dv_start[0], ens=ens_spear)
 for varnm in ['thetao', 'so']:
   # Load monthly fields for NEP subset SPEAR 
   flnm_spear = f'NEP_spear_{dv_start[0]}{dv_start[1]:02d}.{varnm}.nc'
@@ -181,8 +182,8 @@ for varnm in ['thetao', 'so']:
 
 # ------------------------------------------
 # Checking:
-    icc += 1
     if nsgm == nsgm_chck:
+      icc += 1
       sfx   = f"segment_{nsgm:03d}"
       vards = f"{varnm}_{sfx}"
 
@@ -230,9 +231,9 @@ for isgm in range(nOB):
   JNDX   = dsh[f'jndx_segm{nsgm:03d}'].data
 
   # Spatial interpolation from SPEAR --> NEP OB supergrid
+  # No temporal interpolation is needed as daily ssh is used
   dset   = mutob.derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=time_days)
   dsetOB = xarray.merge([dsetOB, dset])
-
 
 # Plot rot angles:
 f_plt = False
@@ -256,7 +257,7 @@ ds_vo = mutob.read_spear_output(spear_dir, 'vo', flnmv_spear, fzint=True)
 for varnm in ['u', 'v']:
   for isgm in range(nOB):
     nsgm = isgm+1
-    print(f'n\Processing {varnm} OB segment={nsgm}')
+    print(f'\nProcessing {varnm} OB segment={nsgm}')
 
     if varnm == 'u':
       INDX  = dsu[f'indx_segm{nsgm:03d}'].data
@@ -289,14 +290,16 @@ for segm in [1,2,3,4]:
   dsetOB[vv].attrs["coordinates"] = f"{dm1} {dm2}"
 
 dstart = f'{dv_start[0]}/{dv_start[1]:02d}/{dv_start[2]:02d}'
-dsetOB.attrs["history"] = f"Created from SPEAR monthly T,S,U,V and daily SSH fields f/cast started {dstart} ens={ens:02d}"
+dsetOB.attrs["history"] = f"Created from SPEAR monthly T,S,U,V and daily SSH fields f/cast started {dstart} ens={ens_spear:02d}"
 dsetOB.attrs["code"] = f"/home/Dmitry.Dukhovskoy/python/setup_seasonal_NEP/create_daily_from_monthly_spear.py"
 
 """
   Add attributes for time var
 """
+dnmb_prev = dnmb_start - 1
+dv_prev = mtime.datevec(dnmb_prev)
 #dsetOB['time'] = np.arange(0, ntsteps, dtype='float')
-dsetOB['time'].attrs['units'] = f'days since {dv_start[0]}-{dv_start[1]:02d}-{dv_start[2]:02d}'
+dsetOB['time'].attrs['units'] = f'days since {dv_prev[0]}-{dv_prev[1]:02d}-{dv_prev[2]:02d}'
 dsetOB['time'].attrs['calendar'] = 'JULIAN'
 dsetOB['time'].attrs['cartesian_axis'] = 'T'
 
@@ -322,8 +325,8 @@ for varnm in ['thetao', 'so', 'u', 'v']:
     })
 
 date_init = f'{dv_start[0]}{dv_start[1]:02d}{dv_start[2]:02d}'
-pthoutp = gridfls['MOM6_NEP']['seasonal_fcst']['pthoutp']
-fobc_out = os.path.join(pthoutp,f'OBCs_spear_daily_init{date_init}.nc')
+pthoutp = gridfls['MOM6_NEP'][run_name]['pthoutp']
+fobc_out = os.path.join(pthoutp,f'OBCs_spear_daily_init{date_init}_e{ens_spear:02d}.nc')
 print(f'Saving OBCs ---> {fobc_out}')
 dsetOB.to_netcdf(fobc_out, 
                  format='NETCDF3_64BIT', 

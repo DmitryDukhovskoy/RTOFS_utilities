@@ -771,7 +771,8 @@ def fill_land3d(A3d, vert2d=False,  **kwargs):
     for vertical 2D sections make vert2d True
 
     First, the 1st layer is filled - land values interpolated from the closest ocean points
-    Next (for 3D arrays) - below 1st layer: values are filled with the 1st lr value
+    The values are smoothed to avoid jumps near the ocean land points
+    Next (for 3D arrays) - below 1st layer: values are filled with the above lr value
  
     For quick fill, specify quick_fill=Value, all Nans will be filled with Value
 
@@ -779,21 +780,22 @@ def fill_land3d(A3d, vert2d=False,  **kwargs):
           but nans will be filled for quick_fill with a specified value
           for not quick_fill - with values above nans
 
-    Filled values can be smoothed - boxfltr = box size (should be = n^2, n- half of box size)
+    Filled values can be smoothed - boxfltr = squared box size (should be = n^2, n = odd 3, 5, 7,...)
+
+    land_mask: value:  Replace land points masked as some huge=land_mask value with nans
 
     Usage: Afilled = mod_mom6.fill_land3d(A3d, [quick_fill=1.e22, boxfltr=25]) 
   """
   import mod_interp1D as minterp
   import mod_misc1 as mmisc
-
-  adim = A3d.shape
-  ndim = len(adim)
-  if ndim > 3 or ndim < 2:
-    raise Exception('Array should be 2 or 3D')
-  print(f'Filling land, {ndim}D array')
+  from scipy import interpolate
 
   qfill = False
   bxflt = False
+#  bxflt = True
+#  nbx = 
+  huge = 1.e20   # possible land values if not nans
+  huge2nan = False
   for key, value in kwargs.items():
     if key == 'quick_fill': 
       vfill = value
@@ -801,6 +803,29 @@ def fill_land3d(A3d, vert2d=False,  **kwargs):
     if key == 'boxfltr':
       nbx = value
       bxflt = True
+    if key == 'land_mask':
+      huge = value
+      huge2nan = True
+
+  # Check if there are any land points, should be nan's
+  aa = np.max(abs(A3d))
+  if ~np.isnan(aa) and aa < huge:
+    print(f'No land values found, no land filling required max val={aa}')
+    return A3d
+  elif aa >= huge:
+    if huge2nan:
+      A3d = np.where(A3d >= huge, np.nan, A3d)
+    else:
+      print(f'WARNING: land values should be nans, found max val={aa}, is this land?')
+      print(f'WARNING: use keyarg land_mask={aa} to change to nan, no land filling performed ...')
+      return A3d
+
+  adim = A3d.shape
+  ndim = len(adim)
+  if ndim > 3 or ndim < 2:
+    raise Exception('Array should be 2 or 3D')
+  print(f'Filling land, {ndim}D array')
+
 
   f2d = False
   if ndim == 3:
@@ -824,61 +849,58 @@ def fill_land3d(A3d, vert2d=False,  **kwargs):
   else:
     A2d = A3d[0,:,:].squeeze()
 
+  J,I = np.where(~np.isnan(A2d))
+  ny, nx = A2d.shape
+  X = np.arange(0,nx)
+  Y = np.arange(0,ny)
+  XX, YY = np.meshgrid(X,Y)
+  A2df = interpolate.griddata((I,J), A2d[J,I], (XX,YY), method='linear')
 
-  Inan = np.where(np.isnan(A3d.flatten()))[0]
-  nall = len(Inan)
-  if nall == 0:  
-    print('No nans found for land values')
-    return A3d
+# interpolation leaves nans in the corners
+  Nnan = len(np.where(np.isnan(A2df))[0])
+  if Nnan > 0:
+    for jj in range(jdim):
+      imss = np.where(np.isnan(A2df[jj,:]))[0]
+      nmss = len(imss)
+      if nmss == 0: continue
+      a1d  = A2df[jj,:] 
+      i1d  = np.where(~np.isnan(a1d))[0]
+      v1d  = A2df[jj,i1d]
+  # Add endpoints for interpolation:
+  #    print(f'jj={jj} len i1d={len(i1d)}')
+      if len(i1d) == 0:
+  # Case all nans - wall OB or 2D vertical section below bottom
+  # try above row or overall mean
+        v1d = np.zeros((2))
+        i1d = np.zeros((2))
+        i1d[0] = 0
+        i1d[1] = idim-1
+        if jj > 0:
+          v1d[0] = A2df[jj-1,0]
+          v1d[1] = A2df[jj-1,-1]
+        else:
+          v1d[0] = np.nanmean(A2df)
+          v1d[1] = np.nanmean(A2df)
+   
+      if not i1d[0] == 0:
+        v1d = np.insert(v1d,0,v1d[0])
+        i1d = np.insert(i1d,0,0)
 
-  A2df = A2d.copy()
-  Indx = np.arange(idim)
-  for jj in range(jdim):
-#    I1 = Inan[ikk]
-#    jj, ii = np.unravel_index(I1, (jdim,idim))
-#    kcc += 1
-    imss = np.where(np.isnan(A2d[jj,:]))[0]
-    nmss = len(imss)
-    if nmss == 0: continue
+      if i1d[-1] < idim-1:
+        v1d = np.append(v1d, v1d[-1])
+        i1d = np.append(i1d, idim)
 
-    a1d  = A2d[jj,:] 
-    i1d  = np.where(~np.isnan(A2d[jj,:]))[0]
-    v1d  = A2d[jj,i1d]
-# Add endpoints for interpolation:
-#    print(f'jj={jj} len i1d={len(i1d)}')
-    if len(i1d) == 0:
-# Case all nans - wall OB or 2D vertical section below bottom
-# try above row or overall mean
-      v1d = np.zeros((2))
-      i1d = np.zeros((2))
-      i1d[0] = 0
-      i1d[1] = idim-1
-      if jj > 0:
-        v1d[0] = A2d[jj-1,0]
-        v1d[1] = A2d[jj-1,-1]
-      else:
-        v1d[0] = np.nanmean(A2d)
-        v1d[1] = np.nanmean(A2d)
- 
-    if not i1d[0] == 0:
-      v1d = np.insert(v1d,0,v1d[0])
-      i1d = np.insert(i1d,0,0)
+      for I0 in range(nmss):
+        ixx = imss[I0]
+        xF  = minterp.pcws_lagr1(i1d,v1d,ixx)
+        a1d[ixx] = xF
 
-    if i1d[-1] < idim-1:
-      v1d = np.append(v1d, v1d[-1])
-      i1d = np.append(i1d, idim)
+  # Check that ocean points have not been impacted:
+      dltA = np.nanmax(np.abs(A2df[jj,:]-a1d))
+      if dltA > 1.e-9:
+        raise Excpetion(f"Ocean point contaminated during land filling j={jj} dltA={dltA}")
 
-    for I0 in range(nmss):
-      ixx = imss[I0]
-      xF  = minterp.pcws_lagr1(i1d,v1d,ixx)
-      a1d[ixx] = xF
-
-# Check that ocean points have not been impacted:
-    dltA = np.nanmax(np.abs(A2d[jj,:]-a1d))
-    if dltA > 1.e-9:
-      raise Excpetion(f"Ocean point contaminated during land filling j={jj} dltA={dltA}")
-
-    A2df[jj,:] = a1d
+      A2df[jj,:] = a1d
 
   if bxflt:
     JN,IN = np.where(~np.isnan(A2d))

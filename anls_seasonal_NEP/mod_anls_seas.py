@@ -526,4 +526,87 @@ def derive_ice_contour(AA, tz0=0.15, nmin=10):
 
   return CNTR
 
+def monthly_avrg_vertxsect(pthfcst, yrR, moR, JJ, II, varnm):
+  """
+    Compute monthly average fields from n-daily mean output
+    for 2D vertical sections
+  """
+  LOUTP = [fl for fl in os.listdir(pthfcst) if os.path.isfile(os.path.join(pthfcst, fl))]
+  if len(LOUTP) == 0:
+    print(f'No output found in {pthfcst}')
+    return []
+ 
+  print(f'Computing mean {varnm} for {yrR}/{moR} nrec={len(LOUTP)}')
+  cc = 0
+  for ifl in range(len(LOUTP)):
+    flocn_name = LOUTP[ifl]
+    dfmom6 = os.path.join(pthfcst, flocn_name)
+    dset   = xarray.open_dataset(dfmom6)
+    if varnm == 'temp' or varm == 'potT':
+      A2d = dset['potT'].data[0,:,JJ,II].squeeze()
+    elif varnm == 'salin' or varnm == 'salt':
+      A2d = dset['salt'].data[0,:,JJ,II].squeeze()
+    A2d = np.transpose(A2d)
+
+    cc += 1
+    if cc == 1:
+      Asum = A2d.copy()
+    else:
+      Asum = Asum + A2d
+
+  Asum = Asum/float(cc)
+
+  return Asum
+
+def timeser_spatavrg(pthfcst0, yr_start, mo_start, JJ, II, lr, varnm, nens, ocnfld, nmo=12):
+  """
+    Compute spatially averaged fields from n-daily mean output
+    season forecasts
+    
+  """
+  import pandas as pd
+
+  dstrt = mtime.datenum([yr_start, mo_start,15])
+  dold = dstrt - 32
+
+  Tts = []
+  Time = []
+  for imo in range(nmo):
+    dnew = dold + 32
+    dv_new = mtime.datevec(dnew)
+    dnew = mtime.datenum([dv_new[0], dv_new[1], 1])
+    dold = dnew
+    pthfcst = os.path.join(pthfcst0,f'{ocnfld}_{dv_new[0]}{dv_new[1]:02d}')
+    LOUTP = [fl for fl in os.listdir(pthfcst) if os.path.isfile(os.path.join(pthfcst, fl))]
+
+    print(f'Reading {pthfcst} nrec={len(LOUTP)}')
+    if len(LOUTP) == 0:
+      print(f'No output found in {pthfcst}')
+      return []
+   
+    for ifl in range(len(LOUTP)):
+      flocn_name = LOUTP[ifl]
+      dfmom6 = os.path.join(pthfcst, flocn_name)
+      dset   = xarray.open_dataset(dfmom6)
+      if varnm == 'temp' or varnm == 'potT':
+        A2d = dset['potT'].data[0,lr,:,:].squeeze()
+      elif varnm == 'salin' or varnm == 'salt':
+        A2d = dset['salt'].data[0,lr,:,:].squeeze()
+      Asub = A2d[JJ[0]:JJ[1],II[0]:II[1]]
+      amn  = np.nanmean(Asub)
+      Tts.append(amn)
+      tm = dset['time'].data
+      tmP = pd.to_datetime(tm)
+      yr0 = tmP.year[0]
+      mo0 = tmP.month[0]
+      dd0 = tmP.day[0]
+
+      dnmb0 = mtime.datenum([yr0,mo0,dd0])
+      Time.append(dnmb0)
+
+  Tts = np.array(Tts)
+  Time = np.array(Time)
+
+  return Tts, Time
+
 

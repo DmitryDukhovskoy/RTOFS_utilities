@@ -1,0 +1,148 @@
+"""
+  Check NEP OBC UV fields created from SPEAR monthly climatology
+  Check 2D scalar fields (vertical sections along OBs)
+  see: write_spearOB_climatology.py
+"""
+import numpy as np
+from pathlib import Path
+import xarray
+import os
+import importlib
+import sys
+import matplotlib.pyplot as plt
+from yaml import safe_load
+
+import mod_utils_ob as mutob
+importlib.reload(mutob)
+
+PPTHN = []
+if len(PPTHN) == 0:
+  cwd   = os.getcwd()
+  aa    = cwd.split("/")
+  nii   = cwd.split("/").index('python')
+  PPTHN = '/' + os.path.join(*aa[:nii+1])
+sys.path.append(PPTHN + '/MyPython/hycom_utils')
+sys.path.append(PPTHN + '/MyPython/draw_map')
+sys.path.append(PPTHN + '/MyPython')
+sys.path.append(PPTHN + '/MyPython/mom6_utils')
+sys.path.append('./seasonal-workflow')
+from boundary import Segment
+import mod_time as mtime
+import mod_mom6 as mmom6
+import mod_colormaps as mclrmp
+from mod_utils_fig import bottom_text
+import mod_utils as mutil
+importlib.reload(mutil)
+
+iday   = 1  # f/cast day sarting from 1, ...., 365(6)
+nsegm  = 3  # OB segments, 1 - North, 2 - East, ...
+run_name = 'seasonal_fcst_daily'
+pltUnrm = True  # plot U component normal to OB, if not - plot speed
+
+# OB derived for f.cast initialized on these yr/mo
+ens_spear = 1       # ens run used to create OB
+yr_start = 1993
+mo_start = 4
+dd_start = 1
+dnmb_start = mtime.datenum([yr_start, mo_start, dd_start])
+dv_start = mtime.datevec(dnmb_start)
+
+fyaml = 'pypaths_gfdlpub.yaml'
+with open(fyaml) as ff:
+  gridfls = safe_load(ff)
+
+# MOM6 NEP topo/grid:
+pthtopo     = gridfls['MOM6_NEP']['test']['pthgrid']
+fgrid_mom   = gridfls['MOM6_NEP']['test']['fgrid']
+ftopo_mom   = gridfls["MOM6_NEP"]["test"]["ftopo"]
+dfgrid_mom  = os.path.join(pthtopo, fgrid_mom)
+dftopo_mom  = os.path.join(pthtopo, ftopo_mom)
+LONM, LATM  = mmom6.read_mom6grid(dfgrid_mom)
+HHM         = mmom6.read_mom6depth(dftopo_mom)
+jdm, idm    = np.shape(HHM)
+hgrid       = xarray.open_dataset(os.path.join(pthtopo,fgrid_mom))
+hmask       = xarray.open_dataset(os.path.join(pthtopo, 'ocean_mask.nc'))
+
+date_init = f'{dv_start[0]}{dv_start[1]:02d}{dv_start[2]:02d}'
+pthoutp = gridfls['MOM6_NEP'][run_name]['pthoutp']
+fobc_out = os.path.join(pthoutp,f'OBCs_spear_daily_init{date_init}_e{ens_spear:02d}.nc')
+#fobc_out = os.path.join(pthoutp,f'OBCs_spear_daily_init{date_init}.nc')
+print(f'Loading OBCs <--- {fobc_out}')
+dsetOB = xarray.open_dataset(fobc_out)
+
+sfx   = f"segment_{nsegm:03d}"
+uds   = f"u_{sfx}"
+vds   = f"v_{sfx}"
+dzvar = f"dz_u_{sfx}"
+
+dset_segm = mutob.segm_topo(nsegm, HHM, hgrid)
+
+U2d    = dsetOB[uds].isel(time=iday-1).data.squeeze()  # 2D section
+V2d    = dsetOB[vds].isel(time=iday-1).data.squeeze()  # 2D section
+dZ     = dsetOB[dzvar].isel(time=iday-1).data.squeeze()  
+ZZ, ZM = mmom6.zz_zm_fromDZ(dZ)
+
+S2d = np.sqrt(U2d**2 + V2d**2)
+
+#rmin, rmax = mutob.minmax_clrmap(S2d, cpnt=0)
+if pltUnrm:
+  clrmp = mclrmp.colormap_ssh(cpos='Reds') 
+else:
+  clrmp = mclrmp.colormap_temp(clr_ramp=[0.95,0.92,1])
+clrmp.set_bad(color=[1,1,1])
+
+
+lon1     = dset_segm['lon_segm'].data[0]
+lon2     = dset_segm['lon_segm'].data[-1]
+lat1     = dset_segm['lat_segm'].data[0]
+lat2     = dset_segm['lat_segm'].data[-1]
+X        = dset_segm['dist_supergrid'].data
+Xbtm     = dset_segm['dist_grid'].data
+Hbtm     = dset_segm['topo_segm'].data
+Hbtm     = np.where(Hbtm > 0, 0., Hbtm)
+segm_nm  = dset_segm['segm_name'].data[0]
+
+stxt = f"X-axis: Distance (km) along segment from {lon1:5.2f}W, {lat1:5.2f}N to {lon2:5.2f}W, {lat2:5.2f}N"
+
+Xbtm[-1] = X[-1]
+if segm_nm == 'north':
+  xl1 = 1900.
+  rmin = 0.
+  rmax = 0.1
+  Unrm = V2d
+elif segm_nm == 'east':
+  xl1 = 5800
+  rmin = 0.
+  rmax = 0.1
+  Unrm = U2d
+elif segm_nm == 'south':
+  xl1 = 0
+  rmin = 0.
+  rmax = 0.1
+  Unrm = V2d
+elif segm_nm == 'west':
+  xl1 = 0
+  rmin = 0.
+  rmax = 0.1
+  Unrm = U2d
+else:
+  xl1 = 0
+
+if pltUnrm: rmin = -rmax
+
+xl2  = max(Xbtm)
+
+if pltUnrm:
+  sttl = f"NEP OB: U_norm (>0 with I/J axis)  Fcast day={iday} OB={segm_nm}"
+  mutob.plot_xsection(Unrm, X, ZM, Hbtm, Xbtm, clrmp, rmin, rmax, \
+                      xl1, xl2, sttl=sttl, stxt=stxt, fgnmb=1)
+else:
+  sttl = f"NEP OB: |U| Fcast day={iday} OB={segm_nm}"
+  mutob.plot_xsection(S2d, X, ZM, Hbtm, Xbtm, clrmp, rmin, rmax, xl1, xl2, sttl=sttl, stxt=stxt, fgnmb=1)
+
+btx = 'check_uv_dailyOBnep.py'
+bottom_text(btx)
+
+
+
+

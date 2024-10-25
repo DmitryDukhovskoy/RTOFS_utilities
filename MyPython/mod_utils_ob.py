@@ -415,7 +415,7 @@ def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=[]):
 
     INDX, JNDX - n x 4 arrays of grid points (gmapi) for bilinear interpolation
 
- Use bilinear interpolation 
+   Use bilinear interpolation 
 
   """
   import mod_bilinear as mblnr
@@ -444,19 +444,20 @@ def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=[]):
   LONs = np.where(LONs<0., LONs+360., LONs)
 
   dtm   = ds.time.data
-  AA    = ds['ssh'].data
+#  AA    = ds['ssh'].data
   ntime = len(dtm) 
 
 # 2D array and time dimension:
-  ndim = len(AA.shape)
-  if ndim != 3:
-    raise Exception(f'3D array (time, y, x) is assumed for ssh, check array dim')
+#  ndim = len(AA.shape)
+#  if ndim != 3:
+#    raise Exception(f'3D array (time, y, x) is assumed for ssh, check array dim')
 
   Ai = np.zeros((ntime,ny,nx))+1.e30
 
   for itime in range(ntime):
-    print(f'interpolating ssh, Time = {itime+1}')
-    A   = AA[itime,:]
+    print(f'interpolating ssh, segm={nsgm}, Time = {itime+1}')
+#    A   = AA[itime,:]
+    A = ds['ssh'].isel(time=itime).data.squeeze()
 # Fill missing values (bottom/land):
     dmm =  mom6util.fill_land3d(A)
     assert np.max(abs(dmm)) < 1.e20, "Bottom/land not filled correctly: No huge values are allowed"
@@ -976,6 +977,25 @@ def segm_topo(nsegm, HHM, hgrid):
 
   return dset_segm
 
+def calculate_dist_section(lon_segm, lat_segm, f_km=True):
+  """
+    Calculate distance (m / km) along a transect / segment
+    given geog. coordinates along the transect
+  """
+  import mod_misc1 as mmsc1
+
+  coeff = 1.0
+  if f_km: coeff = 1.e-3
+
+  npnts = len(lon_segm)
+  dL = np.zeros((npnts))
+  for ikk in range(npnts-1):
+    dltX = mmsc1.dist_sphcrd(lat_segm[ikk], lon_segm[ikk], lat_segm[ikk+1], lon_segm[ikk+1])*coeff
+    dL[ikk+1] = dltX
+  dist_segm = np.cumsum(dL)
+
+  return dist_segm, dL
+
 def discard_repeated_indx(II, JJ, keep_last=False):
   """
     Remove repeated indices, i.e. eliminate same grid points
@@ -1364,8 +1384,9 @@ def interp_OBsegm_mnth2daily(dset, ndays, nsgm, varnm, npol=3):
   Nlft = int(np.floor(Nnodes/2))
   Nrht = int(Nnodes - Nlft)
   time_mo    = dset.time.data   # year days for monthly data - mid of the months
-  time_steps = [x for x in range(ndays)] #Interpolation time points - 
-                                         # days since day 1 of the forecast 
+  time_steps = [x for x in range(1,ndays+1)] #Interpolation time points - 
+                                         # days since day 0 of the forecast 
+                                         # Day 1 = start of the f/cast
   huge = 1.e20   # nan values
   assert npol < 5, "Polynomials of a degree > 4 are not supported"
 
@@ -1464,6 +1485,165 @@ def interp_OBsegm_mnth2daily(dset, ndays, nsgm, varnm, npol=3):
 
   return dset_segmTI
 
+def monthlyOB_from_SPEAR_ensmbls(dnmb_start, varnm, run_name, ENSR ):
+  """
+    Derive OB from monthly SPEAR output of 1 yr f/casts for specified ensembles
+    and interpolate onto 
+    regional supergrid
+    One variable only - varnm
+    Note SPEAR monthly fields should be subset to a smaller regions
+    gmapi indices should correspond to the smaller subdomain
+    Assumed domain = NEP with 4 OBs, need to change for a different domain / OBs
+  """
+  from boundary import Segment
+  import mod_time as mtime
+  import mod_mom6 as mmom6
+
+  dv_start   = mtime.datevec(dnmb_start)
+
+  FMONTHS = [x for x in range(1,13)]
+  nmonths = len(FMONTHS)
+  TMM  = np.zeros((nmonths,4), dtype=int)  # f/cast time: year, month, Ndays in month
+  #dnmb = dnmb_start-15
+  dnmb = dnmb_start
+  nmdays = 0
+  for imo in range(nmonths):
+    dnmb = dnmb + nmdays
+    dv = mtime.datevec(dnmb)
+    nmdays = mtime.month_days(dv[1],dv[0])
+    dnmb0 = int(mtime.datenum([dv[0],dv[1],15]))
+    TMM[imo,:2] = dv[:2]
+    TMM[imo,2] = int(nmdays)
+    TMM[imo,3] = dnmb0
+  ndays = np.sum(TMM[:,2])
+
+  fyaml = 'pypaths_gfdlpub.yaml'
+  with open(fyaml) as ff:
+    gridfls = safe_load(ff)
+
+  # MOM6 NEP topo/grid:
+  pthtopo    = gridfls['MOM6_NEP'][run_name]['pthgrid']
+  fgrid      = gridfls['MOM6_NEP'][run_name]['fgrid']
+  ftopo_mom  = gridfls["MOM6_NEP"][run_name]["ftopo"]
+  outdir     = gridfls['MOM6_NEP'][run_name]['pthoutp']
+  hgrid      = xarray.open_dataset(os.path.join(pthtopo,fgrid))
+  hmask      = xarray.open_dataset(os.path.join(pthtopo, 'ocean_mask.nc'))
+  dstopo_nep = xarray.open_dataset(os.path.join(pthtopo, ftopo_mom))
+  dfgrid_mom  = os.path.join(pthtopo, fgrid)
+
+  segments = [ Segment(1, 'north', hgrid, output_dir=outdir),
+               Segment(2, 'east',  hgrid, output_dir=outdir),
+               Segment(3, 'south', hgrid, output_dir=outdir),
+               Segment(4, 'west',  hgrid, output_dir=outdir)]
+
+  nOB = len(segments)
+  # Time array for monthly clim:
+  time_days = np.zeros((12))
+  for imo in range(1,13):
+    dnmb = TMM[imo-1,3]
+    time_days[imo-1] = dnmb - dnmb_start + 1
+
+  #static = xarray.open_dataset('/work/acr/spear/analysis/ocean_z.static.nc')
+  grid_spear = xarray.open_dataset('/work/Dmitry.Dukhovskoy/data/SPEAR/ocean_z.static.nc')
+  icegrid_spear = xarray.open_dataset('/work/Dmitry.Dukhovskoy/data/SPEAR/ice.static.nc')
+
+  fconfig = 'config_nep.yaml'
+  with open(fconfig) as ff:
+    config = safe_load(ff)
+
+  # Check if mapping indices exist, gmapi:
+  dirgmapi = config['filesystem']['spear_mom_gmapi']
+  flgmaph  = f'spear2mom_NEP_OB_gmapi_hpnt.nc'
+  flgmapu  = f'spear2mom_NEP_OB_gmapi_upnt.nc'
+  flgmapv  = f'spear2mom_NEP_OB_gmapi_vpnt.nc'
+  dflgmaph = os.path.join(dirgmapi, flgmaph)
+  dflgmapu = os.path.join(dirgmapi, flgmapu)
+  dflgmapv = os.path.join(dirgmapi, flgmapv)
+  # h-point indices
+  dsh = xarray.open_dataset(dflgmaph)
+  # u-point indices
+  dsu = xarray.open_dataset(dflgmapu)
+  # v-point indices
+  dsv = xarray.open_dataset(dflgmapv)
+
+  nens = len(ENSR)
+
+  icc = 0
+  dsetOB = xarray.Dataset()
+  for isgm in range(nOB):
+    nsgm = isgm+1
+    print(f'Processing lon/lat OB segment={nsgm}')
+    dset   = derive_obsegm_lonlat(hgrid, segments, isgm)
+    dsetOB = xarray.merge([dsetOB, dset])
+
+  for iens in range(nens):
+    ens = ENSR[iens]
+    spear_dir = config['filesystem']['nep_spear_subset'].\
+                     format(year=dv_start[0], ens=ens)
+
+    if varnm == 'thetao' or varnm == 'so':
+      # Load monthly SPEAR data subset for NEP
+      flnm_spear = f'NEP_spear_{dv_start[0]}{dv_start[1]:02d}.{varnm}.nc'
+      ds = read_spear_output(spear_dir, varnm, flnm_spear, fzint=True)
+
+      for isgm in range(nOB):
+        nsgm   = isgm+1
+        print(f'Processing {varnm} OB segment={nsgm} ens={ens:02d}')
+        INDX   = dsh[f'indx_segm{nsgm:03d}'].data
+        JNDX   = dsh[f'jndx_segm{nsgm:03d}'].data
+        # Interpolate onto NEP OB supergrid:
+        dset   = derive_obsegm_3D(hgrid, ds, segments, isgm, varnm,
+                                  INDX, JNDX, time_steps=time_days)
+    #    dset   = xarray.Dataset({f"{varnm}_segment_{nsgm:03d}": darr})
+        dsetOB = xarray.merge([dsetOB, dset])
+        fldnm_old = f'{varnm}_segment_{nsgm:03d}'
+        fldnm_new = f'{varnm}_e{ens:02d}_segment_{nsgm:03d}'
+        dsetOB = dsetOB.rename({fldnm_old: fldnm_new})
+
+  # UV fields
+    elif varnm == 'u' or varnm == 'v':
+      # Derive rotation angle, rad and components of the rotation matrix
+      # for rotating vectors onto true N/E grid from SPEAR
+      r2d = 180./np.pi
+      theta_rot, cosrot, sinrot = get_rotangle(icegrid_spear, fconfig, grid_spear)
+      print(f"Rotation angle for SPEAR min/max: {np.min(theta_rot)*r2d:6.2f} " + \
+            f"/ {np.max(theta_rot)*r2d:6.2f}")
+
+      # Load monthly SPEAR data subset for NEP
+      flnmu_spear = f'NEP_spear_{dv_start[0]}{dv_start[1]:02d}.uo.nc'
+      flnmv_spear = f'NEP_spear_{dv_start[0]}{dv_start[1]:02d}.vo.nc'
+      ds_uo = read_spear_output(spear_dir, 'uo', flnmu_spear, fzint=True)
+      ds_vo = read_spear_output(spear_dir, 'vo', flnmv_spear, fzint=True)
+
+      for isgm in range(nOB):
+        nsgm   = isgm+1
+        print(f'Processing {varnm} OB segment={nsgm}')
+
+        if varnm == 'u':
+          INDX  = dsu[f'indx_segm{nsgm:03d}'].data
+          JNDX  = dsu[f'jndx_segm{nsgm:03d}'].data
+        elif varnm == 'v':
+          INDX  = dsv[f'indx_segm{nsgm:03d}'].data
+          JNDX  = dsv[f'jndx_segm{nsgm:03d}'].data
+
+        dset   = derive_obsegm_uv(hgrid, ds_uo, ds_vo, segments, isgm, theta_rot,\
+                                        varnm, INDX, JNDX, time_steps=time_days)
+        dsetOB = xarray.merge([dsetOB, dset])
+        fldnm_old = f'{varnm}_segment_{nsgm:03d}'
+        fldnm_new = f'{varnm}_e{ens:02d}_segment_{nsgm:03d}'
+        dsetOB = dsetOB.rename({fldnm_old: fldnm_new})
+
+    for segm in [1,2,3,4]:
+  #    vv  = f"{varnm}_segment_{segm:03d}"
+      vdz = f"dz_{varnm}_segment_{segm:03d}"
+      dm1 = f'lat_segment_{segm:03d}'
+      dm2 = f'lon_segment_{segm:03d}'
+      dsetOB[fldnm_new].attrs["coordinates"] = f"{dm1} {dm2}"
+      dsetOB[vdz].attrs["coordinates"] = f"{dm1} {dm2}"
+
+  return dsetOB
+    
+
 def minmax_clrmap(dmm, pmin=10, pmax=90, cpnt=0.01, fsym=False):
   """
   Find min/max limits for colormap 
@@ -1489,7 +1669,8 @@ def minmax_clrmap(dmm, pmin=10, pmax=90, cpnt=0.01, fsym=False):
   return rmin,rmax
 
 def plot_xsection(A2d, X, Z, Hbtm, Xbtm, clrmp, rmin, rmax, \
-                  xl1, xl2, sttl='OB section', stxt='', fgnmb=1, btx=''):
+                  xl1, xl2, sttl='OB section', stxt='', fgnmb=1, \
+                  btx='', fclrbar=True, ax1=[], fig1=[]):
   """
     2D vertical section
   """
@@ -1497,10 +1678,12 @@ def plot_xsection(A2d, X, Z, Hbtm, Xbtm, clrmp, rmin, rmax, \
 
   yl1 = np.ceil(np.min(Hbtm))
 
-  plt.ion()
-  fig1 = plt.figure(fgnmb,figsize=(9,8))
-  plt.clf()
-  ax1 = plt.axes([0.1, 0.25, 0.8, 0.7])
+  if isinstance(ax1, list) and len(ax1) == 0:
+    plt.ion()
+    fig1 = plt.figure(fgnmb,figsize=(9,8))
+    plt.clf()
+    ax1 = plt.axes([0.1, 0.25, 0.8, 0.7])
+
   im1 = ax1.pcolormesh(X, Z, A2d, \
                  cmap=clrmp,\
                  vmin=rmin, \
@@ -1514,16 +1697,17 @@ def plot_xsection(A2d, X, Z, Hbtm, Xbtm, clrmp, rmin, rmax, \
   ax1.set_xlim([xl1, xl2])
   ax1.set_ylim([yl1, 0])
 
-  ax2 = fig1.add_axes([ax1.get_position().x1+0.02,
-               ax1.get_position().y0,0.02,
-               ax1.get_position().height])
-  clb = plt.colorbar(im1, cax=ax2, extend='both')
-  ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
-  ax2.set_yticklabels(ax2.get_yticks())
-  ticklabs = clb.ax.get_yticklabels()
-  clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
-  clb.ax.tick_params(direction='in', length=12)
-  plt.sca(ax1)
+  if fclrbar:
+    ax2 = fig1.add_axes([ax1.get_position().x1+0.02,
+                 ax1.get_position().y0,0.02,
+                 ax1.get_position().height])
+    clb = plt.colorbar(im1, cax=ax2, extend='both')
+    ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
+    ax2.set_yticklabels(ax2.get_yticks())
+    ticklabs = clb.ax.get_yticklabels()
+    clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+    clb.ax.tick_params(direction='in', length=12)
+    plt.sca(ax1)
   
   ax1.set_title(sttl)
 
@@ -1533,6 +1717,65 @@ def plot_xsection(A2d, X, Z, Hbtm, Xbtm, clrmp, rmin, rmax, \
     ax3.axis('off')
 
   if len(btx) > 0:  bottom_text(btx)
+
+  return 
+
+def plot_Nxsections(A2d, X, Z, Hbtm, Xbtm, clrmp, rmin, rmax, \
+                  xl1, xl2, fig1, ax1, sttl='OB section', stxt='', fgnmb=1, \
+                  btx='', clrb_pos=[], clrb_ornt='horizontal', \
+                  txt_pos=[0.1, 0.2, 0.8, 0.1]):
+  """
+    2D vertical sections - plot each section in separate axes on same figure pane
+    plot 1 colorbar specified position
+  """
+  from matplotlib.patches import Polygon
+
+  yl1 = np.ceil(np.min(Hbtm))
+
+  if isinstance(ax1, list) and len(ax1) == 0:
+    plt.ion()
+    fig1 = plt.figure(fgnmb,figsize=(9,8))
+    plt.clf()
+    ax1 = plt.axes([0.1, 0.25, 0.8, 0.7])
+
+  im1 = ax1.pcolormesh(X, Z, A2d, \
+                 cmap=clrmp,\
+                 vmin=rmin, \
+                 vmax=rmax)
+
+  # Patch bottom:
+  verts = [(np.min(Xbtm),-8000),*zip(Xbtm,Hbtm),(np.max(Xbtm),-8000)]
+  poly = Polygon(verts, facecolor='0.6', edgecolor='0.6')
+  ax1.add_patch(poly)
+
+  ax1.set_xlim([xl1, xl2])
+  ax1.set_ylim([yl1, 0])
+
+  if len(clrb_pos) > 0:
+    ax2 = fig1.add_axes(clrb_pos)
+    if clrb_ornt == 'horiz':
+      clb = plt.colorbar(im1, cax=ax2, orientation='horizontal', extend='both')
+      ax2.xaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
+      ax2.set_xticklabels(ax2.get_xticks())
+      ticklabs = clb.ax.get_xticklabels()
+      clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+    else:
+      clb = plt.colorbar(im1, cax=ax2, extend='both')
+      ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
+      ax2.set_yticklabels(ax2.get_yticks())
+      ticklabs = clb.ax.get_yticklabels()
+      clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+    clb.ax.tick_params(direction='in', length=12)
+    plt.sca(ax1)
+  
+  ax1.set_title(sttl)
+
+  if len(stxt) > 0:
+    ax3 = plt.axes(txt_pos)
+    ax3.text(0, 0.01, stxt)
+    ax3.axis('off')
+
+  if len(btx) > 0:  bottom_text(btx, pos=[0.05, 0.03])
 
   return 
 
