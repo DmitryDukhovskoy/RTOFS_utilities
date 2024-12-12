@@ -4,6 +4,7 @@
 
   Create daily fields from monthly by linear interpolation in time
   Note need to have +/- 1 month from the start/end of time for time interpolation 
+
 """
 
 import datetime as dt
@@ -21,7 +22,7 @@ import mod_utils_ob as mutob
 importlib.reload(mutob)
 
 
-PPTHN = []
+PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
   cwd   = os.getcwd()
   aa    = cwd.split("/")
@@ -41,9 +42,12 @@ import mod_utils as mutil
 # Inidicate start of the SPEAR forecast:
 ens_spear  = 1     # SPEAR ens run used for creating OB
 yr_start   = 1993
-mo_start   = 4
+mo_start   = 10
 dnmb_start = mtime.datenum([yr_start,mo_start,1])
 dv_start   = mtime.datevec(dnmb_start)
+calendar   = 'gregorian'   # gregorian - actual dates in np datetime, julian - day 3 since day 1 of rec.
+
+init_date = f'{yr_start}/{mo_start:02d}'
 
 # Months of the f/cast for which daily data are being created
 # Have -1 mont at the beginning and +1 mo at the end for interpolation
@@ -61,7 +65,7 @@ for imo in range(nmonths):
   TMM[imo,:2] = dv[:2]
   TMM[imo,2] = int(nmdays)
   TMM[imo,3] = dnmb0
-ndays = np.sum(TMM[:,2])
+ndays = np.sum(TMM[:,2]) + 1 # add extra day at the end for time interpolation to finish the run
 
 fyaml = 'pypaths_gfdlpub.yaml'
 with open(fyaml) as ff:
@@ -100,9 +104,9 @@ spear_dir = os.path.join(config['filesystem']['spear_month_ens'], 'monthly_clim'
 
 # Check if mapping indices exist, gmapi:
 dirgmapi = config['filesystem']['spear_mom_gmapi']
-flgmaph  = f'spear2mom_NEP_OB_gmapi_hpnt.nc'
-flgmapu  = f'spear2mom_NEP_OB_gmapi_upnt.nc'
-flgmapv  = f'spear2mom_NEP_OB_gmapi_vpnt.nc'
+flgmaph  = 'spear2mom_NEP_OB_gmapi_hpnt.nc'
+flgmapu  = 'spear2mom_NEP_OB_gmapi_upnt.nc'
+flgmapv  = 'spear2mom_NEP_OB_gmapi_vpnt.nc'
 dflgmaph = os.path.join(dirgmapi, flgmaph)
 dflgmapu = os.path.join(dirgmapi, flgmapu)
 dflgmapv = os.path.join(dirgmapi, flgmapv)
@@ -170,14 +174,15 @@ for varnm in ['thetao', 'so']:
   # Spatial interpolation of 2D OB sections SPEAR --> NEP supergrid 
   for isgm in range(nOB):
     nsgm   = isgm+1
-    print(f'\nProcessing {varnm} OB segment={nsgm}')
+    print(f'\nProcessing {varnm} OB segment={nsgm}, SPEAR init date {init_date} e{ens_spear:02d}')
     INDX   = dsh[f'indx_segm{nsgm:03d}'].data
     JNDX   = dsh[f'jndx_segm{nsgm:03d}'].data
     # Interpolate to NEP MOM6 OB supergrid:
     dset   = mutob.derive_obsegm_3D(hgrid, ds, segments, isgm, varnm, 
                                     INDX, JNDX, time_steps=time_modays)
     # Time interpolation: monthly --> daily
-    dsetI = mutob.interp_OBsegm_mnth2daily(dset, ndays, nsgm, varnm, npol=npol)
+    dsetI = mutob.interp_OBsegm_mnth2daily(dset, ndays, nsgm, varnm, npol=npol,\
+                                           calendar=calendar, dnmb0=dnmb_start)
     dsetOB = xarray.merge([dsetOB, dsetI])
 
 # ------------------------------------------
@@ -221,18 +226,31 @@ if f_chckOB:
 
 # Ssh - 1D sections
 # Load ssh daily fields for NEP subset SPEAR 
-varnm = 'ssh'
+# check if varnm is ssh or SSH in the data array
+varnm = 'sshSSH'
 flnm_spear = f'NEP_spear_{dv_start[0]}{dv_start[1]:02d}.ssh_daily.nc'
+ds = xarray.open_dataset(os.path.join(spear_dir,flnm_spear))
+dsvars  = list(ds.keys())
+for ill in range(len(dsvars)):
+  if dsvars[ill] == 'ssh':
+    varnm = 'ssh'
+    break
+  elif dsvars[ill] == 'SSH':
+    varnm = 'SSH'
+    break
+
 ds = mutob.read_spear_output(spear_dir, varnm, flnm_spear, fzint=True)
 for isgm in range(nOB):
   nsgm  = isgm+1
-  print(f'Processing ssh OB segment={nsgm}')
+#  print(f'Processing ssh OB segment={nsgm}')
+  print(f'\nProcessing ssh OB segment={nsgm}, SPEAR init date {init_date} e{ens_spear:02d}')
   INDX   = dsh[f'indx_segm{nsgm:03d}'].data
   JNDX   = dsh[f'jndx_segm{nsgm:03d}'].data
 
   # Spatial interpolation from SPEAR --> NEP OB supergrid
   # No temporal interpolation is needed as daily ssh is used
-  dset   = mutob.derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=time_days)
+  dset   = mutob.derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, \
+                time_steps=time_days, varnm=varnm, calendar=calendar, dnmb0=dnmb_start)
   dsetOB = xarray.merge([dsetOB, dset])
 
 # Plot rot angles:
@@ -257,8 +275,8 @@ ds_vo = mutob.read_spear_output(spear_dir, 'vo', flnmv_spear, fzint=True)
 for varnm in ['u', 'v']:
   for isgm in range(nOB):
     nsgm = isgm+1
-    print(f'\nProcessing {varnm} OB segment={nsgm}')
-
+#    print(f'\nProcessing {varnm} OB segment={nsgm}')
+    print(f'\nProcessing {varnm} OB segment={nsgm}, SPEAR init date {init_date} e{ens_spear:02d}')
     if varnm == 'u':
       INDX  = dsu[f'indx_segm{nsgm:03d}'].data
       JNDX  = dsu[f'jndx_segm{nsgm:03d}'].data
@@ -270,8 +288,15 @@ for varnm in ['u', 'v']:
     dset   = mutob.derive_obsegm_uv(hgrid, ds_uo, ds_vo, segments, isgm, theta_rot,\
                                     varnm, INDX, JNDX, time_steps=time_modays)
     # Time interpolation: monthly --> daily
-    dsetI = mutob.interp_OBsegm_mnth2daily(dset, ndays, nsgm, varnm, npol=npol)
-    dsetOB = xarray.merge([dsetOB, dset])
+    dsetI = mutob.interp_OBsegm_mnth2daily(dset, ndays, nsgm, varnm, npol=npol,\
+                                           calendar=calendar, dnmb0=dnmb_start)
+    dsetOB = xarray.merge([dsetOB, dsetI])
+
+    f_debug = False
+    if f_debug:
+      itime = 0
+      Ui = dsetI[f'u_segment_{nsgm:03d}'].isel(time=itime).data.squeeze()
+      uOB = dsetOB[f'u_segment_{nsgm:03d}'].isel(time=itime).data.squeeze()
 
 for varnm in ['thetao','so','u','v']:
   for segm in [1,2,3,4]:
@@ -289,24 +314,29 @@ for segm in [1,2,3,4]:
   dm2 = f'lon_segment_{segm:03d}'
   dsetOB[vv].attrs["coordinates"] = f"{dm1} {dm2}"
 
+dsetOB_bkp = dsetOB.copy()
+
 dstart = f'{dv_start[0]}/{dv_start[1]:02d}/{dv_start[2]:02d}'
 dsetOB.attrs["history"] = f"Created from SPEAR monthly T,S,U,V and daily SSH fields f/cast started {dstart} ens={ens_spear:02d}"
 dsetOB.attrs["code"] = f"/home/Dmitry.Dukhovskoy/python/setup_seasonal_NEP/create_daily_from_monthly_spear.py"
 
 """
   Add attributes for time var
+  Delete attributes: del dsetOB.time.attrs['units']
 """
 dnmb_prev = dnmb_start - 1
 dv_prev = mtime.datevec(dnmb_prev)
 #dsetOB['time'] = np.arange(0, ntsteps, dtype='float')
-dsetOB['time'].attrs['units'] = f'days since {dv_prev[0]}-{dv_prev[1]:02d}-{dv_prev[2]:02d}'
-dsetOB['time'].attrs['calendar'] = 'JULIAN'
+if calendar.lower() == 'julian':
+  dsetOB['time'].attrs['units'] = f'days since {dv_prev[0]}-{dv_prev[1]:02d}-{dv_prev[2]:02d} 12:00:00'
+#elif calendar.lower() == 'gregorian':
+#  dsetOB['time'].attrs['units'] = f'days since {dv_start[0]}-{dv_start[1]:02d}-{dv_start[2]:02d} 12:00:00'
+
 dsetOB['time'].attrs['cartesian_axis'] = 'T'
-
-
 encode = {
-  'time': dict(dtype='float64', _FillValue=1.0e20)
+  'time': dict(dtype='float64', _FillValue=1.0e20, calendar=calendar)
 }
+
 for varnm in ['lon','lat']:
   for segm in [1, 2, 3, 4]:
     encode.update({

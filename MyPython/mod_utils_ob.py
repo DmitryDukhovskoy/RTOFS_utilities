@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from yaml import safe_load
 
 #import pickle
-PPTHN = []
+PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
   cwd   = os.getcwd()
   aa    = cwd.split("/")
@@ -36,7 +36,7 @@ def load_var(spear_dir, varnm, yr1=1993, yr2=2020, mstart=1, fzint=False):
   flname = f'spear_moclim.mstart{mstart:02d}.{yr1}-{yr2}.{varnm}.nc'
   dflinp = os.path.join(spear_dir, flname)
 
-  if not varnm == 'ssh':
+  if not varnm == 'ssh' and not varnm == 'SSH':
     spear_var = xarray.open_dataset(dflinp).rename({'z_l': 'z'})
   else:
     spear_var = xarray.open_dataset(dflinp)
@@ -60,7 +60,7 @@ def read_spear_output(pthspear, varnm, flnm, fzint=False):
     fzint = True - include z layer interface depths into returned dataset
   """
   dflinp = os.path.join(pthspear,flnm)
-  if not varnm == 'ssh':
+  if not varnm == 'ssh' and not varnm == 'SSH':
     spear_var = xarray.open_dataset(dflinp).rename({'z_l': 'z'})
   else:
     spear_var = xarray.open_dataset(dflinp)
@@ -404,7 +404,8 @@ def derive_obsegm_3D(hgrid, ds, segments, isgm, varnm, INDX, JNDX, time_steps=[]
   return dset_segm
    
  
-def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=[]):
+def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=[], varnm='ssh', \
+                      calendar='julian', dnmb0=0):
   """
     Derive data set for an OB segment = isgm for variable = varnm
     SSH fields at h-points 2D fields --> 1D OB segment 
@@ -419,7 +420,8 @@ def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=[]):
 
   """
   import mod_bilinear as mblnr
-  importlib.reload(mblnr)
+#  importlib.reload(mblnr)
+  import mod_time as mtime
 
 # Find basis functions for a reference rectangle:
   phi1,phi2,phi3,phi4 = mblnr.basisFn_RectRef()
@@ -457,7 +459,7 @@ def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=[]):
   for itime in range(ntime):
     print(f'interpolating ssh, segm={nsgm}, Time = {itime+1}')
 #    A   = AA[itime,:]
-    A = ds['ssh'].isel(time=itime).data.squeeze()
+    A = ds[varnm].isel(time=itime).data.squeeze()
 # Fill missing values (bottom/land):
     dmm =  mom6util.fill_land3d(A)
     assert np.max(abs(dmm)) < 1.e20, "Bottom/land not filled correctly: No huge values are allowed"
@@ -526,11 +528,26 @@ def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=[]):
 # Construct data set:
   nxsgm = [x for x in range(0,nx)]
   nysgm = [x for x in range(0,ny)]
-  if not len(time_steps) == ntime:
-    print(f"Provided time_steps len={len(time_steps)} does not match N of records {ntime}, use {ntime} for Time")
+  if len(time_steps) > ntime:
+# If requested time is > ntime, assume time padding is required at the end
+    npad = len(time_steps) - ntime
+    print(f"Given time_steps {len(time_steps)} >  N of records {ntime}, padding extra time {npad} days")
+    for ipd in range(npad):
+      dmm = np.expand_dims(Ai[-1,:], axis=0)
+      Ai = np.append(Ai, dmm, axis=0)
+    stime = time_steps
+  elif len(time_steps) < ntime:
+    print(f"Provided time_steps len={len(time_steps)} <  N of records {ntime}, use {ntime} for Time")
     stime = [x for x in range(1,ntime+1)]
   else:
     stime = time_steps
+
+  if calendar.lower() == 'gregorian':
+    yrS, jdayS = mtime.dnmb2jday(dnmb0)
+    dnmbE = dnmb0 + len(stime)-1
+    yrE, jdayE = mtime.dnmb2jday(dnmbE)
+    stime = mtime.npdatetime_year(yrS, yrE=yrE, day_start=jdayS, day_end=jdayE)
+
   sgmnm = f"segment_{nsgm:03d}"
   dim1  = "time"
   dim2  = f"ny_{sgmnm}"
@@ -1369,14 +1386,17 @@ def subset_spear_coord(grid_point):
  
   return LONs, LATs
 
-def interp_OBsegm_mnth2daily(dset, ndays, nsgm, varnm, npol=3):
+def interp_OBsegm_mnth2daily(dset, ndays, nsgm, varnm, npol=3, calendar='julian', dnmb0=0):
   """
     Interpolate in time OB segment data from monthly --> daily
     npol - degree of the interpolating polynomial where enough data points
     assumed time of the monthly fields = day 15 of each month
     time before the 1st data pnt and after the last data point = keep constant 
+    calendar: julian - just day 3 since the 1st day of the record
+              gregorian - np datetime, actual dates
   """
   import mod_interp1D as minterp
+  import mod_time as mtime
 
   print(f'Time interpolation: {varnm} OB={nsgm} ndays={ndays}')
 
@@ -1465,10 +1485,16 @@ def interp_OBsegm_mnth2daily(dset, ndays, nsgm, varnm, npol=3):
   Ai = np.where(np.isnan(Ai), huge, Ai)
 
 # Construct data set of time-interpolated OB sections:
+  stime = time_steps
+  if calendar.lower() == 'gregorian':
+    yrS, jdayS = mtime.dnmb2jday(dnmb0)
+    dnmbE = dnmb0 + len(time_steps)-1
+    yrE, jdayE = mtime.dnmb2jday(dnmbE)
+    
+    stime = mtime.npdatetime_year(yrS, yrE=yrE, day_start=jdayS, day_end=jdayE)
 
   nxsgm = [x for x in range(0,nx)]
   nysgm = [x for x in range(0,ny)]
-  stime = time_steps
   nzsgm = [x for x in range(0,nz)]
   sgmnm = f"segment_{nsgm:03d}"
   dim1  = "time"

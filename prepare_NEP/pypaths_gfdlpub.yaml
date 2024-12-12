@@ -6,6 +6,15 @@ GOFS3.1:
     pthgrid: '/work/Dmitry.Dukhovskoy/GOFS3.1/topo_grid/'
     ftopo:   'depth_GLBb0.08_09m11'
     fgrid:   'regional.grid'
+GLORYS_NEP:
+  "monthly":
+    # GLORYS monthly means interpolated onto MOM6 NEP grid used for nudging runs
+    pthrun:  ' '
+    pthoutp: '/archive/e1n/mom6/NEP/sponge/clims/'
+    pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
+    ftopo:   'topog.nc'
+    fgrid:   'ocean_hgrid.nc'
+    fdata:   'glorys_monthly_NEP_sponge_{year}_clim.nc'
 MOM6_NEP:
   "test":
     pthrun:  ' '
@@ -13,6 +22,16 @@ MOM6_NEP:
     pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
     ftopo:   'topog.nc'
     fgrid:   'ocean_hgrid.nc'
+  "glorys_nudging":
+    pthrun:  ' '
+    pthoutp: '/archive/Dmitry.Dukhovskoy/fre/NEP/2024/{expt_name}/gfdl.ncrc5-intel22-repro/history/{yr}-{mo:02d}'
+    pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
+    ftopo:   'topog.nc'
+    fgrid:   'ocean_hgrid.nc'
+    fdata_day: 'ocean_daily.nc'
+    fdata_month: 'ocean_month.nc'
+    fdata_iday: 'ice_daily.nc'
+    fdata_imonth: 'ice_month.nc'
   "seasonal_fcst":
     pthrun:  ' '
     pthoutp: '/work/Dmitry.Dukhovskoy/NEP_input/spear_obc/'

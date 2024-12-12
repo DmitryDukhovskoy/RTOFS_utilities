@@ -41,7 +41,7 @@ for varnm in VARS:
   fvo    = False
   fuo    = False
   if varnm == 'SSH':
-    if ~f_ssh:
+    if not f_ssh:
       continue
     prefix = 'ice'
     fice = True

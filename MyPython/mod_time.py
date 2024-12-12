@@ -271,6 +271,9 @@ def datevec2D(DNMB0,ldate_ref=[1,1,1]):
     HRr = 0
     MNr = 0
 
+  if isinstance(DNMB0, list):
+    DNMB0 = np.array(DNMB0)
+
   nrec = DNMB0.shape[0]
   DV = np.zeros((nrec,5), dtype=int)
   for irec in range(nrec):
@@ -453,5 +456,31 @@ def month_days(imo, YR):
   ndays = int(dnmb2-dnmb1)
 
   return ndays
+
+def npdatetime_year(yrS, yrE=0, day_start=1, day_end=366, dlt_day=1, tprecis='D'):
+  """
+    Create np array of npdatetime for year yr0
+    start from specified day, with time stepping dlt_day
+  """
+  if yrE == 0: yrE=yrS
+  if yrS%4 == 0:
+    ndays=366
+  else:
+    ndays=365
+  if day_end > ndays: day_end=ndays
+#  jdays=[x for x in range(day_start,ndays+1,dlt_day)]
+
+  dnmb_start = jday2dnmb(yrS, day_start)
+  dv_start   = datevec(dnmb_start)
+  dnmb_end   = jday2dnmb(yrE, day_end) + 1 # to include the last date
+  dv_end     = datevec(dnmb_end)
+  dstr_start = f"{dv_start[0]}-{dv_start[1]:02d}-{dv_start[2]:02d}"
+  dstr_end   = f"{dv_end[0]}-{dv_end[1]:02d}-{dv_end[2]:02d}"
+  dlt_sec    = dlt_day*3600*24 
+
+#  print(f"Start: {dstr_start}, end: {dstr_end}") 
+  TNP = np.arange(np.datetime64(dstr_start), np.datetime64(dstr_end), np.timedelta64(dlt_day, tprecis))
+
+  return TNP
 
 

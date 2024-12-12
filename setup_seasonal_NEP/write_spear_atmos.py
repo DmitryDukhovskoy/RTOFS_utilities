@@ -5,7 +5,6 @@
 
   I ran in python for several years at a time, didn't use sbatch due to time limit (1 hr)
 
-  From Andrew:
   the forecasts are forced from the atmosphere by different ensemble members 
   of GFDL's SPEAR seasonal prediction system. The SPEAR data is stored on 
   GFDL's archive at /archive/l1j/spear_med/rf_hist/fcst/s_j11_OTA_IceAtmRes_L33. 
@@ -42,9 +41,10 @@ except subprocess.CalledProcessError as err:
 
 # Specify year, month, ensembles to 
 # generate atm fields from SPEAR 
-yr1     = 2010
-yr2     = 2010
-MM      = [1,4,7,10]
+yr1     = 2013
+yr2     = 2013
+#MM      = [1,4,7,10]
+MM       = [10]
 ensmb   = [1,2,3,4,5,6,7,8,9,10]
 fconfig = 'config_nep.yaml'
 #fconfig = 'config_nwa12.yaml'

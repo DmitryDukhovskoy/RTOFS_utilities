@@ -1,15 +1,6 @@
 """
-  OI SST high resolution fields
-  https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.highres.html
-# OpenDap to PSL data does not work on PPAN
-# it works on Gaea
-# I copied files PSL Linux
-# [ddukhovskoy@linux256 noaa.oisst.v2.highres]$ pwd
-#/Datasets/noaa.oisst.v2.highres
-# ---> Niagara untrusted ---> Gaea --- gcp ---> PPAN
-#
-# Use subset data sets for NEP region
-# see extract_OISST_NEPdomain.py
+  SST in the Bering Sea region of the NEP domain
+  stereogr proj
 """
 import os
 import numpy as np
@@ -48,7 +39,14 @@ YRS    = 1993 # year start of the forecast
 MMS    = 4
 DDS    = 1
 nens   = 2
-dnmbR  = mtime.datenum([1994,3,3])  # day to plot
+#dnmbR  = mtime.datenum([1994,3,3])  # day to plot
+dnmbR  = mtime.jday2dnmb(1993, 258)
+#
+# Specify output file name directly if it doesn follow
+# naming pattern oceanm_YYYY_DDD.nc
+#flocn_name = 'oceanm_1993_138adj.nc'
+flocn_name = ''
+
 
 #dnmbS   = mtime.datenum([YRS,MOS,DDS])
 #dayrun  = dnmbR - dnmbS + 1 # day to plot:
@@ -57,8 +55,10 @@ dvR     = mtime.datevec(dnmbR)
 YR, MM, DD = dvR[:3]
 jday  = int(mtime.date2jday(dvR[:3]))
 
-expt    = "seasonal_fcst"
-runname = f'NEPphys_frcst_climOB_{YRS}-{MMS:02d}-e{nens:02d}'
+expt     = 'test'
+runname  = 'isponge_test'
+#expt    = "seasonal_fcst"
+#runname = f'NEPphys_frcst_climOB_{YRS}-{MMS:02d}-e{nens:02d}'
 #expt    = 'NEP_BGCphys_GOFS'
 #runname = 'NEP_physics_GOFS-IC'
 #expt    = 'NEP_seasfcst_LZRESCALE'
@@ -70,7 +70,7 @@ fyaml = 'paths_seasfcst.yaml'
 with open(fyaml) as ff:
   pthseas = safe_load(ff)
 
-if not expt == 'seasonal_fcst':
+if not expt == 'seasonal_fcst' and not expt == 'test':
   YRS =  pthseas['MOM6_NEP'][expt]['year_start']
   MMS =  pthseas['MOM6_NEP'][expt]['month_start']
   DDS =  pthseas['MOM6_NEP'][expt]['day_start']
@@ -112,16 +112,20 @@ if expt == 'seasonal_fcst':
 if not os.path.isdir(pthfcst):
   print(f'not exist: {pthfcst}')
 
-YR0, jday0, dnmb0, flname_out = manseas.find_closest_output(pthfcst, dnmbR, fld=ocnfld)
-dv0  = mtime.datevec(dnmb0)
-YR0, MM0, DD0 = dv0[:3]
+if len(flocn_name) == 0:
+  YR0, jday0, dnmb0, flname_out = manseas.find_closest_output(pthfcst, dnmbR, fld=ocnfld)
+  dv0  = mtime.datevec(dnmb0)
+  YR0, MM0, DD0 = dv0[:3]
+
+  flocn_name = pthseas['MOM6_NEP'][expt]['focname'].format(YR=YR0, jday=jday0)
 
 # Averaging period:
-dnmb_av1 = dnmb0 - np.floor(ndav/2)
-#if dnmb_av1 < dnmbS: dnmb_av1=dnmbS
-dnmb_av2 = dnmb_av1 + ndav-1
+  dnmb_av1 = dnmb0 - np.floor(ndav/2)
+  dnmb_av2 = dnmb_av1 + ndav-1
+else:
+  dnmb_av1 = dnmbR - np.floor(ndav/2)
+  dnmb_av2 = dnmb_av1 + ndav-1
 
-flocn_name = pthseas['MOM6_NEP'][expt]['focname'].format(YR=YR0, jday=jday0)
 dfmom6 = os.path.join(pthfcst, flocn_name)
 
 if not os.path.isfile(dfmom6):
@@ -192,8 +196,8 @@ sinfo = ss1
 
 # Stereographic Map projection:
 from mpl_toolkits.basemap import Basemap, cm
-m = Basemap(width=3300*1.e3,height=3300*1.e3, resolution='l',\
-            projection='stere', lat_ts=55, lat_0=62, lon_0=-175)
+m = Basemap(width=3300*1.e3,height=3700*1.e3, resolution='l',\
+            projection='stere', lat_ts=60, lat_0=65, lon_0=-175)
 xR, yR = m(hlon,hlat)
 
 

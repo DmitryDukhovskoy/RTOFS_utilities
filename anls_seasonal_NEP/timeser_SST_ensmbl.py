@@ -1,6 +1,13 @@
 """
   Plot SST averaged over some area 
   for ensemble runs
+
+  Not spatial average is done simply be overal mean
+  should be grid-cell area weighted, instead use:
+  timeser_2Davrg_ensbmls_dayoutp.py
+
+  varnm = tos (surf. T)
+
 """
 import os
 import numpy as np
@@ -40,7 +47,6 @@ importlib.reload(mutob)
 # change dayrun to plot desired date output - # of days since start date
 # in daily-mean output fields: date is in the middle of the averaging period
 varnm  = 'salin'  # temp (potential) / salin
-sctnm  = 'xsct_EOB' 
 
 # Start of the run 
 YRS    = 1993 # year start of the forecast
@@ -65,14 +71,11 @@ fyaml = 'pypaths_gfdlpub.yaml'
 with open(fyaml) as ff:
   gridfls = safe_load(ff)
 
-if expt == 'seasonal_fcst':
-  pthfcst  = pthseas['MOM6_NEP'][expt]['pthwoutp'].format(runname=runname)
-else:
-  dnmb0    = dnmbR
-  dv0      = mtime.datevec(dnmb0)
-  YR0, MM0, DD0 = dv0[:3]
-  jday0    = int(mtime.date2jday([YR0,MM0,DD0]))
-  pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(YY=YR0, MM=MM0)
+dnmb0    = dnmbR
+dv0      = mtime.datevec(dnmb0)
+YR0, MM0, DD0 = dv0[:3]
+jday0    = int(mtime.date2jday([YR0,MM0,DD0]))
+pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(YY=YR0, MM=MM0)
 
 pthtopo    = pthseas['MOM6_NEP'][expt]['pthgrid']
 fgrid      = pthseas['MOM6_NEP'][expt]['fgrid']
@@ -96,8 +99,10 @@ II = [188, 308]
 JJ = [100, 320] 
 lr = 5             # vertical layer to analyze
 
-# Find closest output:
 ocnfld = 'oceanm'
+
+for imo in MAVRG:
+  
 
 ENSR = [x for x in range(1,11)]
 NensR = len(ENSR)

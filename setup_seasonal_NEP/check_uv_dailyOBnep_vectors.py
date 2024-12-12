@@ -34,14 +34,19 @@ from mod_utils_fig import bottom_text
 import mod_utils as mutil
 importlib.reload(mutil)
 
-klr    = 30  # model layer to plot: lr 40 = -277 m, lr31 = -100
-imonth = 4
-nsegm  = 1  # 1,2,3,4
+klr    = 10  # model layer to plot: lr 40 = -277 m, lr31 = -100
+iday   = 1  # f/cast day sarting from 1, ...., 365(6)
+nsegm  = 4  # OB segments, 1 - North, 2 - East, ...
+run_name = 'seasonal_fcst_daily'
+pltUnrm = True  # plot U component normal to OB, if not - plot speed
 
-# Climatology derived for these years, started at mstart
-yr1    = 1993
-yr2    = 2020
-mstart = 1
+# OB derived for f.cast initialized on these yr/mo
+ens_spear = 1       # ens run used to create OB
+yr_start = 1993
+mo_start = 4
+dd_start = 1        # 
+dnmb_start = mtime.datenum([yr_start, mo_start, dd_start])
+dv_start = mtime.datevec(dnmb_start)
 
 fyaml = 'pypaths_gfdlpub.yaml'
 with open(fyaml) as ff:
@@ -65,10 +70,19 @@ jdm, idm    = np.shape(HHM)
 hgrid       = xarray.open_dataset(os.path.join(pthtopo,fgrid_mom))
 hmask       = xarray.open_dataset(os.path.join(pthtopo, 'ocean_mask.nc'))
 
-pthoutp = gridfls['MOM6_NEP']['seasonal_fcst']['pthoutp']
-fobc_out = os.path.join(pthoutp,f'OBCs_spear_clim_{yr1}-{yr2}_mstart{mstart:02d}.nc')
+date_init = f'{dv_start[0]}{dv_start[1]:02d}{dv_start[2]:02d}'
+pthoutp = gridfls['MOM6_NEP'][run_name]['pthoutp']
+fobc_out = os.path.join(pthoutp,f'OBCs_spear_daily_init{date_init}_e{ens_spear:02d}.nc')
+#fobc_out = os.path.join(pthoutp,f'OBCs_spear_daily_init{date_init}.nc')
 print(f'Loading OBCs <--- {fobc_out}')
 dsetOB = xarray.open_dataset(fobc_out)
+
+sfx   = f"segment_{nsegm:03d}"
+uds   = f"u_{sfx}"
+vds   = f"v_{sfx}"
+dzvar = f"dz_u_{sfx}"
+
+dset_segm = mutob.segm_topo(nsegm, HHM, hgrid)
 
 # Load mapping indices gmapi:
 dirgmapi = config['filesystem']['spear_mom_gmapi']
@@ -80,14 +94,9 @@ dflgmapu = os.path.join(dirgmapi, flgmapu)
 dflgmapv = os.path.join(dirgmapi, flgmapv)
 dsh = xarray.open_dataset(dflgmaph)
 
-sfx   = f"segment_{nsegm:03d}"
-uds   = f"u_{sfx}"
-vds   = f"v_{sfx}"
-dzvar = f"dz_u_{sfx}"
-
 dset_segm = mutob.segm_topo(nsegm, HHM, hgrid)
-U2d       = dsetOB[uds].isel(time=imonth-1).data.squeeze()  # 2D section
-V2d       = dsetOB[vds].isel(time=imonth-1).data.squeeze()  # 2D section
+U2d       = dsetOB[uds].isel(time=iday-1).data.squeeze()  # 2D section
+V2d       = dsetOB[vds].isel(time=iday-1).data.squeeze()  # 2D section
 segm_nm   = dset_segm['segm_name'].data[0]
 Hbtm      = dset_segm['topo_segm'].data
 dZ        = dsetOB[f'dz_u_segment_{nsegm:03d}'].data[0,:,0,0].squeeze()
@@ -176,12 +185,12 @@ ax1.set_xlim([xl1, xl2])
 ax1.set_ylim([yl1, yl2])
 
 z_lr = ZM[klr-1]
-sttl = f"NEP OB: U z_lr={z_lr:4.0f}m lr={klr}  M={imonth} OB={nsegm} {segm_nm}"
+sttl = f"NEP OB: U z_lr={z_lr:4.0f}m lr={klr}  M={iday} OB={nsegm} {segm_nm}"
 ax1.set_title(sttl)
 ax1.set_xlabel('NEP I grid points')
 ax1.set_ylabel('NEP J grid points')
 
-btx = 'check_uvOBnep_vectors.py'
+btx = 'check_uv_dailyOBnep_vectors.py' 
 bottom_text(btx)
 
 

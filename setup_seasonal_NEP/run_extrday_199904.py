@@ -20,15 +20,15 @@ import xarray
 import argparse
 from yaml import safe_load
 
-pthtmp = '/work/Dmitry.Dukhovskoy/tmp/'
-YR     = 2020
-mstart = 6
-ens    = 10
-varnm  = 'ssh'
+pthtmp = '/vftmp/Dmitry.Dukhovskoy/pid128093'
+YR = 1999
+mstart = 4
+ens = 3
+varnm = 'SSH'
 #varnm  = 'SSH'
-prefix = 'ocean_daily'   # ice_daily or ocean_daily
+prefix = 'ice_daily'
 regn   = 'NEP'
-tmpdir = os.path.join(pthtmp,f"{YR}",f"ens{ens:02d}")
+tmpdir = '/vftmp/Dmitry.Dukhovskoy/pid128093/199904/ens03'
 
 
 #flspear = f"{YR}{ens:02d}01.ocean_z_month.nc"
@@ -79,12 +79,6 @@ else:
 #dset['valid_time'] = (['lead'], dset['valid_time'].to_index().to_datetimeindex())
 
 foutp = os.path.join(outp_dir, f"{regn}_spear_{YR}{mstart:02d}.ssh_daily.nc")
-
-if os.path.exists(outp_dir):
-#  os.chmod(outp_dir, 0o666)
-  print(f'{outp_dir} exists')
-else:
-  raise Exception(f"{outp_dir} does not exist")
 
 print(f'Saving --> {foutp}')
 dset.to_netcdf(foutp)

@@ -38,9 +38,10 @@ importlib.reload(mutob)
 # experiment: year start, month start, ...
 # change dayrun to plot desired date output - # of days since start date
 # in daily-mean output fields: date is in the middle of the averaging period
-varnm  = 'ithck'  # iconc or ithck 
-f_cntrobs = True
-f_obsthck = True
+#varnm  = 'ithck'  # iconc or ithck 
+varnm  = 'iconc'
+f_cntrobs = False
+f_obsthck = False
 
 if not varnm == 'iconc':
   f_cntrobs = False
@@ -52,11 +53,15 @@ if not varnm == 'ithck':
 YRS    = 1993 # year start of the forecast
 MOS    = 4
 DDS    = 1    
-nens   = 2    # ens # for ensemble runs
-dnmbR  = mtime.datenum([1994,3,1])  # day to plot
+nens   = 1    # ens # for ensemble runs
+dnmbR  = mtime.jday2dnmb(1993, 258)
+#dnmbR  = mtime.datenum([1993,8,16])  # day to plot
 
-expt    = "seasonal_fcst"
-runname = f'NEPphys_frcst_climOB_{YRS}-{MOS:02d}-e{nens:02d}'
+
+expt     = 'test'
+runname  = 'isponge_test'
+#expt    = "seasonal_fcst"
+#runname = f'NEPphys_frcst_climOB_{YRS}-{MOS:02d}-e{nens:02d}'
 #expt    = 'NEP_BGCphys_GOFS'
 #runname = 'NEP_physics_GOFS-IC'
 #expt    = 'NEP_seasfcst_LZRESCALE'
@@ -208,8 +213,8 @@ yre, mme, dde = dv_av2[:3]
 sttl = f"{runname} {varnm} avrg: {yrs}/{mms}/{dds}-{yre}/{mme}/{dde}"
 # Stereographic Map projection:
 from mpl_toolkits.basemap import Basemap, cm
-m = Basemap(width=3300*1.e3,height=3300*1.e3, resolution='l',\
-            projection='stere', lat_ts=55, lat_0=62, lon_0=-175)
+m = Basemap(width=3300*1.e3,height=3700*1.e3, resolution='l',\
+            projection='stere', lat_ts=60, lat_0=65, lon_0=-175)
 
 xR, yR = m(hlon, hlat)
 

@@ -456,11 +456,17 @@ def find_closest_output(pthoutp, dnmb0, fld='oceanm'):
 #  JD0 = np.zeros((len(LF)))
   icc = -1
   for fls in LF:
+    #print(fls)
     bsname = fls.split(".")[0]
     fld_name =  bsname.split("_")[0]
     if not fld_name == fld: continue
-    yrf    = int(bsname.split("_")[1])
-    jday   = int(bsname.split("_")[2])
+    try: 
+      yrf    = int(bsname.split("_")[1])
+      jday   = int(bsname.split("_")[2])
+    except:
+    # Skip files that do match file naming pattern
+      #print(f"skipping {fls}")
+      continue
     icc += 1
     if icc == 0:
       YR0 = np.array([yrf])
@@ -558,11 +564,106 @@ def monthly_avrg_vertxsect(pthfcst, yrR, moR, JJ, II, varnm):
 
   return Asum
 
+def derive_bottom_temp(T3d, dP, dpmin=1.e-1):
+  """
+    Derive bottom temperature from 3D T field
+    Bottom layers defined on min layer thickness dpmin
+  """
+  kdm, jdm, idm = T3d.shape
+  Tbtm = np.zeros((jdm,idm))*np.nan
+  for ik in range(1,kdm):
+    dpup  = dP[ik-1,:].squeeze()
+    dpbtm = dP[ik,:].squeeze()
+    tz    = T3d[ik-1,:]
+    if ik < kdm-1:
+      Jb, Ib = np.where( (dpup > dpmin) & (dpbtm <= dpmin) )
+    else:
+  # Deep layers include all left:
+      Jb, Ib = np.where( dpup > dpmin )
+    if len(Jb) == 0: continue
+    Tbtm[Jb, Ib] = tz[Jb, Ib]
+
+  return Tbtm
+
+def yrmo_seasonal_fcst(yr_start, mo_start, nmo_fcst=12):
+  """
+    Find years / months for a seasonal f/cast that starts on yr_start / mo_start
+  """
+  dstrt = mtime.datenum([yr_start, mo_start,15])
+  dold = dstrt - 32
+
+  Time = np.zeros((nmo_fcst, 2)).astype(int)
+  for imo in range(nmo_fcst):
+    dnew = dold + 32
+    dv_new = mtime.datevec(dnew)
+    dnew = mtime.datenum([dv_new[0], dv_new[1], 1])
+    dold = dnew
+    Time[imo,0] = int(dv_new[0])
+    Time[imo,1] = int(dv_new[1])
+
+  return Time
+
+def monthly_mean_from_Ndaily_ocean2D(pthfcst0, yr_start, mo_start, varnm, ocnfld, vlr, MAVRG=[1]):
+  """
+    From N-day average ocean 3D fields: 
+    compute monthly average 2D field for given variable and model layer(s)
+    Field is averaged over MAVRG months (1 = Jan, 2 - Feb, etc)
+    Months will be related to the years of the forecast, i.e.
+    Jan for the f/cast that starts on 2013/10 will be Jan-2014
+  """
+  import pandas as pd
+
+  mo_fcsts = yrmo_seasonal_fcst(yr_start, mo_start)
+# Time-average fields:
+  icc = 0
+  ilr = vlr-1
+  Time = []
+  for imo in MAVRG:
+    ix = np.where(mo_fcsts[:,1] == imo)[0][0]
+    yr_fcst = mo_fcsts[ix,0]
+    pthfcst = os.path.join(pthfcst0,f'{ocnfld}_{yr_fcst}{imo:02d}')
+    print(f'Avergaing {varnm} {yr_fcst}/{imo:02d}')
+
+    LOUTP = [fl for fl in os.listdir(pthfcst) if os.path.isfile(os.path.join(pthfcst, fl))]
+    if len(LOUTP) == 0:
+      print(f'No output found in {pthfcst}')
+      continue
+
+    for ifl in range(len(LOUTP)):
+      flocn_name = LOUTP[ifl]
+      dfmom6 = os.path.join(pthfcst, flocn_name)
+      dset   = xarray.open_dataset(dfmom6)
+      if varnm == 'temp' or varnm == 'potT':
+        A2d = dset['potT'].isel(time=0, zl=ilr).data.squeeze()
+      elif varnm == 'salin' or varnm == 'salt':
+        A2d = dset['salt'].isel(time=0, zl=ilr).data.squeeze()
+      elif varnm == 'ssh':
+        A2d = dset['ssh'].isel(time=0).data.squeeze()
+
+      tm = dset['time'].data
+      tmP = pd.to_datetime(tm)
+      yr0 = tmP.year[0]
+      mo0 = tmP.month[0]
+      dd0 = tmP.day[0]
+      dnmb0 = mtime.datenum([yr0,mo0,dd0])
+      Time.append(dnmb0)
+
+      if icc == 0:
+        Asum = A2d.copy()
+      else:
+        Asum = Asum + A2d
+
+      icc += 1
+
+  Asum = Asum / icc
+  print(f'N time records={icc}, min/max = {np.nanmin(Asum)} / {np.nanmax(Asum)}')  
+
+  return Asum, Time
+
 def timeser_spatavrg(pthfcst0, yr_start, mo_start, JJ, II, lr, varnm, nens, ocnfld, nmo=12):
   """
     Compute spatially averaged fields from n-daily mean output
-    season forecasts
-    
+    seasonal forecasts
   """
   import pandas as pd
 
@@ -608,5 +709,232 @@ def timeser_spatavrg(pthfcst0, yr_start, mo_start, JJ, II, lr, varnm, nens, ocnf
   Time = np.array(Time)
 
   return Tts, Time
+
+def timeser_spatavrg_stdoutp(pthfcst, archv_fl, varnm, lr, MSKBS, Acell):
+  """
+    Compute spatially averaged fields from stdoutput
+    seasonal forecasts
+
+    For standard output files (GFDL -type ouptut fields)
+    ocean_daily.nc, ocean_month.nc etc
+    lr = 1, ... vertical laeyr # for 3D output fields
+    lr <= 0 for 2D fields
+    
+  """
+  import pandas as pd
+
+  if archv_fl == 'ocean_daily.nc': lr=-1
+
+  dfmom6 = os.path.join(pthfcst, archv_fl)
+  dset   = xarray.open_dataset(dfmom6)
+  if lr <= 0:
+    A2d = dset[varnm].data.squeeze()
+  else:
+    A2d = dset[varnm].data[0,lr-1,:,:].squeeze()
+  tm = dset['time'].data
+  tmP = pd.to_datetime(tm)
+
+  JBS, IBS = np.where(MSKBS == 1)
+  areg = np.nansum(Acell*MSKBS)
+
+  Tts = []
+  Time = []
+  ntimes = A2d.shape[0]
+  print(f"Reading {varnm} from {archv_fl}, {ntimes} records ...")
+  for itime in range(ntimes):
+    aa = A2d[itime,:].squeeze()
+    amean = np.nansum(aa[JBS,IBS]*Acell[JBS,IBS])/areg
+    Tts.append(amean)
+    yr0 = tmP.year[itime]
+    mo0 = tmP.month[itime]
+    dd0 = tmP.day[itime]
+    dnmb0 = mtime.datenum([yr0,mo0,dd0])
+    Time.append(dnmb0)
+
+  Tts = np.array(Tts)
+  Time = np.array(Time)
+
+  return Tts, Time
+
+
+def timeser_spatavrg_dayoutp(pthfcst0, yr_start, mo_start, varnm, lr, MSKBS, \
+                             Acell, ocnfld='oceanm', nmo=12):
+  """
+    Compute spatially averaged fields from n-daily mean output
+    seasonal forecasts
+    oceanm_*.nc
+
+    Return time series for nmo months
+
+    lr = 1, ... vertical laeyr # for 3D output fields
+    lr >= max N of v. layers - means bottom layer
+    if lr > local depth - NaN mask applied
+    lr <= 0 for 2D fields
+  """
+  import pandas as pd
+
+  dstrt = mtime.datenum([yr_start, mo_start,15])
+  dold = dstrt - 32
+
+  print(f'Computing spatial average {varnm} layer={lr}')
+  Tts = []
+  Time = []
+  for imo in range(nmo):
+    dnew = dold + 32
+    dv_new = mtime.datevec(dnew)
+    dnew = mtime.datenum([dv_new[0], dv_new[1], 1])
+    dold = dnew
+    pthfcst = os.path.join(pthfcst0,f'{ocnfld}_{dv_new[0]}{dv_new[1]:02d}')
+    LOUTP = [fl for fl in os.listdir(pthfcst) if os.path.isfile(os.path.join(pthfcst, fl))]
+
+    print(f'Reading {pthfcst} nrec={len(LOUTP)}')
+    if len(LOUTP) == 0:
+      print(f'No output found in {pthfcst}')
+      return []
+   
+    for ifl in range(len(LOUTP)):
+      flocn_name = LOUTP[ifl]
+      dfmom6 = os.path.join(pthfcst, flocn_name)
+      dset   = xarray.open_dataset(dfmom6)
+      ZM = dset['zl'].data
+      nlyrs = ZM.shape[0]
+
+      if lr == 1:
+        # surface values 3D fields:
+        A2d = dset[varnm].data[0,lr,:,:].squeeze()
+      elif lr >= nlyrs:
+        # bottom values:
+        dP   = dset['h'].data[0,:].squeeze()
+        dP   = np.where(dP < 1.e-3, 0., dP)
+        A3d  = dset[varnm].data[0,:].squeeze()
+        A2d  = derive_bottom_temp(A3d, dP)
+      elif lr < 0:
+        # 2D fields
+        A2d = dset[varnm].data[0,:,:].squeeze()
+
+      JBS, IBS = np.where(MSKBS == 1)
+      areg = np.nansum(Acell*MSKBS)
+      amean = np.nansum(A2d[JBS,IBS]*Acell[JBS,IBS])/areg
+      print(f'Min/max {varnm} = {np.nanmin(amean):12.6f}/{np.nanmax(amean):12.6f}')
+      Tts.append(amean)
+      tm = dset['time'].data
+      tmP = pd.to_datetime(tm)
+      yr0 = tmP.year[0]
+      mo0 = tmP.month[0]
+      dd0 = tmP.day[0]
+
+      dnmb0 = mtime.datenum([yr0,mo0,dd0])
+      Time.append(dnmb0)
+
+  Tts = np.array(Tts)
+  Time = np.array(Time)
+
+  return Tts, Time
+
+def timeser_spatavrg_GLORYS(pthglorys, yr_start, mo_start, varnm, lr, MSKBS, Acell, ndays=365):
+  """
+    Compute spatially averaged fields from GLORYS reanalysis 
+    region extraceted for the NEP
+
+    Return time series for ndays
+
+    lr = 1, ... vertical laeyr # for 3D output fields
+    lr >= max N of v. layers - means bottom layer
+    if lr > local depth - NaN mask applied
+    lr <= 0 for 2D fields
+  """
+  import pandas as pd
+
+  dstrt = mtime.datenum([yr_start, mo_start,1])
+
+  print(f'Computing spatial average {varnm} layer={lr}')
+  Tts = []
+  Time = []
+  for iday in range(ndays):
+    dnmb  = dstrt + iday
+    dv    = mtime.datevec(dnmb)
+    yr, mo, mday = dv[:3]
+    pthfcst = os.path.join(pthglorys,f'{yr}','nep_10')
+    flnm  = f'GLORYS_REANALYSIS_NEP_{yr}-{mo:02d}-{mday:02d}.nc'
+    dfglorys = os.path.join(pthfcst, flnm) 
+    dset  = xarray.open_dataset(dfglorys)
+    ZM  = dset['depth'].data
+    nlyrs = len(ZM)
+    if lr == 1:
+      # surface values 3D fields:
+      A2d = dset[varnm].data[0,lr,:,:].squeeze()
+    elif lr >= nlyrs:
+      # bottom values:
+      dP   = dset['h'].data[0,:].squeeze()
+      dP   = np.where(dP < 1.e-3, 0., dP)
+      A3d  = dset[varnm].data[0,:].squeeze()
+      A2d  = derive_bottom_temp(A3d, dP)
+    elif lr < 0:
+      # 2D fields
+      A2d = dset[varnm].data[0,:,:].squeeze()
+  
+    JBS, IBS = np.where(MSKBS == 1)
+    areg = np.nansum(Acell*MSKBS)
+    amean = np.nansum(A2d[JBS,IBS]*Acell[JBS,IBS])/areg
+#    print(f'Min/max {varnm} = {np.nanmin(amean):12.6f}/{np.nanmax(amean):12.6f}')
+    print(f'{varnm} mean={amean:12.6f}')
+    Tts.append(amean)
+    tm = dset['time'].data
+    tmP = pd.to_datetime(tm)
+    yr0 = tmP.year[0]
+    mo0 = tmP.month[0]
+    dd0 = tmP.day[0]
+
+    dnmb0 = mtime.datenum([yr,mo,mday])
+    Time.append(dnmb0)
+
+  Tts = np.array(Tts)
+  Time = np.array(Time)
+
+  return Tts, Time
+
+
+def plot2D_CalCur(A2d, clrmp, rmin, rmax, xlim1, xlim2, ylim1, ylim2, \
+                  fgnmb=1, btx='', tscntrs=[], tslabels=[], sttl="CalCur region"):
+  """
+    Template 2D figure of T, S, etc fields for California Current region - southern part of NEP
+  """
+  plt.ion()
+
+  fig1 = plt.figure(fgnmb,figsize=(9,8))
+  plt.clf()
+  ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
+  im1 = ax1.pcolormesh(A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
+  ax1.axis('scaled')
+  ax1.set_xlim([xlim1, xlim2])
+  ax1.set_ylim([ylim1, ylim2])
+  ax1.contour(hlon, [x for x in range(200, 360, 10)], colors=[(0.8, 0.8, 0.8)], linestyles='solid', linewidths=1)
+  ax1.contour(hlat, [x for x in range(0, 89, 10)], colors=[(0.8, 0.8, 0.8)], linestyles='solid', linewidths=1)
+
+  if len(tscntrs) > 0:
+    CS = ax1.contour(A2d, tscntrs, colors=[cntr_clr], linestyles='solid', linewidths=1)
+    if len(tslabels) > 0:
+      ax1.clabel(CS, tslabels, inline=1, fontsize=10)
+
+  ax1.set_title(sttl)
+
+  ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,
+                     0.02, ax1.get_position().height])
+  # extend: min, max, both
+  clb = plt.colorbar(im1, cax=ax2, orientation='vertical', extend='both')
+  ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
+  ax2.set_yticklabels(ax2.get_yticks())
+  ticklabs = clb.ax.get_yticklabels()
+  #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
+  clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+  clb.ax.tick_params(direction='in', length=12)
+
+
+  if len(btx) > 0:
+    bottom_text(btx, fsz=8, pos=[0.05, 0.03])
+
+  return
+
+
 
 

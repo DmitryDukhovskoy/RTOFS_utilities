@@ -337,6 +337,38 @@ def colormap_haline(nclrs=200):
 
   return CMP
 
+def colormap_haline2(nclrs=200, start_clr=[0, 0, 153]):
+  """
+    Colormap for salinity
+  """
+#  import mod_colormaps as mclrs
+  CLR = [[ 0,    0, 153],
+         [69,   52, 166],
+         [124, 103, 226],
+         [102, 125, 170],
+         [20,  101, 191],
+         [14,  139, 252],
+         [45,  171, 201],
+         [45,  181, 170],
+         [25,  207, 155],
+         [89,  194, 120],
+         [5,   179,  56],
+         [101, 235, 140],
+         [182, 227,  92],
+         [175, 217,  24],
+         [205, 209,  12],
+         [240, 214,  20],
+         [240, 182,  20],
+         [224, 103,  10],
+         [245, 141,  99],
+         [255, 236, 236]]
+
+  CLR[0] = start_clr
+  CLR = np.array(CLR)/255.
+  CMP = create_colormap(CLR, nclrs)
+
+  return CMP
+
 def colormap_salin2(nclrs=200):
   """
     Colormap for salinity

@@ -11,6 +11,10 @@ import sys
 #import pickle
 import matplotlib.pyplot as plt
 from yaml import safe_load
+#import scipy.fftpack as fftpack
+import scipy.fft as sfft
+import datetime
+from datetime import datetime
 
 import mod_utils_ob as mutob
 importlib.reload(mutob)
@@ -36,11 +40,11 @@ from mod_utils_fig import bottom_text
 # Climatology derived for these years, started at mstart
 # Inidicate start of the SPEAR forecast:
 ens_spear  = 1      # ens run used to create OB's
-yr_start   = 1995
-mo_start   = 1
+yr_start   = 1993
+mo_start   = 4
+nsgm = 3  # OB segment: 3 - South OB, 4 - West OB
 dnmb_start = mtime.datenum([yr_start,mo_start,1])
 dv_start   = mtime.datevec(dnmb_start)
-itime  = 0  # time index to plot
 varnm  = 'ssh'
 
 fyaml = 'pypaths_gfdlpub.yaml'
@@ -50,6 +54,11 @@ with open(fyaml) as ff:
 fconfig = 'config_nep.yaml'
 with open(fconfig) as ff:
   config = safe_load(ff)
+
+seas_yaml = 'paths_seasfcst.yaml'
+with open(seas_yaml) as ff:
+  fseas = safe_load(ff)
+
 
 # MOM6 NEP topo/grid:
 run_name   = 'seasonal_fcst_daily'
@@ -86,18 +95,6 @@ dsh = xarray.open_dataset(dflgmaph)
 spear_dir = config['filesystem']['nep_spear_subset'].\
                    format(year=dv_start[0], ens=ens_spear)
 
-
-dltx = 0.07
-dlty = 0.1
-dx = 0.4
-dy = 0.3
-xl = 0.06
-yb = 0.15
-FPOS = [[xl, yb+dy+dlty, dx, dy],
-        [xl+dx+dltx, yb+dy+dlty, dx, dy],
-        [xl, yb, dx, dy],
-        [xl+dx+dltx, yb, dx, dy]]
-
 # Ssh - 1D sections
 # Load ssh daily fields for NEP subset SPEAR 
 # daily ssh available in ice_daily (with "SSH" variable) and ocean_daily ("ssh") for some years
@@ -119,91 +116,124 @@ plt.ion()
 fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
 
-for isgm in range(nOB):
-  nsgm  = isgm+1
-  print(f'Processing ssh OB segment={nsgm}')
-  INDX   = dsh[f'indx_segm{nsgm:03d}'].data
-  JNDX   = dsh[f'jndx_segm{nsgm:03d}'].data
-  dset_segm = mutob.segm_topo(nsgm, HHM, hgrid)
-  distOB   = dset_segm['dist_supergrid'].data
-  Xbtm     = dset_segm['dist_grid'].data
-  Hbtm     = dset_segm['topo_segm'].data
-  Hbtm     = np.where(Hbtm > 0, 0., Hbtm)
-  segm_nm  = dset_segm['segm_name'].data[0]
+# Average SSH across OB section and plot time series
+isgm = nsgm-1
 
-#  # Spatial interpolation from SPEAR --> NEP OB supergrid
-#  dset   = mutob.derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=time_days)
+print(f'Processing ssh OB segment={nsgm}')
+INDX   = dsh[f'indx_segm{nsgm:03d}'].data
+JNDX   = dsh[f'jndx_segm{nsgm:03d}'].data
+dset_segm = mutob.segm_topo(nsgm, HHM, hgrid)
+distOB   = dset_segm['dist_supergrid'].data
+Xbtm     = dset_segm['dist_grid'].data
+Hbtm     = dset_segm['topo_segm'].data
+Hbtm     = np.where(Hbtm > 0, 0., Hbtm)
+segm_nm  = dset_segm['segm_name'].data[0]
 
 # Segment coordinates SPEAR
-  dset_sgmspear = segments[isgm]
-  xOB_spear = dset_sgmspear.coords.lon.data
-  yOB_spear = dset_sgmspear.coords.lat.data
-  npnts     = len(xOB_spear)
-  nx_spear  = dset_sgmspear.nx
-  ny_spear  = dset_sgmspear.ny
+dset_sgmspear = segments[isgm]
+xOB_spear = dset_sgmspear.coords.lon.data
+yOB_spear = dset_sgmspear.coords.lat.data
+npnts     = len(xOB_spear)
+nx_spear  = dset_sgmspear.nx
+ny_spear  = dset_sgmspear.ny
 
-  # Calculate distance along the OB segment:
-  distOB_spear, _ = mutob.calculate_dist_section(xOB_spear, yOB_spear)
+# Calculate distance along the OB segment:
+#  distOB_spear, _ = mutob.calculate_dist_section(xOB_spear, yOB_spear)
+TM = ds_spear['time'].data
+ndays = len(TM)
 
+# Average over smaller segment: close to the region where SSH was analyzed
+match nsgm:
+  case 3:
+    regn = 'poly_south'
+
+II = fseas['ANLS_NEP'][regn]['II']
+#JJ = fseas['ANLS_NEP'][regn]['JJ']
+ii1 = np.min(II)
+ii2 = np.max(II)
+
+SSH = []
+for itime in range(ndays):
   ssh_spear = ds_spear[varnm].isel(time=itime).data
+# 4 vertices chosen for SSH interpolation onto MOM grid:
+# Pick one
   sshOB_spear = ssh_spear[JNDX[:,0],INDX[:,0]].squeeze()
+#  ssh_mn = np.nanmean(sshOB_spear)
+  ssh_mn = np.nanmean(sshOB_spear[ii1:ii2])
+#  ssh_mn = np.nanmean(sshOB_spear[310:320])
+  SSH.append(ssh_mn)
+  
+# COnvert into datetime object:
+nrec = len(TM)
+DTM = []
+for ii in range(nrec):
+  dd   = datetime.strptime(str(TM[ii]),'%Y-%m-%d %H:%M:%S')
+  yr   = dd.year
+  mo   = dd.month
+  mday = dd.day 
+  dnmb = mtime.datenum([yr,mo,mday])
+  DTM.append(dnmb)
 
-# Debugging ssh interpolation:
-  f_debug = False
-  if f_debug:
-    import mod_mom6 as mom6util
-    A = ssh_spear.copy() 
-    # Fill missing values (bottom/land):
-    dmm =  mom6util.fill_land3d(A)
+DTM = np.array(DTM)
+DAYS = DTM-DTM[0]
+dT  = DAYS[1] - DAYS[0]
 
-    # 4 vertices chosen for SSH interpolation onto MOM grid:
-    sshS1 = ssh_spear[JNDX[:,0],INDX[:,0]].squeeze()
-    sshS2 = ssh_spear[JNDX[:,1],INDX[:,1]].squeeze()
-    sshS3 = ssh_spear[JNDX[:,2],INDX[:,2]].squeeze()
-    sshS4 = ssh_spear[JNDX[:,3],INDX[:,3]].squeeze()
+SSH = np.array(SSH)
+#Qfr = fftpack.fft(SSH)  # Fourier transfer
+#Frw = fftpack.fftfreq(len(DAYS), dT)
 
-    # Filled land OB segment of ssh at 4 indices for interpolation onto MOM grid
-    sshF1 = dmm[JNDX[:,0],INDX[:,0]].squeeze()
-    sshF2 = dmm[JNDX[:,1],INDX[:,1]].squeeze()
-    sshF3 = dmm[JNDX[:,2],INDX[:,2]].squeeze()
-    sshF4 = dmm[JNDX[:,3],INDX[:,3]].squeeze()
+# Detrend:
+Pcoef = np.polyfit(DAYS,SSH,4)
+Plnm  = np.poly1d(Pcoef)
+Pfit = Plnm(DAYS)
 
-    plt.ion()
-    fig1 = plt.figure(1,figsize=(9,8))
+SSH_dtr = SSH-Pfit
 
-    fig1.clf()
-    ax1  = plt.axes([0.1, 0.3, 0.8, 0.6])
-    ax1.plot(sshF1,'-')
-    ax1.plot(sshS1)
- 
+N = len(SSH_dtr)
+Qfr = sfft.rfft(SSH_dtr) / N
+Frw = sfft.rfftfreq(n=N, d=1./365.) # unit = 1/12 of sampling period
+Qfr = np.abs(Qfr)
+Qfr[0] = np.nan
 
-  # Read saved and interpolated OBs:
-  date_init = f'{dv_start[0]}{dv_start[1]:02d}{dv_start[2]:02d}'
-  pthoutp = gridfls['MOM6_NEP'][run_name]['pthoutp']
-  fobc_out = os.path.join(pthoutp,f'OBCs_spear_daily_init{date_init}_e{ens_spear:02d}.nc')
-  dsetOB = xarray.open_dataset(fobc_out) 
-  sshOB  = dsetOB[f'zos_segment_{nsgm:03d}'].isel(time=itime).data.squeeze()
-  xOB    = dsetOB[f'lon_segment_{nsgm:03d}'].data
-  yOB    = dsetOB[f'lat_segment_{nsgm:03d}'].data
-#  distOB, _ = mutob.calculate_dist_section(xOB, yOB)
+# Bin averaging
+# Skip the 1st bin which is nan - low-freq removed
+Nav = 2
+Iav = [x for x in range(1,len(Frw),Nav)]
+Iav.append(N)
+Frq_avg = []
+Qfr_avg = []
+for ii in range(len(Iav)-1):
+  i1 = Iav[ii]
+  i2 = Iav[ii+1]-1
+  if i2 < i1: i2=i1
+  Frq_avg.append(np.mean(Frw[i1:i2+1]))
+  Qfr_avg.append(np.mean(Qfr[i1:i2+1]))
 
-  sttl = f'SSH SPEAR and OB file,  OB={segm_nm} F/cast day={itime+1}'
+plt.ion()
+fig1 = plt.figure(1,figsize=(9,8))
 
-  axpos = FPOS[isgm]
-  ax1 = plt.axes(axpos)
-  ax1.plot(distOB_spear, sshOB_spear)
-  ax1.plot(distOB, sshOB)
-  # Show land:
-  if np.max(Hbtm) >=0.0:
-    Iland = np.where(Hbtm >= 0.0)[0]
-    Yland = np.zeros((len(Iland)))
-    ax1.plot(Xbtm[Iland],Yland,'b-')
-  ax1.grid('on')
-  ax1.set_title(sttl)
-  ax1.set_xlabel('Dist., km')
+fig1.clf()
+ax1  = plt.axes([0.1, 0.54, 0.85, 0.4])
+ax1.plot(SSH,'-')
+ax1.plot(Pfit)
+sttl = f'SSH SPEAR avg over OB={segm_nm}, {flnm_spear}'
+ax1.grid('on')
+ax1.set_title(sttl)
+ax1.set_xlabel('Time, days')
 
-btx='check_ssh_dailyOB.py'
-bottom_text(btx)
+ax2  = plt.axes([0.08, 0.08, 0.85, 0.4])
+#ax2.plot(Frw, np.abs(Qfr))
+ax2.plot(Frq_avg, Qfr_avg)
+ax2.set_yscale('log')
+#ax2.set_xscale('log')
+
+sttl2 = 'Spectrum, m2/day2'
+ticks = ax2.get_xticks()
+ax2.set_xticklabels([f'{tick/N:6.2f}' if tick!=0 else '$\infty$' for tick in ticks])
+ax2.set_xlabel('cyc/day')
+
+btx = 'check_ssh_SPEAR.py'
+bottom_text(btx, pos=[0.01, 0.01])
 
 
 

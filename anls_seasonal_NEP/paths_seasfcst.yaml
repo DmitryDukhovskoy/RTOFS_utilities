@@ -11,16 +11,32 @@ GOFS3.1:
 MOM6_NEP:
   "test":
     pthrun:  ' '
-    pthoutp: ' '
+    pthoutp: '/work/Dmitry.Dukhovskoy/run_output/NEP_ISPONGE/1993/04'
     pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
     ftopo:   'topog.nc'
     fgrid:   'ocean_hgrid.nc'
-    ndav:    1
+    ndav:    5
     pthdump: '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp'
+    focname: 'oceanm_{YR}_{jday:03d}.nc'
+    ficename: 'icem_{YR}_{jday:03d}.nc'
   "seasonal_fcst":
     pthrun:  ' '
     pthoutp: '/archive/Dmitry.Dukhovskoy/fre/NEP/seasonal_ensembles/{runname}/gfdl.ncrc5-intel22-repro/history'
     pthwoutp: '/work/Dmitry.Dukhovskoy/run_output/seasonal_ensembles_climOB/{runname}'
+    pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
+    ftopo:   'topog.nc'
+    fgrid:   'ocean_hgrid.nc'
+    focname: 'oceanm_{YR}_{jday:03d}.nc'
+    ficename: 'icem_{YR}_{jday:03d}.nc'
+    ndav:    5
+    pthdump: '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp'
+    year_start: {YRS}
+    month_start: {MMS}
+    day_start: {DDS}
+  "seasonal_daily":
+    pthrun:  ' '
+    pthoutp: '/archive/Dmitry.Dukhovskoy/fre/NEP/seasonal_daily/NEPphys_frcst_dailyOB-expt{expt_nmb:02d}'
+    pthwoutp: '/work/Dmitry.Dukhovskoy/run_output/seasonal_ensembles_dailyOB/{runname}'
     pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
     ftopo:   'topog.nc'
     fgrid:   'ocean_hgrid.nc'
@@ -161,4 +177,28 @@ ANLS_NEP:
   "poly_BerSea":
     II: [102, 134, 189, 190, 199, 205, 225, 195, 185, 182, 144, 105, 94, 94, 107, 101, 113, 109, 125, 130, 105]
     JJ: [747, 745, 736, 705, 682, 664, 629, 616, 606, 574, 570, 588, 594, 602, 618, 645, 660, 680, 696, 717, 742]
+
+  "poly_south":
+    II: [212, 340, 340, 212]
+    JJ: [182, 182, 2,  2]
+
+  "poly_central":
+    II: [179, 340, 340, 179]
+    JJ: [392, 392, 183, 183]
+
+  "poly_north":
+    II: [115, 295, 295, 115]
+    JJ: [547, 547, 355, 355]
+# Analysis regions:
+  "CalCur":
+    II: [1, 320, 320, 1]
+    JJ: [36, 36, 380, 380]
+    smin_0: 30.0
+    smax_0: 35.0
+    tmin_0: 14.0
+    tmax_0: 28.0 
+
+
+
+
 

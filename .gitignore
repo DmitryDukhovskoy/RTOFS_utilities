@@ -28,6 +28,7 @@ README.*
 # Logs and databases #
 ######################
 *.log
+*.logs
 *.sql
 *.sqlite
 
