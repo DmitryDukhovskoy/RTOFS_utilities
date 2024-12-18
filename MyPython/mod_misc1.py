@@ -1086,6 +1086,19 @@ def find_closest_indx(LONr,LATr,LON,LAT):
     II[ii] = int(imin)
     JJ[ii] = int(jmin)
 
+# Eliminate repitions, identical indices:
+  IIn = list([II[0]])
+  JJn = list([JJ[0]])
+  for ii in range(1,len(II)):
+    dd = np.sqrt( (II[ii]-IIn[-1])**2 + (JJ[ii]-JJn[-1])**2 )
+    if dd < 1.e-6:
+      continue
+    IIn.append(II[ii])
+    JJn.append(JJ[ii])
+
+  II = np.array(IIn)
+  JJ = np.array(JJn)
+
   return II, JJ
 
 def orientation(A,B,C):
@@ -1267,6 +1280,51 @@ def convert_polarXY_lonlat(X, Y, RE=6378137.0, E=0.08181919, SLAT=70., North=Tru
   lon = ((lon+180.)%360.) - 180.
 
   return lon, lat
+
+
+def connect_segments(Isgm, Jsgm):
+  """
+    Connect N segments together
+    Isgm = list of N segments i-coord
+    Jsgm = list of N segments j-coord
+
+    Segments orientation is checked to have continuous transition from segm 1 to segm 2
+  """
+  nsegm = len(Isgm)
+
+  II = Isgm[0]
+  JJ = Jsgm[0]
+
+  if isinstance(II, list):
+    II = np.array(II)
+    JJ = np.array(JJ)
+
+  for isgm in range(1,nsegm):
+    I1 = Isgm[isgm]
+    J1 = Jsgm[isgm]
+
+    if isinstance(I1, list):
+      I1 = np.array(I1)
+      J1 = np.array(J1)
+
+    d1 = np.sqrt((I1-II[-1])**2 + (J1-JJ[-1])**2)
+    if d1[0] > d1[-1]:
+      I1 = np.flip(I1)
+      J1 = np.flip(J1)
+
+    II = np.append(II, I1)
+    JJ = np.append(JJ, J1)
+
+  return II, JJ
+
+
+
+
+
+
+
+
+
 
 
 

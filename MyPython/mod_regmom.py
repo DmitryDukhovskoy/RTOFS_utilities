@@ -556,7 +556,7 @@ def insitu2pot_3D(T3d, S3d, ZZ, LAT, z_ref=0, uref='m'):
   else:
     raise Excpetion('ZZ array should be either 1D or 3D')
 
-  Zref = np.zeros((jdm,idm)) 
+  Zref = np.zeros((jdm,idm)) + z_ref # ?? 
   if uref == 'm':
     if abs(z_ref) < 1.e-3:
       prref_db = np.zeros((jdm,idm))
@@ -576,6 +576,37 @@ def insitu2pot_3D(T3d, S3d, ZZ, LAT, z_ref=0, uref='m'):
     pr_db, pr_pa = msw.sw_press(z0, LAT)
     tp = msw.sw_ptmp(sal, temp, pr_db, prref_db)
     Tpot[klr,:] = tp
+
+  return Tpot
+
+def insitu2pot_2D(T2d, S2d, zz0, LAT, z_ref=0, uref='m'):
+  """
+    Convert in situ T to potential with pressure 
+      reference: z_ref either in m (depth) 
+      or dbar (pressure)
+    T, S - 2D arrays, lat0 - local latitude 
+    LAT - 2D latitudes
+    zz0 - in situ depth, m or dbar
+  """
+  import mod_swstate as msw
+  import mod_misc1 as mmisc
+
+  jdm, idm = T2d.shape
+  Zref = np.zeros((jdm,idm)) + z_ref
+ 
+  if uref == 'm':
+    if abs(z_ref) < 1.e-3:
+      prref_db = np.zeros((jdm,idm))
+      prref_pa = np.zeros((jdm,idm))
+    else:
+      prref_db, prref_pa = msw.sw_press(Zref, LAT)
+  else:
+    prref_db = np.zeros((jdm,idm))
+    prref_pa = np.zeros((jdm,idm))
+ 
+  Tpot = np.zeros((jdm,idm))
+  pr_db, pr_pa = msw.sw_press(zz0, LAT)
+  Tpot = msw.sw_ptmp(S2d, T2d, pr_db, prref_db)
 
   return Tpot
 

@@ -606,6 +606,7 @@ def yrmo_seasonal_fcst(yr_start, mo_start, nmo_fcst=12):
 def monthly_mean_from_Ndaily_ocean2D(pthfcst0, yr_start, mo_start, varnm, ocnfld, vlr, MAVRG=[1]):
   """
     From N-day average ocean 3D fields: 
+    for 1 v. layer only
     compute monthly average 2D field for given variable and model layer(s)
     Field is averaged over MAVRG months (1 = Jan, 2 - Feb, etc)
     Months will be related to the years of the forecast, i.e.
@@ -659,6 +660,107 @@ def monthly_mean_from_Ndaily_ocean2D(pthfcst0, yr_start, mo_start, varnm, ocnfld
   print(f'N time records={icc}, min/max = {np.nanmin(Asum)} / {np.nanmax(Asum)}')  
 
   return Asum, Time
+
+def monthly_depth_mean_from_Ndaily3D(pthfcst0, yr_start, mo_start, varnm, ocnfld, vlr1, vlr2, MAVRG=[1]):
+  """
+    From N-day average ocean 3D fields: 
+    average over v. layers and 
+    compute monthly average 2D field for given variable and model layer(s)
+    Field is averaged over MAVRG months (1 = Jan, 2 - Feb, etc)
+    Months will be related to the years of the forecast, i.e.
+    Jan for the f/cast that starts on 2013/10 will be Jan-2014
+  """
+  import pandas as pd
+
+  mo_fcsts = yrmo_seasonal_fcst(yr_start, mo_start)
+# Time-average fields:
+  icc = 0
+  Time = []
+  for imo in MAVRG:
+    ix = np.where(mo_fcsts[:,1] == imo)[0][0]
+    yr_fcst = mo_fcsts[ix,0]
+    pthfcst = os.path.join(pthfcst0,f'{ocnfld}_{yr_fcst}{imo:02d}')
+    print(f'Avergaing {varnm} {yr_fcst}/{imo:02d}')
+
+    LOUTP = [fl for fl in os.listdir(pthfcst) if os.path.isfile(os.path.join(pthfcst, fl))]
+    if len(LOUTP) == 0:
+      print(f'No output found in {pthfcst}')
+      continue
+
+    for ifl in range(len(LOUTP)):
+      flocn_name = LOUTP[ifl]
+      dfmom6 = os.path.join(pthfcst, flocn_name)
+      dset   = xarray.open_dataset(dfmom6)
+      izz = 0
+      Zsum = []
+      for ilr in range(vlr1-1, vlr2):
+        Z2d = dset[varnm].isel(time=0, zl=ilr).data.squeeze()
+        if izz == 0:
+          Zsum = Z2d.copy()
+        else:
+          Zsum = Zsum + Z2d
+        izz += 1
+      A2d = Zsum / izz
+
+      tm = dset['time'].data
+      tmP = pd.to_datetime(tm)
+      yr0 = tmP.year[0]
+      mo0 = tmP.month[0]
+      dd0 = tmP.day[0]
+      dnmb0 = mtime.datenum([yr0,mo0,dd0])
+      Time.append(dnmb0)
+
+      if icc == 0:
+        Asum = A2d.copy()
+      else:
+        Asum = Asum + A2d
+
+      icc += 1
+
+  Asum = Asum / icc
+  print(f'N time records={icc}, min/max = {np.nanmin(Asum)} / {np.nanmax(Asum)}')  
+
+  return Asum, Time
+
+def read_oceanm3D_field(pthfcst, flname, fld_read, notime=True):
+  """
+    Read a 2D or 3D variable from N-daily 3D output archive files oceanm_*.nc
+    Seasonal forecasts
+  """
+  dflread = os.path.join(pthfcst,flname)
+  print(f"Reading {fld_read} <-- {dflread}")
+  dset   = xarray.open_dataset(dflread)
+  if notime:
+    AA = dset[fld_read].isel(time=0).data.squeeze()
+  else:
+    AA = dset[fld_read].data.squeeze()
+
+  return AA
+
+def list_oceanice_files(pthfcst, prefix='oceanm', subdir=''):
+  """
+    Create list of all oceanm or icem output files for specific run
+    subdir = subdirectory inside pthfcst where oceanm, icem to look
+    e.g. subdir = oceanm_201905
+    otherwise all output files from all subdirs will be given
+  """
+  if len(subdir) == 0:
+    SUBDIR = [drr for drr in os.listdir(pthfcst) if os.path.isdir(os.path.join(pthfcst, drr))]
+  else:
+    SUBDIR = list([subdir])
+
+  lchar = len(prefix)
+  list_files = []
+  for dir_out in SUBDIR:
+#    print(f'{dir_out}')
+    if not dir_out[:lchar] == prefix:
+      continue
+
+    pthfull = os.path.join(pthfcst, dir_out)
+    LOUTP = [fl for fl in os.listdir(pthfull) if os.path.isfile(os.path.join(pthfull, fl))]
+    list_files = list_files + LOUTP
+    
+  return list_files
 
 def timeser_spatavrg(pthfcst0, yr_start, mo_start, JJ, II, lr, varnm, nens, ocnfld, nmo=12):
   """
@@ -895,10 +997,13 @@ def timeser_spatavrg_GLORYS(pthglorys, yr_start, mo_start, varnm, lr, MSKBS, Ace
 
 
 def plot2D_CalCur(A2d, clrmp, rmin, rmax, xlim1, xlim2, ylim1, ylim2, \
-                  fgnmb=1, btx='', tscntrs=[], tslabels=[], sttl="CalCur region"):
+                  fgnmb=1, btx='', tscntrs=[], tslabels=[], sttl="CalCur region", \
+                  hlon=[], hlat=[], HH=[]):
   """
     Template 2D figure of T, S, etc fields for California Current region - southern part of NEP
   """
+  cntr_clr = [0.3, 0.3, 0.3]
+
   plt.ion()
 
   fig1 = plt.figure(fgnmb,figsize=(9,8))
@@ -908,8 +1013,12 @@ def plot2D_CalCur(A2d, clrmp, rmin, rmax, xlim1, xlim2, ylim1, ylim2, \
   ax1.axis('scaled')
   ax1.set_xlim([xlim1, xlim2])
   ax1.set_ylim([ylim1, ylim2])
-  ax1.contour(hlon, [x for x in range(200, 360, 10)], colors=[(0.8, 0.8, 0.8)], linestyles='solid', linewidths=1)
-  ax1.contour(hlat, [x for x in range(0, 89, 10)], colors=[(0.8, 0.8, 0.8)], linestyles='solid', linewidths=1)
+  if len(hlon) > 0 and len(hlat) > 0:
+    ax1.contour(hlon, [x for x in range(200, 360, 10)], colors=[(0.8, 0.8, 0.8)], linestyles='solid', linewidths=1)
+    ax1.contour(hlat, [x for x in range(0, 89, 10)], colors=[(0.8, 0.8, 0.8)], linestyles='solid', linewidths=1)
+
+  if len(HH) > 0:
+    ax1.contour(HH,[0], colors=[(1, 1, 1)], linestyles='solid', linewidths=1)
 
   if len(tscntrs) > 0:
     CS = ax1.contour(A2d, tscntrs, colors=[cntr_clr], linestyles='solid', linewidths=1)
@@ -934,6 +1043,121 @@ def plot2D_CalCur(A2d, clrmp, rmin, rmax, xlim1, xlim2, ylim1, ylim2, \
     bottom_text(btx, fsz=8, pos=[0.05, 0.03])
 
   return
+
+def plot_stereogr_axis(fig1, m, xR, yR, A2d, clrmp, rmin, rmax, \
+                       btx=[], tscntrs=[], tslabels=[], sttl='stereogr proj'):
+  """
+    Plot 2D field in stereogrpahic projection
+    mapping function = m
+    axis = ax1
+  """
+  
+  ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
+
+  m.drawcoastlines(color='w')
+  m.drawparallels(np.arange(-90.,120.,10.))
+  m.drawmeridians(np.arange(-180.,180.,10.))
+  cntr_clr = [0.3, 0.3, 0.3] 
+
+  img = m.pcolormesh(xR, yR, A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
+
+  if len(tscntrs) > 0:
+    CS = m.contour(xR, yR, A2d, tscntrs, colors=[cntr_clr], linestyles='solid', linewidths=1)
+    if len(tslabels) > 0:
+      ax1.clabel(CS, tslabels, inline=1, fontsize=10)
+
+  ax1.set_title(sttl)
+
+
+  ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,
+                     0.02, ax1.get_position().height])
+  # extend: min, max, both
+  clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='both')
+  ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
+  ax2.set_yticklabels(ax2.get_yticks())
+  ticklabs = clb.ax.get_yticklabels()
+  #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
+  clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+  clb.ax.tick_params(direction='in', length=12)
+
+  if len(btx) > 0:
+    bottom_text(btx, fsz=8, pos=[0.05, 0.03])
+
+  return ax1
+
+
+def colormap_params(regn_name, varnm, zz0=-1.):
+  """
+    Define parameters to plot T, S fields for different regions / depths
+  """
+
+  match regn_name:
+    case 'CalCur':
+      if varnm == 'salin' or varnm == 'salt' or varnm == 'so':
+        if zz0 >= -50.:
+          rmin = 30.0
+          rmax = 35.0
+          tscntrs = [x/10 for x in range(320,360,2)]
+          tslabels = [x for x in range(32,36)]
+        elif zz0 < -50. and zz0 >= -150:
+          rmin = 33.0
+          rmax = 35.0
+          tscntrs = [x/10 for x in range(320,360,2)]
+          tslabels = [x/10 for x in range(320,360,2)]
+        elif zz0 < -150. and zz0 >= -500:
+          rmin = 33.4
+          rmax = 35.0
+          tscntrs = [x/10 for x in range(320,360,2)]
+          tslabels = [x/10 for x in range(320,360,2)]
+        else: 
+          rmin = 33.0
+          rmax = 35.0
+          tscntrs = [x/10 for x in range(320,360,2)]
+          tslabels = [x/10 for x in range(320,360,2)]
+
+      if varnm == 'temp' or varnm == 'potT' or varnm == 'thetao':
+        if zz0 >= -50.:
+          rmin = 10.0
+          rmax = 28.0
+          tscntrs = [x for x in range(10,38,1)]
+          tslabels = [x for x in range(10,38,2)]
+        elif zz0 < -50. and zz0 >= -150:
+          rmin = 8.0
+          rmax = 22.0
+          tscntrs = [x for x in range(5,24,1)]
+          tslabels = [x for x in range(5,24,1)]
+        elif zz0 < -150. and zz0 >= -250:
+          rmin = 8.0
+          rmax = 18.0
+          tscntrs = [x for x in range(5,24,1)]
+          tslabels = [x for x in range(5,24,1)]
+        elif zz0 < -250. and zz0 >= -500:
+          rmin = 5.0
+          rmax = 15.0
+          tscntrs = [x for x in range(10,24,1)]
+          tslabels = [x for x in range(10,24,1)]
+        else: 
+          rmin = 2.0
+          rmax = 12.0
+          tscntrs = [x/10 for x in range(20,140,5)]
+          tslabels = [x/10 for x in range(20,140,20)]
+
+      if varnm == 'UV' or varnm == 'Uspeed':
+        if zz0 >= -50.:
+          rmin = 0
+          rmax = 0.2
+          tscntrs = [x/100 for x in range(0,50,5)]
+          tslabels = [x/100 for x in range(0,50,10)]
+        else:
+          rmin = 0
+          rmax = 0.1
+          tscntrs = [x/100 for x in range(0,40,2)]
+          tslabels = [x/100 for x in range(0,40,4)]
+
+
+              
+  return rmin, rmax, tscntrs, tslabels
+
 
 
 

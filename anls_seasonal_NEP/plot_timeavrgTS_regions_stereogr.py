@@ -1,5 +1,6 @@
 """
   Plot 2D mean T/S fields to analyze seasonal water mass structure
+  stereographic projection
   in different regions: # CalCur - Calif Current region, Alaska - Alaska region, BerSea - Bering
   Following Stoke et al., 2015
 
@@ -54,16 +55,17 @@ importlib.reload(manseas)
 # Initial date
 # Look at ens run #1 - the only ens. that has 5-day av. output fields
 expt     = 'seasonal_daily'  # seasonal forecasts with dailyOB from SPEAR
-varnm    = 'temp'  # temp (potential) / salin
+varnm    = 'salin'  # temp (potential) / salin
 #dnmbS    = mtime.datenum([2015,1,1])
 # Averaging time period:
 MMS   = 1    # f/cast init. month in each year, can be changed to months: 1, 4, 7, 10
 YAVRG = [x for x in range(2011,2021)]
+#MAVRG = [1,2,3]  # months to average: Winter  JFM, Summer: JAS
 MAVRG = [7,8,9]  # months to average: Winter  JFM, Summer: JAS
 regn_name = 'CalCur' # CalCur - Calif Current region, Alaska - Alaska region, BerSea - Bering
                      # Following Stoke et al., 2015
 lr0  = 1  # ocean layers from 1, ..., 75
-          # lr 31 =-102 m, lr 38 = -216 m
+          # lr 31 =-102 m, lr 37 = -192 m
 
 nensR    = 1
 expt_nmb = 2   # 2 - seas f/casts with dailyOB
@@ -139,6 +141,22 @@ xlim2 = max(II)
 ylim1 = min(JJ)
 ylim2 = max(JJ)
 
+# Plot boundaries of the region:
+lon_s = hlon[ylim1, xlim1:xlim2+1]
+lat_s = hlat[ylim1, xlim1:xlim2+1]
+
+lon_n = hlon[ylim2, xlim1:xlim2+1]
+lat_n = hlat[ylim2, xlim1:xlim2+1]
+
+lon_w = hlon[ylim1:ylim2+1, xlim1]
+lat_w = hlat[ylim1:ylim2+1, xlim1]
+
+lon_e = hlon[ylim1:ylim2+1, xlim2]
+lat_e = hlat[ylim1:ylim2+1, xlim2]
+
+Xreg, Yreg = mmisc.connect_segments([lon_w, lon_n, lon_e, lon_s], \
+                                    [lat_w, lat_n, lat_e, lat_s])
+
 rmin, rmax, tscntrs, tslabels = manseas.colormap_params(regn_name, varnm, zz0=zz0)
 
 if varnm == 'salin' or varnm == 'salt': 
@@ -146,21 +164,41 @@ if varnm == 'salin' or varnm == 'salt':
   clrmp.set_bad(color=[0., 0., 0.])
 #  clrmp.set_under(color=[0.6, 0.6, 0.6])
 elif varnm == 'temp' or varnm == 'potT': 
-  clrmp = mutil.colormap_temp(clr_ramp=[0.9,0.8,1])
+  clrmp = mclrpms.colormap_temp(clr_ramp=[0.9,0.8,1])
   clrmp.set_bad(color=[0.,0.,0.])
 elif varnm == 'ssh':
-  clrmp = mutil.colormap_ssh(nclrs=200)
+  clrmp = mclrpms.colormap_ssh(nclrs=200)
   rmin = -0.5
   rmax = 0.5
 
-btx = 'plot_timeavrgTS_regions.py'
+btx = 'plot_timeavrgTS_regions_stereogr.py'
 sttl = f"{run_info} z={zz0:8.1f} m"
+
+# Stereographic projection:
+from mpl_toolkits.basemap import Basemap, cm
 match regn_name:
   case 'CalCur':
-    manseas.plot2D_CalCur(A2d, clrmp, rmin, rmax, xlim1, xlim2, ylim1, ylim2, \
-                  fgnmb=1, btx=btx, tscntrs=tscntrs, tslabels=tslabels, sttl=sttl, \
-                  hlon=hlon, hlat=hlat, HH=HH)
+    width  = 4000*1.e3
+    height = 4000*1.e3
+    lat0   = 33.5
+    lon0   = -128.
 
+m = Basemap(width=width, height=height, resolution='l',\
+            projection='stere', lat_ts=55, lat_0=lat0, lon_0=lon0)
+
+xR, yR = m(hlon, hlat)
+
+plt.ion()
+fig1 = plt.figure(1,figsize=(9,8))
+plt.clf()
+
+ax1 = manseas.plot_stereogr_axis(fig1, m, xR, yR, A2d, clrmp, rmin, rmax, \
+                       btx=btx, tscntrs=tscntrs, tslabels=tslabels, sttl=sttl)
+
+# Plot NEP domain:
+plt.sca(ax1)
+xdom, ydom = m(Xreg, Yreg)
+m.plot(xdom, ydom, 'w-')
 
 
 

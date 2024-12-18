@@ -175,39 +175,68 @@ def draw_arrowF_polar(tht,R,ax=None,**vec_props):
 
   return
 
-
-def compass_old(u, v, arrowprops=None, nf=1, ax=None):
-# arrowprops = dict(color='darkorange', linewidth=2)
+def arrow_vertices(Vstart, Vend, **vec_props):
   """
-  Program similar to Matlab compass
-  draw a vecotr in polar coordinates
-  using example from internet
+  return vertices of the arrow head given start - end coordinates for stem 
+  for start/end pnts [x1,y1],[x2,y2]
+
+  Optional vector properties:
+  cf_ahd - scaling coefficient of the arrowhead, if [0 to 1)
+       arrow head is smaller than the vector
+       otherwise, the vector will be closed by the arrowhead
+  beta - angle between vector and arrow head beams (degrees)
+  v_col - color ([R G B]) # default color is black
+  lwd - line width, default = 1
+  larr_min / larr_max - min/max size of the arrow heads
+ 
   """
+  cf_ahd   = vec_props.get('cf_vec',0.3)
+  beta_dgr = vec_props.get('beta',25.)
+  larr_min = vec_props.get('larr_min',0.)    # min arrow-head size
+  larr_max = vec_props.get('larr_max',0.)
 
-# Derive polar coordinates from U,V
-  tht, Rr = cart2polar(u, v)
+  x1, y1 = Vstart[:]
+  x2, y2 = Vend[:]
 
-# breakpoint()
-  if ax is not None:
-    plt.figure(nf)
-  else:
-    plt.figure(nf).clf()
-    ax  = plt.figure(nf).subplots(subplot_kw=dict(polar=True))
+  uu = x2-x1
+  vv = y2-y1
+  sp = np.sqrt(uu*uu+vv*vv)
+  alfa = np.arctan2(uu, vv)  # vector angle from Y
+  beta = beta_dgr*np.pi/180.
+  var = cf_ahd*sp
+  if var < larr_min:
+    var = larr_min
 
-  kw = dict(arrowstyle="->", color='k')
-  if arrowprops:
-    kw.update(arrowprops)
+  if larr_max > larr_min and var > larr_max:
+    var = larr_max
 
-  [ax.annotate("", xy=(tht, Rr), xytext=(0, 0),
-               arrowprops=kw)]
+  dX2 = var*np.sin(alfa-beta)     # arrow head coordinates
+  dX3 = var*np.sin(alfa+beta)
+  dY2 = var*np.cos(alfa-beta)
+  dY3 = var*np.cos(alfa+beta)
+  dL = np.sqrt(dX2**2+dY2**2)
 
-# breakpoint()
-#
-# [ax.annotate("", xy=(tht, Rr), xytext=(0, 0),
-#               arrowprops=kw) 
-#              for tht,Rr in zip(THT, RR)]
+# Length of the vector with the arrow-head
+#  Lv=sp+dL-0.1*dL  # to avoid gap btw stem and arrowhead
+  Lv = 1.01*sp 
+  un=uu/sp
+  vn=vv/sp
+  xHead=x1+un*Lv  # scale to adjust for the arrowhead
+  yHead=y1+vn*Lv
 
-  ax.set_ylim(0, 1.05*Rr)
+  ax2=xHead-dX2
+  ax3=xHead-dX3
+  ay2=yHead-dY2
+  ay3=yHead-dY3
 
-  return ax
+  X=[xHead,ax2,ax3,xHead]
+  Y=[yHead,ay2,ay3,yHead]
+
+  beam1 = np.array([[ax2, ay2],
+                   [xHead, yHead]])
+  beam2 = np.array([[ax3, ay3],
+                   [xHead, yHead]])
+
+  return beam1, beam2
+
 
