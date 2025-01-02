@@ -1,5 +1,5 @@
 """
-  Plot 2D mean U/V fields to analyze seasonal water mass structure
+  Plot 2D mean U/V vectors 
   stereographic projection
   in different regions: # CalCur - Calif Current region, Alaska - Alaska region, BerSea - Bering
   Following Stoke et al., 2015
@@ -60,15 +60,17 @@ varnm    = 'u'  # temp (potential) / salin
 # Averaging time period:
 MMS   = 1    # f/cast init. month in each year, can be changed to months: 1, 4, 7, 10
 YAVRG = [x for x in range(2011,2021)]
-#MAVRG = [1,2,3]  # months to average: Winter  JFM, Summer: JAS
-MAVRG = [7,8,9]  # months to average: Winter  JFM, Summer: JAS
-regn_name = 'CalCur' # CalCur - Calif Current region, Alaska - Alaska region, BerSea - Bering
+MAVRG = [1,2,3]  # months to average: Winter  JFM, Summer: JAS
+#MAVRG = [7,8,9]  # months to average: Winter  JFM, Summer: JAS
+regn_name = 'CalUnderCur' # CalCur - Calif Current region, Alaska - Alaska region, BerSea - Bering
                      # Following Stoke et al., 2015
+                     # CalUnderCur - region ~35-45 N, 0-200 m 
 
 # Average over a depth range:
 #LRS = [1, 13]  # lr 11 = -25 m
-LRS = [21, 35]  # 50 - 150 m
-LRS = [30, 35]  # 50 - 150 m
+#LRS = [21, 30]  # 50 - 150 m
+#LRS = [30, 35]  # 93 - 153 m
+LRS = [34, 36]  # 137 - 171 m  - for Under Current
 
 nensR    = 1
 expt_nmb = 2   # 2 - seas f/casts with dailyOB
@@ -118,6 +120,25 @@ lr2 = LRS[1]
 zz1 = ZM[lr1-1]
 zz2 = ZM[lr2-1]
 
+def select_color(CLRS, UINT, uval):
+  """
+    Select color for given value
+  """
+  ncc  = CLRS.shape[0]
+  nint = len(UINT)
+  if nint != ncc+1:
+    raise Exception(" N of colors does not match U intervals")
+
+  if uval <= UINT[0]: return(CLRS[0])
+  if uval >= UINT[-1]: return(CLRS[-1])
+
+  dd   = UINT-uval
+  ibin = min(np.argwhere(dd >= 0.))[0] - 1
+  clr0 = list(CLRS[ibin,:])
+
+  return clr0
+
+
 Time = []
 iyr  = 0
 for YRS in (YAVRG):
@@ -148,6 +169,10 @@ U2c = mmom6.collocateU2H(U2d, 'symmetr', f_land0 = False)
 V2c = mmom6.collocateV2H(V2d, 'symmetr', f_land0 = False)
 
 S2d = np.sqrt(U2c**2 + V2c**2)
+U2c = np.where(HH>0., np.nan, U2c)
+V2c = np.where(HH>0., np.nan, V2c)
+S2d = np.where(HH>0., np.nan, S2d)
+
 DV = mtime.datevec2D(Time)
 
 II = pthseas['ANLS_NEP'][regn_name]['II']
@@ -173,43 +198,70 @@ lat_e = hlat[ylim1:ylim2+1, xlim2]
 Xreg, Yreg = mmisc.connect_segments([lon_w, lon_n, lon_e, lon_s], \
                                     [lat_w, lat_n, lat_e, lat_s])
 
-rmin, rmax, tscntrs, tslabels = manseas.colormap_params(regn_name, 'Uspeed', zz0=zz2)
+# Land mask:
+Lmsk = np.where(HH<0.,1.,0.)
 
-clrmp = mclrmps.colormap_speed()
-clrmp.set_bad(color=[0., 0., 0.])
-#  clrmp.set_under(color=[0.6, 0.6, 0.6])
+# Colormaps:
+cmp_Lmsk = mclrmps.colormap_landmask()
+cmps  = mclrmps.colormap_discrete()
+CLRS  = cmps.colors
+nclrs = CLRS.shape[0]
 
-btx = 'timeavrgUV_regions_stereogr.py'
-sttl = f"{run_info} z={zz1:7.1f}/{zz2:7.1f} m"
+rmin = 0.
+rmax = 0.1
+dU   = (rmax-rmin)/nclrs
+UINT = np.arange(rmin, rmax+dU, dU)
+
+btx = 'timeavrgUVvectors_regions_stereogr.py'
+sttl = f"{run_info} \n {regn_name}  z={zz1:7.1f}/{zz2:7.1f} m"
 
 # Stereographic projection:
 from mpl_toolkits.basemap import Basemap, cm
 match regn_name:
   case 'CalCur':
-    width  = 1800*1.e3
-    height = 3500*1.e3
+    width  = 2800*1.e3
+    height = 3600*1.e3
     lat0   = 33.
-    lon0   = -122.
+    lon0   = -123.
+   # Plotting vectors:
+    dltI = 200  # how far offshore (grid points) to show the vectors
+    nx = 20     # # of vectors in X dir
+    ny = 20     # # of vectors in Y dir
+    uscale = 5000. 
+  case 'CalUnderCur':
+    width  = 800*1.e3
+    height = 1400*1.e3
+    lat0   = 40.
+    lon0   = -124.5
+   # Plotting vectors:
+    dltI = 50  # how far offshore (grid points) to show the vectors
+    nx = 20     # # of vectors in X dir
+    ny = 20     # # of vectors in Y dir
+    uscale = 2000. 
 
 m = Basemap(width=width, height=height, resolution='l',\
             projection='stere', lat_ts=35, lat_0=lat0, lon_0=lon0)
 
 xR, yR = m(hlon, hlat)
+hcntrs = [x for x in range(-8000,-1,500)]
 
 plt.ion()
 fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
 
-ax1 = manseas.plot_stereogr_axis(fig1, m, xR, yR, S2d, clrmp, rmin, rmax, \
-                       btx=btx, sttl=sttl)
+ax1 = manseas.plot_stereogr_axis(fig1, m, xR, yR, Lmsk, cmp_Lmsk, rmin, rmax, \
+                       btx=btx, sttl=sttl, clrbar=False)
 plt.sca(ax1)
+ax1.contour(xR, yR, HH, hcntrs, colors=[(0.8, 0.8, 0.8)], linestyles='solid', linewidths=1)
 
 # Plot vectors:
-Yvec = np.linspace(ylim1+10, ylim2-10, 10).astype(int)
+# ==================
+print('Plotting vectors')
+
+ny = 20
+Yvec = np.linspace(ylim1+10, ylim2-10, ny).astype(int)
 
 # Find coast point along Yvec:
-dltI = 80  # how far off shore to show the vectors
-nx = 10
 IIv = np.zeros((len(Yvec), nx)).astype(int)
 JJv = np.zeros((len(Yvec), nx)).astype(int)
 XXv = np.zeros((len(Yvec), nx))
@@ -218,7 +270,7 @@ for ii in range(len(Yvec)):
   jj0 = Yvec[ii]
   dmm = HH[jj0,:]
   ii0 = min(np.where(dmm >= 0.)[0])
-  xx = np.linspace(ii0-dltI, ii0-9, nx).astype(int)
+  xx = np.linspace(ii0-dltI, ii0-1, nx).astype(int)
   JJv[ii,:] = jj0
   IIv[ii,:] = xx
   XXv[ii,:] = hlon[jj0, xx]
@@ -229,7 +281,6 @@ xp, yp = m(XXv, YYv)
 import mod_draw_vector as mvec
 
 vcol = [0., 0., 0.]
-uscale = 5000. 
 a1, a2 = XXv.shape
 for jj in range(a1):
   for ii in range(a2):
@@ -258,14 +309,38 @@ for jj in range(a1):
     xb1p, yb1p = m(xb1, yb1)
     xb2p, yb2p = m(xb2, yb2)
 
+    sm = np.sqrt(U2c[j0,i0]**2 + V2c[j0,i0]**2)
+    if sm <= 1.e-5: continue
+    if np.isnan(sm): continue
+    vcol = select_color(CLRS, UINT, sm)
+
     m.plot(xvp,  yvp,  linewidth=1, color=vcol)
     m.plot(xb1p, yb1p, linewidth=1, color=vcol)
     m.plot(xb2p, yb2p, linewidth=1, color=vcol)
 
-
 # Plot NEP domain:
 #xdom, ydom = m(Xreg, Yreg)
 #m.plot(xdom, ydom, 'w-')
+
+
+# Colorbar for discrete colors:
+sm = matplotlib.cm.ScalarMappable(cmap=cmps)
+ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,
+                   0.02, ax1.get_position().height])
+clb = plt.colorbar(sm, cax=ax2, orientation='vertical', extend='max')
+
+ax2.yaxis.set_ticks(list(np.linspace(0,1,nclrs+1)))
+clb.ax.tick_params(direction='in', length=12)
+
+uvals = np.linspace(rmin, rmax, nclrs+1)
+tick_lbl = []
+for uvl in uvals:
+  tick_lbl.append(f'{uvl:0.2f}')
+clb.ax.set_yticklabels(tick_lbl)
+#ax2.set_yticklabels(ax2.get_yticks())
+#ticklabs = clb.ax.get_yticklabels()
+#  clb.ax.set_yticklabels(ticklabs,fontsize=10)
+#clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
 
 
 

@@ -1,6 +1,7 @@
 """
   MOM6 utilities
   reading grid
+  Dmitry Dukhovskoy, NOAA OAR PSL 
 """
 import os
 import numpy as np

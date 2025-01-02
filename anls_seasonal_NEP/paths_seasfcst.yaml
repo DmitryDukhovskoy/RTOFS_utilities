@@ -47,6 +47,7 @@ MOM6_NEP:
     ficename: 'icem_{YR}_{jday:03d}.nc'
     ndav:    5
     pthdump: '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp'
+    pthanls: '/work/Dmitry.Dukhovskoy/anls_output/NEPphys_frcst_dailyOB-expt{expt_nmb:02d}/data_misc'
     year_start: {YRS}
     month_start: {MMS}
     day_start: {DDS}
@@ -176,6 +177,21 @@ ANLS_NEP:
     smax: 34.7
     tmin: 2.
     tmax: 21.
+  "xsct_CalUnderCur_358N":
+    II: [180, 232]
+    JJ: [241, 241]
+    smin: 31.7
+    smax: 34.7
+    tmin: 2.
+    tmax: 21.
+  "xsct_CalUnderCur_Concep":
+    II: [180, 235]
+    JJ: [207,207]
+    smin: 31.7
+    smax: 34.7
+    tmin: 2.
+    tmax: 21.
+
 
   "poly_BerSea":
     II: [102, 134, 189, 190, 199, 205, 225, 195, 185, 182, 144, 105, 94, 94, 107, 101, 113, 109, 125, 130, 105]
@@ -192,15 +208,31 @@ ANLS_NEP:
   "poly_north":
     II: [115, 295, 295, 115]
     JJ: [547, 547, 355, 355]
-# Analysis regions:
+# Analysis regions for 2D maps:
   "CalCur":
     II: [1, 320, 320, 1]
-    JJ: [36, 36, 380, 380]
+    JJ: [36, 36, 351, 351]
     smin_0: 30.0
     smax_0: 35.0
     tmin_0: 14.0
     tmax_0: 28.0 
+  "CalUnderCur":
+    II: [215, 265, 265, 215]
+    JJ: [195, 195, 345, 345]
+    smin_0: 30.0
+    smax_0: 35.0
+    tmin_0: 14.0
+    tmax_0: 28.0 
+  "BeringChuk":
+    II: [1,   1,   341, 341]
+    JJ: [550, 815, 815, 550]
+    smin_0: 30.0
+    smax_0: 34.0
+    tmin_0: -1.8
+    tmax_0: 12.0
 
+
+ 
 
 
 

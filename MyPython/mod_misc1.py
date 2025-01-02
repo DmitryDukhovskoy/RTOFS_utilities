@@ -4,8 +4,8 @@ import importlib
 def inpolygon(xq, yq, xv, yv):
   """ 
   Function similar to matlab inpolygon
-  based on interent stackoverflow
-  returns in indicating if the query points specified by xq and yq 
+  based on a code from internet stackoverflow 
+  returns "in" indicating if the query points specified by xq and yq 
   are inside or on the edge of the polygon area defined by xv and yv.
   """
   from matplotlib import path
@@ -54,8 +54,8 @@ def inpolygon_1pnt(xq, yq, xv, yv):
   """ 
   Is 1 point(xq,yq) inside a polygon?
   Function similar to matlab inpolygon
-  based on interent stackoverflow
-  returns in indicating if the query points specified by xq and yq 
+  based on a code from internet stackoverflow
+  returns True -  indicating if the query points specified by xq and yq 
   are inside or on the edge of the polygon area defined by xv and yv.
   """
   from matplotlib import path
@@ -1055,7 +1055,7 @@ def match_indices(IIr,JJr,LONr,LATr,LON,LAT):
 
   return II, JJ
 
-def find_closest_indx(LONr,LATr,LON,LAT):
+def find_closest_indx(LONr, LATr, LON, LAT, f_progr=False):
   """
     Given lon/lat of points in LONr, LATr 1D arrays
     Find corresponding (closest) on LON/LAT grid
@@ -1066,8 +1066,10 @@ def find_closest_indx(LONr,LATr,LON,LAT):
   if type(LATr) == list:
     LATr = np.array(LATr)
 
+#  L2d = True
   if len(LON.shape) == 1:
     LAT, LON = np.meshgrid(LAT, LON, indexing='ij') 
+#    L2d = False
   elif len(LON.shape) > 2:
     raise Exception("Dim of LON/LAT should be 1 or 2")
 
@@ -1075,6 +1077,11 @@ def find_closest_indx(LONr,LATr,LON,LAT):
   II = (np.zeros((npnts))-999).astype(int)
   JJ = (np.zeros((npnts))-999).astype(int)
   for ii in range(npnts):
+    if f_progr:
+      if ii%50 == 0:
+        fproc = float(ii)/npnts*100.
+        print(f' processed {fproc:.1f}% ...')
+
     x0 = LONr[ii]
     y0 = LATr[ii]
 

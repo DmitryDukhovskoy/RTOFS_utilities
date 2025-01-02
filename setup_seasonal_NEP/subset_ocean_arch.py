@@ -56,7 +56,11 @@ print(f'Extracting variables for YR={YR} MNTHS={MNTHS} ENSMB={ENSMB}')
 
 expt_name = 'NEPphys_frcst_dailyOB-expt02'
 patharch = f'/archive/Dmitry.Dukhovskoy/fre/NEP/seasonal_daily/{expt_name}/'
-pathout  = f'/collab1/data_untrusted/Dmitry.Dukhovskoy/{expt_name}/'
+pathout  = f'/collab1/data_untrusted/Dmitry.Dukhovskoy/{expt_name}/{YR}'
+
+if not os.path.exists(pathout):
+    print(f'Creating {pathout}')
+    os.makedirs(pathout)
 
 for MM in MNTHS:
   if YR == 1993 and MM == 1:

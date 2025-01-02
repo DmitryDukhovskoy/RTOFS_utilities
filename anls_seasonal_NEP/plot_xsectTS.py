@@ -40,7 +40,8 @@ importlib.reload(mutob)
 # in daily-mean output fields: date is in the middle of the averaging period
 varnm  = 'salin'  # temp (potential) / salin
 f_insitu = True    # convert to in situ 
-sctnm  = 'xsct_BerSea' 
+#sctnm  = 'xsct_BerSea' 
+sctnm = 'xsct_CalUnderCur_358N'
 # Start of the run - needed only for seasonal forecasts:
 YRS    = 1993 # year start of the forecast
 MOS    = 4

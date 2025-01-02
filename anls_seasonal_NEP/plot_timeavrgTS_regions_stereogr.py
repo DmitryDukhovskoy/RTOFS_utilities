@@ -48,6 +48,7 @@ import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
 import mod_anls_seas as manseas
 import mod_utils_ob as mutob
+import mod_colormaps as mclrmps
 importlib.reload(mutob)
 importlib.reload(manseas)
 
@@ -59,13 +60,14 @@ varnm    = 'salin'  # temp (potential) / salin
 #dnmbS    = mtime.datenum([2015,1,1])
 # Averaging time period:
 MMS   = 1    # f/cast init. month in each year, can be changed to months: 1, 4, 7, 10
-YAVRG = [x for x in range(2011,2021)]
+YAVRG = [x for x in range(2005,2015)]
 #MAVRG = [1,2,3]  # months to average: Winter  JFM, Summer: JAS
 MAVRG = [7,8,9]  # months to average: Winter  JFM, Summer: JAS
-regn_name = 'CalCur' # CalCur - Calif Current region, Alaska - Alaska region, BerSea - Bering
+regn_name = 'BeringChuk' # CalCur - Calif Current region, Alaska - Alaska region, 
+                     # BeringChuk - Bering Sea and Chukchi Shelf
                      # Following Stoke et al., 2015
-lr0  = 1  # ocean layers from 1, ..., 75
-          # lr 31 =-102 m, lr 37 = -192 m
+lr0  = 22 # ocean layers from 1, ..., 75
+          # lr 22 = -49.9 m, lr 31 =-102 m, lr 37 = -192 m
 
 nensR    = 1
 expt_nmb = 2   # 2 - seas f/casts with dailyOB
@@ -133,6 +135,8 @@ DV = mtime.datevec2D(Time)
 
 # Mask ocean > zmin depth:
 #A2d = np.where( (np.isnan(A2d)) & (HH<0), -1.e3, A2d)
+if lr0 > 2:
+  A2d = np.where(HH>=zz0, np.nan, A2d)
 
 II = pthseas['ANLS_NEP'][regn_name]['II']
 JJ = pthseas['ANLS_NEP'][regn_name]['JJ']
@@ -164,10 +168,10 @@ if varnm == 'salin' or varnm == 'salt':
   clrmp.set_bad(color=[0., 0., 0.])
 #  clrmp.set_under(color=[0.6, 0.6, 0.6])
 elif varnm == 'temp' or varnm == 'potT': 
-  clrmp = mclrpms.colormap_temp(clr_ramp=[0.9,0.8,1])
+  clrmp = mclrmps.colormap_temp(clr_ramp=[0.9,0.8,1])
   clrmp.set_bad(color=[0.,0.,0.])
 elif varnm == 'ssh':
-  clrmp = mclrpms.colormap_ssh(nclrs=200)
+  clrmp = mclrmps.colormap_ssh(nclrs=200)
   rmin = -0.5
   rmax = 0.5
 
@@ -182,6 +186,11 @@ match regn_name:
     height = 4000*1.e3
     lat0   = 33.5
     lon0   = -128.
+  case 'BeringChuk':
+    width  = 3300*1.e3
+    height = 3700*1.e3
+    lat0   = 65.
+    lon0   = -175.
 
 m = Basemap(width=width, height=height, resolution='l',\
             projection='stere', lat_ts=55, lat_0=lat0, lon_0=lon0)

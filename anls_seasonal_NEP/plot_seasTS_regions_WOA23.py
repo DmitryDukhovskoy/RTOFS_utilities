@@ -41,12 +41,13 @@ import mod_regmom as mregmom
 import mod_colormaps as mclrmps
 
 varnm     = 'salin'  # temp / salin  Note: WOA temp is in situ !!!
-regn_name = 'CalCur'  
-YR        = 2018
-MM        = 1  # to find season, indicate month, for annual: MM = 13
+#regn_name = 'CalCur'  
+regn_name = 'BeringChuk'
+YR        = 2011
+MM        = 8  # to find season, indicate month, for annual: MM = 13
 
-lr0  = 1  # ocean layers from 1, ..., 102
-          # lr 21 =-102 m, lr 25 = -200 m
+lr0  = 11  # ocean layers from 1, ..., 102
+          # lr 11 =-50, lr 21 =-102 m, lr 25 = -200 m
 
 grd=0.25
 if grd==0.25:
@@ -204,8 +205,6 @@ elif varnm == 'ssh':
   rmin = -0.5
   rmax = 0.5
 
-btx = 'plot_seasTS_regions_WOA23.py'
-
 # Stereographic projection:
 from mpl_toolkits.basemap import Basemap, cm
 match regn_name:
@@ -214,6 +213,11 @@ match regn_name:
     height = 4000*1.e3
     lat0   = 33.5
     lon0   = -128.
+  case 'BeringChuk':
+    width  = 3300*1.e3
+    height = 3700*1.e3
+    lat0   = 65.
+    lon0   = -175.
  
 m = Basemap(width=width, height=height, resolution='l',\
             projection='stere', lat_ts=55, lat_0=lat0, lon_0=lon0)
