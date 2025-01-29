@@ -47,6 +47,13 @@ def search_UID(furl, x0, y0, dx, dy,YR1=0, YR2=0, \
 
    For all longitudes, select:
      x0 = 0., dx= 180.
+  
+   furl is path/wod_set_information.nc file
+   that is automatically generated when a subset is created on WOD
+   and dumped with the data set for each obs. type
+
+   e.g. ocldb1737657571.1064115.OSD.nc
+
   """
   LAT = read_ncfld(furl,'lat')
   LON = read_ncfld(furl,'lon')

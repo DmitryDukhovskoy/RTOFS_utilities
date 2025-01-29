@@ -67,10 +67,10 @@ import mod_utils_ob as mutob
 importlib.reload(mutob)
 
 # Output saved at 3-month intervals
-dnmb0 = mtime.datenum([2011,4,30])
+dnmb0 = mtime.datenum([2011,4,15])
 expt = 'glorys_nudging'
 expt_name = 'NEP_physics_202404_nudging-15d'  # GLORYS extracted for NEP domain
-varnm = 'ssh'  # tos = SST, sos = SSS, ssh
+varnm = 'sos'  # tos = SST, sos = SSS, ssh
 lr0  = 1  # ocean layers from 1, ..., 50
 
 dv0 = mtime.datevec(dnmb0)

@@ -163,7 +163,7 @@ for dnmb0 in range(dnmbS, dnmbE+1, dltm):
   Z3d   = np.transpose(Z3d, (2, 1, 0))
   PR    = np.zeros((kdm,jdm,idm))
   for kk in range(kdm):
-    pr_db, _ = msw.sw_press(Z3d[kk,:,:].squeeze(), hlon)
+    pr_db, _ = msw.sw_press(Z3d[kk,:,:].squeeze(), hlat)
     PR[kk,:] = pr_db
    
   SA = gsw.SA_from_SP(S3d, PR, hlon, hlat) 

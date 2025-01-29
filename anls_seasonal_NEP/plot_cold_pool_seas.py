@@ -57,6 +57,7 @@ varnm    = 'salin'  # temp (potential) / salin
 # Averaging time period:
 MMS   = 1    # f/cast init. month in each year, can be changed to months: 1, 4, 7, 10
 YAVRG = [x for x in range(2005,2015)]
+#YAVRG = [x for x in range(2005,2006)]
 #MAVRG = [1,2,3]  # months to average: Winter  JFM, Summer: JAS
 #MAVRG = [4,5,6]  # months to average: Spring, AMJ
 #MAVRG = [7,8,9]  # months to average: Winter  JFM, Summer: JAS
@@ -187,7 +188,7 @@ Z3d   = np.tile(ZM, idm*jdm).reshape((idm,jdm,kdm))
 Z3d   = np.transpose(Z3d, (2, 1, 0))
 PR    = np.zeros((kdm,jdm,idm))
 for kk in range(kdm):
-  pr_db, _ = msw.sw_press(Z3d[kk,:,:].squeeze(), hlon)
+  pr_db, _ = msw.sw_press(Z3d[kk,:,:].squeeze(), hlat)
   PR[kk,:] = pr_db
 
 SA = gsw.SA_from_SP(S3d, PR, hlon, hlat)
@@ -226,6 +227,7 @@ CLRS = [[0.6, 0.02, 0.6],
         [1, 1, 1]]
 
 clrmp = mclrmps.colormap_posneg_uneven(CLRS)
+#clrmp = mclrmps.colormap_temp2()
 clrmp.set_bad(color=[0.6,0.6,0.6])
 
 rmin = -1.8

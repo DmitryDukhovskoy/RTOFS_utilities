@@ -42,6 +42,7 @@ MOM6_NEP:
     pthrun:  ' '
     pthoutp: '/work/Dmitry.Dukhovskoy/NEP_input/spear_obc_daily/'
     pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
+    pthsis:  '/work/Dmitry.Dukhovskoy/NEP_input/SIS2_relax/'
     ftopo:   'topog.nc'
     fgrid:   'ocean_hgrid.nc'
   "NEP_BGCphys":

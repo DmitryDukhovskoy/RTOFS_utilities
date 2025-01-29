@@ -514,6 +514,8 @@ def derive_obsegm_ssh(hgrid, ds, segments, isgm, INDX, JNDX, time_steps=[], varn
 
 # Check: abs. values of interpolated values <= original data
       mxHT = np.max(abs(HT))
+      if mxHT == 0:
+        mxHT = 1.e-20
       dmx  = abs(hintp)/mxHT
       if (dmx-1.) > 0.1:
         print(f"!!! segm{nsgm} ssh Min/Max test violated: ikk={ikk} dlt: {np.max(dmx)}")

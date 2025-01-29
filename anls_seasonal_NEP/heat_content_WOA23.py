@@ -153,7 +153,7 @@ import mod_swstate as msw
 import conversions as gsw
 PR   = np.zeros((kdm,jdm,idm))
 for kk in range(kdm):
-  pr_db, _ = msw.sw_press(Z3d[kk,:,:].squeeze(), LONW)
+  pr_db, _ = msw.sw_press(Z3d[kk,:,:].squeeze(), LATW)
   PR[kk,:] = pr_db
 
 # Estimate layer thickness:

@@ -158,7 +158,7 @@ Z3d   = np.tile(ZM, idm*jdm).reshape((idm,jdm,kdm))
 Z3d   = np.transpose(Z3d, (2, 1, 0))
 PR    = np.zeros((kdm,jdm,idm))
 for kk in range(kdm):
-  pr_db, _ = msw.sw_press(Z3d[kk,:,:].squeeze(), Glon)
+  pr_db, _ = msw.sw_press(Z3d[kk,:,:].squeeze(), Glat)
   PR[kk,:] = pr_db
 
 # Estimate layer thickness:

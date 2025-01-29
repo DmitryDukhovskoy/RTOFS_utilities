@@ -50,9 +50,10 @@ lon2 = 255.5
 YAVRG = [x for x in range(2005,2015)]
 #MAVRG = [1,2,3]  # months to average: Winter  JFM, Summer: JAS
 #MAVRG = [4,5,6]  # months to average: Spring, AMJ
-#MAVRG = [7,8,9]  # months to average: Winter  JFM, Summer: JAS
-MAVRG = [10,11,12]  # months to average: Fall
+MAVRG = [7,8,9]  # months to average: Winter  JFM, Summer: JAS
+#MAVRG = [10,11,12]  # months to average: Fall
 
+tcons = True  # conservative T instead of potential, need S fields
 
 pthoutp  = '/work/Dmitry.Dukhovskoy/GOFS3.1/gofs31_Tbtm_NEP/'
 
@@ -75,6 +76,7 @@ Xbnd = np.where(Xbnd>180, Xbnd-360., Xbnd)
 
 # Get GOFS3.1 topo, grid for NEP:
 pthoutp  = '/work/Dmitry.Dukhovskoy/GOFS3.1/gofs31_Tbtm_NEP/'
+pthSoutp = '/work/Dmitry.Dukhovskoy/GOFS3.1/gofs31_Sbtm_NEP/'
 ftopo_regn = "gofs31_GLBv008_topo11_NEP.pkl"
 dftopo_regn = os.path.join(pthoutp,ftopo_regn)
 with open(dftopo_regn,'rb') as fid:
@@ -104,22 +106,34 @@ MSKBS[JBS,IBS] = 1
 # !!! Potential T !!! 
 icc = 0
 Tbtm = []
+Sbtm = 0.
 for YR in YAVRG:
   for MM in MAVRG:
     floutp  = f"gofs31_53X_Tbtm_NEP_{YR}{MM:02d}.pkl"
+    flSoutp  = f"gofs31_53X_Sbtm_NEP_{YR}{MM:02d}.pkl"
     dfloutp = os.path.join(pthoutp,floutp)
     print(f'Loading {dfloutp}')
     with open(dfloutp,'rb') as fid:
       T2d = pickle.load(fid)
-
     if icc == 0:
       Tbtm = T2d.copy()
     else:
       Tbtm = Tbtm + T2d
 
+    if tcons:
+      dflSoutp = os.path.join(pthSoutp,flSoutp)
+      print(f'Loading {dflSoutp}')
+      with open(dflSoutp,'rb') as fid:
+        S2d = pickle.load(fid)
+      if icc == 0:
+        Sbtm = S2d.copy()
+      else:
+        Sbtm = Sbtm + S2d
+       
     icc += 1
 
 Tbtm = Tbtm/icc
+Sbtm = Sbtm/icc
 
 # Mask outside region:
 Tbtm = np.where( (MSKBS==0) & (HH<0) , 1.e3, Tbtm)
@@ -127,6 +141,28 @@ Tbtm = np.where( (MSKBS==0) & (HH<0) , 1.e3, Tbtm)
 j0,i0 = np.where( (np.isnan(Tbtm)) & (HH < -10) )
 if len(j0) > 0:
   print(f'WARNING: {len(j0)} points Bottom T is missing')
+
+if tcons:
+  # Mask outside region:
+  Sbtm = np.where( (MSKBS==0) & (HH<0) , 1.e3, Sbtm)
+
+  sys.path.append(PPTHN + '/TEOS_10/gsw')
+  sys.path.append(PPTHN + '/TEOS_10/gsw/gibbs')
+  sys.path.append(PPTHN + '/TEOS_10/gsw/utilities')
+  import mod_swstate as msw
+  import conversions as gsw
+  # Compute absolute salinity from practical S:
+  # use local bottom depth to compute pressure
+  print('Computing absolute S')
+  jdm, idm = HH.shape
+  PR    = np.zeros((jdm,idm))
+  PR, _ = msw.sw_press(HH, LATW)
+  SA = gsw.SA_from_SP(Sbtm, PR, LONW, LATW)
+
+  # Compute conservative T from potential T
+  print('Computing conservative T')
+  Tbtm0 = Tbtm.copy()
+  Tbtm = gsw.CT_from_pt(SA, Tbtm0)
 
 CLRS = [[0.6, 0.02, 0.6],
         [0.2, 0.38, 1],
@@ -143,6 +179,8 @@ tscntrs = [x/10 for x in range(-20,80,10)]
 tslabels = [x/10 for x in range(-20,80,10)]
 
 run_info = f'GOFS3.1-53.X,  Pot. bottom T, {YAVRG[0]}-{YAVRG[-1]} mo: {MAVRG[0]}-{MAVRG[-1]}'
+if tcons:
+  run_info = f'GOFS3.1-53.X,  Conserv Tbtm, {YAVRG[0]}-{YAVRG[-1]} mo: {MAVRG[0]}-{MAVRG[-1]}'
 
 # Stereographic Map projection:
 from mpl_toolkits.basemap import Basemap, cm

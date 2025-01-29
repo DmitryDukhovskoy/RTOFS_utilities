@@ -870,6 +870,106 @@ def plot_boxplot(axs,ST,ctl='boxplot',Xlbls=[]):
     
   return axs
 
+def plot_boxplot_v2(ax1, AA, sttl='boxplots', CLRS=[], XX=[], clrln=[0,0,0], \
+                    xlbl='x axis', ylbl='y axis', lgnd_names=[], btx=[]):
+  """
+    Plot boxplot diagr for 3D AA array [Ngroups x stat x data]
+    stat = median, 25th, 75th percentiles, min, max values for whiskies
+           5 values
+    Can be 2D (if N = 1) array, will be expanded to 3D
+
+    Note correct shape of AA, an option of different order of the axes
+    can be added, i.e. allow stat x data x Ngroups
+    
+    Provide lgnd_names for legend
+    lgnd_names = list of strings, len(lgnd_names) = Ngrps
+
+  """
+  import mod_colormaps as mclrmps
+  from matplotlib.patches import Polygon
+
+  ndim = len(AA.shape)
+  if ndim == 2: 
+    AA = np.expand_dims(AA, axis=(0))
+  kdm, jdm, idm = AA.shape
+
+  Ngrps = kdm 
+
+  if len(CLRS) == 0:
+    CLRS = mclrmps.colormap_discrete(cmp_obj=False)
+    if Ngrps > 10:
+      CLRS = mclrmps.create_colormap(CLRS, Ngrps, cmp_obj=False)
+
+# Define box width and distance between boxes:
+  if len(XX) == 0:
+    XX = np.arange(idm)
+# Add some space between boxplots along XX axis 
+# for visual separation: d1box = 1/Ngrps - all boxplots have
+# sames separation, 0.8/Ngrps - boxplots are sqiuzzed within XX intervals
+  dend    = 0.2
+  d1box   = (1.-2*dend)/Ngrps  # X space for 1 boxplot with spaces with spaces at the ends
+  dspace  = 0.1*d1box  # half-spacer between boxes
+  dbx_hlf = 0.5*(d1box - 2*dspace)  # half box width
+  dtg   = 0.05  # hash tag
+   
+#  plt.clf()
+#  ax1 = plt.axes([0.1, 0.5, 0.8, 0.4])
+  for imo in range(idm):
+    for igrp in range(Ngrps):
+      xx0 = XX[imo] +dend + igrp*(2*dspace + 2*dbx_hlf) + dspace + dbx_hlf
+      stat = AA[igrp,:,imo].squeeze()
+      if len(stat) >= 5:
+        mdn, lprc, uprc, tmin, tmax = stat[:5]
+
+      verts = [(xx0-dbx_hlf, lprc),(xx0-dbx_hlf,uprc),(xx0+dbx_hlf,uprc),\
+               (xx0+dbx_hlf,lprc)]
+      fclr = CLRS[igrp]
+      poly = Polygon(verts, facecolor=fclr)
+      ax1.add_patch(poly)
+
+      # Draw a box
+      ax1.plot([xx0-dbx_hlf, xx0-dbx_hlf],[lprc,uprc],'-',linewidth=1, color=clrln)
+      ax1.plot([xx0+dbx_hlf, xx0+dbx_hlf],[lprc,uprc],'-',linewidth=1, color=clrln)
+      ax1.plot([xx0-dbx_hlf, xx0+dbx_hlf],[uprc,uprc],'-',linewidth=1, color=clrln)
+      ax1.plot([xx0-dbx_hlf, xx0+dbx_hlf],[lprc,lprc],'-',linewidth=1, color=clrln)
+
+      # Draw whiskies showing the range of the data
+      ax1.plot([xx0-dbx_hlf,xx0+dbx_hlf],[mdn,mdn],linewidth=2, color=clrln)
+      ax1.plot([xx0,xx0],[uprc,tmax],'-',linewidth=2, color=clrln)
+      ax1.plot([xx0,xx0],[tmin,lprc],'-',linewidth=2, color=clrln)
+      ax1.plot([xx0-dtg,xx0+dtg],[tmax,tmax],'-',linewidth=2, color=clrln)
+      ax1.plot([xx0-dtg,xx0+dtg],[tmin,tmin],'-',linewidth=2, color=clrln)
+
+  ax1.set_xticks(XX)
+  ax1.set_xlim([XX[0],XX[-1]+1])
+  ax1.grid('on')
+  ax1.set_xlabel(xlbl)
+  ax1.set_ylabel(ylbl)
+  ax1.set_title(sttl)
+
+  if len(lgnd_names) > 0:
+    assert len(lgnd_names) == Ngrps, f'Number of legend names should be {Ngrps}'
+    ax2 = plt.axes([0.6, 0.1, 0.45, 0.12])
+    dltY = 0.015
+    for igrp in range(Ngrps):
+      y0 = igrp*dltY + dltY
+      x0 = 0.1
+      fclr = CLRS[igrp]
+      grp_name = lgnd_names[igrp]
+      ax2.plot(x0, y0, marker='s', ms=15, markerfacecolor=fclr, mec='none')
+      ax2.text(x0+0.1, y0, grp_name)
+
+    ax2.set_ylim([0, y0+dltY])
+    ax2.set_xlim([0, 0.8])
+    ax2.axis('off')
+
+  if len(btx) > 0:
+    bottom_text(btx, pos=[0.05, 0.08])
+
+  plt.sca(ax1)
+
+  return ax1
+
 def rtofs_reg2Dmaps():
   """
     Regional 2D maps

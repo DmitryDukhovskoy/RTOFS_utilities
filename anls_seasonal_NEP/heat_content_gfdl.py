@@ -128,7 +128,7 @@ ZM3d   = np.tile(ZM, idm*jdm).reshape((idm,jdm,kdm))
 ZM3d   = np.transpose(ZM3d, (2, 1, 0))
 PR    = np.zeros((kdm,jdm,idm))
 for kk in range(kdm):
-  pr_db, _ = msw.sw_press(ZM3d[kk,:,:].squeeze(), hlon)
+  pr_db, _ = msw.sw_press(ZM3d[kk,:,:].squeeze(), hlat)
   PR[kk,:] = pr_db
  
 print('Computing abs salinity')

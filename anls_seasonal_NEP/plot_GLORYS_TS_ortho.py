@@ -62,9 +62,9 @@ import mod_anls_seas as manseas
 import mod_utils_ob as mutob
 importlib.reload(mutob)
 
-dnmb = mtime.datenum([1994,4,1])
+dnmb = mtime.datenum([2011,4,1])
 expt = 'GLORYS_NEP'  # GLORYS extracted for NEP domain
-varnm = 'zos'  # thetao, so, zos 
+varnm = 'so'  # thetao, so, zos 
 lr0  = 1  # ocean layers from 1, ..., 50
 
 dv0 = mtime.datevec(dnmb)

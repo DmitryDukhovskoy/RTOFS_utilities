@@ -471,7 +471,6 @@ def box_fltr(AA, i1=-1, i2=-1, j1=-1, j2=-1, dist_wgt='linear',nbx=9):
       if ii1 < 0 or ii2 == idm or jj1 < 0 or jj2 == jdm:
         continue
 
-
       Asub = AA[jj1:jj2+1, ii1:ii2+1]
       aa0 = np.sum(Asub*WGT)
 
@@ -1194,6 +1193,29 @@ def shuffle3D_lon180(A3d, lon, conv360=True):
 
   return A3dR, lonR
 
+def shuffle1D_lon180_to0360(lon, conv360=True):
+  """
+    Mercator grid, lon = 1D array
+    lon = [-180, 180] with 0 somewhere in the middle of the grid
+    i.e. the grid starts in the Western h/sphere and goes
+    over the 0 meridian to the East
+    want to rearrange to lon = [0, 360] such that discontinuity 
+    -180/180 is in the middle of the grid
+  """  
+  if np.min(lon>=0.): 
+    lon = np.where(lon>180, lon-360., lon)
+
+  lon1 = lon[0]
+  lon2 = lon[-1]
+  if lon1 > lon2:
+    raise Exception(f"Input lon has to be increasing but lon1={lon1} lon2={lon2}")
+
+  ilon0 = np.where(lon>=0)[0][0] 
+  lonR  = np.concatenate((lon[ilon0:],lon[:ilon0]))
+  if conv360: 
+    lonR = np.where(lonR<0, lonR+360., lonR)
+
+  return lonR
 
 def convert_polarXY_lonlat(X, Y, RE=6378137.0, E=0.08181919, SLAT=70., North=True, \
                            LON0_dir = -45., units='m'):

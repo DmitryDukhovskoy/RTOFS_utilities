@@ -143,7 +143,7 @@ def xsct_segments_woa(sctnm, lonW, latW, fyaml='paths_seasfcst.yaml', \
 
   return IsWOA, JsWOA, dsetBtm
 
-def season_decade_woa(YR,MM):
+def season_decade_woa(YR, MM, month2season=True, decadal_clim=True):
   """
     Find WOA season and year span for decadal averages
     File naming convention:
@@ -158,6 +158,15 @@ def season_decade_woa(YR,MM):
     [form_end] - file name extention
     Note: '.dat' - ASCII; '.csv' - comma separated value; 
           '.dbf', '.shp', '.shx' - ArcGIS shape files; '.nc' - netCDF files
+
+    Some monthly climatologies are all-time periods 
+    Seasonal climatologies are by decades
+    Find seasons for given month MM if month2season
+    month2season = True : convert MM to the season to find decadal clim
+                   False: need montly overall climatology, not decadal mean
+
+    decadal_clim = True: read decadal climatology
+                   False: -"- -"- all-years mean climatology
   """
   SEAS = {"1" : 13,
           "2" : 13,
@@ -180,26 +189,33 @@ def season_decade_woa(YR,MM):
                    [2005, 2014],
                    [2015, 2022]])
 
-
   if MM > 12:
     seas = 0    # annual
   else:
     seas = SEAS[f"{MM}"]
 
-  if YR > np.max(DECA) or YR < np.min(DECA):
-    raise Exception(f"{YR} is not in the time range for WOA")
-  ii = np.where((DECA[:,0]<=YR) & (DECA[:,1]>=YR))[0][0]
-  yr1, yr2 = DECA[ii,:]
-  yr1_end = f"{yr1}"[2:5]
-  yr2_end = f"{yr2}"[2:5]
-  if YR < 1995:
-    decade = yr1_end+yr2_end
-  elif YR >= 1995 and YR < 2005:
-    decade = "95A4"
-  elif YR >= 2005 and YR < 2015:
-    decade = "A5B4"
-  elif YR >= 2015 and YR < 2023:
-    decade = "B5C2"
+  if not month2season:
+    seas = MM
+
+  if not decadal_clim:
+    yr1 = 1900
+    yr2 = 2023
+    decade = 'decav'  # overall mean climatology
+  else:
+    if YR > np.max(DECA) or YR < np.min(DECA):
+      raise Exception(f"{YR} is not in the time range for WOA")
+    ii = np.where((DECA[:,0]<=YR) & (DECA[:,1]>=YR))[0][0]
+    yr1, yr2 = DECA[ii,:]
+    yr1_end = f"{yr1}"[2:5]
+    yr2_end = f"{yr2}"[2:5]
+    if YR < 1995:
+      decade = yr1_end+yr2_end
+    elif YR >= 1995 and YR < 2005:
+      decade = "95A4"
+    elif YR >= 2005 and YR < 2015:
+      decade = "A5B4"
+    elif YR >= 2015 and YR < 2023:
+      decade = "B5C2"
 
   return seas, decade, yr1, yr2
 
@@ -1889,4 +1905,41 @@ def plot_sect_map(HH, hlat, hlon, Xsh, Ysh, Ldist_sh, fgnmb, sctnm, \
   #btx = 'plot_sections_ortho.py'
   bottom_text(btx, fsz=7)
 
+def derive_conservTbtm_from_T3d(T3d, S3d, PR, dP, hlon, hlat):
+  """
+    Derive conservative T bottom from 3D T and S fields
+    PR - 3D array of pressure at T depths (derived from ZM arrays)
+    dP = layer thickness, m, 3D array
+  """
+  PPTHN = '/home/Dmitry.Dukhovskoy/python'
+  sys.path.append(PPTHN + '/TEOS_10/gsw')
+  sys.path.append(PPTHN + '/TEOS_10/gsw/gibbs')
+  sys.path.append(PPTHN + '/TEOS_10/gsw/utilities')
+  import mod_swstate as msw
+  import conversions as gsw
+  # Compute absolute salinity from practical S:
+  print('Computing absolute S')
+  kdm, jdm, idm = T3d.shape
+  SA = gsw.SA_from_SP(S3d, PR, hlon, hlat)
+
+  # Compute conservative T from potential T
+  print('Computing conservative T')
+  CT3d = gsw.CT_from_pt(SA, T3d)
+
+  # Derive bottom T:
+  Tbtm = np.zeros((jdm,idm))*np.nan
+  dpmin = 1.e-1
+  for ik in range(1,kdm):
+    dpup  = dP[ik-1,:].squeeze()
+    dpbtm = dP[ik,:].squeeze()
+    tz    = CT3d[ik-1,:]
+    if ik < kdm-1:
+      Jb, Ib = np.where( (dpup > dpmin) & (dpbtm <= dpmin) )
+    else:
+  # Deep layers include all left:
+      Jb, Ib = np.where( dpup > dpmin )
+    if len(Jb) == 0: continue
+    Tbtm[Jb, Ib] = tz[Jb, Ib]
+
+  return Tbtm
 

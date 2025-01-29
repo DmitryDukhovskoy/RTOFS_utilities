@@ -752,7 +752,7 @@ def colormap_topo1(nclrs=200):
 
   return CMP
 
-def colormap_discrete(CLR=[]):
+def colormap_discrete(CLR=[], cmp_obj=True):
   """
     Create custom colorbar for discrete values
     CLR is 2D list
@@ -772,8 +772,12 @@ def colormap_discrete(CLR=[]):
 
   CLR   = np.array(CLR)/255.
   nclrs = CLR.shape[0]
-  CMP = ListedColormap(CLR)
+#  CMP = ListedColormap(CLR)
 #  CMP   = create_colormap(CLR, nclrs)
+  if cmp_obj:
+    CMP = ListedColormap(CLR)
+  else:
+    CMP = np.array(CLR)
 
   return CMP
 

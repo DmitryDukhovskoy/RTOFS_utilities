@@ -69,6 +69,8 @@ woa_seas = {"13": "Jan-Mar",
             "16": "Oct-Dec",
             "0": "annual"}
 
+# Regional high-resolution clim for North Northeast pacific:
+#https://www.ncei.noaa.gov/thredds-ocean/dodsC/woa/REGCLIM/NNPv2/DATA/temperature/netcdf/B5C2/0.10/nnp_B5C2_t13_10.nc.html
 urlBase = 'https://www.ncei.noaa.gov/thredds-ocean/dodsC/woa23/DATA/'
 urlT    = f"{urlBase}temperature/netcdf/{decade}/0.25/"
 urlS    = f"{urlBase}salinity/netcdf/{decade}/0.25/"
@@ -174,7 +176,7 @@ import mod_swstate as msw
 import conversions as gsw
 PR   = np.zeros((kdm,jdm,idm))
 for kk in range(kdm):
-  pr_db, _ = msw.sw_press(Z3d[kk,:,:].squeeze(), LONW)
+  pr_db, _ = msw.sw_press(Z3d[kk,:,:].squeeze(), LATW)
   PR[kk,:] = pr_db
 
 # Estimate layer thickness:

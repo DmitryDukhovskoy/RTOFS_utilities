@@ -62,6 +62,9 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5):
   assert np.min(LON) >= 0.
   assert 0. < x0 < 360.
 
+  assert np.min(LAT) <= y0, f'y0<min(LAT): pnt outside LAT'
+  assert np.max(LAT) >= y0, f'y0>max(LAT): pnt outside LAT'
+  
   mm, nn = LON.shape
 # Subsample the region:
   dy = dhstep
@@ -91,6 +94,8 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5):
 # First guess for xv2: 
 # start by finding 2nd point by moving +/- 1 grid point along I axis
   di  = np.sign(x0c-xv1c)
+  if di == 0:
+    di = 1
   din = di
   icc = 0 
   iv2 = iv1

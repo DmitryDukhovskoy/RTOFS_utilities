@@ -12,6 +12,9 @@ import sys
 
 def sw_press(zz,LAT):
   """
+  Compute pressure (dBar, Pa) for given depths in m
+  LAT - local latitudes (degrees)
+
   REFERENCE: Saunders, P.M., 1981
   "Practical conversion of Pressure to Depth"
   JPO, 11, 573-574
@@ -50,10 +53,10 @@ def sw_press(zz,LAT):
 
   deg2rad = np.pi/180.
   X    = np.sin(np.abs(LAT)*deg2rad)
-  C1   = 5.92e-3+X**2*5.25e-3
+  C1   = 5.92e-3 + (X**2)*5.25e-3
   pres_db = ((1.-C1)-np.sqrt(((1.-C1)**2)-(zz*8.84e-6)))/(4.42e-6) # dbar
-#  pres_db = ( (1.-C1) - (((1.-C1)**2)-(zz*8.84e-6))**0.5 )/(4.42e-6) # dbar
-# Make sure pressure = 0 at the surface
+ 
+  # Make sure pressure = 0 at the surface
   if zdim > 0:
     pres_db = np.where(zz < 1.e-5, 0., pres_db) 
 

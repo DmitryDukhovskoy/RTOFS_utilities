@@ -5,6 +5,8 @@
   All arguments are optional 
   usage:  run subset_ocean_arch.py --yr=1993 --mo=4 --ens=10
 
+  Dmitry Dukhovskoy, NOAA OAR PSL Dec. 2024
+
 """
 import datetime as dt
 import numpy as np

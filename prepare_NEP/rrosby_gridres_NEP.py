@@ -41,12 +41,14 @@ if grd==0.25:
   cgrd=4
 woa='woa23'
 seas=15    # season: 1-12 monthly, 13-winter (Jan-Mar), 14-spring (Apr-Jun), ...
+plot_dx2 = False  # True plot effective resolution |dx^2 + dy^2|^1/2
+                  # False - plot max(dx,dy) - horiz. grid spacing
 
 f_deriveR = False # compute R/dx or load saved
 
+
 pthout  = '/work/Dmitry.Dukhovskoy/data/Rossby_WOA/'
 fout1   = pthout + f'Rrossby_num_WOA23_season{seas:02d}.pkl'
-foutRdx = pthout + f'Rrossby_dx_mom6nep.pkl' 
 
 btx = 'rrosby_gridres_NEP.py'
 
@@ -66,21 +68,18 @@ idm         = np.shape(HHM)[1]
 
 # Read grid resolution:
 # dX, dY are on MOM "supergrid" - half grid points
-nc  = ncFile(dfgrid_mom,'r')
-dX  = nc.variables['dx'][:].data
-dY  = nc.variables['dy'][:].data
-nyp = dX.shape[0]
-nx  = dX.shape[1]
-ny  = dY.shape[0]
-nxp = dY.shape[1]
+DX, DY = mhycom.dx_dy(LONM, LATM)
 
-DX = dX[0:nyp-1:2,0:nx:2] + dX[1:nyp:2,1:nx:2]
-DY = dY[0:ny:2, 0:nxp-1:2] + dY[1:ny:2, 0:nxp-1:2]
-#DX = dX[0:nyp-1:2,0:nx:2]
-#DY = dY[0:ny:2, 0:nxp-1:2]
-RS = np.sqrt(DX**2 + DY**2)*1.e-3  # km
-mm = RS.shape[0]
-nn = RS.shape[1]
+# Effective resolution as norm-2
+#RS2 = np.sqrt(DX**2 + DY**2)*1.e-3  # km
+#mm, nn = RS2.shape
+
+# Resolution as a max of DX, DY
+#D = DX-DY
+#RS1 = np.where(D>=0, DX, DY)*1.e-3 # km
+#
+#RS1 = np.where(HHM >= 0., np.nan, RS1)
+#RS2 = np.where(HHM >= 0., np.nan, RS2)
 
 
 # Read saved Rossby R.
@@ -98,8 +97,16 @@ elif seas == 16:
 else:
   cseas = f"{seas:02d}"
 
-ny = RsbNum.shape[0]; nx = RsbNum.shape[1]
+ny, nx = RsbNum.shape
 
+if plot_dx2:
+  # L-2 norm = sqrt(sum(x_i^2)) = ||x||_2 
+  foutRdx = pthout + f'Rrossby_diag_dist_mom6nep.pkl' 
+  ctitle = f'Rossby Radius/||dl||$_2, NEP MOM6, {cseas}'
+else:
+   # L-inf norm = max|x_i|, i.e. max of (dx,dy) in this case
+  foutRdx = pthout + f'Rrossby_dx_mom6nep.pkl'
+  ctitle = f'Rossby Radius/||dl||$_\infty$, NEP MOM6, {cseas}'
 
 # Calc R/dx:
 Iocn = np.where(HHM.flatten() < -5.)[0]
@@ -129,7 +136,10 @@ if f_deriveR:
 
     dx = DX[jj,ii]*1.e-3
     dy = DY[jj,ii]*1.e-3
-    dG = max([dx,dy])
+    if plot_dx2:
+      dG = np.sqrt(dx*dx + dy*dy)
+    else: 
+      dG = max([dx,dy])
     R2dx[jH,iH] = RsbNum[jH,iH]/dG
     Indx[jH,iH] = 1
 
@@ -169,7 +179,6 @@ yR[PMsk]   = 1.e30
 
 data = data[0:ny, 0:nx]
 
-ctitle = f'Rossby Radius/||dl||$_\infty$, NEP MOM6, {cseas}'
 rmin = 0.
 rmax = 7.
 
