@@ -1347,8 +1347,28 @@ def connect_segments(Isgm, Jsgm):
   return II, JJ
 
 
+def convert_nptime_to_datenum(Time):
+  """
+    Convert an array of numpy datetime64 to date numbers
+    datetime data are typically derived from netcdf Time variables
+  """
+  import datetime
+  from datetime import datetime
+  import mod_time as mtime
 
+  nrec = len(Time)
+  TM = np.zeros((nrec))
+  for irc in range(nrec):
+    dmm = Time[irc].astype('datetime64[s]')
+    dmm = dmm.astype(datetime)
+    yr  = dmm.year
+    month = dmm.month
+    mday  = dmm.day
+    hour  = dmm.hour
+    mint  = dmm.minute
+    TM[irc] = mtime.datenum([yr,month,mday,hour,mint])
 
+  return TM
 
 
 

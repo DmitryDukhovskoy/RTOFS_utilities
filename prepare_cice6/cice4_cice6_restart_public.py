@@ -1,5 +1,7 @@
 # Convert binary cice4 to binary netcdf cice6 restart
 # cice restart file is from GOFS3.1 GLBb0.08 - expt 93.0
+# Dmitry Dukhovskoy NOAA NWS EMC 
+# March 2023
 #
 import os
 import numpy as np

@@ -151,3 +151,155 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
   return Ai
 
 
+def read_PIOMAS(yr0, mm0, dfpiomas, varnm):
+  """
+  Derive thikness or conc. fields for yr0, mm0 
+  dfpiomas = dir + filename
+
+  monthly fields
+  1901 - 2010
+  https://psc.apl.uw.edu/research/projects/piomas-20c/
+
+  PIOMAS-20C is a sea ice thickness reconstruction covering the period 1901-2010. 
+  It is constructed using a coupled ice-ocean model using atmospheric forcing data from 
+  the ECMWF ERA-20C reanalysis to provide atmospheric forcing. Sea ice concentrations 
+  from the Hadley Center HadISST v2.0 data set are assimilated to constrain the model 
+  at the ice-edge. 
+
+  
+  """
+  import mod_time as mtime
+
+  ds_piomas = xarray.open_dataset(dfpiomas)
+  varconc = 'sic'
+  varthck = 'sit'
+
+  print(f'Reading PIOMAS {yr0}/{mm0} {dfpiomas}')
+
+  if not varnm=='sic' and not varnm=='sit':
+    raise Exception (f'PIOMAS variables are sic and sit, requested {varnm}')
+
+
+  # Find record #: days since 1901-01-01 = day=1, index=0
+  dnmb0 = mtime.datenum([yr0,mm0,1])
+  dnmbR = mtime.datenum([1901,1,1])
+  ndays = int(dnmb0-dnmbR) + 1
+  #Time  = dset['time'].data  # np datetime array
+  Month = ds_piomas['month'].data
+  Year  = ds_piomas['year'].data
+  D     = np.sqrt((Month-mm0)**2 + (Year-yr0)**2)
+  tindx = np.argmin(D)
+  A2d   = ds_piomas[varnm].data[tindx,:].squeeze()  # thikness, m
+
+  return A2d
+
+def linear_distr1D(A1d, nav=3):
+  """
+    Spread out a value over adjacent cells
+    using linear distribution function (averaging)
+    input: 1D array
+  """
+  Afltr = A1d.copy()
+  npnts = len(A1d)
+  nav_hlf = int(np.floor(nav/2))
+  assert nav<npnts, f"Number of averaged grid points {nav} should be < {npnts}"
+  for ik in range(npnts):
+    i1 = ik-nav_hlf
+    i2 = ik+nav_hlf
+    i1 = max([0,i1])
+    i2 = min([i2,npnts-1])+1
+    a_mn = np.mean(A1d[i1:i2])
+    Afltr[ik] = a_mn
+
+  return Afltr
+
+def gauss_distr1D(A1d, icat0, sgm=1.3, conserve=True):
+  """
+    Spread out a value over adjacent cells
+    using gaussian distribution function (averaging)
+    input: 1D array
+    sgm - controlls the spread of the gaussian filter
+    icat0 - ice category where the initial ice is given
+  """
+  Afltr = A1d.copy()
+  npnts = len(A1d)
+  aa0 = A1d[icat0]
+  XX = np.arange(npnts)
+  Afltr = aa0*np.exp(-(XX-icat0)**2/(sgm**2))
+
+  if conserve:
+  # Conserve grid ice concentration:
+    Afltr = aa0*Afltr/np.sum(Afltr)
+
+  return Afltr
+
+def redistribute_hice(hice, cice, ICAT=[]):
+  """
+    Redistribute ice thickness (grid cell mean), 1 pnt, 
+    by ice categories such that the mean grid 
+    ice thickness is conserved, i.e.
+    h_mean = sum(i_cat)(h_cat(i)*conc_cat(i))
+  """
+  if len(ICAT) == 0:
+    ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
+
+  ncat  = len(ICAT)
+  hcat = np.zeros((ncat))
+  ccat = np.zeros((ncat))
+
+# Find ice cat. where grid cell mean hice falls in:
+  #itmp = ICAT.copy()*0.
+  if hice < ICAT[0]:
+  # open water
+    return hcat, ccat
+
+  indx_cat = 999
+  for kk in range(ncat):
+    hbnd = ICAT[kk]
+    if kk < ncat-1:
+      hbnd_up = ICAT[kk+1]
+    else:
+      hbnd_up = 100.
+
+    if hice >= hbnd and hice < hbnd_up:
+      indx_cat = kk
+      break    
+
+  assert indx_cat < ncat, f"Could not find ice cat for {hice}"
+  ccat[indx_cat] = cice
+
+  # Distribute grid cell average ice (concentration * hice grid) 
+  # by categ. then use bin-average value for hice(cat) to deduce conc(cat)
+  #using linear spreading centered in the cat = hice:
+#  for iflt in range(2):
+#    ccat = linear_distr1D(ccat)
+
+  chice = cice*hice
+  chice_cat = np.zeros((ncat))
+  chice_cat[indx_cat] = chice
+  chice_cat = gauss_distr1D(chice_cat, indx_cat, sgm=1.2)
+
+  # Conserve grid cell mean ice thickness:
+  if abs(np.sum(chice_cat)-hice) > 1.e-15:
+    chice_cat = hice*chice_cat/np.sum(chice_cat)   
+
+  # Redistribute ice thickness for all categories then adjust 
+  # changing the thickest one
+  cat_diff = np.diff(ICAT)
+  cat_diff = np.append(cat_diff,2.0)  # thickest ice
+  hcat = ICAT+0.5*cat_diff[kk]
+  ccat = chice_cat/hcat
+
+  # Check the cell-mean hice:
+  hice_new = np.sum(hcat*ccat)
+
+  # Add thick ice if it is too low:
+  dlt_hice = ICAT[0]
+  if hice_new-hice < -dlt_hice:
+    hcat[-1] = hcat[-1] + abs(dlt_hice)
+
+  return
+  
+
+
+

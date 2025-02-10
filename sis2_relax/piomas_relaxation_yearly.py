@@ -7,6 +7,23 @@
 
 PIOMAS-20C is a sea ice thickness reconstruction covering the period 1901-2010. It is constructed using a coupled ice-ocean model using atmospheric forcing data from the ECMWF ERA-20C reanalysis to provide atmospheric forcing. Sea ice concentrations from the Hadley Center HadISST v2.0 data set are assimilated to constrain the model at the ice-edge. 
 
+  All variables should have the following information for FMS subroutine 
+  to process them correctly:
+
+  axis information: src/mom6/src/MOM6/src/framework/MOM_io.F90:
+  type :: axis_info
+    character(len=32)  :: name = ""       !< The name of this axis for use in files
+    character(len=256) :: longname = ""   !< A longer name describing this axis
+    character(len=48)  :: units = ""      !< The units of the axis labels
+    character(len=8)   :: cartesian = "N" !< A variable indicating which direction
+                                          !! this axis corresponds with. Valid values
+                                          !! include 'X', 'Y', 'Z', 'T', and 'N' for none.
+    integer            :: sense = 0       !< This is 1 for axes whose values increase upward, or -1
+                                          !! if they increase downward.  The default, 0, is ignored.
+    integer            :: ax_size = 0     !< The number of elements in this axis
+    real, allocatable, dimension(:) :: ax_data !< The values of the data on the axis [arbitrary]
+  end type axis_info
+
 
 """
 import datetime as dt
@@ -200,7 +217,7 @@ for dnmb in TMPLT:
 dnmb_ref = mtime.datenum([1993,1,1])
 dv_ref = mtime.datevec(dnmb_ref)
 #dnmb0 = mtime.datenum([2003,12,15,12]) 
-TM_ref = TMPLT - dnmb_ref + 1
+TM_ref = TMPLT - dnmb_ref 
 if TM_ref[0] < 0:
   TM_ref[0] = 0.
 
@@ -222,7 +239,7 @@ dset_Ice = xarray.merge([dset_Hmom, dset_Cmom])
 dset_Ice.attrs["history"] = f"Created from PIOMAS monthly ice fields {YR0}"
 dset_Ice.attrs["code"] = "/home/Dmitry.Dukhovskoy/python/sis2_relax/piomas_relaxation_yearly.py"
 
-dset_Ice[ithknvar].attrs["long_name"] = "Ice thickness for all categories"
+dset_Ice[ithknvar].attrs["long_name"] = "Mean ice thickness"
 dset_Ice[ithknvar].attrs["units"] = "meter"
 dset_Ice[iconcvar].attrs["long_name"] = "Ice partial area, fraction"
 dset_Ice[iconcvar].attrs["units"] = "unitless"
@@ -239,7 +256,8 @@ match file_type:
     dset_Ice['time'].attrs['calendar'] = 'gregorian'
     dset_Ice['time'].attrs['cartesian_axis'] = 'T'
 
-
+dset_Ice['xh'].attrs['cartesian_axis'] = 'X'
+dset_Ice['yh'].attrs['cartesian_axis'] = 'Y'
 
 if f_save:
 #  encoding = {rlx_name: {'_FillValue': None}}
@@ -251,6 +269,7 @@ if f_save:
        diclim,
        format='NETCDF3_64BIT',
        engine='netcdf4',
+       unlimited_dims='time'
   )
 
 

@@ -215,6 +215,7 @@ def colormap_conc():
   CMP = create_colormap(CLR, 200)
   
   return CMP
+
 def colormap_ice_thkn():
   """
    Prepare colormap for sea ice thickness

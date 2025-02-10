@@ -55,7 +55,7 @@ if varnm == 'ithck':
 else:
   flinp = 'piomas20c.area.1901.2010.v1.0.nc'
   varnc = 'sic'
-  clrmp = mclrmps.colormap_ice_conc()
+  clrmp = mclrmps.colormap_conc()
   rmin = 0.
   rmax = 1.
 
