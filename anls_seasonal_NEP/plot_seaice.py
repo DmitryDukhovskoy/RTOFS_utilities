@@ -54,12 +54,15 @@ YRS    = 1993 # year start of the forecast
 MOS    = 4
 DDS    = 1    
 nens   = 1    # ens # for ensemble runs
-dnmbR  = mtime.jday2dnmb(1993, 258)
+dnmbR  = mtime.jday2dnmb(1993, 123)
 #dnmbR  = mtime.datenum([1993,8,16])  # day to plot
 
 
-expt     = 'test'
+expt     = 'test'   # saved output during test runs
 runname  = 'isponge_test'
+#expt     = "seasonal_daily"
+#expt_nmb = 2
+#runname  = f"NEPphys_frcst_dailyOB-expt{expt_nmb:02d}"
 #expt    = "seasonal_fcst"
 #runname = f'NEPphys_frcst_climOB_{YRS}-{MOS:02d}-e{nens:02d}'
 #expt    = 'NEP_BGCphys_GOFS'
@@ -94,6 +97,11 @@ with open(fyaml) as ff:
 if expt == 'seasonal_fcst':
   pthfcst = pthseas['MOM6_NEP'][expt]['pthoutp'].format(runname=runname)
   pthfcst = os.path.join(pthfcst,f'{outfld}_{dvR[0]}{dvR[1]:02d}')
+elif expt == 'seasonal_daily':
+  pth1     = pthseas['MOM6_NEP'][expt]['pthoutp'].format(expt_nmb=expt_nmb)
+  dir_fcst = pthseas['MOM6_NEP'][expt]['dir_icefcst'].format(\
+       yr_start=YRS, mo_start=MOS, ens=nens, yr_run=YR0, mo_run=MM0)
+  pthfcst = os.path.join(pth1,dir_fcst)
 else:
   pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(YY=YR0, MM=MM0)
 pthtopo    = pthseas['MOM6_NEP'][expt]['pthgrid']
@@ -203,7 +211,7 @@ elif varnm == 'ithck':
   clrmp = mclrmps.colormap_ice_thkn()
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
   rmin = 0.
-  rmax = 5.
+  rmax = 4.
 
 dv_av1 = mtime.datevec(dnmb_av1)
 yrs, mms, dds = dv_av1[:3]

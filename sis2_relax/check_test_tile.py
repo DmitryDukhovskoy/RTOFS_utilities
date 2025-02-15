@@ -98,15 +98,35 @@ AA = ds_rlx[ifld].isel(time=itime).data
 AA = np.where(HH>=0, np.nan, AA)
 
 # Global indices of the tile:
-isdG = 305
-iedG = 323
-jsdG = 674
-jedG = 691
+# Global i, j=  317   684  local i, j=   12    10 isdG/iedG=  306   325 jsdG/jedG=  675   693
+isdG = 306
+iedG = 325
+jsdG = 675
+jedG = 693
 itestG = 317
 jtestG = 684
 i0 = itestG-1
 j0 = jtestG-1
 print(f"test pnt i/j = {i0}/{j0} {ifld}={AA[j0,i0]:.3f}")
+# convert to python:
+isdGp = isdG-1; iedGp = iedG-1; jsdGp = jsdG-1; jedGp = jedG-1
+itestGp = itestG-1
+jtestGp = jtestG-1
+
+# 2nd test pnt:
+# isdG/iedG= 295  314 jsdG/jedG= 675  693 
+f2tp = False
+if f2tp:
+  isdG = 295
+  iedG = 314
+  jsdG = 675
+  jedG = 693
+  itestG = 307
+  jtestG = 680
+  # convert to python:
+  isdGp = isdG-1; iedGp = iedG-1; jsdGp = jsdG-1; jedGp = jedG-1
+  itestGp = itestG-1
+  jtestGp = jtestG-1
 
 # Read saved grid indices and ice fields for test tile:
 pthtxt = '/work/Dmitry.Dukhovskoy/run_output/NEP_ISPONGE/1993/04'
@@ -160,13 +180,15 @@ fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
 ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
 img = ax1.pcolormesh(AA, cmap=clrmp, vmin=rmin, vmax=rmax)
-ax1.plot([isdG,iedG],[jsdG,jsdG],'-')
-ax1.plot([isdG,iedG],[jedG,jedG],'-')
-ax1.plot([iedG,iedG],[jsdG,jedG],'-')
-ax1.plot([isdG,isdG],[jsdG,jedG],'-')
+ax1.plot([isdGp,iedGp],[jsdGp,jsdGp],'-')
+ax1.plot([isdGp,iedGp],[jedGp,jedGp],'-')
+ax1.plot([iedGp,iedGp],[jsdGp,jedGp],'-')
+ax1.plot([isdGp,isdGp],[jsdGp,jedGp],'-')
+# Test point:
+ax1.plot(itestGp,jtestGp,'o')
 
+# Show halo points with 0 values:
 ax1.plot(II[indx0],JJ[indx0],'.')
-
 
 ax1.set_title(sttl)
 

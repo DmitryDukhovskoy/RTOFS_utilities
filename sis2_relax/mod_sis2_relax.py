@@ -233,12 +233,18 @@ def gauss_distr1D(A1d, icat0, sgm=1.3, conserve=True):
 
   return Afltr
 
-def redistribute_hice(hice, cice, ICAT=[]):
+def redistribute_hice(hice, cice, ICAT=[], eps0 = 1.e-10, itd_method='equal'):
   """
     Redistribute ice thickness (grid cell mean), 1 pnt, 
     by ice categories such that the mean grid 
     ice thickness is conserved, i.e.
     h_mean = sum(i_cat)(h_cat(i)*conc_cat(i))
+
+    ice thickn. distribution methods:
+    - simple = place all ice in the category that corresponds hice (grid cell mean value)
+    - gauss = start with ice concentration aplying Gaussian filter on cice in the cat. = hice
+    - equal = start with ice concentration equally distributed over the cats.
+
   """
   if len(ICAT) == 0:
     ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
@@ -247,12 +253,15 @@ def redistribute_hice(hice, cice, ICAT=[]):
   hcat = np.zeros((ncat))
   ccat = np.zeros((ncat))
 
-# Find ice cat. where grid cell mean hice falls in:
   #itmp = ICAT.copy()*0.
   if hice < ICAT[0]:
   # open water
     return hcat, ccat
+  if cice < eps0: 
+  # open water
+    return hcat, ccat
 
+# Find ice cat. where grid cell mean hice falls in:
   indx_cat = 999
   for kk in range(ncat):
     hbnd = ICAT[kk]
@@ -266,7 +275,52 @@ def redistribute_hice(hice, cice, ICAT=[]):
       break    
 
   assert indx_cat < ncat, f"Could not find ice cat for {hice}"
+  hcat = np.zeros((ncat))
+  ccat = np.zeros((ncat))
   ccat[indx_cat] = cice
+  
+  match itd_method:
+    case('simple'):
+      hcat[indx_cat] = hice/cice
+      return hcat, ccat
+    case('gauss'):
+      ccat = gauss_distr1D(chice_cat, indx_cat, sgm=1.2)
+    case('equal'):
+      ccat = np.zeros((ncat)) + cice/ncat
+
+  # Adjust too high concentrations (total > cice and ccat[k]>1):
+  cfctr = np.sum(ccat)/cice  # reduction factor to adjust concentration:
+  ccat = ccat/cfctr
+
+  # Initial ice distribution = max ice cat. thickness except for the thickest one
+  # the thickest category is used as a loan 
+  hcat = np.zeros((ncat))
+  hcat[0:ncat-1] = ICAT[1:ncat]-eps0
+
+  # Check if ice needs to be added or removed from the ice thickest cat:
+  # if hice thickest > hice_lim - increase concentration in the lower categories
+  # if hice thickest < ICAT[-1] - increase conce in the lower cat and try to make 0 thickets ice
+  #                               if cannot increase conc in the lower cats, - add more ice to thickest
+  #                               and reduce ice in the lower ice cats.
+
+#STOP HERE
+
+  # Perform Ice Thickness Distribution to readjust ice thicknesses within ice cat.
+  # Excess hice - move up, low hice - move from upper ICAT
+  hcat_adj = hcat.copy()
+  for kk in range(ncat-1):
+    dlt_btm = (ICAT[kk]+eps0) - hcat[kk]
+    dlt_up  = ICAT[kk+1] - (hcat[kk]+eps0)
+    if dlt_btm > 0.:
+      hcat_adj[kk] = hcat_adj[kk] + dlt_btm
+      dlt_hc = abs(dlt_btm)*ccat[kk]      # surplus fractional ice mass being redistributed 
+      hcat_adj[kk+1] = hcat_adj[kk+1] - dlt_hc/ccat[kk+1]
+    elif dlt_up < 0.:
+      hcat_adj[kk] = hcat_adj[kk] + dlt_up
+      dlt_hc = abs(dlt_up)*ccat[kk]      # surplus fractional ice mass being redistributed 
+      hcat_adj[kk+1] = hcat_adj[kk+1] + dlt_hc/ccat[kk+1]
+
+
 
   # Distribute grid cell average ice (concentration * hice grid) 
   # by categ. then use bin-average value for hice(cat) to deduce conc(cat)
@@ -287,18 +341,47 @@ def redistribute_hice(hice, cice, ICAT=[]):
   # changing the thickest one
   cat_diff = np.diff(ICAT)
   cat_diff = np.append(cat_diff,2.0)  # thickest ice
+  # assume ice thicknesses = mid-values of ice cat. 
   hcat = ICAT+0.5*cat_diff[kk]
   ccat = chice_cat/hcat
+  ccat = np.where(ccat<eps0, eps0, ccat)  # avoid 0 concentrations
 
   # Check the cell-mean hice:
   hice_new = np.sum(hcat*ccat)
 
-  # Add thick ice if it is too low:
-  dlt_hice = ICAT[0]
-  if hice_new-hice < -dlt_hice:
-    hcat[-1] = hcat[-1] + abs(dlt_hice)
+  # Adjust too high concentrations (total > cice and ccat[k]>1):
+  cfctr = np.sum(ccat)/cice  # reduction factor to adjust concentration:
+  ccat = ccat/cfctr
+  hcat = hcat*cfctr
 
-  return
+  # Perform Ice Thickness Distribution to readjust ice thicknesses within ice cat.
+  # Excess hice - move up, low hice - move from upper ICAT
+  hcat_adj = hcat.copy()
+  for kk in range(ncat-1):
+    dlt_btm = (ICAT[kk]+eps0) - hcat[kk]
+    dlt_up  = ICAT[kk+1] - (hcat[kk]+eps0)
+    if dlt_btm > 0.:
+      hcat_adj[kk] = hcat_adj[kk] + dlt_btm 
+      dlt_hc = abs(dlt_btm)*ccat[kk]      # surplus fractional ice mass being redistributed 
+      hcat_adj[kk+1] = hcat_adj[kk+1] - dlt_hc/ccat[kk+1]
+    elif dlt_up < 0.:
+      hcat_adj[kk] = hcat_adj[kk] + dlt_up
+      dlt_hc = abs(dlt_up)*ccat[kk]      # surplus fractional ice mass being redistributed 
+      hcat_adj[kk+1] = hcat_adj[kk+1] + dlt_hc/ccat[kk+1]
+
+
+
+
+    
+  
+
+  # Check ice thickness: should be conserved
+  dlt_hice = ICAT[0]
+  hice_err = hice_new-hice
+  if abs(hice_err) > dlt_hice:
+    print(f"Add ice adjustment, dlt hice={hice_err:14.6f}")
+
+  return hcat, ccat
   
 
 

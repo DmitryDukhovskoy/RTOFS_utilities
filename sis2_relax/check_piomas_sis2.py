@@ -39,7 +39,7 @@ importlib.reload(msisrlx)
 
 YR0 = 1993
 MM0 = 4
-ifld = 'ithkn'  # ithkn, iarea
+ifld = 'iarea'  # ithkn, iarea
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
                        # for monthly, daily, etc. need -dt and +dt at the beginn/end 
@@ -95,24 +95,6 @@ assert dv0[1]==MM0, f'Requested month={MM0}, month in rlx file={dv0[1]}'
 
 A2dS = ds_rlx[ifld].isel(time=itime).data
 A2dS = np.where(HH>=0, np.nan, A2dS)
-
-# Global indices of the tile:
-isdG = 305
-iedG = 323
-jsdG = 674
-jedG = 691
-itestG = 317
-jtestG = 684
-i0 = itestG-1
-j0 = jtestG-1
-print(f"test pnt i/j = {i0}/{j0} {ifld}={A2dS[j0,i0]:.3f}")
-
-#ax1.plot([305,323],[674,674],'-')
-#ax1.plot([isdG,iedG],[jsdG,jsdG],'-')
-#ax1.plot([isdG,iedG],[jedG,jedG],'-')
-#ax1.plot([iedG,iedG],[jsdG,jedG],'-')
-#ax1.plot([isdG,isdG],[jsdG,jedG],'-')
-
 
 # Read PIOMAS field:
 match ifld:

@@ -41,10 +41,7 @@ from mod_utils_fig import bottom_text
 rate_max_hrs  = 1.                       # max relaxation time
 Irate_max_sec = 1./(rate_max_hrs*3600.)  # relaxation rate, s-1
 
-f_save = False           # Save netcdf relax file
-check_rlx = True         # Plot relaxation field
-check_ref_domain = False  # Plot transformations of the reference domain
-
+f_save = False
 rlx_name = 'relax_rate' # name of the variable, should be the same in the SIS_input
 
 btx  = 'relax_timescale.py'
@@ -78,13 +75,12 @@ jdm, idm = HH.shape
 # rpolar  = approximate # of grid points from the NE corner  of the NEP domain
 # to ~55N
 # Define a rectangular domain D, transformed relax zone is a square = rpolar
-rpolarN = 210   # this defines the size of the relaxation zone along N. bndry axis (index space)
-rpolarE = 260   # -"- -"- along the E. bndry axis
+rpolarN = 220   # this defines the size of the relaxation zone along N. bndry axis (index space)
+rpolarE = 260
 #rpolar = 240
-Y = np.arange(-rpolarN,rpolarE+1)
-X = np.arange(0,idm)
-XR = np.arange(-X[-1],1)     # for rotated domain that is in the X<0 plane
-YR = np.arange(-Y[-1],-Y[0]+1)  # rotated domain 
+Y = np.arange(-rpolar,rpolar+1)
+X = np.arange(0,rpolar+1)
+XR = np.arange(-rpolar,1)  # for rotated domain that is in the X<0 plane
 idmD = len(X)
 jdmD = len(Y)
 
@@ -92,16 +88,16 @@ jdmD = len(Y)
 # Define a reference rectangular domain with relaxation decaying from the left bndry to the right
 # Decrease the width of the region of strong relaxation along the N. bndry going south
 # and increase the width along the E. bndry going south to have >0 relax over Eastern Bering shelf
-irmax = 90    # where to begin exponential decay of the relaxation
-ieN = 135     # start pnt (in domain D indices) where the width of max rlx starts changing
-isN = 10 
+irmax = 70    # where to begin exponential decay of the relaxation
+ieN = 145     # start pnt (in domain D indices) where the width of max rlx starts changing
+isN = 0 
 irmaxN = 1    # width of max rlx at the S. end of N. boundary
-isE = jdmD-230
+isE = jdmD-227
 ieE = jdmD
-irmaxE = 120
+irmaxE = 95
 
-# Adjust exponential decay of the relaxation off the Y=0 axis:
-sgmx = idm/4  # controls exponential decay in the Gaussian, decrease the denom. to slow the decay
+
+sgmx = rpolar/3.5  # controls exponential decay in the Gaussian, decrease the denom. to slow the decay
 RLX = np.zeros((jdmD, idmD))
 for jj in range(jdmD):
   irmax0 = irmax
@@ -123,7 +119,7 @@ RMAP1 = np.zeros((jdmD, idmD))*np.nan
 RMAP2 = RMAP1.copy()*np.nan
 jD0 = np.argmin(np.abs(Y))
 for ii in range(idmD):
-  for jj in range(jdmD):
+  for jj in range(jD0,jdmD):
     # Y Distance wrt to jD0:
     xx = X[ii]
     yy = Y[jj]
@@ -135,6 +131,12 @@ for ii in range(idmD):
     imap = np.max(np.where(X<=x_map)[0])
     jmap = np.max(np.where(Y<=y_map)[0])
     RMAP1[jmap, imap] = RLX[jj,ii]
+    # Symmetric part, along X axis skip repeatition :
+    if not jj==jD0:
+      jsym = 2*jD0 - jj
+      ys_map = -y_map
+      jsmap = np.max(np.where(Y<=ys_map)[0])
+      RMAP1[jsmap, imap] = RLX[jsym,ii]
 
     # Perform 2nd mapping - rotation by 225 degree angle:
     theta = 225*np.pi/180.
@@ -144,7 +146,7 @@ for ii in range(idmD):
     x_rot = RRmap1*np.cos(phi1+theta)
     y_rot = RRmap1*np.sin(phi1+theta)
     irot = np.min(np.where(XR>=x_rot)[0])
-    jrot = np.min(np.where(YR>=y_rot)[0])
+    jrot = np.min(np.where(Y>=y_rot)[0])
     #RMAP2[jrot,irot] = RLX[jj,ii]
     # To avoid gaps: fill neighboring grid cells
     ip1 = np.min([irot+1, idmD])
@@ -152,26 +154,31 @@ for ii in range(idmD):
     jp1 = np.min([jrot+1, jdmD])
     jm1 = np.max([jrot-1, 0])
     RMAP2[jm1:jp1,im1:ip1] = RLX[jj,ii]
+    # Symmetric part:
+    if not jj==jD0:
+      xs_rot = RRmap1*np.cos(-phi1+theta)
+      ys_rot = RRmap1*np.sin(-phi1+theta)
+      isrot  = np.min(np.where(XR>=xs_rot)[0]) 
+      jsrot  = np.min(np.where(Y>=ys_rot)[0])
+      ip1 = np.min([isrot+1, idmD])
+      im1 = np.max([isrot-1, 0])
+      jp1 = np.min([jsrot+1, jdmD])
+      jm1 = np.max([jsrot-1, 0])
+      #RMAP2[jsrot,isrot] = RLX[jsym,ii]
+      RMAP2[jm1:jp1,im1:ip1] = RLX[jsym,ii]
 
 # Imbed transformed relax. field into relaxation array PSI
 jdmR, idmR = RMAP2.shape
-# subset part of the domain that contains transformed field
-# domain: Y<=0 and x<=0
-iyax0 = max(np.where(YR<=0)[0])
-ixax0 = max(np.where(XR<=0)[0])
-AA = RMAP2[:iyax0+1,:ixax0]    
+AA = RMAP2[:idmR,:]    # subset part of the domain that contains transformed field
 AA = np.where(np.isnan(AA), 0., AA)
 jdmA, idmA = AA.shape
 isD = idm-idmA
 jsD = jdm-jdmA
 RLXIS = np.zeros((jdm,idm))
 RLXIS[jsD:,isD:] = AA    # relaxation rate, s-1
-# No relaxation in the Gulf of Alaska:
-RLXIS[:575,170:] = 0.0
-
 
 # Add land mask and southern domains = 0
-lat_cut = 60.
+lat_cut = 54.
 RLXIS = np.where(HH>=0, 0.0, RLXIS)
 RLXIS = np.where(hlat<lat_cut, 0.0, RLXIS)
 
@@ -208,6 +215,7 @@ if f_save:
   )
 
 
+check_rlx = True
 if check_rlx:
   plt.ion()
 
@@ -237,12 +245,12 @@ if check_rlx:
 
   img = ax0.pcolormesh(xR, yR, AP, cmap=clrmp, vmin=rmin, vmax=rmax)
 #  img = ax0.pcolormesh(RLXHR, cmap=clrmp)
-  tscntrs = [1,2,5,10,40]
+  tscntrs = [1,5,10,50]
   tslabels = tscntrs
   CS = ax0.contour(xR,yR,RLXHR,tscntrs, linestyles='solid', linewidths=1, colors=[(0., 0., 0.)])
   ax0.clabel(CS, tslabels,inline=1, fontsize=10)
 
-  ax0.set_title(f'Relaxation rate (s-1), contours: hrs')
+  ax0.set_title(f'Relaxation rate *{cff:.1e}, s-1')
 
   ax2 = fig1.add_axes([ax0.get_position().x1+0.025, ax0.get_position().y0,
                      0.02, ax0.get_position().height])
@@ -254,13 +262,12 @@ if check_rlx:
   #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
   clb.ax.set_yticklabels(["{:.1f}".format(i) for i in clb.get_ticks()], fontsize=10)
   clb.ax.tick_params(direction='in', length=12)
-  ax2.set_ylabel(f'Relaxation, {1./cff:.1e}, s-1')
 
   bottom_text(btx, pos=[0.2, 0.01])
 
 # Plot mapping/transformations of the reference domain D 
 # in order to prepare relaxation rate fields for the NEP domain
-def axes_refdom(ax0,X,Y):
+def axes_refdom(ax0):
   ax0.axis('scaled')
   ax0.set_xlim([-np.max(X), np.max(X)])
   ax0.set_ylim([Y[0],Y[-1]])
@@ -268,6 +275,7 @@ def axes_refdom(ax0,X,Y):
 
   return ax0
 
+check_ref_domain = False
 if check_ref_domain:
   """
    Plot remapping stages of the reference domain 
@@ -282,17 +290,17 @@ if check_ref_domain:
   plt.clf()
   ax1 = plt.axes([0.05, 0.55, 0.4, 0.4])
   img = ax1.pcolormesh(X,Y,RLX, cmap=clrmp)
-  ax1 = axes_refdom(ax1,X,Y)
+  ax1 = axes_refdom(ax1)
   ax1.set_title('Reference domain')
 
   ax2 = plt.axes([0.5, 0.55, 0.4, 0.4])
   ax2.pcolormesh(X,Y,RMAP1, cmap=clrmp)
-  ax2 = axes_refdom(ax2,X,Y)
+  ax2 = axes_refdom(ax2)
   ax2.set_title('Mapping 1: f(z)=z^(1/2)')
 
   ax3 = plt.axes([0.05, 0.05, 0.4, 0.4])
-  ax3.pcolormesh(XR,YR,RMAP2, cmap=clrmp)
-  ax3 = axes_refdom(ax3,X,YR)
+  ax3.pcolormesh(XR,Y,RMAP2, cmap=clrmp)
+  ax3 = axes_refdom(ax3)
   ax3.set_title('Mapping2: f(z)=z*exp(tht)')
 
   ax4 = plt.axes([0.55, 0.05, 0.02, 0.4])

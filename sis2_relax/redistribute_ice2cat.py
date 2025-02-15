@@ -108,7 +108,7 @@ j0 = 728
 hice = Hice[j0,i0]
 cice = Cice[j0,i0]
 
-
+hcat, ccat = msisrlx.redistribute_hice(hice, cice, ICAT=ICAT)
 
 
 
