@@ -108,9 +108,9 @@ j0 = 728
 hice = Hice[j0,i0]
 cice = Cice[j0,i0]
 
-hcat, ccat = msisrlx.redistribute_hice(hice, cice, ICAT=ICAT)
-
-
+#hcat, ccat = msisrlx.redistribute_hice(hice, cice, ICAT=ICAT, itd_method='simple')
+ICAT0 = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
+hcat, ccat = msisrlx.redistribute_hice(hice, cice, ICAT0=ICAT0, itd_method='gauss')
 
 
 

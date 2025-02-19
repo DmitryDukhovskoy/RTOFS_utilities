@@ -54,7 +54,8 @@ import mod_colormaps as mclrmps
 import mod_misc1 as mmisc
 
 f_save = True
-YR0 = 1993
+YRs = 1993
+YRe = 1994    # make YRe=YRs to create 1 yr field with padded start/end of the year
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
                        # for monthly, daily, etc. need -dt and +dt at the beginn/end 
@@ -152,17 +153,19 @@ match file_type:
   case('clim'):
     TMPLT = np.zeros((12))
     for imo in range(1,13):
-      dnmb0 = mtime.datenum([YR0,imo,15,12])
+      dnmb0 = mtime.datenum([YRs,imo,15,12])
       TMPLT[imo-1] = dnmb0
   case('monthly'):
-    TMPLT = np.zeros((14))
-    dnmb0 = mtime.datenum([YR0-1,12,15,12])
-    TMPLT[0] = dnmb0
-    for imo in range(1,13):
-      dnmb0 = mtime.datenum([YR0,imo,15,12])
-      TMPLT[imo] = dnmb0
-    dnmb0 = mtime.datenum([YR0+1,1,15,12])
-    TMPLT[-1] = dnmb0
+    TMPLT = []
+    dnmb0 = mtime.datenum([YRs-1,12,15,12])
+    TMPLT = [dnmb0]
+    for YR in range(YRs,YRe+1):
+      for imo in range(1,13):
+        dnmb0 = mtime.datenum([YR,imo,15,12])
+        TMPLT.append(dnmb0)
+    dnmb0 = mtime.datenum([YRe+1,1,15,12])
+    TMPLT.append(dnmb0)
+    TMPLT = np.array(TMPLT)
   case _:
     raise Exception(f'relaxation input file for {file_type} has not been set up yet')
 
@@ -236,7 +239,7 @@ dset_Cmom = xarray.Dataset({f'{iconcvar}': darr_Cmom})
 dset_Ice = xarray.merge([dset_Hmom, dset_Cmom])
 
 # Add attributes:
-dset_Ice.attrs["history"] = f"Created from PIOMAS monthly ice fields {YR0}"
+dset_Ice.attrs["history"] = f"Created from PIOMAS monthly ice fields {YRs}"
 dset_Ice.attrs["code"] = "/home/Dmitry.Dukhovskoy/python/sis2_relax/piomas_relaxation_yearly.py"
 
 dset_Ice[ithknvar].attrs["long_name"] = "Mean ice thickness"
@@ -261,7 +264,10 @@ dset_Ice['yh'].attrs['cartesian_axis'] = 'Y'
 
 if f_save:
 #  encoding = {rlx_name: {'_FillValue': None}}
-  flout = f'PIOMAS_ithkn_iconc_{YR0}_{file_type}.nc'
+  flout = f'PIOMAS_ithkn_iconc_{YRs}_{file_type}.nc'
+  if not YRe == YRs:
+    flout = f'PIOMAS_ithkn_iconc_{YRs}_{YRe}_{file_type}.nc'
+
   diclim = os.path.join(pthsis, flout)
 
   print(f'Saving PIOMAS climatology --> {diclim}')

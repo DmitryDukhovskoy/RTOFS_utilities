@@ -53,6 +53,19 @@ fyaml = 'pypaths_gfdlpub.yaml'
 with open(fyaml) as ff:
   gridfls = safe_load(ff)
 
+# Relaxation is SIS_isponge:
+dt = 3600         # slow thermodyn. time step, s
+irlx = 0.2778e-3   # relaxation rate, s-1 (time = 1hr)
+irlx = 0.001       # relax. s-1, 15 min
+aold = 0.6      # ice, kg m-2 or conc 
+aref = 0.0
+damp=dt*irlx
+I1pdamp=1./(1+damp)
+# Relaxation:
+anew = I1pdamp*(aold+aref*damp)
+
+
+
 # MOM6 NEP topo/grid:
 run_name   = 'seasonal_fcst_daily'
 pthtopo    = gridfls['MOM6_NEP'][run_name]['pthgrid']
