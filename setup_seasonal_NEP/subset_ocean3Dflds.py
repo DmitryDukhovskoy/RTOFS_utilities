@@ -5,7 +5,7 @@
   All arguments are optional 
   usage:  run subset_ocean3Dflds.py --yr=1993 --mo=4 --ens=10
 
-  Dmitry Dukhovskoy, NOAA OAR PSL Dec. 2024
+  Dmitry Dukhovskoy, NOAA OAR PSL February 2025
 
 """
 import datetime as dt
