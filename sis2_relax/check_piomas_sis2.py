@@ -37,9 +37,12 @@ from mod_utils_fig import bottom_text
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
-YR0 = 1993
-MM0 = 4
-ifld = 'iarea'  # ithkn, iarea
+plot_fields = False  
+YR1 = 1993
+YR2 = 1994 
+YR0 = 1993   # year to plot
+MM0 = 4      # month to plot
+ifld = 'ithkn'  # ithkn, iarea
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
                        # for monthly, daily, etc. need -dt and +dt at the beginn/end 
@@ -81,7 +84,7 @@ LAT  = ds_thkn['Latitude'].data
 LON  = ds_thkn['Longitude'].data
 
 # Read saved relax. fields:
-flout = f'PIOMAS_ithkn_iconc_{YR0}_{file_type}.nc'
+flout = f'PIOMAS_ithkn_iconc_{YR1}_{YR2}_{file_type}.nc'
 diclim = os.path.join(pthsis, flout)
 ds_rlx = xarray.open_dataset(diclim)
 Time = ds_rlx['time'].data
@@ -94,7 +97,6 @@ assert dv0[0]==YR0, f'Requested YR={YR0}, year in rlx file={dv0[0]}'
 assert dv0[1]==MM0, f'Requested month={MM0}, month in rlx file={dv0[1]}'
 
 A2dS = ds_rlx[ifld].isel(time=itime).data
-A2dS = np.where(HH>=0, np.nan, A2dS)
 
 # Read PIOMAS field:
 match ifld:
@@ -146,22 +148,25 @@ def plot_ice(fgnmb, xR, yR, A2d, clrmp, rmin, rmax, sttl):
 
 plt.ion()
 
-# Stereographic Map projection:
-from mpl_toolkits.basemap import Basemap, cm
-m = Basemap(width=5000*1.e3,height=5000*1.e3, resolution='l',\
-            projection='stere', lat_ts=50, lat_0=62, lon_0=-165)
+if plot_fields: 
+  A2dS = np.where(HH>=0, np.nan, A2dS)
 
-xR, yR = m(hlon, hlat)
-xRp, yRp = m(LON, LAT)
+  # Stereographic Map projection:
+  from mpl_toolkits.basemap import Basemap, cm
+  m = Basemap(width=5000*1.e3,height=5000*1.e3, resolution='l',\
+              projection='stere', lat_ts=50, lat_0=62, lon_0=-165)
 
-sttlS = f'Relaxation {ifld} SIS2 from PIOMAS {YR0}/{MM0}'
-sttlP = f'{ifld} PIOMAS {YR0}/{MM0}'
+  xR, yR = m(hlon, hlat)
+  xRp, yRp = m(LON, LAT)
 
-fgnmb=1
-plot_ice(fgnmb, xR, yR, A2dS, clrmp, rmin, rmax, sttlS)
+  sttlS = f'Relaxation {ifld} SIS2 from PIOMAS {YR0}/{MM0}'
+  sttlP = f'{ifld} PIOMAS {YR0}/{MM0}'
 
-fgnmb=2
-plot_ice(fgnmb, xRp, yRp, A2dP, clrmp, rmin, rmax, sttlP)
+  fgnmb=1
+  plot_ice(fgnmb, xR, yR, A2dS, clrmp, rmin, rmax, sttlS)
+
+  fgnmb=2
+  plot_ice(fgnmb, xRp, yRp, A2dP, clrmp, rmin, rmax, sttlP)
 
 
 

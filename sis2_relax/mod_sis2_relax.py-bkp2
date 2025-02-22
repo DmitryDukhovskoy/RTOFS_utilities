@@ -233,22 +233,15 @@ def gauss_distr1D(A1d, icat0, sgm=1.3, conserve=True):
 
   return Afltr
 
-def adjust_hcat(ICAT, hcat, ccat, ncat, hice, eps0=1.e-6, verbose=False):
+def adjust_hice(ICAT, hcat, ccat, ncat, hice, eps0=1.e-6, verbose=False):
   """
-    Try to Adjust ice thkns in all cats
-    Dumping all extra ice into the last cat
-    This algorithm works mostly when hcat[k] > hlim[k]
+    Adjust hice for all cats except for the last one
     ICAT - ice cat min/max thicknesses 
-    Last category - max ice thickness is not bounded
   """
   chcat = hcat*ccat
   for kk in range(ncat):
     hmin = ICAT[kk]
-    if kk<ncat-1:
-      hmax = ICAT[kk+1] - eps0
-    else:
-      hmax = 1.e3
-
+    hmax = ICAT[kk+1] - eps0
     hcat_k = chcat[kk]/ccat[kk]
     if hcat_k < hmin:
     # increase hcat and decrease ccat
@@ -325,7 +318,7 @@ def adjust_high_thkn(hcat, ccat, ICAT, ncat, hice, eps0, verbose=False):
     ccat = np.where(ccat<=eps0, eps0, ccat)
     hcat = chcat/ccat
 
-    hcat, ccat = adjust_hcat(ICAT, hcat, ccat, ncat, hice, verbose=False)
+    hcat, ccat = adjust_hice(ICAT, hcat, ccat, ncat, hice, verbose=False)
 
     hcat_k = hcat[ncat-1]
     dlt_hk = hcat_k - hk_old
@@ -412,40 +405,6 @@ def check_hcice(hcat, ccat, hice, cice, eps0=1.e-6, verb=False):
 
   return err_hice, err_cice
 
-def check_hcat(hcat, ccat, ICAT, ncat, eps0, icat=-1):
-  """
-    Check if hcat[k] is within the cat thkn limits
-    specify icat to check 1 cat
-    returns adj_hcat:
-    <0 - below the hmin
-    >0 - exceeds hmax
-    0 - within the limits
-  """
-  adj_hcat = 0
-  if icat<-1:
-    ii1=0
-    ii2=ncat
-  else:
-    ii1=icat
-    ii2=ii1+1
-
-  for kk in range(ii0,ii1):
-    if ccat[kk] < eps0:
-    # No ice
-      continue
-    hmin = ICAT[kk]
-    if kk<ncat-1:
-      hmax = ICAT[kk+1] - eps0
-    else:
-      hmax = 1.e3
-
-    if hcat[kk] < hmin:
-      adj_hcat = hcat[kk]-hmin
-    elif hcat[kk] > hmax:
-      adj_hcat = hcat[kk]-hmax
-
-  return adj_hcat 
-
 def redistribute_hice(hice, cice, ICAT=[], eps0=1.e-6, ck_min=1.e-3, verbose=False):
   """
     Redistribute ice by ice cats
@@ -456,12 +415,7 @@ def redistribute_hice(hice, cice, ICAT=[], eps0=1.e-6, ck_min=1.e-3, verbose=Fal
     eps0 - close to 0 value used to check errors and "0"
     ck_min = 1.e-3  ice conc. in lower cats,  some small value >> eps0
 
-    ice thkn in the thikest cat may not match the limits for this cat !
-
-    Start with dumping all ice into the thickest cat 
-    such that hmin(k)<hice < hmax(k)
-    and then redistribute 
-    into lower cats
+    Start with dumping all ice into thickest cat and then redistribute into lower cats
   """
   if len(ICAT) == 0:
     ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
@@ -481,8 +435,7 @@ def redistribute_hice(hice, cice, ICAT=[], eps0=1.e-6, ck_min=1.e-3, verbose=Fal
   # open water
     return hcat, ccat
 
-  # Check that there is enough ice to be i
-  # distributed over the cats for min cice and hice:
+  # Check that there is enough ice to be distributed over the cats for min cice and hice:
   #ck_min = 1.e-3  # some small value >> eps0
   htot_min = np.sum(ck_min*ICAT)
   if hice < htot_min or cice < ck_min*ncat:
@@ -494,45 +447,22 @@ def redistribute_hice(hice, cice, ICAT=[], eps0=1.e-6, ck_min=1.e-3, verbose=Fal
     # Limit max hcat  aand adjust ccat allowing to be not exact?
 
     return hcat, ccat
-
-# Find ice cat. where grid cell mean hice falls in:
-  icat = 1e3
-  hcat_k = hice/cice     # ice thickness in a category
-  for kk in range(ncat):
-    hbnd = ICAT[kk]
-    if kk < ncat-1:
-      hbnd_up = ICAT[kk+1]
-    else:
-      hbnd_up = 1.e3
-
-    if hcat_k >= hbnd and hcat_k < hbnd_up:
-      icat = kk
-      break
-   
-  assert icat < ncat, f"Could not find ice cat for {hice}"
-  print(f"hice={hice:.2f}m --> cat={icat+1}:  {hbnd:.2f}/{hbnd_up:.2f}")
- 
+     
   hcat = np.zeros((ncat))
   ccat = np.zeros((ncat))
-  ccat[icat]  = cice
-  hcat[icat]  = hice/cice 
-  chcat = ccat*hcat
+  hcat[ithk] = hice/cice
+  ccat[ithk] = cice
+  chcat = hcat*ccat
 
   err_hice, err_cice  = check_hcice(hcat, ccat, hice, cice)
   assert not err_hice, f"1. error hice not conserved"
   assert not err_cice, f"1. error cice not conserved"
     
-  for kk in range(icat):
-    hmin = ICAT[kk]
-    if kk<ncat-1:
-      hmax = ICAT[kk+1] - eps0
-    else:
-      hmax = 1.e3
-
+  for kk in range(ithk):
     ccat_k = ck_min
     hcat_k = ICAT[kk] + eps0
     dch_k = ccat_k*hcat_k
-    if dch_k >= chcat[icat]:
+    if dch_k >= chcat[ithk]:
       # cannot redistribute ice, not enough in thickest cat
       print(f"icat={kk+1} cannot redistribute ice, not enough in thickest cat")
       break
@@ -541,33 +471,25 @@ def redistribute_hice(hice, cice, ICAT=[], eps0=1.e-6, ck_min=1.e-3, verbose=Fal
     hcat[kk] = hcat_k
     chcat[kk] = dch_k
 
-    # Update the cat with initial ice:
-    cnew = ccat[icat]-ccat[kk]
+    # Update thickest cat:
+    cnew = ccat[ithk]-ccat[kk]
     cnew = np.max([ck_min, cnew])
-    ccat[icat] = cnew
-    chcat[icat] = chcat[icat] - dch_k 
-    hcat[icat] = chcat[icat]/ccat[icat]
+    ccat[ithk] = cnew
+    chcat[ithk] = chcat[ithk] - dch_k 
+    hcat[ithk] = chcat[ithk]/ccat[ithk]
+    
+    ctot = np.sum(ccat)
+    htot = np.sum(ccat*hcat)
+    print(f"kk={kk} ctot={ctot:.3f} cice={cice:.3f}, htot={htot:.3f} hice={hice:.3f}")
 
-    # Check if ice thkn is within the limits 
-    #adj_hcat = check_hcat(hcat,ccat, ICAT, ncat, eps0, icat=icat)
- 
-  ctot = np.sum(ccat)
-  htot = np.sum(ccat*hcat)
-  print(f"redistr: ctot={ctot:.3f} cice={cice:.3f}, htot={htot:.3f} hice={hice:.3f}")
   err_hice, err_cice  = check_hcice(hcat, ccat, hice, cice)
   assert not err_hice, f"1. error hice not conserved"
   assert not err_cice, f"1. error cice not conserved"
 
   return hcat, ccat
 
-def redistribute_hice_v0(hice, cice, ICAT0=[], eps0 = 1.e-6, \
-    itd_method='equal', verbose=False):
+def redistribute_hice_v0(hice, cice, ICAT0=[], eps0 = 1.e-6, itd_method='equal', verbose=False):
   """
-    The script does not work well for wierd hice/cice values, e.g.
-    hice=3, cice=0.3 - thickest cat may have wrong hcat[k]
-    or small hice: hice=0.1, cice=0.8 - has problems with distributing
-    across all cats 
-
     Redistribute ice thickness (grid cell mean), 1 pnt, 
     by ice categories such that the mean grid 
     ice thickness is conserved, i.e.
@@ -662,7 +584,7 @@ def redistribute_hice_v0(hice, cice, ICAT0=[], eps0 = 1.e-6, \
   #ccat_min = 1.e-10  # min concentration to keep in each category
 
   # Adjust hice for all cats except for the last one
-  hcat, ccat = adjust_hcat(ICAT, hcat, ccat, ncat, hice, verbose=verbose)
+  hcat, ccat = adjust_hice(ICAT, hcat, ccat, ncat, hice, verbose=verbose)
    
   chcat = hcat*ccat
   htot = np.sum(chcat)
@@ -687,6 +609,7 @@ def redistribute_hice_v0(hice, cice, ICAT0=[], eps0 = 1.e-6, \
     hcat, ccat = adjust_high_thkn(hcat, ccat, ICAT, ncat, hice, eps0, verbose=True)
   elif adj_low:
     hcat, ccat = adjust_high_thkn(hcat, ccat, ICAT, ncat, hice, eps0, verbose=True)
+
 
   # Check final distribution: 
   htot = np.sum(ccat*hcat) # should be conserved 

@@ -40,7 +40,7 @@ import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
 YR0 = 1993
-MM0 = 3
+MM0 = 5
 ifld = 'ithkn'  # ithkn, iarea
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
@@ -103,50 +103,71 @@ Cice = ds_rlx['iarea'].isel(time=itime).data
 Cice = np.where(HH>=0, np.nan, Cice)
 
 
-i0 = 261
-j0 = 728
+#i0 = 261
+#j0 = 728
+i0 = 150
+j0 = 634
 hice = Hice[j0,i0]
 cice = Cice[j0,i0]
 
-#hcat, ccat = msisrlx.redistribute_hice(hice, cice, ICAT=ICAT, itd_method='simple')
+# Test:
+import random
 ICAT0 = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
-hcat, ccat = msisrlx.redistribute_hice(hice, cice, ICAT0=ICAT0, itd_method='gauss')
+ncat = len(ICAT0)
+
+nn=50
+CI = np.zeros((nn))
+HI = np.zeros((nn))
+CC = np.zeros((nn,ncat))
+HC = np.zeros((nn,ncat))
+print(f"Calling redistribute_hice")
+for ii in range(nn):
+  cice = random.uniform(0.,1.)
+  hice = random.uniform(0.,4.)
+  print(f"ii={ii}, hice={hice:.4f} cice={cice:.4f}")
+  hcat, ccat = msisrlx.redistribute_hice(hice, cice, ICAT=ICAT0, ck_min=1.e-2)
+  CI[ii] = cice
+  HI[ii] = hice
+  CC[ii,:] = ccat
+  HC[ii,:] = hcat 
 
 
+ICATK = np.append(ICAT0,[3])
 
-def plot_ice(fgnmb, xR, yR, A2d, clrmp, rmin, rmax, sttl):
-  fig1 = plt.figure(fgnmb,figsize=(9,8))
-  plt.clf()
-  ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
-  m.drawcoastlines()
-  m.drawparallels(np.arange(-90.,120.,10.))
-  m.drawmeridians(np.arange(-180.,180.,10.))
-
-  img = ax1.pcolormesh(xR, yR, A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
-  #  img = ax1.pcolormesh(RLXHR, cmap=clrmp)
-
-  ax1.set_title(sttl)
-
-  ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,
-                     0.02, ax1.get_position().height])
-  # extend: min, max, both
-  clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='both')
-  ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
-  ax2.set_yticklabels(ax2.get_yticks())
-  ticklabs = clb.ax.get_yticklabels()
-  #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
-  clb.ax.set_yticklabels(["{:.1f}".format(i) for i in clb.get_ticks()], fontsize=10)
-  clb.ax.tick_params(direction='in', length=12)
-
-  btx = 'check_piomas_sis2.py' 
-  bottom_text(btx, pos=[0.2, 0.01])
-
-
-
+from matplotlib.patches import Polygon
 plt.ion()
 fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
 ax1 = plt.axes([0.1, 0.4, 0.8, 0.5])
 
-ax1.plot(ICAT, chice_cat,'o-')
+ii = 10
+ccat = CC[ii,:]
+hcat = HC[ii,:]
+hice = HI[ii]
+cice = CI[ii]
+#plt.bar(ICAT0, ccat, color=[0.8,0.9,1], width=0.2)
+#ax1.plot(ICAT0, CC[ii,:],'-o')
+dltE=0.01
+clr=[0.5,0.8,1]
+for kk in range(ncat):
+  hmin = ICATK[kk]+dltE
+  hmax = ICATK[kk+1]-dltE
+  verts = [(hmin,0),(hmin,ccat[kk]),(hmax,ccat[kk]),(hmax,0)]
+  poly  = Polygon(verts, facecolor=clr, edgecolor=clr, zorder=5)
+  ax1.add_patch(poly)
+#  ax1.plot([hmin,hmax],[ccat[kk],ccat[kk]],'-',linewidth=2, color=[0.,0.5,0.9])
+
+ax1.set_xlim([0,1.5])
+
+stl = f"hice={hice:.4f}, cice={cice:.4f}"
+ax1.set_title(stl)
+ax1.set_xticks(ICAT0)
+ax1.set_xlabel('Ice Cat min Thicknesses')
+ax1.set_ylabel('partial area')
+ax1.grid('on')
+
+btx = 'redistribute_ice2cat.py'
+bottom_text(btx)
+
+
 
