@@ -175,7 +175,7 @@ RLXIS[jsD:,isD:] = AA    # relaxation rate, s-1
 RLXIS[:575,170:] = 0.0
 
 
-# Add land mask and southern domains = 0
+# Add land mask and make southern domains = 0
 lat_cut = 60.
 RLXIS = np.where(HH>=0, 0.0, RLXIS)
 RLXIS = np.where(hlat<lat_cut, 0.0, RLXIS)
@@ -212,118 +212,5 @@ if f_save:
       engine='netcdf4',
       encoding=encoding
   )
-
-
-if check_rlx:
-  plt.ion()
-
-  clrmp = mclrmps.colormap_temp2()
-  clrmp = mclrmps.colormap_conc() 
-  clrmp.set_bad(color=[0.2, 0.2, 0.2])
-  rmin = 0.
-  rmax = 25.
-  cff = 1.e5
-
-  # Stereographic Map projection:
-  from mpl_toolkits.basemap import Basemap, cm
-  m = Basemap(width=5000*1.e3,height=5000*1.e3, resolution='l',\
-              projection='stere', lat_ts=50, lat_0=62, lon_0=-165)
-
-  xR, yR = m(hlon, hlat)
-
-  AP = RLXIS.copy()*cff
-  AP = np.where(HH>=0., np.nan, AP)
-  
-  fig1 = plt.figure(1,figsize=(9,8))
-  plt.clf()
-  ax0 = plt.axes([0.1, 0.1, 0.8, 0.8])
-  m.drawcoastlines()
-  m.drawparallels(np.arange(-90.,120.,10.))
-  m.drawmeridians(np.arange(-180.,180.,10.))
-
-  img = ax0.pcolormesh(xR, yR, AP, cmap=clrmp, vmin=rmin, vmax=rmax)
-#  img = ax0.pcolormesh(RLXHR, cmap=clrmp)
-  if rate_max_hrs <= 2:
-    tscntrs = [1,2,5,10,40]
-  elif rate_max_hrs <=4:
-    tscntrs = [4,6,10,40,60]
-  elif rate_max_hrs <=24:
-    tscntrs = [24,26,30,50,80]
-  elif rate_max_hrs <=120:
-    tscntrs = [120,150,240,300,500]
-
-
-  tslabels = tscntrs
-  CS = ax0.contour(xR,yR,RLXHR,tscntrs, linestyles='solid', linewidths=1, colors=[(0., 0., 0.)])
-  ax0.clabel(CS, tslabels,inline=1, fontsize=10)
-
-  ax0.set_title(f'Relaxation rate (s-1), contours: hrs, strongest rlx {rate_max_hrs:.1f} hrs')
-
-  ax2 = fig1.add_axes([ax0.get_position().x1+0.025, ax0.get_position().y0,
-                     0.02, ax0.get_position().height])
-  # extend: min, max, both
-  clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='both')
-  ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
-  ax2.set_yticklabels(ax2.get_yticks())
-  ticklabs = clb.ax.get_yticklabels()
-  #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
-  clb.ax.set_yticklabels(["{:.1f}".format(i) for i in clb.get_ticks()], fontsize=10)
-  clb.ax.tick_params(direction='in', length=12)
-  ax2.set_ylabel(f'Relaxation, {1./cff:.1e}, s-1')
-
-  bottom_text(btx, pos=[0.2, 0.01])
-
-# Plot mapping/transformations of the reference domain D 
-# in order to prepare relaxation rate fields for the NEP domain
-def axes_refdom(ax0,X,Y):
-  ax0.axis('scaled')
-  ax0.set_xlim([-np.max(X), np.max(X)])
-  ax0.set_ylim([Y[0],Y[-1]])
-  ax0.grid('on')
-
-  return ax0
-
-if check_ref_domain:
-  """
-   Plot remapping stages of the reference domain 
-  """
-  plt.ion()
-
-  #clrmp = mclrmps.colormap_temp2()
-  #rmin = 0.
-  #rmax = 1.
-  clrmp = mclrmps.colormap_conc()
-  clrmp.set_bad(color=[1, 1, 1])
-
-  fig1 = plt.figure(1,figsize=(9,8))
-  plt.clf()
-  ax1 = plt.axes([0.05, 0.55, 0.4, 0.4])
-  img = ax1.pcolormesh(X,Y,RLX, cmap=clrmp)
-  ax1 = axes_refdom(ax1,X,Y)
-  ax1.set_title('Reference domain')
-
-  
-  ax2 = plt.axes([0.5, 0.55, 0.4, 0.4])
-  ax2.pcolormesh(X,Y,RMAP1, cmap=clrmp)
-  ax2 = axes_refdom(ax2,X,Y)
-  ax2.set_title('Mapping 1: f(z)=z^(1/2)')
-
-  ax3 = plt.axes([0.05, 0.05, 0.4, 0.4])
-  ax3.pcolormesh(XR,YR,RMAP2, cmap=clrmp)
-  ax3 = axes_refdom(ax3,X,YR)
-  ax3.set_title('Mapping2: f(z)=z*exp(tht)')
-
-  ax4 = plt.axes([0.55, 0.05, 0.02, 0.4])
-  clb = plt.colorbar(img, cax=ax4, orientation='vertical', extend='both')
-  #ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
-  #ax2.set_yticklabels(ax2.get_yticks())
-  ticklabs = clb.ax.get_yticklabels()
-  #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
-  #clb.ax.set_yticklabels(["{:.1f}".format(i) for i in clb.get_ticks()], fontsize=10)
-  clb.ax.tick_params(direction='in', length=12)
-  ax4.set_title('Relaxation rate, s-1') 
- 
-  btx = 'relax_timescale.py'
-  bottom_text(btx, pos=[0.2, 0.01])
 
 
