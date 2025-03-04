@@ -31,8 +31,7 @@ import mod_colormaps as mclrmps
 import mod_misc1 as mmisc
 from mod_utils_fig import bottom_text
 
-rate_max_hrs = 2.  # max relaxation time
-rate_min_hrs = 96. # lower relax. 
+rate_max_hrs = 4.  # max relaxation time, hrs
 rlx_name = 'relax_rate' # name of the variable, should be the same in the SIS_input
 
 fyaml = 'pypaths_gfdlpub.yaml'
@@ -73,7 +72,7 @@ plt.ion()
 
 clrmp = mclrmps.colormap_temp2()
 rmin = 0.
-rmax = 4.
+rmax = 100.
 
 # Stereographic Map projection:
 from mpl_toolkits.basemap import Basemap, cm
@@ -92,7 +91,7 @@ m.drawmeridians(np.arange(-180.,180.,10.))
 img = ax1.pcolormesh(xR, yR, RLXHR, cmap=clrmp, vmin=rmin, vmax=rmax)
 #  img = ax1.pcolormesh(RLXHR, cmap=clrmp)
 
-ax1.set_title('Relaxation time, hrs')
+ax1.set_title(f'Relaxation time, hrs, f{flout}')
 
 ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,
                    0.02, ax1.get_position().height])

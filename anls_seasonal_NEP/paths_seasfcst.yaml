@@ -9,6 +9,16 @@ GOFS3.1:
     ndav:    1
     pthdump: '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp'
 MOM6_NEP:
+  "test_ice_relax":
+    pthrun:  ' '
+    pthoutp: '/archive/Dmitry.Dukhovskoy/fre/NEP/test_ice_relax/NEPphys_expt{expt_nmb:02d}/{YY}-{MM:02d}'
+    pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
+    ftopo:   'topog.nc'
+    fgrid:   'ocean_hgrid.nc'
+    ndav:    5
+    pthdump: '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp'
+    focname: 'oceanm_{YR}_{jday:03d}.nc'
+    ficename: 'icem_{YR}_{jday:03d}.nc'
   "test":
     pthrun:  ' '
     pthoutp: '/work/Dmitry.Dukhovskoy/run_output/NEP_ISPONGE/1993/04'

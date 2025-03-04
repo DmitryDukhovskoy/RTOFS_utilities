@@ -1,6 +1,9 @@
 """
-  Plot sea ice conc/thickness 
-  usage: plot_seaice.py --varnm={ithck,iconc} --yr=1993 --mo=8 --day=12 --jday=138
+  Plot sea ice conc/thickness - v. 2
+  For plotting most recent runs with ice relaxation
+  For plotting older runs, use plot_seatice.py
+ 
+  usage: plot_seaice_v2.py --varnm={ithkn,iconc} --yr=1993 --mo=8 --day=12 --jday=138
   jday = day of the year to plot
   or can provide date using month/day
  
@@ -45,20 +48,21 @@ parser.add_argument("--yr", help="year to plot: 1993, ..., 2020", type=int)
 parser.add_argument("--mo", help="month to plot: 1,..., 12", type=int)
 parser.add_argument("--day", help="day to plot: 1, ..., 31", type=int)
 parser.add_argument("--jday", help="year day to plot: 1, ..., 366", type=int)
-parser.add_argument("--varnm", help="field to plot: ithck or iconc", type=str)
+parser.add_argument("--varnm", help="field to plot: ithkn or iconc", type=str)
+parser.add_argument("--expt", help="experiment number: 1, ...", type=int)
 args = parser.parse_args()
 
 # experiment: year start, month start, ...
 # change dayrun to plot desired date output - # of days since start date
 # in daily-mean output fields: date is in the middle of the averaging period
-varnm  = 'ithck'  # iconc or ithck 
+varnm  = 'ithkn'  # iconc or ithkn
 #varnm  = 'iconc'
 f_cntrobs = False
 f_obsthck = False
 
 if not varnm == 'iconc':
   f_cntrobs = False
-if not varnm == 'ithck':
+if not varnm == 'ithkn':
   f_obsthck = False
 
 # Start of the run - needed only for seasonal forecasts:
@@ -66,11 +70,14 @@ YRS    = 1993 # year start of the forecast
 MOS    = 4
 DDS    = 1    
 nens   = 1    # ens # for ensemble runs
+
+# Default values that can be modified by keywords
 # Day to plot either in year days or actual date:
 jday_plt = 0
 yr_plt   = 1993
 mo_plt   = 8
 day_plt  = 15
+expt_nmb = 2  
 
 if args.varnm:
   varnm = args.varnm
@@ -82,6 +89,8 @@ if args.day:
   day_plt = args.day
 if args.jday:
   jday_plt = args.jday
+if args.expt:
+  expt_nmb = args.expt
 
 if jday_plt >0 and jday_plt <=366:
   dnmbR  = mtime.jday2dnmb(yr_plt,jday_plt)
@@ -89,23 +98,17 @@ else:
   dnmbR  = mtime.datenum([yr_plt,mo_plt,day_plt])  # day to plot
 
 # Choose experiment:
-expt     = 'test_ice_relax'
-runname  = expt
-expt_nmb = 4
+#expt     = 'test_ice_relax'
+#runname  = expt
 #
 #expt     = 'test'   # saved output during test runs
 #runname  = 'isponge_test'
 #
-#expt     = "seasonal_daily"
-#expt_nmb = 2
-#runname  = f"NEPphys_frcst_dailyOB-expt{expt_nmb:02d}"
+expt     = "seasonal_daily"
+expt_nmb = 2  # only 1 experiment 
+runname  = f"NEPphys_frcst_dailyOB-expt{expt_nmb:02d}"
 #
-#expt    = "seasonal_fcst"
-#runname = f'NEPphys_frcst_climOB_{YRS}-{MOS:02d}-e{nens:02d}'
-#expt    = 'NEP_BGCphys_GOFS'
-#runname = 'NEP_physics_GOFS-IC'
-#expt    = 'NEP_seasfcst_LZRESCALE'
-#runname = 'NEPphys_LZRESCALE_climOB_1993_04-e02'
+expt_nmb0 = f"{expt_nmb:02d}"
 dnmbS   = mtime.datenum([YRS,MOS,DDS]) 
 dvR     = mtime.datevec(dnmbR)
 dnmb0   = dnmbR
@@ -124,7 +127,14 @@ if f_obsthck and (YR0 == 1993 or YR0 == 1994) and ( MM0>=3 and MM0<=5):
   f_obsthck = True
 else:
   f_obsthck = False
-  
+
+fyaml_param='relax_expts.yaml'
+with open(fyaml_param) as ff:
+  param_expt = safe_load(ff)  
+
+dt_idyn = param_expt[expt][expt_nmb0]['dt_idyn']
+dt_slow = param_expt[expt][expt_nmb0]['dt_slow']
+rlx_max = param_expt[expt][expt_nmb0]['rlx_max']
 
 print(f'Expt: {expt} Run: {runname} Plot date: {dvR[0]}/{dvR[1]}/{dvR[2]}')
 
@@ -137,10 +147,7 @@ fyaml = 'paths_seasfcst.yaml'
 with open(fyaml) as ff:
   pthseas = safe_load(ff)
 
-if expt == 'seasonal_fcst':
-  pthfcst = pthseas['MOM6_NEP'][expt]['pthoutp'].format(runname=runname)
-  pthfcst = os.path.join(pthfcst,f'{outfld}_{dvR[0]}{dvR[1]:02d}')
-elif expt == 'seasonal_daily':
+if expt == 'seasonal_daily':
   pth1     = pthseas['MOM6_NEP'][expt]['pthoutp'].format(expt_nmb=expt_nmb)
   dir_fcst = pthseas['MOM6_NEP'][expt]['dir_icefcst'].format(\
        yr_start=YRS, mo_start=MOS, ens=nens, yr_run=YR0, mo_run=MM0)
@@ -186,7 +193,7 @@ HIce = dset['sithick'].isel(time=0).data
 CIce = dset['siconc'].isel(time=0).data
 if varnm == 'iconc':
   A2d = CIce
-elif varnm == 'ithck':
+elif varnm == 'ithkn':
   A2d = CIce*HIce
 
 # Add observed ice conc:
@@ -254,7 +261,7 @@ if varnm == 'iconc':
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
   rmin = 0.
   rmax = 1.
-elif varnm == 'ithck':
+elif varnm == 'ithkn':
   clrmp = mclrmps.colormap_ice_thkn()
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
   rmin = 0.
@@ -266,6 +273,7 @@ dv_av2 = mtime.datevec(dnmb_av2)
 yre, mme, dde = dv_av2[:3]
 
 sttl = f"{runname} {varnm} avrg: {yrs}/{mms}/{dds}-{yre}/{mme}/{dde}"
+sttl = sttl + f"\n expt={expt_nmb0} dt={dt_idyn:.0f} dt_slow={dt_slow:.0f} rlx_max={rlx_max:.2f}hr"
 if j0 >= 0 and i0 >= 0:
   sttl = sttl + f"\n Test pnt iF0/jF0 = {iF0}/{jF0} {varnm}={A2d[j0,i0]:.6f}"
 # Stereographic Map projection:
@@ -357,7 +365,7 @@ if f_obsthck:
   m.scatter(xRo[J,I], yRo[J,I], c=vclrs, s=22)
 
 
-if varnm == 'ithck':
+if varnm == 'ithkn':
   ax1.contour(xR, yR, A2d,[6, 10, 14], linestyles='solid', colors=[(0.95, 0.95, 0.95)])
 
 ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,

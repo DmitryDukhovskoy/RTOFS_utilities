@@ -1,0 +1,30 @@
+---
+# SIS parameters for ice model:
+test_ice_relax:
+  "01":
+    dt_idyn: 600.
+    dt_slow: 3600.
+    rlx_max: 1.     
+  "02":
+    dt_idyn: 600.
+    dt_slow: 3600.
+    rlx_max: 2.     
+  "03":
+    dt_idyn: 600.
+    dt_slow: 3600.
+    rlx_max: 4.     
+  "04":
+    dt_idyn: 600.
+    dt_slow: 3600.
+    rlx_max: 24. 
+  "05":
+    dt_idyn: 600.
+    dt_slow: 3600.
+    rlx_max: 120. 
+
+seasonal_daily:
+  "02":
+    dt_idyn: 600.
+    dt_slow: 3600.
+    rlx_max: 0.     
+

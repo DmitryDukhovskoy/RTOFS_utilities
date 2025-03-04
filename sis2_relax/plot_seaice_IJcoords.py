@@ -1,9 +1,11 @@
 """
-  Plot sea ice conc/thickness 
-  usage: plot_seaice.py --varnm={ithck,iconc} --yr=1993 --mo=8 --day=12 --jday=138
-  jday = day of the year to plot
-  or can provide date using month/day
- 
+  Plot sea ice conc/thickness  
+  In domain index space for checking
+
+  Note in SIS2 output ice thickness needs to be multiplied 
+  by partial area (conc)
+  This will provide grid cell mean thickness 
+
 """
 import os
 import numpy as np
@@ -15,7 +17,6 @@ import xarray
 from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
-import argparse
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
@@ -40,14 +41,6 @@ import mod_anls_seas as manseas
 import mod_utils_ob as mutob
 importlib.reload(mutob)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--yr", help="year to plot: 1993, ..., 2020", type=int)
-parser.add_argument("--mo", help="month to plot: 1,..., 12", type=int)
-parser.add_argument("--day", help="day to plot: 1, ..., 31", type=int)
-parser.add_argument("--jday", help="year day to plot: 1, ..., 366", type=int)
-parser.add_argument("--varnm", help="field to plot: ithck or iconc", type=str)
-args = parser.parse_args()
-
 # experiment: year start, month start, ...
 # change dayrun to plot desired date output - # of days since start date
 # in daily-mean output fields: date is in the middle of the averaging period
@@ -61,45 +54,27 @@ if not varnm == 'iconc':
 if not varnm == 'ithck':
   f_obsthck = False
 
+
 # Start of the run - needed only for seasonal forecasts:
 YRS    = 1993 # year start of the forecast
 MOS    = 4
 DDS    = 1    
 nens   = 1    # ens # for ensemble runs
-# Day to plot either in year days or actual date:
-jday_plt = 0
-yr_plt   = 1993
-mo_plt   = 8
-day_plt  = 15
+dnmbR  = mtime.jday2dnmb(1993, 163)
+#dnmbR  = mtime.datenum([1993,8,16])  # day to plot
 
-if args.varnm:
-  varnm = args.varnm
-if args.yr:
-  yr_plt = args.yr
-if args.mo:
-  mo_plt = args.mo
-if args.day:
-  day_plt = args.day
-if args.jday:
-  jday_plt = args.jday
+# Test point in Fortran indices:
+iF0 = 230
+jF0 = 700
+i0 = iF0-1 ; j0 = jF0-1
 
-if jday_plt >0 and jday_plt <=366:
-  dnmbR  = mtime.jday2dnmb(yr_plt,jday_plt)
-else:
-  dnmbR  = mtime.datenum([yr_plt,mo_plt,day_plt])  # day to plot
-
-# Choose experiment:
-expt     = 'test_ice_relax'
-runname  = expt
-expt_nmb = 4
-#
+# Test simulations with isponge etc:
 #expt     = 'test'   # saved output during test runs
 #runname  = 'isponge_test'
-#
-#expt     = "seasonal_daily"
-#expt_nmb = 2
-#runname  = f"NEPphys_frcst_dailyOB-expt{expt_nmb:02d}"
-#
+# Seasonal forecasts with daily SPEAR:
+expt     = "seasonal_daily"
+expt_nmb = 2
+runname  = f"NEPphys_frcst_dailyOB-expt{expt_nmb:02d}"
 #expt    = "seasonal_fcst"
 #runname = f'NEPphys_frcst_climOB_{YRS}-{MOS:02d}-e{nens:02d}'
 #expt    = 'NEP_BGCphys_GOFS'
@@ -112,12 +87,6 @@ dnmb0   = dnmbR
 dv0     = mtime.datevec(dnmb0)
 YR0, MM0, DD0 = dv0[:3]
 jday0   = int(mtime.date2jday([YR0,MM0,DD0]))
-
-# Test point in Fortran indices:
-# make it <0 not to show
-iF0 = 230
-jF0 = 700
-i0 = iF0-1 ; j0 = jF0-1
 
 # For thickness - show observed values if available:
 if f_obsthck and (YR0 == 1993 or YR0 == 1994) and ( MM0>=3 and MM0<=5):
@@ -145,8 +114,6 @@ elif expt == 'seasonal_daily':
   dir_fcst = pthseas['MOM6_NEP'][expt]['dir_icefcst'].format(\
        yr_start=YRS, mo_start=MOS, ens=nens, yr_run=YR0, mo_run=MM0)
   pthfcst = os.path.join(pth1,dir_fcst)
-elif expt == 'test_ice_relax':
-  pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(YY=YRS, MM=MOS, expt_nmb=expt_nmb)
 else:
   pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(YY=YR0, MM=MM0)
 pthtopo    = pthseas['MOM6_NEP'][expt]['pthgrid']
@@ -165,6 +132,7 @@ HH = dstopo_nep['depth'].data
 HH = np.where(HH < 1.e-20, np.nan, HH)
 HH = -HH
 HH = np.where(np.isnan(HH), 1., HH)
+jdm, idm = HH.shape
 
 # Find closest output:
 YR0, jday0, dnmb0, flname_out = manseas.find_closest_output(pthfcst, dnmbR, fld=outfld)
@@ -187,7 +155,7 @@ CIce = dset['siconc'].isel(time=0).data
 if varnm == 'iconc':
   A2d = CIce
 elif varnm == 'ithck':
-  A2d = CIce*HIce
+  A2d = CIce*HIce 
 
 # Add observed ice conc:
 # fields are downloaded from the Near-Real-Time NOAA/NSIDC 
@@ -265,15 +233,12 @@ yrs, mms, dds = dv_av1[:3]
 dv_av2 = mtime.datevec(dnmb_av2)
 yre, mme, dde = dv_av2[:3]
 
-sttl = f"{runname} {varnm} avrg: {yrs}/{mms}/{dds}-{yre}/{mme}/{dde}"
-if j0 >= 0 and i0 >= 0:
-  sttl = sttl + f"\n Test pnt iF0/jF0 = {iF0}/{jF0} {varnm}={A2d[j0,i0]:.6f}"
 # Stereographic Map projection:
-from mpl_toolkits.basemap import Basemap, cm
-m = Basemap(width=3300*1.e3,height=3700*1.e3, resolution='l',\
-            projection='stere', lat_ts=60, lat_0=65, lon_0=-175)
-
-xR, yR = m(hlon, hlat)
+#from mpl_toolkits.basemap import Basemap, cm
+#m = Basemap(width=3300*1.e3,height=3700*1.e3, resolution='l',\
+#            projection='stere', lat_ts=60, lat_0=65, lon_0=-175)
+#
+#xR, yR = m(hlon, hlat)
 
 # Observied ice thickness
 if f_obsthck:
@@ -309,22 +274,18 @@ if f_obsthck:
 
 plt.ion()
 
+sttl = f"{runname} {varnm} avrg: {yrs}/{mms}/{dds}-{yre}/{mme}/{dde}\n"
+sttl = sttl + f"Test pnt iF0/jF0 = {iF0}/{jF0} {A2d[j0,i0]:.6f}"
+
 fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
 ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
-m.drawcoastlines()
-m.drawparallels(np.arange(-90.,120.,10.))
-m.drawmeridians(np.arange(-180.,180.,10.))
+img = ax1.pcolormesh(A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
+ax1.plot(i0,j0,'o')
 
-img = m.pcolormesh(xR, yR, A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
-#m.contour(xR, yR, HH, [-1000], colors=[(0,0,0)], linestyles='solid')
-
-# Show test pnt:
-if j0 >= 0 and i0 >=0:
-  xTst, yTst = m(hlon[j0,i0],hlat[j0,i0])
-  ax1.plot(xTst,yTst,'o')
-
-#ax1.axis('scaled')
+ax1.axis('scaled')
+ax1.set_xlim([100,idm])
+ax1.set_ylim([550,jdm])
 ax1.set_title(sttl)
 
 # Show observed ice edge:
@@ -346,8 +307,8 @@ if f_cntrobs:
       Xc[ipp] = xc0
       Yc[ipp] = yc0
 
-    Xcm, Ycm = m(Xc,Yc)
-    ax1.plot(Xcm, Ycm, linewidth=2, color=[1,0,0])
+#    Xcm, Ycm = m(Xc,Yc)
+    ax1.plot(Xc, Yc, linewidth=2, color=[1,0,0])
 
   ss2   = f'NSIDC iconc: {drflnsidc}' 
   sinfo = sinfo + ss2
@@ -358,7 +319,8 @@ if f_obsthck:
 
 
 if varnm == 'ithck':
-  ax1.contour(xR, yR, A2d,[6, 10, 14], linestyles='solid', colors=[(0.95, 0.95, 0.95)])
+  ax1.contour(A2d,[4, 6, 8, 10, 14], \
+     linestyles='solid', linewidths=1, colors=[(0.95, 0.95, 0.95)])
 
 ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,
                    0.02, ax1.get_position().height])
@@ -376,7 +338,7 @@ ax3.text(0, 0, sinfo, fontsize=8)
 ax3.axis('off')
 
 
-btx = 'plot_seaice.py'
+btx = 'plot_seaice_IJcoords.py'
 bottom_text(btx, pos=[0.2, 0.01])
 
 

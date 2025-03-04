@@ -3,6 +3,8 @@
   Time scale can vary spatially allowing different relaxation
   rates for different parts of the domain
 
+  Relaxation field is created using complex transformation/mapping technique
+ 
 """
 import datetime as dt
 import numpy as np
@@ -38,7 +40,7 @@ from mod_utils_fig import bottom_text
 # rx_min, ry_min - approximate # of i, j pnts from the ice OBs
 #                  i.e., from i=imax to Ber. Str. (342-200)
 # relaxation time scales will be going to 0 away from the ice OBs
-rate_max_hrs  = 1.                       # max relaxation time
+rate_max_hrs  = 1.                     # max relaxation time
 Irate_max_sec = 1./(rate_max_hrs*3600.)  # relaxation rate, s-1
 
 f_save = False           # Save netcdf relax file
@@ -63,7 +65,6 @@ damp=dt*irlx
 I1pdamp=1./(1+damp)
 # Relaxation:
 anew = I1pdamp*(aold+aref*damp)
-
 
 
 # MOM6 NEP topo/grid:
@@ -114,16 +115,18 @@ ieE = jdmD
 irmaxE = 120
 
 # Adjust exponential decay of the relaxation off the Y=0 axis:
+f_adj = False
 sgmx = idm/4  # controls exponential decay in the Gaussian, decrease the denom. to slow the decay
 RLX = np.zeros((jdmD, idmD))
 for jj in range(jdmD):
   irmax0 = irmax
-  if jj>=isN and jj<=ieN:
-    irmax0 = irmaxN + int((irmax-irmaxN)/(ieN-isN-1)*(jj-isN))
-  elif jj<isN:
-    irmax0 = irmaxN
-  elif jj>=isE and jj<=ieE:
-    irmax0 = irmax + int((irmaxE-irmax)/(ieE-isE-1)*(jj-isE))
+  if f_adj:
+    if jj>=isN and jj<=ieN:
+      irmax0 = irmaxN + int((irmax-irmaxN)/(ieN-isN-1)*(jj-isN))
+    elif jj<isN:
+      irmax0 = irmaxN
+    elif jj>=isE and jj<=ieE:
+      irmax0 = irmax + int((irmaxE-irmax)/(ieE-isE-1)*(jj-isE))
 
   aa = np.exp(-((X-irmax0)**2/sgmx**2))
   aa = aa/np.max(aa)
@@ -203,7 +206,8 @@ ds_rlx = ds_rlx.to_dataset()
 ds_rlx[rlx_name].attrs['units'] = 's-1'
 ds_rlx[rlx_name].attrs['cell_method'] = 'time: point'
 
-ds_rlx.attrs["history"] = f"Created /home/Dmitry.Dukhovskoy/python/sis2_relax/{btx}"
+cwd = os.getcwd()
+ds_rlx.attrs["history"] = f"Created {cwd}/{btx}"
 
 
 if f_save:
@@ -250,12 +254,21 @@ if check_rlx:
 
   img = ax0.pcolormesh(xR, yR, AP, cmap=clrmp, vmin=rmin, vmax=rmax)
 #  img = ax0.pcolormesh(RLXHR, cmap=clrmp)
-  tscntrs = [1,2,5,10,40]
+  if rate_max_hrs <= 2:
+    tscntrs = [1,2,5,10,40]
+  elif rate_max_hrs <=4:
+    tscntrs = [4,6,10,40,60]
+  elif rate_max_hrs <=24:
+    tscntrs = [24,26,30,50,80]
+  elif rate_max_hrs <=120:
+    tscntrs = [120,150,240,300,500]
+
+
   tslabels = tscntrs
   CS = ax0.contour(xR,yR,RLXHR,tscntrs, linestyles='solid', linewidths=1, colors=[(0., 0., 0.)])
   ax0.clabel(CS, tslabels,inline=1, fontsize=10)
 
-  ax0.set_title(f'Relaxation rate (s-1), contours: hrs')
+  ax0.set_title(f'Relaxation rate (s-1), contours: hrs, strongest rlx {rate_max_hrs:.1f} hrs')
 
   ax2 = fig1.add_axes([ax0.get_position().x1+0.025, ax0.get_position().y0,
                      0.02, ax0.get_position().height])
@@ -287,9 +300,11 @@ if check_ref_domain:
   """
   plt.ion()
 
-  clrmp = mclrmps.colormap_temp2()
-  rmin = 0.
-  rmax = 1.
+  #clrmp = mclrmps.colormap_temp2()
+  #rmin = 0.
+  #rmax = 1.
+  clrmp = mclrmps.colormap_conc()
+  clrmp.set_bad(color=[1, 1, 1])
 
   fig1 = plt.figure(1,figsize=(9,8))
   plt.clf()
@@ -298,6 +313,7 @@ if check_ref_domain:
   ax1 = axes_refdom(ax1,X,Y)
   ax1.set_title('Reference domain')
 
+  
   ax2 = plt.axes([0.5, 0.55, 0.4, 0.4])
   ax2.pcolormesh(X,Y,RMAP1, cmap=clrmp)
   ax2 = axes_refdom(ax2,X,Y)
