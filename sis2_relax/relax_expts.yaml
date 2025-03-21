@@ -27,4 +27,8 @@ seasonal_daily:
     dt_idyn: 600.
     dt_slow: 3600.
     rlx_max: 0.     
+  "03":
+    dt_idyn: 600.
+    dt_slow: 3600.
+    rlx_max: 24.     
 

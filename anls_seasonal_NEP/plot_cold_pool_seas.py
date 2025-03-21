@@ -54,17 +54,22 @@ importlib.reload(manseas)
 expt     = 'seasonal_daily'  # seasonal forecasts with dailyOB from SPEAR
 varnm    = 'salin'  # temp (potential) / salin
 #dnmbS    = mtime.datenum([2015,1,1])
+nensR    = 1
+expt_nmb = 2   # 2 - seas f/casts with dailyOB, #3 - seas f/cast with ice relaxation
 # Averaging time period:
-MMS   = 1    # f/cast init. month in each year, can be changed to months: 1, 4, 7, 10
-YAVRG = [x for x in range(2005,2015)]
+MMS   = 4    # f/cast init. month in each year, can be changed to months: 1, 4, 7, 10
+YRS = 1996
+YRE = YRS
+YAVRG = [x for x in range(YRS,YRE+1)]
 #YAVRG = [x for x in range(2005,2006)]
-#MAVRG = [1,2,3]  # months to average: Winter  JFM, Summer: JAS
+MAVRG = [1,2,3]  # months to average: Winter  JFM, Summer: JAS
 #MAVRG = [4,5,6]  # months to average: Spring, AMJ
 #MAVRG = [7,8,9]  # months to average: Winter  JFM, Summer: JAS
-MAVRG = [10,11,12]  # months to average: Fall
+#MAVRG = [10,11,12]  # months to average: Fall
 
-nensR    = 1
-expt_nmb = 2   # 2 - seas f/casts with dailyOB
+if YRS == 1993 and MMS == 1:
+  raise Exception("First initial month should be 4 for 1993, given MMS={MMS}")
+
 
 
 expt_name = f'NEPphys_frcst_dailyOB-expt{expt_nmb:02d}'
@@ -140,8 +145,8 @@ if msk_save:
 
 ocnfld = 'oceanm'
 pthoutp0 = pthseas['MOM6_NEP'][expt]['pthoutp'].format(expt_nmb=expt_nmb)
-YR=2011
-MM=4
+YR=YAVRG[0]
+MM=MMS
 subdir=f'oceanm_{YR}{MM:02d}'
 pthfcst0 = os.path.join(pthoutp0,f'{YR}-{MM:02d}-e01','history')
 list_files = manseas.list_oceanice_files(pthfcst0, prefix=ocnfld, subdir=subdir)

@@ -84,6 +84,7 @@ LON, LAT = np.meshgrid(lon1d, lat1d)
 # fields are downloaded from the Near-Real-Time NOAA/NSIDC 
 # Climate Data Record of Passive Microwave Sea Ice Concentration 
 # https://nsidc.org/data/g10016
+# Use script: /home/Dmitry.Dukhovskoy/scripts/data_process/get_NRT_seaconc.sh
 f_cntrice = True
 if f_cntrice:
   pthnsidc = pthseas["NRT_NSIDC"]['pthdaily'].format(YR=YR)

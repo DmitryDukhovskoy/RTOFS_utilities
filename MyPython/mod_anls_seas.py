@@ -582,8 +582,9 @@ def monthly_avrg_vertxsect(pthfcst, yrR, moR, JJ, II, varnm):
 
 def derive_bottom_temp(T3d, dP, dpmin=1.e-1):
   """
-    Derive bottom temperature from 3D T field
+    Derive bottom temperature / salinity / etc  from 3D T/S/U/... field
     Bottom layers defined on min layer thickness dpmin
+    dP - layer thicknesses
   """
   kdm, jdm, idm = T3d.shape
   Tbtm = np.zeros((jdm,idm))*np.nan
@@ -601,11 +602,11 @@ def derive_bottom_temp(T3d, dP, dpmin=1.e-1):
 
   return Tbtm
 
-def yrmo_seasonal_fcst(yr_start, mo_start, nmo_fcst=12):
+def yrmo_seasonal_fcst(yr_init, mo_init, nmo_fcst=12):
   """
-    Find years / months for a seasonal f/cast that starts on yr_start / mo_start
+    Find calendar years / months for a seasonal f/cast that starts on yr_init / mo_init
   """
-  dstrt = mtime.datenum([yr_start, mo_start,15])
+  dstrt = mtime.datenum([yr_init, mo_init,15])
   dold = dstrt - 32
 
   Time = np.zeros((nmo_fcst, 2)).astype(int)
@@ -619,7 +620,38 @@ def yrmo_seasonal_fcst(yr_start, mo_start, nmo_fcst=12):
 
   return Time
 
-def monthly_mean_from_Ndaily_ocean2D(pthfcst0, yr_start, mo_start, varnm, ocnfld, vlr, MAVRG=[1]):
+def mofcst_from_mocalend(yr_init,mo_init,MM):
+  """
+    Find forecast month # wrt to init date yr_init/mo_init  given calendar month
+  """
+  if MM < mo_init:
+    MM = MM + 12
+  mo_fcst = MM-mo_init+1
+
+  return mo_fcst
+
+def yr_init_fcst_from_datenum(dnmb, MMI):
+  """
+    Find init year of the forecast given init month=MMI that includes
+     date = datenum (day number dnmb) 
+    For year-long f/casts, i.e. the f/fcasts initiliazed on MMI/1 run for 12 months 
+  """
+  yr0, mm0, dd0 = mtime.datevec(dnmb)[:3]
+  dnmbF_start  = mtime.datenum([yr0,MMI,1])
+  dmm = dnmbF_start + 367
+  yy, mm, dd = mtime.datevec(dmm)[:3]
+  dmm = mtime.datenum([yy,mm,1])
+  dnmbF_end = dmm - 1 
+  if dnmb >= dnmbF_start and dnmb <= dnmbF_end:
+    yr_init = yr0
+  elif dnmb < dnmbF_start:
+    yr_init = yr0-1
+  else:
+    raise Excpetion(f"Could not find year init for {yr0}/{mm0}/{dd0}")
+
+  return yr_init
+
+def monthly_mean_from_Ndaily_ocean2D(pthfcst0, yr_init, mo_init, varnm, ocnfld, vlr, MAVRG=[1]):
   """
     From N-day average ocean 3D fields: 
     for 1 v. layer only
@@ -630,7 +662,7 @@ def monthly_mean_from_Ndaily_ocean2D(pthfcst0, yr_start, mo_start, varnm, ocnfld
   """
   import pandas as pd
 
-  mo_fcsts = yrmo_seasonal_fcst(yr_start, mo_start)
+  mo_fcsts = yrmo_seasonal_fcst(yr_init, mo_init)
 # Time-average fields:
   icc = 0
   ilr = vlr-1
@@ -677,26 +709,37 @@ def monthly_mean_from_Ndaily_ocean2D(pthfcst0, yr_start, mo_start, varnm, ocnfld
 
   return Asum, Time
 
-def monthly_mean_from_Ndaily_ocean3D(pthfcst0, yr_start, mo_start, varnm, ocnfld, MAVRG=[1]):
+def monthly_mean_from_Ndaily_ocean3D(pthfcst0, yr_init, mo_init, varnm, \
+                                     ocnfld, MAVRG=[1], mnth='calendar'):
   """
     From N-day average ocean 3D fields: 
     for all v. layers
     compute monthly average 2D field for given variable and model layer(s)
+
+    Default (mnth='calendar'):
     Field is averaged over MAVRG months (1 = Jan, 2 - Feb, etc)
     Months will be related to the years of the forecast, i.e.
     Jan for the f/cast that starts on 2013/10 will be Jan-2014
+
+    mnth='fcst':
+     Month are counted from the initial time (i.e. lead time)
+     mnth=1 - 1st month of the f/cast, etc. 
   """
   import pandas as pd
 
-  mo_fcsts = yrmo_seasonal_fcst(yr_start, mo_start)
+  mo_fcsts = yrmo_seasonal_fcst(yr_init, mo_init)
 # Time-average fields:
   icc = 0
   Time = []
   for imo in MAVRG:
-    ix = np.where(mo_fcsts[:,1] == imo)[0][0]
-    yr_fcst = mo_fcsts[ix,0]
-    pthfcst = os.path.join(pthfcst0,f'{ocnfld}_{yr_fcst}{imo:02d}')
-    print(f'Avergaing {varnm} {yr_fcst}/{imo:02d}')
+    if mnth=='calendar':
+      ix = np.where(mo_fcsts[:,1] == imo)[0][0]
+    elif mnth=='fcst':
+      ix = imo-1
+    yr_fcst   = mo_fcsts[ix,0]
+    mnth_fcst = mo_fcsts[ix,1]
+    pthfcst = os.path.join(pthfcst0,f'{ocnfld}_{yr_fcst}{mnth_fcst:02d}')
+    print(f'Avergaing {varnm} {yr_fcst}/{mnth_fcst:02d}')
 
     LOUTP = [fl for fl in os.listdir(pthfcst) if os.path.isfile(os.path.join(pthfcst, fl))]
     if len(LOUTP) == 0:
@@ -732,7 +775,82 @@ def monthly_mean_from_Ndaily_ocean3D(pthfcst0, yr_start, mo_start, varnm, ocnfld
 
   return Asum, Time
 
-def monthly_depth_mean_from_Ndaily3D(pthfcst0, yr_start, mo_start, varnm, ocnfld, vlr1, vlr2, MAVRG=[1]):
+def monthly_TSbtm_Ndaily_ocean3D(pthfcst0, yr_init, mo_init, varnm, \
+                                     ocnfld, MAVRG=[1], mnth='calendar'):
+  """
+    From N-day derive T/S bottom statistics from 3D fields: 
+
+    Default (mnth='calendar'):
+    Field is averaged over MAVRG months (1 = Jan, 2 - Feb, etc)
+    Months will be related to the years of the forecast, i.e.
+    Jan for the f/cast that starts on 2013/10 will be Jan-2014
+
+    mnth='fcst':
+     Month are counted from the initial time (i.e. lead time)
+     mnth=1 - 1st month of the f/cast, etc. 
+  """
+  import pandas as pd
+
+  mo_fcsts = yrmo_seasonal_fcst(yr_init, mo_init)
+# Time-average fields:
+  icc = 0
+  Time = []
+  for imo in MAVRG:
+    if mnth=='calendar':
+      ix = np.where(mo_fcsts[:,1] == imo)[0][0]
+    elif mnth=='fcst':
+      ix = imo-1
+    yr_fcst   = mo_fcsts[ix,0]
+    mnth_fcst = mo_fcsts[ix,1]
+    pthfcst = os.path.join(pthfcst0,f'{ocnfld}_{yr_fcst}{mnth_fcst:02d}')
+    print(f'Avergaing {varnm} {yr_fcst}/{mnth_fcst:02d}')
+
+    LOUTP = [fl for fl in os.listdir(pthfcst) if os.path.isfile(os.path.join(pthfcst, fl))]
+    if len(LOUTP) == 0:
+      print(f'No output found in {pthfcst}')
+      continue
+
+    for ifl in range(len(LOUTP)):
+      flocn_name = LOUTP[ifl]
+      dfmom6 = os.path.join(pthfcst, flocn_name)
+      dset   = xarray.open_dataset(dfmom6)
+      if varnm == 'temp' or varnm == 'potT':
+        A3d = dset['potT'].isel(time=0).data.squeeze()
+      elif varnm == 'salin' or varnm == 'salt':
+        A3d = dset['salt'].isel(time=0).data.squeeze()
+
+      tm = dset['time'].data
+      tmP = pd.to_datetime(tm)
+      yr0 = tmP.year[0]
+      mo0 = tmP.month[0]
+      dd0 = tmP.day[0]
+      dnmb0 = mtime.datenum([yr0,mo0,dd0])
+      Time.append(dnmb0)
+
+      # Read dP only once
+      if icc == 0:
+        dP = dset['h'].data.squeeze()
+        dP = np.where(dP < 1.e-3, 0., dP)
+
+      Abtm = derive_bottom_temp(A3d, dP)
+      Abtm = np.expand_dims(Abtm, axis=0)
+
+      if icc == 0:
+        AA = Abtm.copy()
+      else:
+        AA = np.append(AA, Abtm, axis=0)
+
+      icc += 1
+
+  # Get statistics:
+  Amean = np.mean(AA, axis=0)
+  Astd  = np.std(AA, axis=0)
+
+  print(f'N time records={icc}, min/max mean = {np.nanmin(Amean):.3f} / {np.nanmax(Amean):.3f}')  
+
+  return Amean, Astd, Time
+
+def monthly_depth_mean_from_Ndaily3D(pthfcst0, yr_init, mo_init, varnm, ocnfld, vlr1, vlr2, MAVRG=[1]):
   """
     From N-day average ocean 3D fields: 
     average over v. layers and 
@@ -743,7 +861,7 @@ def monthly_depth_mean_from_Ndaily3D(pthfcst0, yr_start, mo_start, varnm, ocnfld
   """
   import pandas as pd
 
-  mo_fcsts = yrmo_seasonal_fcst(yr_start, mo_start)
+  mo_fcsts = yrmo_seasonal_fcst(yr_init, mo_init)
 # Time-average fields:
   icc = 0
   Time = []
@@ -793,7 +911,7 @@ def monthly_depth_mean_from_Ndaily3D(pthfcst0, yr_start, mo_start, varnm, ocnfld
 
   return Asum, Time
 
-def monthly_vsect_mean_from_Ndaily3D(pthfcst0, yr_start, mo_start, varnm, ocnfld, \
+def monthly_vsect_mean_from_Ndaily3D(pthfcst0, yr_init, mo_init, varnm, ocnfld, \
                                      Isct, Jsct, MAVRG=[1], nlrs=75):
   """
     From N-day average ocean 3D fields: 
@@ -810,7 +928,7 @@ def monthly_vsect_mean_from_Ndaily3D(pthfcst0, yr_start, mo_start, varnm, ocnfld
   Isct = Isct.astype(int)
   Jsct = Jsct.astype(int)
 
-  mo_fcsts = yrmo_seasonal_fcst(yr_start, mo_start)
+  mo_fcsts = yrmo_seasonal_fcst(yr_init, mo_init)
 # Time-average fields:
   icc = 0
   Time = []
@@ -902,14 +1020,14 @@ def list_oceanice_files(pthfcst, prefix='oceanm', subdir=''):
     
   return list_files
 
-def timeser_spatavrg(pthfcst0, yr_start, mo_start, JJ, II, lr, varnm, nens, ocnfld, nmo=12):
+def timeser_spatavrg(pthfcst0, yr_init, mo_init, JJ, II, lr, varnm, nens, ocnfld, nmo=12):
   """
     Compute spatially averaged fields from n-daily mean output
     seasonal forecasts
   """
   import pandas as pd
 
-  dstrt = mtime.datenum([yr_start, mo_start,15])
+  dstrt = mtime.datenum([yr_init, mo_init,15])
   dold = dstrt - 32
 
   Tts = []
@@ -999,7 +1117,7 @@ def timeser_spatavrg_stdoutp(pthfcst, archv_fl, varnm, lr, MSKBS, Acell):
   return Tts, Time
 
 
-def timeser_spatavrg_dayoutp(pthfcst0, yr_start, mo_start, varnm, lr, MSKBS, \
+def timeser_spatavrg_dayoutp(pthfcst0, yr_init, mo_init, varnm, lr, MSKBS, \
                              Acell, ocnfld='oceanm', nmo=12):
   """
     Compute spatially averaged fields from n-daily mean output
@@ -1015,7 +1133,7 @@ def timeser_spatavrg_dayoutp(pthfcst0, yr_start, mo_start, varnm, lr, MSKBS, \
   """
   import pandas as pd
 
-  dstrt = mtime.datenum([yr_start, mo_start,15])
+  dstrt = mtime.datenum([yr_init, mo_init,15])
   dold = dstrt - 32
 
   print(f'Computing spatial average {varnm} layer={lr}')
@@ -1073,7 +1191,7 @@ def timeser_spatavrg_dayoutp(pthfcst0, yr_start, mo_start, varnm, lr, MSKBS, \
 
   return Tts, Time
 
-def timeser_spatavrg_GLORYS(pthglorys, yr_start, mo_start, varnm, lr, MSKBS, Acell, ndays=365):
+def timeser_spatavrg_GLORYS(pthglorys, yr_init, mo_init, varnm, lr, MSKBS, Acell, ndays=365):
   """
     Compute spatially averaged fields from GLORYS reanalysis 
     region extraceted for the NEP
@@ -1087,7 +1205,7 @@ def timeser_spatavrg_GLORYS(pthglorys, yr_start, mo_start, varnm, lr, MSKBS, Ace
   """
   import pandas as pd
 
-  dstrt = mtime.datenum([yr_start, mo_start,1])
+  dstrt = mtime.datenum([yr_init, mo_init,1])
 
   print(f'Computing spatial average {varnm} layer={lr}')
   Tts = []
@@ -1942,4 +2060,72 @@ def derive_conservTbtm_from_T3d(T3d, S3d, PR, dP, hlon, hlat):
     Tbtm[Jb, Ib] = tz[Jb, Ib]
 
   return Tbtm
+
+def avrg_cice_NSIDC(YR1, YR2, MM1, MM2, get_coord=True):
+  """
+    Average over years/months monthly ice concentration fields
+    fields are downloaded from the Near-Real-Time NOAA/NSIDC 
+    Climate Data Record of Passive Microwave Sea Ice Concentration 
+    https://nsidc.org/data/g10016
+    Use script: /home/Dmitry.Dukhovskoy/scripts/data_process/get_NRT_seaconc.sh
+
+    for seasonal averaging, assumed that MM1<MM2, i.e. 
+    MM1 = 4, MM2=12
+    if winter season MM1=12, MM2=2 - need to update the code
+  """
+  fyaml = 'paths_seasfcst.yaml'
+  with open(fyaml) as ff:
+    pthseas = safe_load(ff)
+
+  LON = []
+  LAT = []
+  jcc = 0
+  for YR in range(YR1,YR2+1):
+    pthnsidc=pthseas["NRT_NSIDC"]['pthmnth'].format(YR=YR)
+    for MM in range(MM1,MM2+1):
+      fsfx = 'f11'
+      if (YR == 1995 and MM >= 10) or (YR > 1995 and YR <2008):
+        fsfx = 'f13'
+      if (YR >= 2008):
+        fsfx = 'f17'
+    
+      flnsidc  = f'seaice_conc_monthly_nh_{YR}{MM:02d}_{fsfx}_v04r00.nc'
+
+      drflnsidc = os.path.join(pthnsidc, flnsidc)
+      print(f'Reading NTR NSIDC ice conc: {drflnsidc}')
+      dset_nsidc = xarray.open_dataset(drflnsidc)
+
+      ICnrt = dset_nsidc['nsidc_nt_seaice_conc_monthly'].data[0,:].squeeze()
+      ICnrt = np.where(ICnrt>1., np.nan, ICnrt)
+      # Flip NSIDC grid:
+      ICnrt = np.flipud(ICnrt)
+
+      if get_coord:
+        Xnrt  = dset_nsidc['xgrid'].data
+        Ynrt  = dset_nsidc['ygrid'].data
+        # Flip grid:
+        Ynrt  = np.flipud(Ynrt)
+
+      # Convert Polar Coordinates to Geostatic coordinates (lon/lat)
+        import mod_misc1 as mmisc
+        XX, YY = np.meshgrid(Xnrt, Ynrt, indexing='xy')
+        LON, LAT = mmisc.convert_polarXY_lonlat(XX,YY)
+
+      # Make lon 0, 360 to match NEP grid
+        LON = np.where(LON<0, LON+360., LON)
+
+        get_coord = False
+
+
+      if jcc == 0:
+        ICM = ICnrt
+      else:
+        ICM = ICM + ICnrt
+
+      jcc += 1        
+
+  ICM = ICM.squeeze()/jcc
+
+  return ICM, LON, LAT
+
 

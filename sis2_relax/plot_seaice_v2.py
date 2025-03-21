@@ -3,7 +3,8 @@
   For plotting most recent runs with ice relaxation
   For plotting older runs, use plot_seatice.py
  
-  usage: plot_seaice_v2.py --varnm={ithkn,iconc} --yr=1993 --mo=8 --day=12 --jday=138
+  usage: plot_seaice_v2.py --varnm={ithkn,iconc} --expt=2 --YRS=1993 --MMS=4 --yr=1993 \
+                           --mo=8 --day=12 --jday=138
   jday = day of the year to plot
   or can provide date using month/day
  
@@ -50,6 +51,8 @@ parser.add_argument("--day", help="day to plot: 1, ..., 31", type=int)
 parser.add_argument("--jday", help="year day to plot: 1, ..., 366", type=int)
 parser.add_argument("--varnm", help="field to plot: ithkn or iconc", type=str)
 parser.add_argument("--expt", help="experiment number: 1, ...", type=int)
+parser.add_argument("--YRS", help="init year of f/cast, 1993, ...", type=int)
+parser.add_argument("--MS", help="init month of f/cast, 1,4,7,10", type=int)
 args = parser.parse_args()
 
 # experiment: year start, month start, ...
@@ -91,6 +94,10 @@ if args.jday:
   jday_plt = args.jday
 if args.expt:
   expt_nmb = args.expt
+if args.YRS:
+  YRS = args.YRS
+if args.MS:
+  MS = args.MS
 
 if jday_plt >0 and jday_plt <=366:
   dnmbR  = mtime.jday2dnmb(yr_plt,jday_plt)
@@ -105,7 +112,6 @@ else:
 #runname  = 'isponge_test'
 #
 expt     = "seasonal_daily"
-expt_nmb = 2  # only 1 experiment 
 runname  = f"NEPphys_frcst_dailyOB-expt{expt_nmb:02d}"
 #
 expt_nmb0 = f"{expt_nmb:02d}"

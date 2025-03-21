@@ -1,6 +1,8 @@
 """
   Create relax fields from PIOMAS monthly ice thickness and concentration
 
+  usage: piomas_relaxation_yearly.py --yrs 1994 --yre 1995 --fsave 1
+
   monthly fields
   1901 - 2010
   https://psc.apl.uw.edu/research/projects/piomas-20c/
@@ -36,6 +38,7 @@ import sys
 import matplotlib.pyplot as plt
 import pickle
 from yaml import safe_load
+import argparse
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
@@ -53,12 +56,29 @@ import mod_utils as mutil
 import mod_colormaps as mclrmps
 import mod_misc1 as mmisc
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--yrs",   help="year start to extract PIOMAS: 1993, ..., 2020", type=int)
+parser.add_argument("--yre",   help="year end to extract PIOMAS: 1993, ..., 2020", type=int)
+parser.add_argument("--fsave", help="flag > 0 to save the output", type=int)
+args = parser.parse_args()
+
 f_save = True
-YRs = 1993
-YRe = 1994    # make YRe=YRs to create 1 yr field with padded start/end of the year
+YRs = 1994
+YRe = 1995    # make YRe=YRs to create 1 yr field with padded start/end of the year
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
                        # for monthly, daily, etc. need -dt and +dt at the beginn/end 
+
+
+if args.yrs:
+  YRs = args.yrs
+if args.yre:
+  YRe = args.yre
+if args.fsave > 0:
+  f_save = True
+else:
+  f_save = False
+
 
 fyaml = 'pypaths_gfdlpub.yaml'
 with open(fyaml) as ff:
@@ -104,7 +124,7 @@ fgmapi  = f'PIOMAS_mom6_NEP_gmapi_{jdm}x{idm}.pkl'
 dfgmapi = os.path.join(pthsis, fgmapi)
 
 if os.path.isfile(dfgmapi):
-  print('Loading gmapi <-- {dfgmapi}')
+  print(f'Loading gmapi <-- {dfgmapi}')
   with open(dfgmapi, 'rb') as fid:
    IMOM, JMOM, INDX, JNDX = pickle.load(fid) 
 else:

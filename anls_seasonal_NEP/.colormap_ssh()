@@ -1,0 +1,58 @@
+[0;31mSignature:[0m
+[0mmclrmps[0m[0;34m.[0m[0mcolormap_ssh[0m[0;34m([0m[0;34m[0m
+[0;34m[0m    [0mcpos[0m[0;34m=[0m[0;34m'Oranges'[0m[0;34m,[0m[0;34m[0m
+[0;34m[0m    [0mcneg[0m[0;34m=[0m[0;34m'Blues_r'[0m[0;34m,[0m[0;34m[0m
+[0;34m[0m    [0mnclrs[0m[0;34m=[0m[0;36m100[0m[0;34m,[0m[0;34m[0m
+[0;34m[0m    [0mclr_ramp[0m[0;34m=[0m[0;34m[[0m[0;36m1[0m[0;34m,[0m [0;36m1[0m[0;34m,[0m [0;36m1[0m[0;34m][0m[0;34m,[0m[0;34m[0m
+[0;34m[0m[0;34m)[0m[0;34m[0m[0;34m[0m[0m
+[0;31mSource:[0m   
+[0;32mdef[0m [0mcolormap_ssh[0m[0;34m([0m[0mcpos[0m[0;34m=[0m[0;34m'Oranges'[0m[0;34m,[0m[0mcneg[0m[0;34m=[0m[0;34m'Blues_r'[0m[0;34m,[0m[0mnclrs[0m[0;34m=[0m[0;36m100[0m[0;34m,[0m [0mclr_ramp[0m[0;34m=[0m[0;34m[[0m[0;36m1[0m[0;34m,[0m[0;36m1[0m[0;34m,[0m[0;36m1[0m[0;34m][0m[0;34m)[0m[0;34m:[0m[0;34m[0m
+[0;34m[0m  [0;34m"""[0m
+[0;34m    Create colormaps for showing positive/negative ranges[0m
+[0;34m    clr_ramp - color in the middle of the colormap[0m
+[0;34m    nclrs - # of colors in positve or negative segments[0m
+[0;34m  """[0m[0;34m[0m
+[0;34m[0m  [0;32mfrom[0m [0mmatplotlib[0m [0;32mimport[0m [0mcm[0m[0;34m[0m
+[0;34m[0m  [0;32mfrom[0m [0mmatplotlib[0m[0;34m.[0m[0mcolors[0m [0;32mimport[0m [0mListedColormap[0m[0;34m,[0m [0mLinearSegmentedColormap[0m[0;34m[0m
+[0;34m[0m[0;34m[0m
+[0;34m[0m  [0mbtm[0m [0;34m=[0m [0mcm[0m[0;34m.[0m[0mget_cmap[0m[0;34m([0m[0mcpos[0m[0;34m,[0m[0mnclrs[0m[0;34m)[0m[0;34m[0m
+[0;34m[0m  [0mixpos[0m  [0;34m=[0m [0mround[0m[0;34m([0m[0mnclrs[0m[0;34m*[0m[0;36m0.1[0m[0;34m)[0m[0;34m-[0m[0;36m1[0m[0;34m[0m
+[0;34m[0m  [0mclrpos[0m [0;34m=[0m [0mbtm[0m[0;34m([0m[0mrange[0m[0;34m([0m[0mnclrs[0m[0;34m)[0m[0;34m)[0m[0;34m[0m
+[0;34m[0m  [0mchpos[0m  [0;34m=[0m [0mnp[0m[0;34m.[0m[0mzeros[0m[0;34m([0m[0;34m([0m[0mixpos[0m[0;34m,[0m[0;36m4[0m[0;34m)[0m[0;34m)[0m[0;34m[0m
+[0;34m[0m  [0mchneg[0m  [0;34m=[0m [0mnp[0m[0;34m.[0m[0mzeros[0m[0;34m([0m[0;34m([0m[0mixpos[0m[0;34m,[0m[0;36m4[0m[0;34m)[0m[0;34m)[0m[0;34m[0m
+[0;34m[0m[0;34m[0m
+[0;34m[0m[0;31m# Positive colors:[0m[0;34m[0m
+[0;34m[0m[0;31m# Add white at the beginning:[0m[0;34m[0m
+[0;34m[0m  [0mfixclr[0m [0;34m=[0m [0mclrpos[0m[0;34m[[0m[0mixpos[0m[0;34m,[0m[0;34m:[0m[0;34m][0m[0;34m[0m
+[0;34m[0m  [0mchpos[0m[0;34m[[0m[0;34m:[0m[0;34m,[0m[0;36m3[0m[0;34m][0m [0;34m=[0m [0mfixclr[0m[0;34m[[0m[0;36m3[0m[0;34m][0m[0;34m[0m
+[0;34m[0m[0;34m[0m
+[0;34m[0m  [0mclr_ramp[0m[0;34m=[0m[0;34m[[0m[0;36m1[0m[0;34m,[0m[0;36m1[0m[0;34m,[0m[0;36m1[0m[0;34m][0m[0;34m[0m
+[0;34m[0m  [0;32mfor[0m [0mik[0m [0;32min[0m [0mrange[0m[0;34m([0m[0;36m3[0m[0;34m)[0m[0;34m:[0m[0;34m[0m
+[0;34m[0m    [0mcc0[0m [0;34m=[0m [0mclr_ramp[0m[0;34m[[0m[0mik[0m[0;34m][0m[0;34m[0m
+[0;34m[0m    [0mchpos[0m[0;34m[[0m[0;34m:[0m[0;34m,[0m[0mik[0m[0;34m][0m  [0;34m=[0m [0mnp[0m[0;34m.[0m[0mlinspace[0m[0;34m([0m[0mfixclr[0m[0;34m[[0m[0mik[0m[0;34m][0m[0;34m,[0m[0mcc0[0m[0;34m,[0m[0mixpos[0m[0;34m)[0m[0;34m[0m
+[0;34m[0m[0;34m[0m
+[0;34m[0m  [0mchpos[0m [0;34m=[0m [0mnp[0m[0;34m.[0m[0mflip[0m[0;34m([0m[0mchpos[0m[0;34m,[0m [0maxis[0m[0;34m=[0m[0;36m0[0m[0;34m)[0m[0;34m[0m
+[0;34m[0m  [0mclrpos[0m[0;34m[[0m[0;34m:[0m[0mixpos[0m[0;34m,[0m[0;34m:[0m[0;34m][0m [0;34m=[0m [0mchpos[0m[0;34m[0m
+[0;34m[0m[0;34m[0m
+[0;34m[0m[0;31m# Negative ssh range:[0m[0;34m[0m
+[0;34m[0m[0;31m# Add white at the top[0m[0;34m[0m
+[0;34m[0m  [0mclr0[0m    [0;34m=[0m [0mcm[0m[0;34m.[0m[0mget_cmap[0m[0;34m([0m[0mcneg[0m[0;34m,[0m[0mnclrs[0m[0;34m)[0m[0;34m[0m
+[0;34m[0m  [0mclrneg[0m  [0;34m=[0m [0mclr0[0m[0;34m([0m[0mrange[0m[0;34m([0m[0mnclrs[0m[0;34m)[0m[0;34m)[0m[0;34m[0m
+[0;34m[0m  [0mixneg[0m   [0;34m=[0m [0mnclrs[0m [0;34m-[0m [0mixpos[0m [0;34m-[0m [0;36m1[0m[0;34m[0m
+[0;34m[0m  [0mfixnegc[0m [0;34m=[0m [0mclrneg[0m[0;34m[[0m[0mixneg[0m[0;34m,[0m[0;34m:[0m[0;34m][0m[0;34m[0m
+[0;34m[0m  [0mchneg[0m[0;34m[[0m[0;34m:[0m[0;34m,[0m[0;36m3[0m[0;34m][0m [0;34m=[0m [0mfixnegc[0m[0;34m[[0m[0;36m3[0m[0;34m][0m[0;34m[0m
+[0;34m[0m[0;34m[0m
+[0;34m[0m  [0;32mfor[0m [0mik[0m [0;32min[0m [0mrange[0m[0;34m([0m[0;36m3[0m[0;34m)[0m[0;34m:[0m[0;34m[0m
+[0;34m[0m    [0mcc0[0m [0;34m=[0m [0mclr_ramp[0m[0;34m[[0m[0mik[0m[0;34m][0m[0;34m[0m
+[0;34m[0m    [0mchneg[0m[0;34m[[0m[0;34m:[0m[0;34m,[0m[0mik[0m[0;34m][0m  [0;34m=[0m [0mnp[0m[0;34m.[0m[0mlinspace[0m[0;34m([0m[0mfixnegc[0m[0;34m[[0m[0mik[0m[0;34m][0m[0;34m,[0m[0mcc0[0m[0;34m,[0m[0mixpos[0m[0;34m)[0m[0;34m[0m
+[0;34m[0m[0;34m[0m
+[0;34m[0m[0;31m#  chneg = np.flip(chneg, axis=0)[0m[0;34m[0m
+[0;34m[0m  [0mclrneg[0m[0;34m[[0m[0mixneg[0m[0;34m+[0m[0;36m1[0m[0;34m:[0m[0mnclrs[0m[0;34m,[0m[0;34m:[0m[0;34m][0m [0;34m=[0m [0mchneg[0m[0;34m[0m
+[0;34m[0m[0;34m[0m
+[0;34m[0m  [0mnewclrs[0m [0;34m=[0m [0mnp[0m[0;34m.[0m[0mappend[0m[0;34m([0m[0mclrneg[0m[0;34m,[0m[0mclrpos[0m[0;34m,[0m [0maxis[0m[0;34m=[0m[0;36m0[0m[0;34m)[0m[0;34m[0m
+[0;34m[0m[0;31m#  newclrs = clrbtm[0m[0;34m[0m
+[0;34m[0m  [0mnewcmp[0m  [0;34m=[0m [0mListedColormap[0m[0;34m([0m[0mnewclrs[0m[0;34m)[0m[0;34m[0m
+[0;34m[0m[0;34m[0m
+[0;34m[0m  [0;32mreturn[0m [0mnewcmp[0m[0;34m[0m[0;34m[0m[0m
+[0;31mFile:[0m      ~/python/MyPython/draw_map/mod_colormaps.py
+[0;31mType:[0m      function

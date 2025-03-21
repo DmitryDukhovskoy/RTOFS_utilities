@@ -56,21 +56,22 @@ import mod_utils_ob as mutob
 importlib.reload(mutob)
 importlib.reload(manseas)
 
-#data_plot = 'seasonal_fcst'  # from seasonal f/casts output
+data_plot = 'seasonal_fcst'  # from seasonal f/casts output
 #data_plot = 'glorys'   # from GLORYS data
-data_plot = 'gofs31'   # from GOFS3.1 
+#data_plot = 'gofs31'   # from GOFS3.1 
 
 # Initial date
 # Look at ens run #1 - the only ens. that has 5-day av. output fields
 expt     = 'seasonal_daily'  # seasonal forecasts with dailyOB from SPEAR
-varnm    = 'salin'  # temp (potential) / salin
 #dnmbS    = mtime.datenum([2015,1,1])
 # Averaging time period:
 MMS   = 1    # f/cast init. month in each year, can be changed to months: 1, 4, 7, 10
-YAVRG = [x for x in range(2005,2015)]
+YRS = 1996
+YRE = YRS
+YAVRG = [x for x in range(YRS,YRE+1)]
 
 nensR    = 1
-expt_nmb = 2   # 2 - seas f/casts with dailyOB
+expt_nmb = 2   # 2 - seas f/casts with dailyOB, 3 - for sea ice relaxation
 
 
 fyaml = 'paths_seasfcst.yaml'
@@ -81,7 +82,8 @@ pthanls = pthseas['MOM6_NEP'][expt]['pthanls'].format(expt_nmb=expt_nmb)
 match data_plot:
   case 'seasonal_fcst':
     expt_name = f'NEPphys_frcst_dailyOB-expt{expt_nmb:02d}'
-    dflout  = os.path.join(pthanls,f'Bering_coldpoolarea_fcst_{YAVRG[0]}-{YAVRG[-1]}.pkl')
+#    dflout  = os.path.join(pthanls,f'Bering_coldpoolarea_expt{expt_nmb:02d}_{YAVRG[0]}-{YAVRG[-1]}.pkl')
+    dflout  = os.path.join(pthanls,f'coldpoolarea_expt{expt_nmb:02d}_MS{MMS:02d}_{YAVRG[0]}-{YAVRG[-1]}.pkl')
   case 'glorys':
     expt_name = 'GLORYS12v1' 
     dflout  = os.path.join(pthanls,f'Bering_coldpoolarea_glorys_{YAVRG[0]}-{YAVRG[-1]}.pkl')
@@ -91,7 +93,7 @@ match data_plot:
  
 run_info = f'{expt_name} init MM={MMS} e{nensR:02d}, conservT bottom: {min(YAVRG)}-{max(YAVRG)}' 
 
-print(f'Plotting {varnm} {expt_name} ')
+print(f'Plotting cold_pool_area {expt_name} ')
 print(f'{run_info}')
 
 

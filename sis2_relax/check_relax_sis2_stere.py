@@ -62,13 +62,15 @@ file_type = 'monthly'  # monthly, daily, ... or clim
                        # for monthly, daily, etc. need -dt and +dt at the beginn/end 
 
 if args.yr:
-  YR0=args.yr
+  YR0 = args.yr
+  YR1 = YR0
+  YR2 = YR1+1
 if args.mo:
-  MM0=args.mo
+  MM0 = args.mo
 if args.varnm:
-  ifld=args.varnm
+  ifld = args.varnm
   if ifld=='iconc':
-    ifld='iarea'
+    ifld = 'iarea'
 
 if YR0 < YR1 or YR0 > YR2:
   raise Exception(f"year to plot {YR0} is outside the time window in the file: {YR1}/{YR2}")
