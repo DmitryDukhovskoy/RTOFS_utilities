@@ -1,33 +1,18 @@
 """
   Create relax fields from PIOMAS monthly ice thickness and concentration
 
-  usage: piomas_relaxation_yearly.py --yrs 1994 --yre 1995 --fsave 1
+  usage: piomasV21_relaxation_yearly.py --yrs 1994 --yre 1995 --fsave 1
 
   monthly fields
-  1901 - 2010
-  https://psc.apl.uw.edu/research/projects/piomas-20c/
+  1979-present
+  https://pscfiles.apl.washington.edu/zhang/PIOMAS/data/v2.1/
 
-  for 1979 - present use piomasV21_relaxation_yearly.py
-
-PIOMAS-20C is a sea ice thickness reconstruction covering the period 1901-2010. It is constructed using a coupled ice-ocean model using atmospheric forcing data from the ECMWF ERA-20C reanalysis to provide atmospheric forcing. Sea ice concentrations from the Hadley Center HadISST v2.0 data set are assimilated to constrain the model at the ice-edge. 
+  PIOMASv2.1  is a sea ice reanalysis
+  sea ice concentration (edge) is assimilated using sat. ice conc. 
+  ice thickness - ???? not constrained ???
 
   All variables should have the following information for FMS subroutine 
   to process them correctly:
-
-  axis information: src/mom6/src/MOM6/src/framework/MOM_io.F90:
-  type :: axis_info
-    character(len=32)  :: name = ""       !< The name of this axis for use in files
-    character(len=256) :: longname = ""   !< A longer name describing this axis
-    character(len=48)  :: units = ""      !< The units of the axis labels
-    character(len=8)   :: cartesian = "N" !< A variable indicating which direction
-                                          !! this axis corresponds with. Valid values
-                                          !! include 'X', 'Y', 'Z', 'T', and 'N' for none.
-    integer            :: sense = 0       !< This is 1 for axes whose values increase upward, or -1
-                                          !! if they increase downward.  The default, 0, is ignored.
-    integer            :: ax_size = 0     !< The number of elements in this axis
-    real, allocatable, dimension(:) :: ax_data !< The values of the data on the axis [arbitrary]
-  end type axis_info
-
 
 """
 import datetime as dt
@@ -65,8 +50,8 @@ parser.add_argument("--fsave", help="flag > 0 to save the output", type=int)
 args = parser.parse_args()
 
 f_save = True
-YRs = 1994
-YRe = 1995    # make YRe=YRs to create 1 yr field with padded start/end of the year
+YRs = 2010
+YRe = 2010    # make YRe=YRs to create 1 yr field with padded start/end of the year
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
                        # for monthly, daily, etc. need -dt and +dt at the beginn/end 
@@ -106,19 +91,8 @@ jdm, idm = HH.shape
 
 pthsis  = gridfls['MOM6_NEP'][run_name]['pthsis']
 pthdata = '/work/Dmitry.Dukhovskoy/data/PIOMAS_ice'
-flthck = 'piomas20c.heff.1901.2010.v1.0.nc'
-varthck = 'sit'
-flconc  = 'piomas20c.area.1901.2010.v1.0.nc'
-varconc = 'sic'
-
-dflthkn = os.path.join(pthdata, flthck)
-dflconc = os.path.join(pthdata, flconc)
-
-ds_thkn = xarray.open_dataset(dflthkn)
-LAT  = ds_thkn['Latitude'].data
-LON  = ds_thkn['Longitude'].data
-
-ds_conc = xarray.open_dataset(dflconc)
+varthck = 'heff'
+varconc = 'area'
 
 # Find gmapi - indices for bi-polar interpolation
 import mod_regmom as mrmom
@@ -204,30 +178,45 @@ C3d = np.zeros((nrec,jdm,idm))
 #LMsk = HH.copy()
 LMsk = np.where(HH<0, 1, 0)
 icc  = -1
+YRold = 0
 for dnmb in TMPLT:
   icc += 1
 
   dv = mtime.datevec(dnmb)
   yr0, mm0 = dv[:2]
 
-  # Find record #: days since 1901-01-01 = day=1, index=0
-  dnmb0 = mtime.datenum([yr0,mm0,1])
-  dnmbR = mtime.datenum([1901,1,1])
-  ndays = int(dnmb0-dnmbR) + 1
-  #Time  = dset['time'].data  # np datetime array
+  if yr0 != YRold:
+    flthck  = f'piomas20c_heff{yr0}_v21.nc'
+    flconc  = f'piomas20c_area{yr0}_v21.nc'
+    dflthkn = os.path.join(pthdata, flthck)
+    dflconc = os.path.join(pthdata, flconc)
 
-  print(f'Processing {dv[0]}/{dv[1]}/{dv[2]}')
+    ds_thkn = xarray.open_dataset(dflthkn)
+    LAT  = ds_thkn['lat_scaler'].data
+    LON  = ds_thkn['lon_scaler'].data
+
+    ds_conc = xarray.open_dataset(dflconc)
+
+    YRold = yr0
+
+  # Find record #: monthly data
+  #tindx = mm0-1
+
   Month = ds_thkn['month'].data
   Year  = ds_thkn['year'].data
   D     = np.sqrt((Month-mm0)**2 + (Year-yr0)**2)
   tindx = np.argmin(D)
+  assert(D[tindx]==0), f"Requested {yr0}/{mm0} not found in {dflthkn}"
+  print(f'Processing {dv[0]}/{dv[1]}/{dv[2]}, tindx={tindx}')
   H2d   = ds_thkn[varthck].data[tindx,:].squeeze()  # thikness, m
   C2d   = ds_conc[varconc].data[tindx,:].squeeze()  #conc
-  C2d   = np.where(C2d > 1., 1., C2d)
+  #C2d   = np.where(C2d > 1., 1., C2d)
 
   # Get rid of nans - fill land:
-  H2df = mmom6.fill_land3d(H2d)
-  C2df = mmom6.fill_land3d(C2d)
+  H2df = mmom6.fill_land3d(H2d, land_mask=9999.9)
+  C2df = mmom6.fill_land3d(C2d, land_mask=9999.9)
+  C2df  = np.where(C2df > 1., 1., C2df)
+  C2df  = np.where(C2df < 0.0, 0.0, C2df)
   
   # interpolate onto MOM6 grid
   H2di = msisrlx.interp2Dfld(H2df, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
@@ -262,7 +251,7 @@ dset_Ice = xarray.merge([dset_Hmom, dset_Cmom])
 
 # Add attributes:
 dset_Ice.attrs["history"] = f"Created from PIOMAS monthly ice fields {YRs}"
-dset_Ice.attrs["code"] = "/home/Dmitry.Dukhovskoy/python/sis2_relax/piomas_relaxation_yearly.py"
+dset_Ice.attrs["code"] = "/home/Dmitry.Dukhovskoy/python/sis2_relax/piomasV21_relaxation_yearly.py"
 
 dset_Ice[ithknvar].attrs["long_name"] = "Mean ice thickness"
 dset_Ice[ithknvar].attrs["units"] = "meter"

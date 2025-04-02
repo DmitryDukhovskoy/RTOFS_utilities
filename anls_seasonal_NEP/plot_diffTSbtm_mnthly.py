@@ -77,7 +77,7 @@ YAE = YAS   # End
 MAS = 10
 MAE = MAS
 
-plot_fld = False # True - plot original fields from the expts, False - show only difference fld
+plot_fld = True # True - plot original fields from the expts, False - show only difference fld
 
 if args.YAS:
   YAS = args.YAS
@@ -287,18 +287,23 @@ CLRS = [[0.6, 0.02, 0.6],
         [0.9, 0.6, 0],
         [1, 1, 1]]
 
-clrmp = mclrmps.colormap_posneg_uneven(CLRS)
-clrmp.set_bad(color=[0.6,0.6,0.6])
-rmin = -2.
-rmax = 10.
-
 clrmp_dlt = mclrmps.colormap_ssh(cpos='YlOrRd', cneg='PuBuGn_r')
 clrmp_dlt.set_bad(color=[0.6,0.6,0.6])
 
 if varnm == 'temp':
+  clrmp = mutil.colormap_temp(clr_ramp=[0.9,0.8,1])
+  clrmp.set_bad(color=[0.6,0.6,0.6])
+  rmin = -2.
+  rmax = 8.
+
   dmin = -0.8
   dmax = 0.8
 else:
+  clrmp = mutil.colormap_salin(clr_ramp=[0,0.2,0.5])
+  clrmp.set_bad(color=[0.6, 0.6, 0.6])
+  rmin = 31.0
+  rmax = 35.5
+
   dmin = -1.2
   dmax = 1.2
 

@@ -558,13 +558,16 @@ def vol_transp_2Dsection(LSgm, ZZ, UV):
     of the contour line
    
     Use midpoint quadrature
-    All inputs are 2D fields:
+    All inputs are 2D fields (ZZ can be 1D):
     LSgm - segment lengths (grid cell dx)
-    ZZ   - interface depths
+    ZZ   - interface depths, can be 1D array
     UV   - normal U component 
   """
-  klv  = UV.shape[0]
-  nsgm = UV.shape[1]
+  klv, nsgm  = UV.shape
+  if len(np.shape(ZZ)) == 1:
+    Z1d = ZZ.copy()
+    for ik in range(nsgm-1):
+      ZZ = np.column_stack((ZZ, Z1d))
   dZ   = abs(np.diff(ZZ, axis=0))
 
   Ctrp = np.zeros((klv,nsgm))

@@ -174,7 +174,7 @@ def read_PIOMAS(yr0, mm0, dfpiomas, varnm):
   varconc = 'sic'
   varthck = 'sit'
 
-  print(f'Reading PIOMAS {yr0}/{mm0} {dfpiomas}')
+  print(f'Reading PIOMAS-reconstruct {yr0}/{mm0} {dfpiomas}')
 
   if not varnm=='sic' and not varnm=='sit':
     raise Exception (f'PIOMAS variables are sic and sit, requested {varnm}')
@@ -189,6 +189,40 @@ def read_PIOMAS(yr0, mm0, dfpiomas, varnm):
   Year  = ds_piomas['year'].data
   D     = np.sqrt((Month-mm0)**2 + (Year-yr0)**2)
   tindx = np.argmin(D)
+  A2d   = ds_piomas[varnm].data[tindx,:].squeeze()  # thikness, m
+
+  return A2d
+
+def read_PIOMASv21(yr0, mm0, dfpiomas, varnm):
+  """
+  Derive thikness or conc. fields for yr0, mm0 
+  dfpiomas = dir + filename
+
+  monthly fields from PIOMAS v2.1 reanalysis
+  1979-present
+
+  monthly fields
+  1979-present
+  https://pscfiles.apl.washington.edu/zhang/PIOMAS/data/v2.1/
+
+  PIOMASv2.1  is a sea ice reanalysis
+  sea ice concentration (edge) is assimilated using sat. ice conc. 
+  """
+  import mod_time as mtime
+  varthck = 'heff'
+  varconc = 'area'
+
+  print(f'Reading PIOMASv2.1 {yr0}/{mm0} {dfpiomas}')
+
+  if not varnm==varconc and not varnm==varthck:
+    raise Exception (f'PIOMAS variables are {varcon} and {varthck}, requested {varnm}')
+
+  ds_piomas = xarray.open_dataset(dfpiomas)
+  Month = ds_piomas['month'].data
+  Year  = ds_piomas['year'].data
+  D     = np.sqrt((Month-mm0)**2 + (Year-yr0)**2)
+  tindx = np.argmin(D)
+  assert(D[tindx]==0), f"Requested {yr0}/{mm0} not found in {dflthkn}"
   A2d   = ds_piomas[varnm].data[tindx,:].squeeze()  # thikness, m
 
   return A2d

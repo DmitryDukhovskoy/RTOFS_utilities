@@ -64,7 +64,7 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5):
 
   assert np.min(LAT) <= y0, f'y0<min(LAT): pnt outside LAT'
   assert np.max(LAT) >= y0, f'y0>max(LAT): pnt outside LAT'
-  
+
   mm, nn = LON.shape
 # Subsample the region:
   dy = dhstep
@@ -86,13 +86,18 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5):
     return jmin, imin, xmin, ymin
 
   jv1, iv1, xv1, yv1   = find_closest_point(y0, x0, LON, LAT, JJ, II) 
+  # Select some reference point wrt to 1st closest pnt:
   xref = xv1-0.1
   yref = yv1-0.1
+  #xref = LON[jv1-1,iv1-1]
+  #yref = LAT[jv1-1,iv1-1]
   xv1c, yv1c = mblnr.lonlat2xy_pnt(xv1, yv1, xref, yref)
   x0c, y0c   = mblnr.lonlat2xy_pnt(x0, y0, xref, yref)
 # Find grid points around x0,y0:
 # First guess for xv2: 
 # start by finding 2nd point by moving +/- 1 grid point along I axis
+# Orientation of I axis should be taken into account
+#  xp1c,yp1c = mblnr.lonlat2xy_pnt(LON[jv1,iv1+1], LAT[jv1,iv1+1], xref, yref)
   di  = np.sign(x0c-xv1c)
   if di == 0:
     di = 1

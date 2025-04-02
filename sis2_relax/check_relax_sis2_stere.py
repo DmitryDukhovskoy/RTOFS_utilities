@@ -2,14 +2,24 @@
   Check relax fields created from PIOMAS monthly ice thickness and concentration
   stereographic projection
 
-  usage: check_relax_sis2_stere.py --varnm={ithkn,iarea or iconc} --yr=1993 --mo=8
+  usage: check_relax_sis2_stere.py --varnm={ithkn,iarea or iconc} --yr=1993 --mo=8 --yrplot=1994
 
+  assumed 2 years are saved in each relax file (+/- 1 mo at the beginning/end)
+  by default, plot year is the first the relax. nameing files, if there are > 1 year saved
+
+  --yr=2009 --mo=3 --yrplot=2010 will plot 2010/3 
+      from the relax file PIOMAS_ithkn_iconc_2009_2010_monthly.nc 
+
+  Relaxation fields prepared in:
   see: piomas_relaxation_yearly.py
 
-  monthly fields
+  monthly fields, reconstructed ice fields, based on Hadley Ice conc. 
   1901 - 2010
   https://psc.apl.uw.edu/research/projects/piomas-20c/
+  created fields until 2009-2010 
 
+ and PIOMAS v2.1: 1979-present, assimilates satellite ice conc. 
+ from 2010-2011, ... 
 """
 import datetime as dt
 import numpy as np
@@ -43,27 +53,34 @@ import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--yr", help="year to plot: 1993, ..., 2020", type=int)
-parser.add_argument("--mo", help="month to plot: 1,..., 12", type=int)
+parser.add_argument("--yr", help="start year of saved relaxed fields: 1993, ..., 2020", type=int)
+parser.add_argument("--mo", help="month to plot: 1,..., 12, ...", type=int)
 parser.add_argument("--varnm", help="field to plot: ithkn or iarea", type=str)
+parser.add_argument("--yrplot", help="year to plot, >= yr_start and <= yr_end of relax fields", type=int)
+parser.add_argument("--piomas", help="PIMOAS version: v1.0 - reconstr, v2.1 - reanalys", type=str)
 args = parser.parse_args()
 
 plot_fields = True
-plot_piomas = False
+plot_piomas = True
 # Years in the relax file also used in the rlx file name:
 YR1 = 1993
 YR2 = 1994 
-YR0 = 1993   # year to plot
+YR0 = YR1   # year to plot, default - 1st year
+piomas_vers = 'reanalys'
 
 MM0 = 6      # month to plot
 ifld = 'iarea'  # ithkn, iarea
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
                        # for monthly, daily, etc. need -dt and +dt at the beginn/end 
+if YR1 < 2010:
+  piomas_vers = 'reconstr'
+else:
+  piomas_vers = 'reanalys'
 
 if args.yr:
-  YR0 = args.yr
-  YR1 = YR0
+  YR1 = args.yr
+  YR0 = YR1
   YR2 = YR1+1
 if args.mo:
   MM0 = args.mo
@@ -71,6 +88,10 @@ if args.varnm:
   ifld = args.varnm
   if ifld=='iconc':
     ifld = 'iarea'
+if args.yrplot:
+  YR0 = args.yrplot
+if args.piomas:
+  piomas_vers = args.piomas
 
 if YR0 < YR1 or YR0 > YR2:
   raise Exception(f"year to plot {YR0} is outside the time window in the file: {YR1}/{YR2}")
@@ -106,17 +127,17 @@ jdm, idm = HH.shape
 
 pthsis  = gridfls['MOM6_NEP'][run_name]['pthsis']
 pthdata = '/work/Dmitry.Dukhovskoy/data/PIOMAS_ice'
-flthck = 'piomas20c.heff.1901.2010.v1.0.nc'
-varthck = 'sit'
-flconc  = 'piomas20c.area.1901.2010.v1.0.nc'
-varconc = 'sic'
+if piomas_vers == 'reconstr':
+  flthck = 'piomas20c.heff.1901.2010.v1.0.nc'
+  varthck = 'sit'
+  flconc  = 'piomas20c.area.1901.2010.v1.0.nc'
+  varconc = 'sic'
+else:
+  flthck  = f'piomas20c_heff{YR0}_v21.nc'
+  varthck = 'heff'
+  flconc  = f'piomas20c_area{YR0}_v21.nc'
+  varconc = 'area'
 
-dflthkn = os.path.join(pthdata, flthck)
-dflconc = os.path.join(pthdata, flconc)
-
-ds_thkn = xarray.open_dataset(dflthkn)
-LAT  = ds_thkn['Latitude'].data
-LON  = ds_thkn['Longitude'].data
 
 # Read saved relax. fields:
 flout = f'PIOMAS_ithkn_iconc_{YR1}_{YR2}_{file_type}.nc'
@@ -149,7 +170,6 @@ match ifld:
     rmax = 1.
 
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
-A2dP = msisrlx.read_PIOMAS(YR0, MM0, dfpiomas, varnm)
 
 
 def plot_ice(fgnmb, xR, yR, A2d, clrmp, rmin, rmax, sttl, xTst=-1, yTst=-1):
@@ -197,13 +217,11 @@ if plot_fields:
             projection='stere', lat_ts=60, lat_0=65, lon_0=-175)
 
   xR, yR = m(hlon, hlat)
-  xRp, yRp = m(LON, LAT)
 
-  sttlS = f'Relaxation {ifld} SIS2 from PIOMAS {YR0}/{MM0}'
+  sttlS = f'Relaxation {ifld} SIS2 {YR0}/{MM0}: {flout}'
   if j0 >= 0 and i0 >= 0:
     sttlS = sttlS + f"\n Test pnt iF0/jF0 = {iF0}/{jF0} {ifld}={A2dS[j0,i0]:.6f}"
 
-  sttlP = f'{ifld} PIOMAS {YR0}/{MM0}'
 
   fgnmb=1
 # Show test pnt:
@@ -214,10 +232,25 @@ if plot_fields:
     plot_ice(fgnmb, xR, yR, A2dS, clrmp, rmin, rmax, sttlS)
 
   if plot_piomas:
+    ds_piomas = xarray.open_dataset(dfpiomas)
+    if piomas_vers == 'reconstr':
+      LAT  = ds_piomas['Latitude'].data
+      LON  = ds_piomas['Longitude'].data
+    else:
+      LAT  = ds_piomas['lat_scaler'].data
+      LON  = ds_piomas['lon_scaler'].data
+
+    xRp, yRp = m(LON, LAT)
+    if piomas_vers == 'reconstr':
+      A2dP = msisrlx.read_PIOMAS(YR0, MM0, dfpiomas, varnm)
+      sttlP = f'{ifld} PIOMAS-reconstruct {YR0}/{MM0}'
+    else:
+      A2dP = msisrlx.read_PIOMASv21(YR0, MM0, dfpiomas, varnm)
+      A2dP = np.where(A2dP>=9999., np.nan, A2dP)
+      sttlP = f'{ifld} PIOMASv2.1 {YR0}/{MM0}'
+
     fgnmb=2
     plot_ice(fgnmb, xRp, yRp, A2dP, clrmp, rmin, rmax, sttlP)
-
-
 
 
 

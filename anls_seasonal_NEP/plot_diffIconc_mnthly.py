@@ -250,7 +250,7 @@ sttl2 = (f'{expt_name2} IceConc init M={MMI} \n' + \
          f'avrg {YAS}-{YAE} mo={MAS}-{MAE}, cntrs=StDev')
 
 sttl3 = (f'diff IceConc: {expt_name1}-{expt_name2}  init M={MMI} \n' + \
-         f'avrg {YAS}-{YAE} mo={MAS}-{MAE}, cntrs=StDev')
+         f'avrg {YAS}-{YAE} mo={MAS}-{MAE}, cntrs=dltC')
 
 plt.ion()
 
