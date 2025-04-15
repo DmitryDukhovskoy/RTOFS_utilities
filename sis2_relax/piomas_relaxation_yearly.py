@@ -143,6 +143,7 @@ else:
         continue
       x0 = hlon[jj,ii]
       y0 = hlat[jj,ii]
+      # TODO - change to 50N to include ice in the southern Ber. Sea
       if y0 < 60.:
         continue
       if y0 < np.min(LAT) or y0 > np.max(LAT):

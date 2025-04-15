@@ -32,7 +32,6 @@ import mod_swstate as msw
 import conversions as gsw
 
 from mod_utils_fig import bottom_text
-import mod_plot_xsections as mxsct
 import mod_time as mtime
 import mod_utils as mutil
 import mod_misc1 as mmisc
@@ -41,7 +40,6 @@ import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
 import mod_anls_seas as manseas
 import mod_utils_ob as mutob
-importlib.reload(mutob)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--expt", help="experiment number: 1, ...", type=int)
@@ -198,6 +196,10 @@ for YRI in range(YRS,YRE+1):
     S2d, _ = manseas.monthly_vsect_mean_from_Ndaily3D(pthfcst0, YRI, MMI, 'salt', \
                                     ocnfld, II, JJ,  MAVRG=[MCal], nlrs=nlrs)
 
+    # No nans in U/V, to avoid errors in allocation:
+    U2d = np.where(np.isnan(U2d),0.,U2d)
+    V2d = np.where(np.isnan(V2d),0.,V2d)
+
     # Compute vol, T, S fluxes
     # Use norm direction to define positive flux !!!
     Unrm1 = U2d.copy()*0.
@@ -267,6 +269,11 @@ for YRI in range(YRS,YRE+1):
       Snrm = LegNorm[isgm,:]
       UV2d[:,isgm] = uu*Snrm[0] + vv*Snrm[1]
 
+    UV2d = np.expand_dims(UV2d, axis=0)
+    if icc == 0:
+      U2d_norm = UV2d.copy()
+    else:
+      U2d_norm = np.append(U2d_norm, UV2d, axis=0)
 
     icc += 1
 
@@ -274,7 +281,7 @@ for YRI in range(YRS,YRE+1):
   dflnm = os.path.join(pthanls,f'mnthly_BerSea_Fluxes_expt{expt_nmb:02d}_{YRI}{MMI:02d}.pkl')
   print(f'Dumping Fluxes  --> {dflnm}')
   with open(dflnm, 'wb') as fid:
-    pickle.dump([VFlx,FWFlx,HFlx,UV2d,TT,SS,ZM,ZZ,Hbtm,LSgm,XX,YY], fid)
+    pickle.dump([VFlx,FWFlx,HFlx,U2d_norm,TT,SS,ZM,ZZ,Hbtm,LSgm,XX,YY], fid)
 
 
 

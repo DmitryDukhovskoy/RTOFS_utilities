@@ -58,10 +58,13 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
     Ai = np.where(LMsk==0,np.nan, Ai)
 
   for ikk in range(npnts):
-    if ikk%7500 == 0:
+    if ikk%10000 == 0:
       print(f'   {ikk/npnts*100.:.2f}% done ...')
     imom = IMOM[ikk]
     jmom = JMOM[ikk]
+    #print(f'ikk={ikk}') 
+    if LMsk[jmom,imom] == 0:
+      continue
     x0   = hlon[jmom, imom]
     y0   = hlat[jmom, imom]
     II = np.squeeze(INDX[ikk,:])
@@ -85,7 +88,11 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
       yref     = y0-0.1
       XV, YV   = mblnr.lonlat2xy_wrtX0(xx, yy, xref, yref)
       x0c, y0c = mblnr.lonlat2xy_pnt(x0, y0, xref, yref)
-      xht, yht = mblnr.map_x2xhat(XV, YV, x0c, y0c)   # cartesian coord
+      # For rotated grid boxes, mapping may give singular matrix AA
+      # Try to rotate the quadrilateral to orient sides with X and Y axis:
+      XVr, YVr, x0r, y0r  = muob.rotate_box(XV, YV, x0c, y0c)
+      #xht, yht = mblnr.map_x2xhat(XV, YV, x0c, y0c)   # cartesian coord
+      xht, yht = mblnr.map_x2xhat(XVr, YVr, x0r, y0r)
 
     # Fix round off errors for points on the side of the ref. square that are close to +/-1:
     if abs(xht)-1. < eps_err:
@@ -93,6 +100,7 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
     if abs(yht)-1. < eps_err:
       yht = np.round(yht)
 
+  # Already rotated now, no need in this check
   # check if xht and yht <= 1
   # If the grid point inside the box, then mapping is the problem
   # if not - then these are a few cases near singularities of SPEAR I/J axes
@@ -102,11 +110,11 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
   # THis results in singular matrix A for mappring
   # For very thin  rotated, skewed quadrilaterals mapping does not work well
   # Try to rotate the quadrilateral
-    if abs(xht) > 1 or abs(yht) > 1:
-      xht0 = xht
-      yht0 = yht
-      XVr, YVr, x0r, y0r  = muob.rotate_box(XV, YV, x0c, y0c)
-      xht, yht = mblnr.map_x2xhat(XVr, YVr, x0r, y0r)
+  #  if abs(xht) > 1 or abs(yht) > 1:
+  #    xht0 = xht
+  #    yht0 = yht
+  #    XVr, YVr, x0r, y0r  = muob.rotate_box(XV, YV, x0c, y0c)
+  #    xht, yht = mblnr.map_x2xhat(XVr, YVr, x0r, y0r)
 #      print(f"ERR: ikk={ikk} Mapping ref box xht={xht0:6.3f} yht={yht0:6.3f}, fixed " +\
 #            f" xht={xht:6.3f}, yht={yht:6.3f}")
 
@@ -733,6 +741,31 @@ def redistribute_hice_v0(hice, cice, ICAT0=[], eps0 = 1.e-6, \
 
   return hcat, ccat
   
+def fcast_mo_to_cal(MMI, MF):
+  """
+    Find calendar month corresponding to the forecast month=MF initialized in MMI
+  """
+  mfcast = np.arange(MMI,MMI+12)
+  mfcast = np.where(mfcast > 12, mfcast-12, mfcast)
+  mcal = mfcast[MF-1]
+
+  return mcal
+
+def cal_mo_to_fcast(MMI, MM):
+  """
+    Find forecast month (lead time) corresponding to the calend. mo MM for the
+    forecast initialized in MMI
+  """
+  mfcast = np.arange(MMI,MMI+12)
+  mfcast = np.where(mfcast > 12, mfcast-12, mfcast)
+  if np.any(mfcast == MM):
+    imo = (mfcast == MM).argmax()
+  else:
+    raise Exception(f"Could not find fcast month for calend mo={MMI}")
+  mf = imo+1  # f/cast month number
+
+  return mf
+
 
 
 

@@ -73,11 +73,6 @@ ifld = 'iarea'  # ithkn, iarea
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
                        # for monthly, daily, etc. need -dt and +dt at the beginn/end 
-if YR1 < 2010:
-  piomas_vers = 'reconstr'
-else:
-  piomas_vers = 'reanalys'
-
 if args.yr:
   YR1 = args.yr
   YR0 = YR1
@@ -96,6 +91,12 @@ if args.piomas:
 if YR0 < YR1 or YR0 > YR2:
   raise Exception(f"year to plot {YR0} is outside the time window in the file: {YR1}/{YR2}")
 
+if YR1 < 2010:
+  piomas_vers = 'reconstr'
+else:
+  piomas_vers = 'reanalys'
+
+print(f'PIOMAS version: {piomas_vers}')
 # Test point in Fortran indices:
 # make it <0 not to show
 iF0 = 230
@@ -133,9 +134,9 @@ if piomas_vers == 'reconstr':
   flconc  = 'piomas20c.area.1901.2010.v1.0.nc'
   varconc = 'sic'
 else:
-  flthck  = f'piomas20c_heff{YR0}_v21.nc'
+  flthck  = f'piomas_heff{YR0}_v21.nc'
   varthck = 'heff'
-  flconc  = f'piomas20c_area{YR0}_v21.nc'
+  flconc  = f'piomas_area{YR0}_v21.nc'
   varconc = 'area'
 
 

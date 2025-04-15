@@ -110,6 +110,7 @@ MOM6_NEP_GFDL:
 NRT_NSIDC:
     pthdaily: /work/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{YR}
     pthmnth: /work/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{YR}_mnth
+    pthdump: /work/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc
 ANLS_NEP:
   "xsct_SOB":
     II:  [0, 341]

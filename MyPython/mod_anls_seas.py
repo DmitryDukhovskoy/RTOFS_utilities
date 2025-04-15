@@ -953,9 +953,9 @@ def monthly_vsect_mean_from_Ndaily3D(pthfcst0, yr_init, mo_init, varnm, ocnfld, 
 
       # Collocate U/V:
         if varnm == 'u' or varnm == 'U':
-          Z2c = mmom6.collocateU2H(Z2d, 'symmetr', f_land0 = False)
+          Z2c = mmom6.collocateU2H(Z2d, 'symmetr', f_land0 = True)
         elif varnm == 'v' or varnm == 'V':
-          Z2c = mmom6.collocateV2H(Z2d, 'symmetr', f_land0 = False)
+          Z2c = mmom6.collocateV2H(Z2d, 'symmetr', f_land0 = True)
         else:
           Z2c = Z2d
         A2d[ilr,:] = Z2c[Jsct,Isct].squeeze()

@@ -61,10 +61,11 @@ if args.yrs:
   YRs = args.yrs
 if args.yre:
   YRe = args.yre
-if args.fsave > 0:
-  f_save = True
-else:
-  f_save = False
+if args.fsave:
+  if args.fsave > 0:
+    f_save = True
+  else:
+    f_save = False
 
 
 fyaml = 'pypaths_gfdlpub.yaml'
@@ -102,13 +103,23 @@ dfgmapi = os.path.join(pthsis, fgmapi)
 if os.path.isfile(dfgmapi):
   print(f'Loading gmapi <-- {dfgmapi}')
   with open(dfgmapi, 'rb') as fid:
-   IMOM, JMOM, INDX, JNDX = pickle.load(fid) 
+    IMOM, JMOM, INDX, JNDX = pickle.load(fid) 
 else:
   print('Searching gmapi for PIOMAS interpolation onto MOM6')
   jS = 570
   icc = -1
   IMOM = []
   JMOM = []
+  yr0 = 2010
+  flthck  = f'piomas_heff{yr0}_v21.nc'
+  flconc  = f'piomas_area{yr0}_v21.nc'
+  dflthkn = os.path.join(pthdata, flthck)
+  dflconc = os.path.join(pthdata, flconc)
+
+  ds_thkn = xarray.open_dataset(dflthkn)
+  LAT  = ds_thkn['lat_scaler'].data
+  LON  = ds_thkn['lon_scaler'].data
+
   for ii in range(idm):
     if ii%50 == 0:
       print(f' icc={icc} {ii/idm*100:.2f}% done ...')
@@ -117,7 +128,8 @@ else:
         continue
       x0 = hlon[jj,ii]
       y0 = hlat[jj,ii]
-      if y0 < 60.:
+      # TOTO: change lat to 50 N to include ice in S. Bering Sea
+      if y0 < 50.:
         continue
       if y0 < np.min(LAT) or y0 > np.max(LAT):
         continue
@@ -186,8 +198,8 @@ for dnmb in TMPLT:
   yr0, mm0 = dv[:2]
 
   if yr0 != YRold:
-    flthck  = f'piomas20c_heff{yr0}_v21.nc'
-    flconc  = f'piomas20c_area{yr0}_v21.nc'
+    flthck  = f'piomas_heff{yr0}_v21.nc'
+    flconc  = f'piomas_area{yr0}_v21.nc'
     dflthkn = os.path.join(pthdata, flthck)
     dflconc = os.path.join(pthdata, flconc)
 
@@ -211,6 +223,12 @@ for dnmb in TMPLT:
   H2d   = ds_thkn[varthck].data[tindx,:].squeeze()  # thikness, m
   C2d   = ds_conc[varconc].data[tindx,:].squeeze()  #conc
   #C2d   = np.where(C2d > 1., 1., C2d)
+
+  # Get rid off the land values along the southern boundary:
+  nbnd = 4
+  for ik in range(nbnd):
+    H2d[ik,:] = H2d[nbnd,:]
+    C2d[ik,:] = C2d[nbnd,:]
 
   # Get rid of nans - fill land:
   H2df = mmom6.fill_land3d(H2d, land_mask=9999.9)

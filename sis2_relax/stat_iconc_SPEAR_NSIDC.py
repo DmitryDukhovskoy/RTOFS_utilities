@@ -1,17 +1,7 @@
 """
-  Plot monthly SPEAR ice fields
+  Calc RMSE, ice extent and ice area 
  
-  Extract and subsample for NEP domain using bash script:
-  ./subset_spear_ice.sh 2010 2010 1 1
-
-  Note that year 2010 and month 1 designate the initialization time
-  SPEAR monthly fields have 12 f/cast months in each file
-
-
-  usage: plot_SPEAR_ice_month_stere.py --varnm={ithkn,iarea or iconc} --YRI=1993 --MMI=1 --mo=8
-
-  Only 12 months of the f/cast are saved in the SPEAR files
-  mo - calendar month, depending on the init month, it may be at the end/start of the f/cast
+  usage: plot_SPEAR_ice_month_stere.py --YRI=1993 --MMI=1
 
 """
 import datetime as dt
@@ -45,11 +35,10 @@ import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--YRI", help="init year of SPEAR f/cast: 1993, ..., 2020", type=int)
+parser.add_argument("--YRS", help="init year of SPEAR f/cast: 1993, ..., 2020", type=int)
+parser.add_argument("--YRE", help="init year of SPEAR f/cast: 1993, ..., 2020", type=int)
 parser.add_argument("--MMI", help="init month of SPEAR f/cast: 1, ..., 12", type=int)
-parser.add_argument("--mo", help="cal. month to plot: 1,..., 12, ...", type=int)
 parser.add_argument("--ensmb", help="ensemble number, 1,..., 15", type=int)
-parser.add_argument("--varnm", help="field to plot: ithkn or iarea", type=str)
 args = parser.parse_args()
 
 f_cntrobs = True   # Plot observation-derived ice edge
@@ -79,7 +68,6 @@ if args.ensmb:
 varnm = ifld
 pthdata = f'/work/Dmitry.Dukhovskoy/tmp/spear_subset/{YRI}/ens{ens_nmb:02d}'
 
-# Read saved relax. fields:
 flout = f'NEP_spear_{YRI}{MMI:02d}.{ifld}.nc'
 dfspear = os.path.join(pthdata,flout)
 ds_spear = xarray.open_dataset(dfspear)

@@ -70,7 +70,7 @@ if not varnm == 'ithkn':
 
 # Start of the run - needed only for seasonal forecasts:
 YRS    = 1993 # year start of the forecast
-MOS    = 4
+MS    = 4
 DDS    = 1    
 nens   = 1    # ens # for ensemble runs
 
@@ -115,7 +115,7 @@ expt     = "seasonal_daily"
 runname  = f"NEPphys_frcst_dailyOB-expt{expt_nmb:02d}"
 #
 expt_nmb0 = f"{expt_nmb:02d}"
-dnmbS   = mtime.datenum([YRS,MOS,DDS]) 
+dnmbS   = mtime.datenum([YRS,MS,DDS]) 
 dvR     = mtime.datevec(dnmbR)
 dnmb0   = dnmbR
 dv0     = mtime.datevec(dnmb0)
@@ -156,10 +156,10 @@ with open(fyaml) as ff:
 if expt == 'seasonal_daily':
   pth1     = pthseas['MOM6_NEP'][expt]['pthoutp'].format(expt_nmb=expt_nmb)
   dir_fcst = pthseas['MOM6_NEP'][expt]['dir_icefcst'].format(\
-       yr_start=YRS, mo_start=MOS, ens=nens, yr_run=YR0, mo_run=MM0)
+       yr_start=YRS, mo_start=MS, ens=nens, yr_run=YR0, mo_run=MM0)
   pthfcst = os.path.join(pth1,dir_fcst)
 elif expt == 'test_ice_relax':
-  pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(YY=YRS, MM=MOS, expt_nmb=expt_nmb)
+  pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(YY=YRS, MM=MS, expt_nmb=expt_nmb)
 else:
   pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(YY=YR0, MM=MM0)
 pthtopo    = pthseas['MOM6_NEP'][expt]['pthgrid']

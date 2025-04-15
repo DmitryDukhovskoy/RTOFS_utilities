@@ -657,7 +657,7 @@ def collocateU2H(A2d, grid_shape, f_land0 = True):
     input 2D field (1 layer) at p-point
     Collocation is done "as is", i.e.
     land values will be brought into H-point as is
-    If these are nans or some filled values - double checl
+    If these are nans or some filled values - double check
     f_land0 = Replace land values (nans) with 0 - ok for u/v but 
               not for T/S
 
@@ -676,6 +676,10 @@ def collocateU2H(A2d, grid_shape, f_land0 = True):
    Q(i-1,j-1)        
 
   """
+  inan = np.where(np.isnan(A2d))[0]
+  if len(inan) > 0 and not f_land0:
+    print('collocateU2H: WARNING - nans in U, may impact near-coast U values, use f_land0')
+
   lsymmetr = False
   if grid_shape[0:7] == 'symmetr':
     lsymmetr = True
@@ -734,6 +738,10 @@ def collocateV2H(A2d, grid_shape, f_land0 = True):
    Q(i-1,j-1)        
 
   """
+  inan = np.where(np.isnan(A2d))[0]
+  if len(inan) > 0 and not f_land0:
+    print('collocateV2H: WARNING - nans in V, may impact near-coast V values, use f_land0')
+
   lsymmetr = False
   if grid_shape[0:7] == 'symmetr':
     lsymmetr = True
@@ -788,6 +796,8 @@ def fill_land3d(A3d, vert2d=False,  **kwargs):
 
     land_mask: value:  Replace land points masked as some huge=land_mask value with nans
 
+    verbosity = 1: print info about dim of the array being filled, =0 - silent
+
     Usage: Afilled = mod_mom6.fill_land3d(A3d, [quick_fill=1.e22, boxfltr=25]) 
   """
   import mod_interp1D as minterp
@@ -800,6 +810,8 @@ def fill_land3d(A3d, vert2d=False,  **kwargs):
 #  nbx = 
   huge = 1.e20   # possible land values if not nans
   huge2nan = False
+  verbosity = 1
+  sinfo = ''
   for key, value in kwargs.items():
     if key == 'quick_fill': 
       vfill = value
@@ -810,6 +822,10 @@ def fill_land3d(A3d, vert2d=False,  **kwargs):
     if key == 'land_mask':
       huge = value
       huge2nan = True
+    if key == 'verb':
+      verbosity = value
+    if key == 'sinfo':
+      sinfo = value
 
   # Check if there are any land points, should be nan's
   aa = np.max(abs(A3d))
@@ -828,8 +844,8 @@ def fill_land3d(A3d, vert2d=False,  **kwargs):
   ndim = len(adim)
   if ndim > 3 or ndim < 2:
     raise Exception('Array should be 2 or 3D')
-  print(f'Filling land, {ndim}D array')
-
+  if verbosity > 0:
+    print(f'{sinfo} Filling land, {ndim}D array')
 
   f2d = False
   if ndim == 3:

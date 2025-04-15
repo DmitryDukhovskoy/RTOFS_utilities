@@ -57,7 +57,7 @@ YRE    = 2008
 MMI    = 4
 nens   = 1    # ens # for ensemble runs - =1 for 3D ocean fields
 expt_nmb = 3  # =2 - seas. f/casts no irelax, =3 - seas. f/casts with ice relax
-Tref   = 0.   # Ref t for computing heat flux
+Tref   = -1.9   # Ref t for computing heat flux
 Sref   = 34.8 # Ref S for FW flux
 
 if args.expt:
@@ -332,7 +332,7 @@ if plot_obs:
   yup  = ymn+yer
   ax3 = plot_observations(ax3,ymn,yer,clr_obs,clr_err)
   ylim1, ylim2 = minmax_plot([ylim1,np.min(ylow)],[ylim2,np.max(yup)])
-  ytot2 = np.min(ymn)
+  ytot2 = np.mean(ymn)
   sttl3 = sttl3 + f'  Obs: {ytot1:.2f}/{ytot2:.2f} TW'
 ax3.set_ylim([ylim1,ylim2])
 ax3.set_title(sttl3)

@@ -14,7 +14,6 @@ from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 import argparse
-import pickle
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
@@ -68,6 +67,13 @@ HH = -HH
 HH = np.where(np.isnan(HH), 1., HH)
 jdm, idm = HH.shape
 
+
+fyaml = 'paths_seasfcst.yaml'
+with open(fyaml) as ff:
+  pthseas = safe_load(ff)
+
+pthdump = pthseas['NRT_NSIDC']['pthdump']
+
 _, LON, LAT = manseas.avrg_cice_NSIDC(2000, 2000, 1, 1)
 # get rid of ice in unneeded part of the domain
 #CMobs[:,150:] = np.nan
@@ -86,13 +92,15 @@ for ii in range(idm):
       continue
     x0 = hlon[jj,ii]
     y0 = hlat[jj,ii]
-    if y0 < 60.:
+    if y0 < 50.:
       continue
     if y0 < np.min(LAT) or y0 > np.max(LAT):
       continue
 
     icc += 1
     ixx, jxx = mrmom.find_gridpnts_box(x0, y0, LON, LAT, dhstep=1.)
+    if len(ixx)==0 or len(jxx)==0:
+     continue
     ixx = np.expand_dims(ixx, axis=0)
     jxx = np.expand_dims(jxx, axis=0)
 
@@ -109,12 +117,35 @@ for ii in range(idm):
 IMOM = np.array(IMOM)
 JMOM = np.array(JMOM)
 
-fgmapi  = f'NSIDC_sis2_NEP_gmapi_{jdm}x{idm}.pkl'
-dfgmapi = os.path.join(pthsis, fgmapi)
+npnts = len(IMOM)
+darr_imom = xarray.DataArray(IMOM, dims=("npoints"),\
+                   coords={"npoints": np.arange(npnts)})
+darr_jmom = xarray.DataArray(JMOM, dims=("npoints"),\
+                   coords={"npoints": np.arange(npnts)})
+darr_indx = xarray.DataArray(INDX, dims=("npoints","nvert"),\
+                   coords={"npoints": np.arange(npnts),\
+                           "nvert": np.arange(4)})
+darr_jndx = xarray.DataArray(JNDX, dims=("npoints","nvert"),\
+                   coords={"npoints": np.arange(npnts),\
+                           "nvert": np.arange(4)})
+dset = xarray.Dataset({"mom_indx": darr_imom, \
+                       "mom_jndx": darr_jmom, \
+                       "gmapi_i": darr_indx,\
+                       "gmapi_j": darr_jndx})
+
+dset['mom_indx'].attrs['long_name'] = 'MOM6 grid I indices corresponding gmapi'
+dset['mom_jndx'].attrs['long_name'] = 'MOM6 grid J indices corresponding gmapi'
+dset['gmapi_i'].attrs['long_name'] = 'I indices NSIDC grid for interpolation'
+dset['gmapi_j'].attrs['long_name'] = 'J indices NSIDC grid for interpolation'
+
+fgmapi  = f'NSIDC_NRTice_NEP_gmapi_{jdm}x{idm}.nc'
+dfgmapi = os.path.join(pthdump, fgmapi)
 
 print(f'Saving gmapi --> {dfgmapi}')
-with open(dfgmapi, 'wb') as fid:
-  pickle.dump([IMOM, JMOM, INDX, JNDX], fid)
+dset.to_netcdf(dfgmapi, format='NETCDF3_64BIT', engine='netcdf4')
+
+#with open(dfgmapi, 'wb') as fid:
+#  pickle.dump([IMOM, JMOM, INDX, JNDX], fid)
 
 
 
