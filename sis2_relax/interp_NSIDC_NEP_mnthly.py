@@ -3,6 +3,9 @@
   to NEP grid
   gmapi indices: get_gmapi_NSIDC_to_SIS2.py
 
+  Need to update older version 3:
+  Latest version of NSDIC NRT v5 is available here:
+  https://noaadata.apps.nsidc.org/NOAA/G02202_V5/north/monthly/
 """
 import os
 import numpy as np
@@ -58,7 +61,7 @@ YRS  = 1993
 YRE  = YRS
 MMS  = 1
 MME  = 12
-f_save = True
+f_save = False
 
 if args.YRS:
   YRS = args.YRS
@@ -129,7 +132,8 @@ for YR in range(YRS,YRE+1):
     if (YR >= 2008):
       fsfx = 'f17'
 
-    pthnsidc = f'/work/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{YR}_mnth'
+    #pthnsidc = f'/work/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{YR}_mnth'
+    pthnsidc = pthseas['ALL']['dirnsidc_intrp'].format(YR=YR)
     flnsidc = f'seaice_conc_monthly_nh_{YR}{MM:02d}_{fsfx}_v04r00.nc'
     dset = xarray.open_dataset(os.path.join(pthnsidc,flnsidc))
 
@@ -152,7 +156,7 @@ for YR in range(YRS,YRE+1):
                              "jdim": np.arange(jdm),\
                              "idim": np.arange(idm)})
   dset = xarray.Dataset({"ice_conc": darr_cice})
-  dset['ice_conc'].attrs['long_name']: 'ice partial area'
+  dset['ice_conc'].attrs['long_name']='ice partial area'
   # Add global attributes:
   dset.attrs.update({
     "info": "Interpolated from NSIDC NRT ice conc. NASA retrieval algorithm",

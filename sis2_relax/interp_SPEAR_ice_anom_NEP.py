@@ -1,4 +1,8 @@
 """
+  Note SPEAR fields have now been interpoalted to NEP grid:
+  calc_SPEAR_ice_clim.py
+
+
   Compute monthly SPEAR ice anomalies for ice conc and thickn. 
   inpoterlate onto NEP grid
 
@@ -78,7 +82,7 @@ if args.ensmb:
 varnm = ifld
 
 # Saved climatologies:
-ICLIM=[[1990,1994],[1995,1999],[2000,2004],[2005,2009],[2010, 2014],[2015,2019],[2020,2023]]
+ICLIM=[[1993,1997],[1995,1999],[2000,2004],[2005,2009],[2010, 2014],[2015,2019],[2016,2020]]
 ICLIM=np.array(ICLIM)
 
 fconfig = 'config_nep.yaml'
@@ -153,7 +157,7 @@ for YRI in range(YRS,YRE+1):
   YRC1 = ICLIM[iclm,0]
   YRC2 = ICLIM[iclm,1] 
   pthpkl = '/work/Dmitry.Dukhovskoy/anls_output/spear_ice'
-  floutp = f'spear_{varnm}_clim_{YRC1}_{YRC2}_MI{MMI:02d}.pkl'
+  floutp = f'spear_{varnm}_clim_{YRC1}_{YRC2}_MI{MMI:02d}e{ens_nmb:02d}.pkl'
   dflout = os.path.join(pthpkl,floutp)
   print(f'Getting climtology --> {dflout}')
   # Note SPEAR clim. starts from month=MMI !!!

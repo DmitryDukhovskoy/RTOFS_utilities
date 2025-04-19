@@ -8,6 +8,11 @@ GOFS3.1:
     fgrid:   'regional.grid'
     ndav:    1
     pthdump: '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp'
+ALL:
+    dirspear_anls: '/work/Dmitry.Dukhovskoy/anls_output/spear_ice'
+    dirspear_subset: '/work/Dmitry.Dukhovskoy/tmp/spear_subset/{YR}/ens{ens_nmb:02d}'
+    dirnsidc_intrp: '/work/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{YR}_mnth'
+    dirnsidc_clim: '/work/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/clim'
 MOM6_NEP:
   "test_ice_relax":
     pthrun:  ' '
@@ -51,6 +56,8 @@ MOM6_NEP:
     dir_icefcst: '{yr_start}-{mo_start:02d}-e{ens:02d}/history/icem_{yr_run}{mo_run:02d}'
     pthwoutp: '/work/Dmitry.Dukhovskoy/run_output/seasonal_ensembles_dailyOB/{runname}'
     pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
+    dirspear_anls: '/work/Dmitry.Dukhovskoy/anls_output/spear_ice'
+    dirspear_subset: '/work/Dmitry.Dukhovskoy/tmp/spear_subset/{YR}/ens{ens_nmb:02d}'
     ftopo:   'topog.nc'
     fgrid:   'ocean_hgrid.nc'
     focname: 'oceanm_{YR}_{jday:03d}.nc'

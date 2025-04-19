@@ -208,6 +208,7 @@ def datevec(dnmb,ldate_ref=[1,1,1]):
   """
   For datenum computed wrt to reference date - see datenum
   convert datenum back to [YR,MM,DD,HR,MN]
+  dnmb - 1 date number
   """
   if isinstance(dnmb, np.generic): 
     dnmb = dnmb.item()
@@ -302,12 +303,14 @@ def datevec2D(DNMB0,ldate_ref=[1,1,1]):
   return DV
 
 
-def datevec1D(dnmb,ldate_ref=[1,1,1]):
+def datevec1D(dnmb,ldate_ref=[1,1,1], fHR=True, fMN=True):
   """
   For datenum computed wrt to reference date - see datenum
   convert datenum back to [YR,MM,DD,HR,MN]
-  Input is 1D numpy array
+  Input is 1D numpy array of date numbers (dnmb)
 
+  Return list of [YR,MM,MD,HR,MN]
+  specify fHR = False, fMN = False not to have HR, MN
   """
 
   lr = len(ldate_ref)
@@ -347,8 +350,17 @@ def datevec1D(dnmb,ldate_ref=[1,1,1]):
   MD = np.array(MD)
   HR = np.array(HR)
   MN = np.array(MN)
-  dvec = [YR,MM,MD,HR,MN]
 
+  if not fHR and fMN:
+    fMN = False
+
+  if fHR and fMN:
+    dvec = [YR,MM,MD,HR,MN]
+  elif fHR and not fMN:
+    dvec = [YR,MM,MD,HR]
+  elif not fHR and not fMN:
+    dvec = [YR,MM,MD]
+  
   return dvec
 
 def datestr(dnmb,ldate_ref=[1,1,1], show_hr=True):

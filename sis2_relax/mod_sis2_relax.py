@@ -766,6 +766,55 @@ def cal_mo_to_fcast(MMI, MM):
 
   return mf
 
+def read_SPEAR_iconc_clim_interp(YR, MMI, ens_nmb, nyrs_clim=5):
+  """
+    Read monthly ice conc. clim from SPEAR init = MMI
+    for a given year YR
+  """
+  import xarray
+  if nyrs_clim == 5:
+    ICLIM=[[1993,1997],[1995,1999],[2000,2004],[2005,2009],[2010, 2014],[2015,2019],[2016,2020]]
+
+  ICLIM=np.array(ICLIM)
+  iclm = np.where((ICLIM[:,0] <= YR) & (ICLIM[:,1] >= YR))[0][0]
+  YRS,YRE = ICLIM[iclm,:]
+
+  pthpkl = '/work/Dmitry.Dukhovskoy/anls_output/spear_ice'
+  fclim = f'spear_interpNEP_siconc_clim_{YRS}_{YRE}_MI{MMI:02d}e{ens_nmb:02d}.nc'
+  dfclim = os.path.join(pthpkl,fclim)
+  print(f'Opening {dfclim}')
+  dset = xarray.open_dataset(dfclim)
+  
+  return dset
+   
+def read_NSIDC_iconc_clim_interp(YR, nyrs_clim=5):
+  """
+    Read monthly ice conc. clim from NSIDC interpolated to NEP fields
+    for a given year YR
+  """
+  import xarray
+  if nyrs_clim == 5:
+    ICLIM=[[1993,1997],[1995,1999],[2000,2004],[2005,2009],[2010, 2014],[2015,2019],[2016,2020]]
+
+  ICLIM=np.array(ICLIM)
+  iclm = np.where((ICLIM[:,0] <= YR) & (ICLIM[:,1] >= YR))[0][0]
+  YRS,YRE = ICLIM[iclm,:]
+
+  # NEP grid:
+  fyaml = 'paths_seasfcst.yaml'
+  with open(fyaml) as ff:
+    pthseas = safe_load(ff)
+
+  pthclim = pthseas['ALL']['dirnsidc_clim']
+  flclim  = f'NSIDC_NRT_interpNEP_iconc_clim_{YRS}_{YRE}.nc'
+  dflclim = os.path.join(pthclim,flclim)
+
+  print(f'Opening {dflclim}')
+  dset = xarray.open_dataset(dflclim)
+
+  return dset
+
+
 
 
 

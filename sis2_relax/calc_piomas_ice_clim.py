@@ -2,7 +2,7 @@
   Compute monthly PIOMAS ice climatologies for ice conc and thickn. 
  
   usage: 
-  plot_piomas_ice_month_stere.py --YRS 2010 --YRE 2020
+  calc_piomas_ice_clim.py --YRS 2010 --YRE 2020
 
 """
 import datetime as dt

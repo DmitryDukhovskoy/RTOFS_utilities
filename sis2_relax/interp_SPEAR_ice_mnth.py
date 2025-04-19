@@ -162,19 +162,19 @@ for YRI in range(YRS,YRE+1):
 
     AINT[itime,:,:] = A2di
 
-  kdim,jdim,idim = Ianom.shape
+  kdim,jdim,idim = AINT.shape
   darr_ice = xarray.DataArray(AINT, dims=("nmonths","jdim","idim"), \
-                    coords={"nmonths": mcal, \
+                    coords={"nmonths": np.arange(kdim), \
                             "jdim": np.arange(jdim), \
                             "idim": np.arange(idim)})
   darr_months = xarray.DataArray(mcal, dims=("nmonths"), \
-                       coords={"nmonths": mcal})
+                       coords={"nmonths": np.arange(kdim)})
   dset = xarray.Dataset({"months": darr_months, f"{varnm}": darr_ice})
-  dset['months'].attrs['long_name']: 'Calendar months during the forecast'
+  dset['months'].attrs['long_name']='Calendar months during the forecast'
   if ifld == 'siconc':
-    dset[f'{varnm}'].attrs['long_name']: 'ice partial area'
+    dset[f'{varnm}'].attrs['long_name']='ice partial area'
   elif ifld == 'sithick':
-    dset[f'{varnm}'].attrs['long_name']: 'mean cell thickness or ice volume per unit area, m3/m2'
+    dset[f'{varnm}'].attrs['long_name']='mean cell thickness or ice volume per unit area, m3/m2'
   
   # Add global attributes:
   dset.attrs.update({

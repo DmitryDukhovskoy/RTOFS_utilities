@@ -9,7 +9,7 @@
 
 
   usage: 
-  calc_SPEAR_ice_clim.py --varnm iconc --YRS 2010 --YRE 2020 --MMI=1 --ensmb 1
+  calc_SPEAR_ice_clim.py --varnm iconc --YRS 2010 --YRE 2020 --MMI=1 --ensmb 1 --interp 1
 
   Only 12 months of the f/cast are saved in the SPEAR files
   mo - calendar month, depending on the init month, it may be at the end/start of the f/cast
@@ -51,7 +51,8 @@ parser.add_argument("--YRS", help="start year for deriving climat.: 1993, ..., 2
 parser.add_argument("--YRE", help="end year for deriving climat.: 1993, ..., 2022", type=int)
 parser.add_argument("--MMI", help="init month of SPEAR f/cast: 1, ..., 12", type=int)
 parser.add_argument("--ensmb", help="ensemble number, 1,..., 15", type=int)
-parser.add_argument("--varnm", help="field: ithkn or iarea", type=str)
+parser.add_argument("--varnm", help="field: ithkn or iarea/iconc", type=str)
+parser.add_argument("--interp", help="=1: interpolate to NEP grid save on both NEP and SPEAR", type=int) 
 args = parser.parse_args()
 
 f_save = True
@@ -61,6 +62,7 @@ YRE = 2015
 MMI = 1     # init month
 ifld = 'iarea'  # ithkn, iarea
 ens_nmb = 1  # SPEAR ensemble #
+interp_NEP = True # interpolate to NEP and save on both grids (SPEAR & NEP), otherwise - only SPEAR
 
 if args.YRS:
   YRS = args.YRS
@@ -76,6 +78,11 @@ if args.varnm:
     ifld = 'sithick'
 if args.ensmb:
   ens_nmb = args.ensmb
+if args.interp:
+  if args.interp == 1:
+    interp_NEP = True
+  else:
+    interp_NEP = False
 
 varnm = ifld
 
@@ -133,6 +140,108 @@ for YRI in range(YRS,YRE+1):
 
 ASUM = ASUM / icc
 
+if f_save:
+  pthpkl = '/work/Dmitry.Dukhovskoy/anls_output/spear_ice'
+  floutp = f'spear_{varnm}_clim_{YRS}_{YRE}_MI{MMI:02d}e{ens_nmb:02d}.pkl'
+  dflout = os.path.join(pthpkl,floutp)
+  print(f'Dumping climtology --> {dflout}')
+  with open(dflout,'wb') as fid:
+    pickle.dump([ASUM,LON,LAT],fid) 
+
+
+if interp_NEP:
+  print("Interpolating to NEP grid ...")
+
+  # NEP grid:
+  fyaml = 'paths_seasfcst.yaml'
+  with open(fyaml) as ff:
+    pthseas = safe_load(ff)
+
+  expt_name = "seasonal_daily"
+  pthtopo    = pthseas['MOM6_NEP'][expt_name]['pthgrid']
+  fgrid      = pthseas['MOM6_NEP'][expt_name]['fgrid']
+  ftopo_mom  = pthseas["MOM6_NEP"][expt_name]["ftopo"]
+  hgrid      = xarray.open_dataset(os.path.join(pthtopo,fgrid))
+  hmask      = xarray.open_dataset(os.path.join(pthtopo, 'ocean_mask.nc'))
+  dstopo_nep = xarray.open_dataset(os.path.join(pthtopo, ftopo_mom))
+  dfgrid_mom = os.path.join(pthtopo, fgrid)
+
+  # Hgrid lon. lat:
+  hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
+
+  HH = dstopo_nep['depth'].data
+  HH = np.where(HH < 1.e-20, np.nan, HH)
+  HH = -HH
+  HH = np.where(np.isnan(HH), 1., HH)
+  jdim, idim = HH.shape
+
+  LMsk = np.where(HH>=0, 0, 1)
+  # Mask out southern lats:
+  LMsk[:551,:] = 0
+  LMsk[:,:47] = 0
+
+  AINT = np.zeros((12,jdim,idim))
+  fconfig = 'config_nep.yaml'
+  with open(fconfig) as ff:
+    config = safe_load(ff)
+  # Check if mapping indices exist, gmapi, should be created before interpolation:
+  dirgmapi = config['filesystem']['spear_mom_gmapi']
+  flgmaph  = 'spear2mom_NEP_full_gmapi_hpnt.nc'
+  dflgmaph = os.path.join(dirgmapi, flgmaph)
+  # h-point indices
+  if not os.path.isfile(dflgmaph):
+    print(f'Mapping indices hpnt are missing, {dflgmaph}, run find_SPEAR_NEP_gmapi.py ...')
+    raise Exception('Quitting ...')
+  dsh = xarray.open_dataset(dflgmaph)
+  IMOM = dsh['indx_nep'].data
+  JMOM = dsh['jndx_nep'].data
+  INDX = dsh['indx_spear'].data
+  JNDX = dsh['jndx_spear'].data
+  LON2  = dsh['lonh_spear'].data
+  LAT2  = dsh['lath_spear'].data
+
+  # Make sure that gmapi are for this SPEAR subset:
+  D = np.max(np.abs(LON-LON2) + np.abs(LAT-LAT2))
+  if D > 1.e-6:
+    raise Exception ('Saved gmapi may not be for this SPEAR LON/LAT, check subset regions ...')
+   
+  for imo in range(12):
+    print(f"  month {imo}")
+    # Interpolate to NEP grid:
+    A2d = ASUM[imo,:,:].squeeze()
+    A2di = msisrlx.interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
+    A2di = np.where(np.isnan(A2di), 0., A2di)
+    A2di = np.where(HH>=0, np.nan, A2di)
+
+    AINT[imo,:,:] = A2di
+
+  kdim,jdim,idim = AINT.shape
+  darr_ice = xarray.DataArray(AINT, dims=("months","jdim","idim"), \
+                    coords={"months": np.arange(kdim), \
+                            "jdim": np.arange(jdim), \
+                            "idim": np.arange(idim)})
+  darr_months = xarray.DataArray(mcal, dims=("months"), \
+                       coords={"months": np.arange(kdim)})
+  dset = xarray.Dataset({"calend_months": darr_months, f"{varnm}": darr_ice})
+  dset['calend_months'].attrs['long_name']='Calendar months during the forecast'
+  if ifld == 'siconc':
+    dset[f'{varnm}'].attrs['long_name']='ice partial area'
+  elif ifld == 'sithick':
+    dset[f'{varnm}'].attrs['long_name']='mean cell thickness or ice volume per unit area, m3/m2'
+
+  # Add global attributes:
+  dset.attrs.update({
+    "info": "Interpolated SPEAR {varnm} climatology to NEP SIS2 grid",
+    "code": "calc_SPEAR_ice_clim.py"
+  })
+
+  if f_save:
+    flint  = f'spear_interpNEP_{varnm}_clim_{YRS}_{YRE}_MI{MMI:02d}e{ens_nmb:02d}.nc'
+    dflint = os.path.join(pthpkl,flint)
+    print(f'Dumping interpolated {varnm} climtology --> {dflint}')
+    dset.to_netcdf(dflint, format='NETCDF3_64BIT', engine='netcdf4')
+ 
+
 match ifld:
   case('sithick'):
     clrmp = mclrmps.colormap_ice_thkn()
@@ -173,14 +282,6 @@ def plot_ice(fgnmb, m, xR, yR, A2d, clrmp, rmin, rmax, sttl):
   btx = 'calc_SPEAR_ice_clim.py'
   bottom_text(btx, pos=[0.2, 0.01])
 
-
-if f_save:
-  pthpkl = '/work/Dmitry.Dukhovskoy/anls_output/spear_ice'
-  floutp = f'spear_{varnm}_clim_{YRS}_{YRE}_MI{MMI:02d}.pkl'
-  dflout = os.path.join(pthpkl,floutp)
-  print(f'Dumping climtology --> {dflout}')
-  with open(dflout,'wb') as fid:
-    pickle.dump([ASUM,LON,LAT],fid) 
 
 # Check
 f_check = False
