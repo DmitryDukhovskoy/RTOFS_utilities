@@ -3,7 +3,7 @@
   For plotting most recent runs with ice relaxation
   For plotting older runs, use plot_seatice.py
  
-  usage: plot_seaice_v2.py --varnm={ithkn,iconc} --expt=2 --YRS=1993 --MMS=4 --yr=1993 \
+  usage: plot_seaice_v2.py --varnm={ithkn,iconc} --expt=2 --YRI=1993 --MMI=4 --yr=1993 \
                            --mo=8 --day=12 --jday=138
   jday = day of the year to plot
   or can provide date using month/day
@@ -51,8 +51,8 @@ parser.add_argument("--day", help="day to plot: 1, ..., 31", type=int)
 parser.add_argument("--jday", help="year day to plot: 1, ..., 366", type=int)
 parser.add_argument("--varnm", help="field to plot: ithkn or iconc", type=str)
 parser.add_argument("--expt", help="experiment number: 1, ...", type=int)
-parser.add_argument("--YRS", help="init year of f/cast, 1993, ...", type=int)
-parser.add_argument("--MS", help="init month of f/cast, 1,4,7,10", type=int)
+#parser.add_argument("--YRI", help="init year of f/cast, 1993, ...", type=int)
+parser.add_argument("--MMI", help="init month of f/cast, 1,4,7,10", type=int)
 args = parser.parse_args()
 
 # experiment: year start, month start, ...
@@ -69,8 +69,7 @@ if not varnm == 'ithkn':
   f_obsthck = False
 
 # Start of the run - needed only for seasonal forecasts:
-YRS    = 1993 # year start of the forecast
-MS    = 4
+MMI    = 4
 DDS    = 1    
 nens   = 1    # ens # for ensemble runs
 
@@ -94,15 +93,18 @@ if args.jday:
   jday_plt = args.jday
 if args.expt:
   expt_nmb = args.expt
-if args.YRS:
-  YRS = args.YRS
-if args.MS:
-  MS = args.MS
+#if args.YRI:
+#  YRI = args.YRI
+if args.MMI:
+  MMI = args.MMI
 
 if jday_plt >0 and jday_plt <=366:
   dnmbR  = mtime.jday2dnmb(yr_plt,jday_plt)
 else:
   dnmbR  = mtime.datenum([yr_plt,mo_plt,day_plt])  # day to plot
+
+# Find init year of the f/cast:
+YRI = manseas.yr_init_fcst_from_datenum(dnmbR, MMI)
 
 # Choose experiment:
 #expt     = 'test_ice_relax'
@@ -115,7 +117,7 @@ expt     = "seasonal_daily"
 runname  = f"NEPphys_frcst_dailyOB-expt{expt_nmb:02d}"
 #
 expt_nmb0 = f"{expt_nmb:02d}"
-dnmbS   = mtime.datenum([YRS,MS,DDS]) 
+dnmbI   = mtime.datenum([YRI,MMI,DDS]) 
 dvR     = mtime.datevec(dnmbR)
 dnmb0   = dnmbR
 dv0     = mtime.datevec(dnmb0)
@@ -156,10 +158,10 @@ with open(fyaml) as ff:
 if expt == 'seasonal_daily':
   pth1     = pthseas['MOM6_NEP'][expt]['pthoutp'].format(expt_nmb=expt_nmb)
   dir_fcst = pthseas['MOM6_NEP'][expt]['dir_icefcst'].format(\
-       yr_start=YRS, mo_start=MS, ens=nens, yr_run=YR0, mo_run=MM0)
+       yr_start=YRI, mo_start=MMI, ens=nens, yr_run=YR0, mo_run=MM0)
   pthfcst = os.path.join(pth1,dir_fcst)
 elif expt == 'test_ice_relax':
-  pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(YY=YRS, MM=MS, expt_nmb=expt_nmb)
+  pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(YY=YRI, MM=MMI, expt_nmb=expt_nmb)
 else:
   pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(YY=YR0, MM=MM0)
 pthtopo    = pthseas['MOM6_NEP'][expt]['pthgrid']
@@ -190,7 +192,7 @@ dfsis2 = os.path.join(pthfcst, flice_name)
 
 # Averaging period:
 dnmb_av1 = dnmb0 - np.floor(ndav/2)
-#if dnmb_av1 < dnmbS: dnmb_av1=dnmbS
+#if dnmb_av1 < dnmbI: dnmb_av1=dnmbI
 dnmb_av2 = dnmb_av1 + ndav-1
 
 dset   = xarray.open_dataset(dfsis2)
@@ -279,7 +281,8 @@ dv_av2 = mtime.datevec(dnmb_av2)
 yre, mme, dde = dv_av2[:3]
 
 sttl = f"{runname} {varnm} avrg: {yrs}/{mms}/{dds}-{yre}/{mme}/{dde}"
-sttl = sttl + f"\n expt={expt_nmb0} dt={dt_idyn:.0f} dt_slow={dt_slow:.0f} rlx_max={rlx_max:.2f}hr"
+sttl = sttl + f"\n expt={expt_nmb0} MMI={MMI:02d} " + \
+              f"dt={dt_idyn:.0f} dt_slow={dt_slow:.0f} rlx_max={rlx_max:.2f}hr"
 if j0 >= 0 and i0 >= 0:
   sttl = sttl + f"\n Test pnt iF0/jF0 = {iF0}/{jF0} {varnm}={A2d[j0,i0]:.6f}"
 # Stereographic Map projection:
@@ -390,7 +393,7 @@ ax3.text(0, 0, sinfo, fontsize=8)
 ax3.axis('off')
 
 
-btx = 'plot_seaice.py'
+btx = 'plot_seaice_v2.py'
 bottom_text(btx, pos=[0.2, 0.01])
 
 

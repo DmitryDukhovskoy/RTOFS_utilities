@@ -1,7 +1,14 @@
 """
   Create relax fields from PIOMAS monthly ice thickness and concentration
+  over the time period yrs - yre 
+  create nyrs lreax. files
 
-  usage: piomasV21_relaxation_yearly.py --yrs 1994 --yre 1995 --fsave 1
+  usage: piomasV21_relaxation_yearly.py --yrs 1994 --yre 1995 --fsave 1 --nyrs 2
+
+  nyrs - # of years grouped into 1 relax file:
+  e.g. nyrs 2:
+  yrs = 1993 --> relax _1993_1994
+
 
   monthly fields
   1979-present
@@ -46,16 +53,17 @@ import mod_misc1 as mmisc
 parser = argparse.ArgumentParser()
 parser.add_argument("--yrs",   help="year start to extract PIOMAS: 1993, ..., 2020", type=int)
 parser.add_argument("--yre",   help="year end to extract PIOMAS: 1993, ..., 2020", type=int)
+parser.add_argument("--nyrs", help="number of years grouped in 1 relax. file, default=2", type=int)
 parser.add_argument("--fsave", help="flag > 0 to save the output", type=int)
 args = parser.parse_args()
 
 f_save = True
+nyrs = 2
 YRs = 2010
-YRe = 2010    # make YRe=YRs to create 1 yr field with padded start/end of the year
+YRe = YRs+(nyrs-1)  
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
                        # for monthly, daily, etc. need -dt and +dt at the beginn/end 
-
 
 if args.yrs:
   YRs = args.yrs
@@ -66,7 +74,8 @@ if args.fsave:
     f_save = True
   else:
     f_save = False
-
+if args.nyrs:
+  nyrs=args.nyrs
 
 fyaml = 'pypaths_gfdlpub.yaml'
 with open(fyaml) as ff:
@@ -128,7 +137,6 @@ else:
         continue
       x0 = hlon[jj,ii]
       y0 = hlat[jj,ii]
-      # TOTO: change lat to 50 N to include ice in S. Bering Sea
       if y0 < 50.:
         continue
       if y0 < np.min(LAT) or y0 > np.max(LAT):
@@ -157,155 +165,164 @@ else:
     pickle.dump([IMOM, JMOM, INDX, JNDX], fid)
 
 # Create time array:
-match file_type:
-  case('clim'):
-    TMPLT = np.zeros((12))
-    for imo in range(1,13):
-      dnmb0 = mtime.datenum([YRs,imo,15,12])
-      TMPLT[imo-1] = dnmb0
-  case('monthly'):
-    TMPLT = []
-    dnmb0 = mtime.datenum([YRs-1,12,15,12])
-    TMPLT = [dnmb0]
-    for YR in range(YRs,YRe+1):
+def create_time_array(YR1, nyrs, file_type):
+  YR2 = YR1+(nyrs-1)
+  match file_type:
+    case('clim'):
+      TMPLT = np.zeros((12))
       for imo in range(1,13):
-        dnmb0 = mtime.datenum([YR,imo,15,12])
-        TMPLT.append(dnmb0)
-    dnmb0 = mtime.datenum([YRe+1,1,15,12])
-    TMPLT.append(dnmb0)
-    TMPLT = np.array(TMPLT)
-  case _:
-    raise Exception(f'relaxation input file for {file_type} has not been set up yet')
+        dnmb0 = mtime.datenum([YR1,imo,15,12])
+        TMPLT[imo-1] = dnmb0
+    case('monthly'):
+      TMPLT = []
+      dnmb0 = mtime.datenum([YR1-1,12,15,12])
+      TMPLT = [dnmb0]
+      for YR in range(YR1,YR2+1):
+        for imo in range(1,13):
+          dnmb0 = mtime.datenum([YR,imo,15,12])
+          TMPLT.append(dnmb0)
+      dnmb0 = mtime.datenum([YR2+1,1,15,12])
+      TMPLT.append(dnmb0)
+      TMPLT = np.array(TMPLT)
+    case _:
+      raise Exception(f'relaxation input file for {file_type} has not been set up yet')
+  
+  return(TMPLT)
 
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
-nrec = len(TMPLT)
-xdim = [x for x in range(0,idm)]
-ydim = [x for x in range(0,jdm)]
+for YR1 in range(YRs,YRe+1):
+  YR2 = YR1 + (nyrs-1)
+  print(f'Creating SIS2 relaxation for {YR1}-{YR2}')
+  TMPLT = create_time_array(YR1,nyrs,file_type)
 
-H3d = np.zeros((nrec,jdm,idm))
-C3d = np.zeros((nrec,jdm,idm))
+  nrec = len(TMPLT)
+  xdim = [x for x in range(0,idm)]
+  ydim = [x for x in range(0,jdm)]
 
-#LMsk = HH.copy()
-LMsk = np.where(HH<0, 1, 0)
-icc  = -1
-YRold = 0
-for dnmb in TMPLT:
-  icc += 1
+  H3d = np.zeros((nrec,jdm,idm))
+  C3d = np.zeros((nrec,jdm,idm))
 
-  dv = mtime.datevec(dnmb)
-  yr0, mm0 = dv[:2]
+  #LMsk = HH.copy()
+  LMsk = np.where(HH<0, 1, 0)
+  icc  = -1
+  YRold = 0
+  for dnmb in TMPLT:
+    icc += 1
 
-  if yr0 != YRold:
-    flthck  = f'piomas_heff{yr0}_v21.nc'
-    flconc  = f'piomas_area{yr0}_v21.nc'
-    dflthkn = os.path.join(pthdata, flthck)
-    dflconc = os.path.join(pthdata, flconc)
+    dv = mtime.datevec(dnmb)
+    yr0, mm0 = dv[:2]
 
-    ds_thkn = xarray.open_dataset(dflthkn)
-    LAT  = ds_thkn['lat_scaler'].data
-    LON  = ds_thkn['lon_scaler'].data
+    if yr0 != YRold:
+      flthck  = f'piomas_heff{yr0}_v21.nc'
+      flconc  = f'piomas_area{yr0}_v21.nc'
+      dflthkn = os.path.join(pthdata, flthck)
+      dflconc = os.path.join(pthdata, flconc)
 
-    ds_conc = xarray.open_dataset(dflconc)
+      ds_thkn = xarray.open_dataset(dflthkn)
+      LAT  = ds_thkn['lat_scaler'].data
+      LON  = ds_thkn['lon_scaler'].data
 
-    YRold = yr0
+      ds_conc = xarray.open_dataset(dflconc)
 
-  # Find record #: monthly data
-  #tindx = mm0-1
+      YRold = yr0
 
-  Month = ds_thkn['month'].data
-  Year  = ds_thkn['year'].data
-  D     = np.sqrt((Month-mm0)**2 + (Year-yr0)**2)
-  tindx = np.argmin(D)
-  assert(D[tindx]==0), f"Requested {yr0}/{mm0} not found in {dflthkn}"
-  print(f'Processing {dv[0]}/{dv[1]}/{dv[2]}, tindx={tindx}')
-  H2d   = ds_thkn[varthck].data[tindx,:].squeeze()  # thikness, m
-  C2d   = ds_conc[varconc].data[tindx,:].squeeze()  #conc
-  #C2d   = np.where(C2d > 1., 1., C2d)
+    # Find record #: monthly data
+    #tindx = mm0-1
 
-  # Get rid off the land values along the southern boundary:
-  nbnd = 4
-  for ik in range(nbnd):
-    H2d[ik,:] = H2d[nbnd,:]
-    C2d[ik,:] = C2d[nbnd,:]
+    Month = ds_thkn['month'].data
+    Year  = ds_thkn['year'].data
+    D     = np.sqrt((Month-mm0)**2 + (Year-yr0)**2)
+    tindx = np.argmin(D)
+    assert(D[tindx]==0), f"Requested {yr0}/{mm0} not found in {dflthkn}"
+    print(f'Processing {dv[0]}/{dv[1]}/{dv[2]}, tindx={tindx}')
+    H2d   = ds_thkn[varthck].data[tindx,:].squeeze()  # thikness, m
+    C2d   = ds_conc[varconc].data[tindx,:].squeeze()  #conc
+    #C2d   = np.where(C2d > 1., 1., C2d)
 
-  # Get rid of nans - fill land:
-  H2df = mmom6.fill_land3d(H2d, land_mask=9999.9)
-  C2df = mmom6.fill_land3d(C2d, land_mask=9999.9)
-  C2df  = np.where(C2df > 1., 1., C2df)
-  C2df  = np.where(C2df < 0.0, 0.0, C2df)
-  
-  # interpolate onto MOM6 grid
-  H2di = msisrlx.interp2Dfld(H2df, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
-  C2di = msisrlx.interp2Dfld(C2df, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
+    # Get rid off the land values along the southern boundary:
+    nbnd = 4
+    for ik in range(nbnd):
+      H2d[ik,:] = H2d[nbnd,:]
+      C2d[ik,:] = C2d[nbnd,:]
 
-  C2di = np.where(C2di>0.99, 1.0, C2di) # interp error 1--> 0.99, also caps max conc = 1
+    # Get rid of nans - fill land:
+    H2df = mmom6.fill_land3d(H2d, land_mask=9999.9)
+    C2df = mmom6.fill_land3d(C2d, land_mask=9999.9)
+    C2df  = np.where(C2df > 1., 1., C2df)
+    C2df  = np.where(C2df < 0.0, 0.0, C2df)
+    
+    # interpolate onto MOM6 grid
+    H2di = msisrlx.interp2Dfld(H2df, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
+    C2di = msisrlx.interp2Dfld(C2df, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
 
-  H3d[icc,:,:] = H2di
-  C3d[icc,:,:] = C2di
+    C2di = np.where(C2di>0.99, 1.0, C2di) # interp error 1--> 0.99, also caps max conc = 1
 
-# Construct time array: days since the reference day:
-dnmb_ref = mtime.datenum([1993,1,1])
-dv_ref = mtime.datevec(dnmb_ref)
-#dnmb0 = mtime.datenum([2003,12,15,12]) 
-TM_ref = TMPLT - dnmb_ref 
-if TM_ref[0] < 0:
-  TM_ref[0] = 0.
+    H3d[icc,:,:] = H2di
+    C3d[icc,:,:] = C2di
 
-# Construct data set:
-dim1 = 'time'
-dim2 = 'yh'
-dim3 = 'xh'
-ithknvar = 'ithkn'
-iconcvar = 'iarea'  # partial area
-darr_Hmom = xarray.DataArray(H3d, dims=(dim1, dim2, dim3), 
-            coords={dim1: TM_ref, dim2: ydim, dim3: xdim})
-darr_Cmom = xarray.DataArray(C3d, dims=(dim1, dim2, dim3), 
-            coords={dim1: TM_ref, dim2: ydim, dim3: xdim})
-dset_Hmom = xarray.Dataset({f'{ithknvar}': darr_Hmom})
-dset_Cmom = xarray.Dataset({f'{iconcvar}': darr_Cmom})
-dset_Ice = xarray.merge([dset_Hmom, dset_Cmom])
+  # Construct time array: days since the reference day:
+  dnmb_ref = mtime.datenum([1993,1,1])
+  dv_ref = mtime.datevec(dnmb_ref)
+  #dnmb0 = mtime.datenum([2003,12,15,12]) 
+  TM_ref = TMPLT - dnmb_ref 
+  if TM_ref[0] < 0:
+    TM_ref[0] = 0.
 
-# Add attributes:
-dset_Ice.attrs["history"] = f"Created from PIOMAS monthly ice fields {YRs}"
-dset_Ice.attrs["code"] = "/home/Dmitry.Dukhovskoy/python/sis2_relax/piomasV21_relaxation_yearly.py"
+  # Construct data set:
+  dim1 = 'time'
+  dim2 = 'yh'
+  dim3 = 'xh'
+  ithknvar = 'ithkn'
+  iconcvar = 'iarea'  # partial area
+  darr_Hmom = xarray.DataArray(H3d, dims=(dim1, dim2, dim3), 
+              coords={dim1: TM_ref, dim2: ydim, dim3: xdim})
+  darr_Cmom = xarray.DataArray(C3d, dims=(dim1, dim2, dim3), 
+              coords={dim1: TM_ref, dim2: ydim, dim3: xdim})
+  dset_Hmom = xarray.Dataset({f'{ithknvar}': darr_Hmom})
+  dset_Cmom = xarray.Dataset({f'{iconcvar}': darr_Cmom})
+  dset_Ice = xarray.merge([dset_Hmom, dset_Cmom])
 
-dset_Ice[ithknvar].attrs["long_name"] = "Mean ice thickness"
-dset_Ice[ithknvar].attrs["units"] = "meter"
-dset_Ice[iconcvar].attrs["long_name"] = "Ice partial area, fraction"
-dset_Ice[iconcvar].attrs["units"] = "unitless"
+  # Add attributes:
+  dset_Ice.attrs["history"] = f"Created from PIOMAS monthly ice fields {YR1}-{YR2}"
+  dset_Ice.attrs["code"] = "/home/Dmitry.Dukhovskoy/python/sis2_relax/piomasV21_relaxation_yearly.py"
 
-# Attributes for clim and time-varying fields:
-match file_type:
-  case('clim'):
-    dset_Ice['time'].attrs['units'] = 'days since 0001-01-01'
-    dset_Ice['time'].attrs['calendar'] = 'noleap'
-    dset_Ice['time'].attrs['modulo'] = ' '
-    dset_Ice['time'].attrs['cartesian_axis'] = 'T'
-  case('monthly'):
-    dset_Ice['time'].attrs['units'] = f'days since {dv_ref[0]}-{dv_ref[1]:02d}-{dv_ref[2]:02d}'
-    dset_Ice['time'].attrs['calendar'] = 'gregorian'
-    dset_Ice['time'].attrs['cartesian_axis'] = 'T'
+  dset_Ice[ithknvar].attrs["long_name"] = "Mean ice thickness or volume per m2"
+  dset_Ice[ithknvar].attrs["units"] = "m3/m2"
+  dset_Ice[iconcvar].attrs["long_name"] = "Ice partial area, fraction"
+  dset_Ice[iconcvar].attrs["units"] = "unitless"
 
-dset_Ice['xh'].attrs['cartesian_axis'] = 'X'
-dset_Ice['yh'].attrs['cartesian_axis'] = 'Y'
+  # Attributes for clim and time-varying fields:
+  match file_type:
+    case('clim'):
+      dset_Ice['time'].attrs['units'] = 'days since 0001-01-01'
+      dset_Ice['time'].attrs['calendar'] = 'noleap'
+      dset_Ice['time'].attrs['modulo'] = ' '
+      dset_Ice['time'].attrs['cartesian_axis'] = 'T'
+    case('monthly'):
+      dset_Ice['time'].attrs['units'] = f'days since {dv_ref[0]}-{dv_ref[1]:02d}-{dv_ref[2]:02d}'
+      dset_Ice['time'].attrs['calendar'] = 'gregorian'
+      dset_Ice['time'].attrs['cartesian_axis'] = 'T'
 
-if f_save:
-#  encoding = {rlx_name: {'_FillValue': None}}
-  flout = f'PIOMAS_ithkn_iconc_{YRs}_{file_type}.nc'
-  if not YRe == YRs:
-    flout = f'PIOMAS_ithkn_iconc_{YRs}_{YRe}_{file_type}.nc'
+  dset_Ice['xh'].attrs['cartesian_axis'] = 'X'
+  dset_Ice['yh'].attrs['cartesian_axis'] = 'Y'
 
-  diclim = os.path.join(pthsis, flout)
+  if f_save:
+  #  encoding = {rlx_name: {'_FillValue': None}}
+    flout = f'PIOMASv21_ithkn_iconc_{YR1}_{file_type}.nc'
+    if not YR1 == YR2:
+      flout = f'PIOMASv21_ithkn_iconc_{YR1}_{YR2}_{file_type}.nc'
 
-  print(f'Saving PIOMAS climatology --> {diclim}')
-  dset_Ice.to_netcdf(
-       diclim,
-       format='NETCDF3_64BIT',
-       engine='netcdf4',
-       unlimited_dims='time'
-  )
+    diclim = os.path.join(pthsis, flout)
+
+    print(f'Saving PIOMAS climatology --> {diclim}')
+    dset_Ice.to_netcdf(
+         diclim,
+         format='NETCDF3_64BIT',
+         engine='netcdf4',
+         unlimited_dims='time'
+    )
 
 
 check_rlx = False

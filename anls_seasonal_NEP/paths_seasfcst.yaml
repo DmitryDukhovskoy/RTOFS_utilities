@@ -65,6 +65,7 @@ MOM6_NEP:
     ndav:    5
     pthdump: '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp'
     pthanls: '/work/Dmitry.Dukhovskoy/anls_output/NEPphys_frcst_dailyOB-expt{expt_nmb:02d}/data_misc'
+    pthsis2: '/work/Dmitry.Dukhovskoy/anls_output/NEPphys_frcst_dailyOB-expt{expt_nmb:02d}/sis2_fields'
     year_start: {YRS}
     month_start: {MMS}
     day_start: {DDS}
