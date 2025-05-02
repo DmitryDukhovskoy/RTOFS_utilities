@@ -33,23 +33,26 @@ import mod_colormaps as mclrmps
 import mod_misc1 as mmisc
 from mod_utils_fig import bottom_text
 
-# Select max and min relaxation time scalres, hrs
+# Select max and min relaxation time scales, hrs
 # max relaxation - strongest, typically along the OBs
 # min relaxation - somewhere in the domain where sea ice presents
 #                  e.g. Bering strait
 # rx_min, ry_min - approximate # of i, j pnts from the ice OBs
 #                  i.e., from i=imax to Ber. Str. (342-200)
 # relaxation time scales will be going to 0 away from the ice OBs
-rate_max_hrs  = 1.                     # max relaxation time
+rate_max_hrs  = 24.                     # max relaxation time, hrs
 Irate_max_sec = 1./(rate_max_hrs*3600.)  # relaxation rate, s-1
 
-f_save = False           # Save netcdf relax file
+f_save    = False         # Save netcdf relax file
 check_rlx = True         # Plot relaxation field
 check_ref_domain = True  # Plot transformations of the reference domain
 
 rlx_name = 'relax_rate' # name of the variable, should be the same in the SIS_input
 
 btx  = 'relax_timescale.py'
+
+if not f_save:
+  print(f'WARNING: relaxation field is not saved, f_save: {f_save}')
 
 fyaml = 'pypaths_gfdlpub.yaml'
 with open(fyaml) as ff:
@@ -79,7 +82,7 @@ jdm, idm = HH.shape
 # rpolar  = approximate # of grid points from the NE corner  of the NEP domain
 # to ~55N
 # Define a rectangular domain D, transformed relax zone is a square = rpolar
-rpolarN = 210   # this defines the size of the relaxation zone along N. bndry axis (index space)
+rpolarN = 250   # this defines the size of the relaxation zone along N. bndry axis (index space)
 rpolarE = 260   # -"- -"- along the E. bndry axis
 #rpolar = 240
 Y = np.arange(-rpolarN,rpolarE+1)
@@ -102,7 +105,7 @@ ieE = jdmD
 irmaxE = 120
 
 # Adjust exponential decay of the relaxation off the Y=0 axis:
-f_adj = True
+f_adj = False
 sgmx = idm/4  # controls exponential decay in the Gaussian, decrease the denom. to slow the decay
 RLX = np.zeros((jdmD, idmD))
 for jj in range(jdmD):
@@ -120,11 +123,15 @@ for jj in range(jdmD):
   aa[:irmax0] = aa[irmax0]
   RLX[jj,:] = aa*Irate_max_sec
 
-# Perform 1st mapping using z**1/2
+# Perform 1st mapping using z**rexp
 # Use the fact that mapped domain is symmetric wrt real axis X
+rdnm = 1.4
+rexp = 1/rdnm
 RMAP1 = np.zeros((jdmD, idmD))*np.nan
 RMAP2 = RMAP1.copy()*np.nan
 jD0 = np.argmin(np.abs(Y))
+#theta_dgr = 225. # rotation angle, sign in math. sense
+theta_dgr = 270.-90./rdnm # rotation angle, sign in math. sense
 for ii in range(idmD):
   for jj in range(jdmD):
     # Y Distance wrt to jD0:
@@ -132,36 +139,45 @@ for ii in range(idmD):
     yy = Y[jj]
     RR  = np.sqrt(xx**2+yy**2)
     phi = np.arctan2(yy,xx)
-    # Note that under the 1st mapping, RR should be sqrt(RR) 
+    # Note that under the 1st mapping, RR should be (RR)**(1/rndm)
     # To keep RR unchanged during the transformation and keep the same grid dim
-    # apply another transformation z=z*|z|, i.e. sqrt(RR) --> RR
-    x_map = RR*np.cos(phi/2)
-    y_map = RR*np.sin(phi/2)
+    # apply another transformation z=z*|z|**((rdnm-1)/rdnm), i.e. (RR)**(1/rdnm) --> RR
+    x_map = RR*np.cos(phi/rdnm)
+    y_map = RR*np.sin(phi/rdnm)
     imap = np.max(np.where(X<=x_map)[0])
     jmap = np.max(np.where(Y<=y_map)[0])
-    RMAP1[jmap, imap] = RLX[jj,ii]
+    #RMAP1[jmap, imap] = RLX[jj,ii]      # this may leave empty cells due to round off errors
+    imm1 = np.max([imap-1,0])
+    imm2 = np.min([imap+1,idmD])
+    jmm1 = np.max([jmap-1,0])
+    jmm2 = np.min([jmap+1,jdmD])
+    RMAP1[jmm1:jmm2, imm1:imm2] = RLX[jj,ii]
 
-    # Perform 2nd mapping - rotation by 225 degree angle:
-    theta = 225*np.pi/180.
+    # Perform 2nd mapping - rotation by theta- degree angle:
+    theta = theta_dgr*np.pi/180.
     RRmap1 = np.sqrt((x_map)**2 + (y_map)**2)
     phi1 = np.arctan2(y_map,x_map)
     rmap0 = RMAP2[jD0,jD0]    # debugging
     x_rot = RRmap1*np.cos(phi1+theta)
     y_rot = RRmap1*np.sin(phi1+theta)
-    irot = np.min(np.where(XR>=x_rot)[0])
-    jrot = np.min(np.where(YR>=y_rot)[0])
-    #RMAP2[jrot,irot] = RLX[jj,ii]
-    # To avoid gaps: fill neighboring grid cells
-    ip1 = np.min([irot+1, idmD])
-    im1 = np.max([irot-1, 0])
-    jp1 = np.min([jrot+1, jdmD])
-    jm1 = np.max([jrot-1, 0])
-    RMAP2[jm1:jp1,im1:ip1] = RLX[jj,ii]
+    indx = np.where(XR>=x_rot)[0]
+    jndx = np.where(YR>=y_rot)[0]
+    if indx.size > 0 and jndx.size > 0:
+      irot = np.min(np.where(XR>=x_rot)[0])
+      jrot = np.min(np.where(YR>=y_rot)[0])
+      #RMAP2[jrot,irot] = RLX[jj,ii]
+      # To avoid gaps: fill neighboring grid cells
+      ip1 = np.min([irot+1, idmD])
+      im1 = np.max([irot-1, 0])
+      jp1 = np.min([jrot+1, jdmD])
+      jm1 = np.max([jrot-1, 0])
+      RMAP2[jm1:jp1,im1:ip1] = RLX[jj,ii]
 
 # Imbed transformed relax. field into relaxation array PSI
 jdmR, idmR = RMAP2.shape
-# subset part of the domain that contains transformed field
+# The domain is in the 3rd quarter:
 # domain: Y<=0 and x<=0
+# subset part of the domain that contains transformed field
 iyax0 = max(np.where(YR<=0)[0])
 ixax0 = max(np.where(XR<=0)[0])
 AA = RMAP2[:iyax0+1,:ixax0]    
@@ -176,9 +192,13 @@ RLXIS[:575,170:] = 0.0
 
 
 # Add land mask and southern domains = 0
-lat_cut = 60.
+lat_cut = 53.
 RLXIS = np.where(HH>=0, 0.0, RLXIS)
 RLXIS = np.where(hlat<lat_cut, 0.0, RLXIS)
+
+# No relaxation in the G. Alaska:
+RLXIS[:574,140:] = 0.0
+RLXIS[:580,90:141] = 0.0
 
 # For checking, relaxation time, hrs:
 RLXHR = RLXIS.copy()
@@ -220,9 +240,8 @@ if check_rlx:
   clrmp = mclrmps.colormap_temp2()
   clrmp = mclrmps.colormap_conc() 
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
-  rmin = 0.
-  rmax = 25.
   cff = 1.e5
+  
 
   # Stereographic Map projection:
   from mpl_toolkits.basemap import Basemap, cm
@@ -233,6 +252,15 @@ if check_rlx:
 
   AP = RLXIS.copy()*cff
   AP = np.where(HH>=0., np.nan, AP)
+
+
+  rmin = 0.
+  rmax = 25.
+  apmax = np.nanmax(AP)
+  if apmax > 1.:
+    rmax = np.floor(apmax)
+  else:
+    rmax = apmax 
   
   fig1 = plt.figure(1,figsize=(9,8))
   plt.clf()
@@ -244,13 +272,15 @@ if check_rlx:
   img = ax0.pcolormesh(xR, yR, AP, cmap=clrmp, vmin=rmin, vmax=rmax)
 #  img = ax0.pcolormesh(RLXHR, cmap=clrmp)
   if rate_max_hrs <= 2:
-    tscntrs = [1,2,5,10,40]
+    tscntrs = [1,2,5,10,40,80,120,240,360,480,600,720,1440]
   elif rate_max_hrs <=4:
-    tscntrs = [4,6,10,40,60]
+    tscntrs = [4,6,10,40,60,80,120,240,360,480,600,720,1440]
   elif rate_max_hrs <=24:
-    tscntrs = [24,26,30,50,80]
+    tscntrs = [24,26,30,60,80,120,240,360,480,600,720,960,1440]
   elif rate_max_hrs <=120:
-    tscntrs = [120,150,240,300,500]
+    tscntrs = [120,150,240,360,480,600,720,960,1440]
+  else:
+    tscntrs = [120,150,240,360,480,600,720,960,1440]
 
 
   tslabels = tscntrs
@@ -267,7 +297,7 @@ if check_rlx:
   ax2.set_yticklabels(ax2.get_yticks())
   ticklabs = clb.ax.get_yticklabels()
   #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
-  clb.ax.set_yticklabels(["{:.1f}".format(i) for i in clb.get_ticks()], fontsize=10)
+  clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
   clb.ax.tick_params(direction='in', length=12)
   ax2.set_ylabel(f'Relaxation, {1./cff:.1e}, s-1')
 
@@ -295,33 +325,33 @@ if check_ref_domain:
   clrmp = mclrmps.colormap_conc()
   clrmp.set_bad(color=[1, 1, 1])
 
-  fig1 = plt.figure(1,figsize=(9,8))
+  fig2 = plt.figure(2,figsize=(9,8))
   plt.clf()
-  ax1 = plt.axes([0.05, 0.55, 0.4, 0.4])
-  img = ax1.pcolormesh(X,Y,RLX, cmap=clrmp)
-  ax1 = axes_refdom(ax1,X,Y)
-  ax1.set_title('Reference domain')
+  ax21 = plt.axes([0.05, 0.55, 0.4, 0.4])
+  img = ax21.pcolormesh(X,Y,RLX, cmap=clrmp)
+  ax21 = axes_refdom(ax21,X,Y)
+  ax21.set_title('Reference domain')
 
   
-  ax2 = plt.axes([0.5, 0.55, 0.4, 0.4])
-  ax2.pcolormesh(X,Y,RMAP1, cmap=clrmp)
-  ax2 = axes_refdom(ax2,X,Y)
-  ax2.set_title('Mapping 1: f(z)=z^(1/2)')
+  ax22 = plt.axes([0.5, 0.55, 0.4, 0.4])
+  ax22.pcolormesh(X,Y,RMAP1, cmap=clrmp)
+  ax22 = axes_refdom(ax22,X,Y)
+  ax22.set_title(f'Mapping 1: f(z)=z^(1/{rdnm})')
 
-  ax3 = plt.axes([0.05, 0.05, 0.4, 0.4])
-  ax3.pcolormesh(XR,YR,RMAP2, cmap=clrmp)
-  ax3 = axes_refdom(ax3,X,YR)
-  ax3.set_title('Mapping2: f(z)=z*exp(tht)')
+  ax23 = plt.axes([0.05, 0.05, 0.4, 0.4])
+  ax23.pcolormesh(XR,YR,RMAP2, cmap=clrmp)
+  ax23 = axes_refdom(ax23,X,YR)
+  ax23.set_title('Mapping2: f(z)=z*exp(tht)')
 
-  ax4 = plt.axes([0.55, 0.05, 0.02, 0.4])
-  clb = plt.colorbar(img, cax=ax4, orientation='vertical', extend='both')
-  #ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
-  #ax2.set_yticklabels(ax2.get_yticks())
+  ax24 = plt.axes([0.55, 0.05, 0.02, 0.4])
+  clb = plt.colorbar(img, cax=ax24, orientation='vertical', extend='both')
+  #ax22.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
+  #ax22.set_yticklabels(ax22.get_yticks())
   ticklabs = clb.ax.get_yticklabels()
   #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
   #clb.ax.set_yticklabels(["{:.1f}".format(i) for i in clb.get_ticks()], fontsize=10)
   clb.ax.tick_params(direction='in', length=12)
-  ax4.set_title('Relaxation rate, s-1') 
+  ax24.set_title('Relaxation rate, s-1') 
  
   btx = 'relax_timescale.py'
   bottom_text(btx, pos=[0.2, 0.01])

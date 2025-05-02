@@ -91,9 +91,8 @@ if args.piomas:
 if YR0 < YR1 or YR0 > YR2:
   raise Exception(f"year to plot {YR0} is outside the time window in the file: {YR1}/{YR2}")
 
-if YR1 < 2010:
-  piomas_vers = 'reconstr'
-else:
+if YR1 > 2010 and piomas_vers == 'reconstr':
+  print(f'After 2010, only PIOMAS reanalysis is available, switch to reanalys')
   piomas_vers = 'reanalys'
 
 print(f'PIOMAS version: {piomas_vers}')
@@ -141,7 +140,7 @@ else:
 
 
 # Read saved relax. fields:
-flout = f'PIOMAS_ithkn_iconc_{YR1}_{YR2}_{file_type}.nc'
+flout = f'PIOMASv21_ithkn_iconc_{YR1}_{YR2}_{file_type}.nc'
 diclim = os.path.join(pthsis, flout)
 ds_rlx = xarray.open_dataset(diclim)
 Time = ds_rlx['time'].data

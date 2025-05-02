@@ -1,8 +1,7 @@
 """
-  Plot monthly ice conce from seas f/cast experiments
+  Plot monthly ice thickness from seas f/cast experiments
   Specify months (calendar numbering!) to average statistics by seasons
 
-  Usage: plot_fcst_iconc_mnthly.py --MMI=4 --YRS=1993 --YRE=1993 --MMS=10 --MME=10
   use --help for more information on keywargs
 
 """
@@ -30,11 +29,6 @@ sys.path.append(PPTHN + '/MyPython/hycom_utils')
 sys.path.append(PPTHN + '/MyPython/draw_map')
 sys.path.append(PPTHN + '/MyPython')
 sys.path.append(PPTHN + '/MyPython/mom6_utils')
-sys.path.append(PPTHN + '/TEOS_10/gsw')
-sys.path.append(PPTHN + '/TEOS_10/gsw/gibbs')
-sys.path.append(PPTHN + '/TEOS_10/gsw/utilities')
-import mod_swstate as msw
-import conversions as gsw
 
 from mod_utils_fig import bottom_text
 import mod_plot_xsections as mxsct
@@ -60,7 +54,6 @@ parser.add_argument("--MMS", help="Calendar month to start averaging of statisti
 parser.add_argument("--MME", help="Calendar month to end averaging of statistics", type=int)
 args = parser.parse_args()
 
-f_cntrobs = True   # Plot observation-derived ice edge
 
 # experiments: 2 - daily OB seasonal forecasts, 3 - same as 2 but with sea ice relaxation
 # Default values: 
@@ -73,8 +66,6 @@ YRE = YRS   # End
 MMS = 10
 MME = MMS
 expt_nmb = 3
-
-plot_fld = True # True - plot original fields from the expts, False - show only difference fld
 
 if args.YRS:
   YRS = args.YRS
@@ -100,6 +91,23 @@ if args.expt:
 #YRS = manseas.yr_init_fcst_from_datenum(dnmbS, MMI)
 #dnmbE = mtime.datenum([YRE,MME,15])
 #YRE = manseas.yr_init_fcst_from_datenum(dnmbE, MMI)
+
+# For sensitivity tests and checking ice relax tests:
+# Check XML files for particular f/cast run to see what relaxation rate is applied
+# e.g.: property name="irlx_rate_file" value="relax_rate_004hrs.nc
+rlx_max = 0
+if expt_nmb == 3:
+  if ensnmb==1:
+    rlx_max=24
+  elif ensnmb==2:
+    rlx_max=4
+  elif ensnmb==3:
+    rlx_max=12
+  elif ensnmb==4:
+    rlx_max=4
+elif expt_nmb == 4:
+  if ensnmb==1:
+    rlx_max=2
 
 
 if YRS == 1993 and MMI == 1:
@@ -152,7 +160,7 @@ for YRA in (YAVRG):
     elif YRI > 2020:
       continue
 
-    pthfcst = os.path.join(pthoutp,f'{YRI}-{MMI:02d}-e01','history')
+    pthfcst = os.path.join(pthoutp,f'{YRI}-{MMI:02d}-e{ensnmb:02d}','history')
     dcice = os.path.join(pthfcst,f'ice_month.nc')
     print(f'Reading {dcice}')
 
@@ -160,7 +168,9 @@ for YRA in (YAVRG):
     imo = MMF-1
 
     ds = xarray.open_dataset(dcice)
-    A2d = ds['siconc'].isel(time=imo).data.squeeze()
+    C2d = ds['siconc'].isel(time=imo).data.squeeze()
+    H2d = ds['sithick'].isel(time=imo).data.squeeze()   # ice thicknes m, need m3/m2 
+    A2d = H2d*C2d      # m3/m2 - grid cell mean thickness
 
     if icc == 0:
       AMN = A2d
@@ -172,15 +182,10 @@ for YRA in (YAVRG):
 if icc > 1:
   AMN  = AMN.squeeze()/icc
 
-# Mask out deep region:
-#AMN1 = np.where(HH<-500, 1.e3, AMN1)
-#AMN2 = np.where(HH<-500, 1.e3, AMN2)
-
-#if varnm == 'iconc':
-clrmp = mclrmps.colormap_conc()
+clrmp = mclrmps.colormap_ice_thkn()
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 rmin = 0.
-rmax = 1.
+rmax = 4.
 
 
 def plot_field(fgnmb, m, xR, yR, A2d, clrmp, rmin, rmax, sttl=[]):
@@ -233,60 +238,14 @@ xR, yR = m(hlon, hlat)
 mo_fcast = msisrlx.cal_mo_to_fcast(MMI,MMS)
 mE_fcast = msisrlx.cal_mo_to_fcast(MMI,MME)
 if MMS==MME and YRS==YRE:
-  sttl = (f'{expt_name} IceConc init M={MMI} e{ensnmb:02d}\n' + \
-         f'{YRS} mo={MMS} Lead: {mo_fcast}')
+  sttl = (f'{expt_name} IceThkn init M={MMI} e{ensnmb:02d}\n' + \
+         f'{YRS} mo={MMS} Lead: {mo_fcast}, rlx_max={rlx_max:02d}hr')
 else:
-  sttl = (f'{expt_name} IceConc init M={MMI} \n' + \
-         f'avrg {YRS}-{YRE} mo={MMS}-{MME} Lead: {mo_fcast}-{mE_fcast}')
+  sttl = (f'{expt_name} IceThkn init M={MMI} \n' + \
+         f'avrg {YRS}-{YRE} mo={MMS}-{MME} Lead: {mo_fcast}-{mE_fcast}, rlx_max={rlx_max:02dhr}')
 
 plt.ion()
 fgnmb=1
 ax1 = plot_field(1, m, xR, yR, A2d, clrmp,rmin,rmax,sttl=sttl)
-
-if f_cntrobs:
-  # Not averaged, for 1 year/month
-  # Change if averaged contour is needed
-  ci0=0.15
-  cntr_clr = [1, 0.4, 0]
-  ax1.contour(xR,yR,A2d,[ci0],linestyles='solid', colors=[cntr_clr], linewidths=1.2)
-  # Use interpolated fields
-  YR0 = YRS
-  MM0 = MMS
-  pthnsidc = f'/work/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{YR0}_mnth'
-  fliceout = f'NSIDC_iconc_mnth_interpNEP816x342_{YR0}.nc'
-  dfliceout = os.path.join(pthnsidc,fliceout)
-  dset_nsidc = xarray.open_dataset(dfliceout)
-  imo = MM0-1
-  ICnrt = dset_nsidc['ice_conc'].isel(time=imo).data
-
-  # Hgrid lon. lat:
-  fyaml = 'paths_seasfcst.yaml'
-  with open(fyaml) as ff:
-    pthseas = safe_load(ff)
-
-  expt = 'seasonal_daily'
-  pthtopo    = pthseas['MOM6_NEP'][expt]['pthgrid']
-  fgrid      = pthseas['MOM6_NEP'][expt]['fgrid']
-  ftopo_mom  = pthseas["MOM6_NEP"][expt]["ftopo"]
-  hgrid      = xarray.open_dataset(os.path.join(pthtopo,fgrid))
-  hmask      = xarray.open_dataset(os.path.join(pthtopo, 'ocean_mask.nc'))
-  dstopo_nep = xarray.open_dataset(os.path.join(pthtopo, ftopo_mom))
-  dfgrid_mom = os.path.join(pthtopo, fgrid)
-  hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
-
-  xRm, yRm = m(hlon,hlat)
-
-  cntr_nsidc = [0.,0.2,0.6]
-  ax1.contour(xRm,yRm,ICnrt,[ci0],linestyles='solid', colors=[cntr_nsidc], linewidths=1.5)
-
-  ax3 = plt.axes([0.02, 0.12, 0.1, 0.1])
-  dx = 0.15
-  ax3.plot([0,dx],[0.1,0.1],'-',color=cntr_clr)
-  ax3.text(2*dx, 0.1, 'F/cast', va='center')
-  ax3.plot([0,dx],[0.2,0.2],'-',color=cntr_nsidc)
-  ax3.text(2*dx,0.2, 'NSIDC NRT', va='center')
-  ax3.set_xlim([0,0.7])
-  ax3.set_ylim([0,0.3])
-  ax3.axis('off')
 
 

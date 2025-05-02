@@ -1,5 +1,8 @@
 """
   Plot sea ice conc/thickness - v. 2
+  Plot daily ice fields (icem*.nc) 
+  for monthly fields (from ice_month.nc): use plot_fcst_iconc_mnthly.py
+
   For plotting most recent runs with ice relaxation
   For plotting older runs, use plot_seatice.py
  
@@ -51,8 +54,8 @@ parser.add_argument("--day", help="day to plot: 1, ..., 31", type=int)
 parser.add_argument("--jday", help="year day to plot: 1, ..., 366", type=int)
 parser.add_argument("--varnm", help="field to plot: ithkn or iconc", type=str)
 parser.add_argument("--expt", help="experiment number: 1, ...", type=int)
-#parser.add_argument("--YRI", help="init year of f/cast, 1993, ...", type=int)
 parser.add_argument("--MMI", help="init month of f/cast, 1,4,7,10", type=int)
+parser.add_argument("--ensnmb", help="ensemble run number, 1,...,10", type=int)
 args = parser.parse_args()
 
 # experiment: year start, month start, ...
@@ -71,7 +74,7 @@ if not varnm == 'ithkn':
 # Start of the run - needed only for seasonal forecasts:
 MMI    = 4
 DDS    = 1    
-nens   = 1    # ens # for ensemble runs
+ensnmb = 1    # ens # for ensemble runs
 
 # Default values that can be modified by keywords
 # Day to plot either in year days or actual date:
@@ -93,10 +96,28 @@ if args.jday:
   jday_plt = args.jday
 if args.expt:
   expt_nmb = args.expt
-#if args.YRI:
-#  YRI = args.YRI
 if args.MMI:
   MMI = args.MMI
+if args.ensnmb:
+  ensnmb=args.ensnmb
+
+# For sensitivity tests and checking ice relax tests:
+# Check XML files for particular f/cast run to see what relaxation rate is applied
+# e.g.: property name="irlx_rate_file" value="relax_rate_004hrs.nc
+rlx_max = 24
+if expt_nmb == 3:
+  if ensnmb==1:
+    rlx_max=24
+  elif ensnmb==2:
+    rlx_max=4
+  elif ensnmb==3:
+    rlx_max=12
+  elif ensnmb==4:
+    rlx_max=4
+elif expt_nmb == 4:
+  if ensnmb==1:
+    rlx_max=2
+
 
 if jday_plt >0 and jday_plt <=366:
   dnmbR  = mtime.jday2dnmb(yr_plt,jday_plt)
@@ -140,9 +161,9 @@ fyaml_param='relax_expts.yaml'
 with open(fyaml_param) as ff:
   param_expt = safe_load(ff)  
 
-dt_idyn = param_expt[expt][expt_nmb0]['dt_idyn']
-dt_slow = param_expt[expt][expt_nmb0]['dt_slow']
-rlx_max = param_expt[expt][expt_nmb0]['rlx_max']
+#dt_idyn = param_expt[expt][expt_nmb0]['dt_idyn']
+#dt_slow = param_expt[expt][expt_nmb0]['dt_slow']
+#rlx_max = param_expt[expt][expt_nmb0]['rlx_max']
 
 print(f'Expt: {expt} Run: {runname} Plot date: {dvR[0]}/{dvR[1]}/{dvR[2]}')
 
@@ -158,7 +179,7 @@ with open(fyaml) as ff:
 if expt == 'seasonal_daily':
   pth1     = pthseas['MOM6_NEP'][expt]['pthoutp'].format(expt_nmb=expt_nmb)
   dir_fcst = pthseas['MOM6_NEP'][expt]['dir_icefcst'].format(\
-       yr_start=YRI, mo_start=MMI, ens=nens, yr_run=YR0, mo_run=MM0)
+       yr_start=YRI, mo_start=MMI, ens=ensnmb, yr_run=YR0, mo_run=MM0)
   pthfcst = os.path.join(pth1,dir_fcst)
 elif expt == 'test_ice_relax':
   pthfcst  = pthseas['MOM6_NEP'][expt]['pthoutp'].format(YY=YRI, MM=MMI, expt_nmb=expt_nmb)
@@ -281,8 +302,9 @@ dv_av2 = mtime.datevec(dnmb_av2)
 yre, mme, dde = dv_av2[:3]
 
 sttl = f"{runname} {varnm} avrg: {yrs}/{mms}/{dds}-{yre}/{mme}/{dde}"
-sttl = sttl + f"\n expt={expt_nmb0} MMI={MMI:02d} " + \
-              f"dt={dt_idyn:.0f} dt_slow={dt_slow:.0f} rlx_max={rlx_max:.2f}hr"
+sttl = sttl + f"\n expt={expt_nmb0} MMI={MMI:02d} e{ensnmb:02d}" + \
+              f" rlx_max={rlx_max:.2f}hr"
+#              f"dt={dt_idyn:.0f} dt_slow={dt_slow:.0f} rlx_max={rlx_max:.2f}hr"
 if j0 >= 0 and i0 >= 0:
   sttl = sttl + f"\n Test pnt iF0/jF0 = {iF0}/{jF0} {varnm}={A2d[j0,i0]:.6f}"
 # Stereographic Map projection:
