@@ -444,24 +444,12 @@ def plot_xsect(XX, Hb, ZZ, A2d, HH, fgnmb=1, stl='Vert Section', rmin=[], rmax=[
   if not rmin:
     rmin, rmax = minmax_clrmap(A2d)
 
-# For shading make dimensions +1 for X,Y:
-  nx = len(XX)
-  ny = len(ZZ)
-  nii = A2d.shape[1]
-  njj = A2d.shape[0]
-
-#  if nx == nii:
-#    XX = np.append(XX, XX[-1]+XX[-1]+1.e-6)
-#
-#  if ny == njj:
-#    ZZ = np.append(ZZ, ZZ[-1]+1.e-6*ZZ[-1])
-
   plt.ion()
   fig1 = plt.figure(fgnmb,figsize=(9,8))
   plt.clf()
   ax1 = plt.axes([0.1, 0.24, 0.8, 0.7])
   #ax1.plot(XX,Hb)
-  im1 = ax1.pcolormesh(XX, ZZ, A2d, \
+  im1 = ax1.pcolormesh(XX, ZZ, A2d, shading=shad, \
                  cmap=clrmp,\
                  vmin=rmin, \
                  vmax=rmax)

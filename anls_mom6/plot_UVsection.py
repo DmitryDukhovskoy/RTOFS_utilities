@@ -18,13 +18,11 @@ import matplotlib.colors as colors
 import matplotlib.mlab as mlab
 from matplotlib.patches import Polygon
 from matplotlib.colors import ListedColormap
-import yaml
 
-PTHR = '/Users/ddmitry/python'
-sys.path.append(PTHR+'/MyPython/hycom_utils')
-sys.path.append(PTHR+'/MyPython/draw_map')
-sys.path.append(PTHR+'/MyPython')
-sys.path.append(PTHR+'/MyPython/mom6_utils')
+sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/hycom_utils')
+sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/draw_map')
+sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython')
+sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/mom6_utils')
 
 import mod_time as mtime
 from mod_utils_fig import bottom_text
@@ -32,16 +30,16 @@ from mod_utils_fig import bottom_text
 import mod_mom6_valid as mom6vld
 importlib.reload(mom6vld)
 
-YRM   = 2017
+YRM   = 2021
 YRR   = 2023
-nrun  = 'ARCc0.08'  # MOM6, RTOFS, GOFS3.1, ARCc0.08
+nrun  = 'MOM6'  # MOM6, RTOFS, GOFS3.1
 #sctnm = 'Fram79'
-sctnm = 'Fram79s2'
+#sctnm = 'Fram79s2'
 #sctnm = 'DavisStr'
 #sctnm  = 'DavisStr2' # straight line
 #sctnm = 'DavisS2'   # slanted section
 #sctnm = 'Yucatan2'  # slanted section
-#sctnm = 'FlorCabl'
+sctnm = 'FlorCabl'
 #sctnm = 'BarentsS'
 #sctnm = 'BeringS'
 #sctnm = 'DenmarkS'
@@ -64,9 +62,6 @@ elif nrun == 'RTOFS':
 elif nrun == 'GOFS3.1':
   expt = '93.0'
   YR   = YRM
-elif nrun == 'ARCc0.08':
-  expt = '112'
-  YR = YRM
 
 dnmb1 = mtime.datenum([YR,mS,dS])
 dnmb2 = mtime.datenum([YR,12,31])
@@ -84,11 +79,6 @@ importlib.reload(mmisc)
 importlib.reload(mcmp)
 
 hg    = 1.e15
-
-with open('paths_expts_macbook.yaml','r') as fid:
-  path_dict = yaml.load_all(fid, yaml.FullLoader)
-finish yaml reading
-
 
 if nrun == 'MOM6':
   pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
@@ -119,16 +109,6 @@ elif nrun == 'GOFS3.1':
   ftopo   = 'regional.depth'
   fgrid   = 'regional.grid'
   _, _, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
-elif nrun == 'ARCc0.08':
-  pthrun  = ''
-  pthoutp = '/Users/ddmitry/DATA/ARCc0.08/data_straits/'
-  floutp  = f"008arc-{expt}_{fld2d}xsct_{dv1[0]}" + \
-            f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
-  pthgrid = '/Users/ddmitry/DATA/ARCc0.08/topo_grid_arc08/'
-  ftopo   = 'regional.depth'
-  fgrid   = 'regional.grid'
-  _, _, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
-
 
 ffout = pthoutp + floutp
 print('Loading ' + ffout)
