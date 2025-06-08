@@ -204,11 +204,13 @@ def rdate2datenum(rdate):
 
   return dnmb
 
-def datevec(dnmb,ldate_ref=[1,1,1]):
+def datevec(dnmb, ldate_ref=[1,1,1], round_hrs=False):
   """
   For datenum computed wrt to reference date - see datenum
   convert datenum back to [YR,MM,DD,HR,MN]
   dnmb - 1 date number
+
+  round_hrs : round minutes to closest hour
   """
   if isinstance(dnmb, np.generic): 
     dnmb = dnmb.item()
@@ -234,6 +236,16 @@ def datevec(dnmb,ldate_ref=[1,1,1]):
   else:
     HR = int(np.floor(dfrct*24.))
     MN = int(np.floor(dfrct*1440.-HR*60.))
+
+  if round_hrs:
+    if MN>=30:
+      HR = HR+1
+    elif MN<30:
+      MN = 0
+
+    if HR > 24:
+      HR = HR-24
+      ndays += 1
 
   ndays = int(np.floor(dnmb))-1
   time0 = timeR+datetime.timedelta(days=ndays, seconds=(HR*3600 + MN*60))
@@ -494,5 +506,27 @@ def npdatetime_year(yrS, yrE=0, day_start=1, day_end=366, dlt_day=1, tprecis='D'
   TNP = np.arange(np.datetime64(dstr_start), np.datetime64(dstr_end), np.timedelta64(dlt_day, tprecis))
 
   return TNP
+
+def extract_yymmdd(date_int):
+  """
+    Parse integer date saved as YYYYMMDD into YYYY, MM, DD
+  """
+  if not isinstance(date_int,int):
+    date_int = int(date_int)
+
+  year = date_int // 10000
+  month = (date_int % 10000) // 100
+  day = date_int % 100
+
+  # Check:
+  assert(month>0 and month<12), f'ERR: extracted month = {month}'
+  assert(day>0 and day<32), f'ERR:extracted day={day}'
+  d2 = year*10000 + month*100 + day
+  err = abs(d2-date_int)
+  #print(f'd2={d2}')
+  assert (err<1.e-18), f'ERR: input date {date_int} mismatch extracted {year}/{month}/{day}'
+
+  return year, month, day
+
 
 

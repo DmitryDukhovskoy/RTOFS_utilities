@@ -766,6 +766,24 @@ def cal_mo_to_fcast(MMI, MM):
 
   return mf
 
+def cal_months_forecast(MMI, YRI=1, nyrs=1):
+  """
+    Create a list of calendar months for a forecast
+    initialized on month MMI
+    if YRI > 0 - also return a list of years
+  """
+  MM = np.arange(MMI,MMI+12)
+  YY = MM.copy()*0 + YRI
+  YY = np.where(MM>12, YY+1, YY)
+  MM = np.where(MM>12, MM-12, MM)
+  MCAL = MM.copy()
+  YCAL = YY.copy()
+  for kk in range(2, nyrs+1):
+    MCAL = np.append(MCAL,MM)
+    YCAL = np.append(YCAL,YY+kk-1)
+
+  return YCAL, MCAL
+
 def read_SPEAR_iconc_clim_interp(YR, MMI, ens_nmb, nyrs_clim=5):
   """
     Read monthly ice conc. clim from SPEAR init = MMI
@@ -814,7 +832,62 @@ def read_NSIDC_iconc_clim_interp(YR, nyrs_clim=5):
 
   return dset
 
+def calc_iconc_ithkn_mnthmean(dnmb0,pthtest,varnm, prfx='', ndav=5, outfld='icem'):
+  """
+    From N-day av. (ndav) fields compute monthly mean fields of ice conc 
+    ice thickness (ice volume/m2)
+    From SIS2 simulations
+    dnmb0 - any date in the month
+  """
+  import mod_time as mtime
+  import mod_anls_seas as manseas
+  dvR   = mtime.datevec(dnmb0)
+  YYR   = dvR[0]
+  MMR   = dvR[1]
+  mday1 = int(mtime.datenum([YYR,MMR,1]))
+  mday2 = mday1 + int(mtime.month_days(MMR,YYR))-1
 
+  Asum = None
+  icc  = 0
+  for dnmbR in range(mday1+1,mday2+1,ndav):
+    # Find closest output:
+    YR0, jday0, dnmb0, flname_out = manseas.find_closest_output(pthtest, dnmbR, fld=outfld)
+    dv0  = mtime.datevec(dnmb0)
+    YR0, MM0, DD0 = dv0[:3]
+    jday0   = int(mtime.date2jday([YR0,MM0,DD0]))
 
+    if MM0 != MMR:
+      print(f' found month {MM0} requested {MMR}, skipping ...')
+      continue
 
+    if len(prfx) > 0:
+      flice_name = f'{prfx}.icem_{YR0}_{jday0:03d}.nc'
+    else:
+      flice_name  = f'icem_{YR0}_{jday0:03d}.nc'
+    dfsis2 = os.path.join(pthtest, flice_name)
 
+    print(f'Reading {YR0}/{MM0:02d}/{DD0:02d}: {dfsis2}')
+
+    dset   = xarray.open_dataset(dfsis2)
+
+    HIce = dset['sithick'].isel(time=0).data
+    CIce = dset['siconc'].isel(time=0).data
+    if varnm == 'iconc':
+      A2d = CIce
+    elif varnm == 'ithkn':
+      A2d = CIce*HIce
+
+    if Asum is None:
+      Asum = A2d.copy()
+    else:
+      Asum = Asum + A2d
+
+    icc += 1
+
+  A2d = None
+  if icc>1:
+    A2d = Asum / icc
+  else:
+    A2d = Asum.copy()
+
+  return A2d

@@ -1,7 +1,7 @@
 """
   Calc RMSE, ice extent and ice area 
- 
-  usage: plot_SPEAR_ice_month_stere.py --YRI=1993 --MMI=1
+  from seasonal f/cast and NRT ice conc.  
+  monthly fields
 
 """
 import datetime as dt
@@ -36,20 +36,19 @@ import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--YRS", help="init year of SPEAR f/cast: 1993, ..., 2020", type=int)
-parser.add_argument("--YRE", help="init year of SPEAR f/cast: 1993, ..., 2020", type=int)
-parser.add_argument("--MMI", help="init month of SPEAR f/cast: 1, ..., 12", type=int)
-parser.add_argument("--ensmb", help="ensemble number, 1,..., 15", type=int)
+parser.add_argument("--YRS", help="start year for averaging NEP seas f/cast: 1993, ..., 2020", type=int)
+parser.add_argument("--YRE", help="end year for averaging NEP seas. f/cast: 1993, ..., 2020", type=int)
+parser.add_argument("--MMI", help="init month of NEP f/cast: 1, ..., 12", type=int)
+parser.add_argument("--ensmb", help="ensemble number, 1,..., 10", type=int)
 args = parser.parse_args()
 
-f_cntrobs = True   # Plot observation-derived ice edge
 # Years in the relax file also used in the rlx file name:
 YRS = 1993  # init yr
 YRE = 2020
 MMI = 1     # init month
 ifld = 'siconc' # partial area only
 ens_nmb = 1  # SPEAR ensemble #
-
+expt_nmb = 2 # f/cast experiment group number 
 
 if args.YRS:
   YRS = args.YRS
@@ -81,6 +80,7 @@ HH = -HH
 HH = np.where(np.isnan(HH), 1., HH)
 jdm, idm = HH.shape
 LMsk = np.where(HH<0, 1, 0)
+pthoutp = pthseas['MOM6_NEP'][expt]['pthoutp'].format(expt_nmb=expt_nmb)
 
 DX, DY = mmom6.dx_dy(hlon, hlat)
 Acell  = DX*DY*1.e-6  # km2
@@ -121,46 +121,55 @@ for YR in range(YRS,YRE+1):
     dnmb = mtime.datenum([YR,MM,15])
     YRI = manseas.yr_init_fcst_from_datenum(dnmb, MMI)
     dirnsidc = pthseas['ALL']['dirnsidc_intrp'].format(YR=YRI)  #NSIDC interpolated monthly iconc fields
-    # SPEAR interpolated
-    flout = f'spear_interpNEP_siconc_mnth_{YR}{MMI:02d}.nc'
-    dfspear = os.path.join(dirspear,flout)
-    ds_spear = xarray.open_dataset(dfspear)
-    mfcast  = ds_spear['months'].data
-    ifcst  = np.where(mfcast==MM)[0][0]
-    CIspear = ds_spear['siconc'].isel(nmonths=ifcst).data
+    if YRI < 1993:
+      continue    # cycle, outside the f/cast time period
+    elif YR == 1993 and MMI < 4:
+      continue
+    elif YRI > 2020:
+      continue
 
-    print(f'SPEAR: {dirnsidc}')
-    print(f'Processing MMI={MMI} {YR}/{MM} f/cast mo={ifcst+1}')
+    # Seasonal f/cast monthly ice fields:
+    pthfcst = os.path.join(pthoutp,f'{YRI}-{MMI:02d}-e{ens_nmb:02d}','history')
+    dcice = os.path.join(pthfcst,f'ice_month.nc')
+    print(f'Reading {dcice}')
+
+    MMF = manseas.mofcst_from_mocalend(YRI,MMI,MM) # forecast month #
+    imo = MMF-1
+    ds = xarray.open_dataset(dcice)
+    CInep = ds['siconc'].isel(time=imo).data.squeeze()
+
+    print(f'NSIDC: {dirnsidc}')
+    print(f'Processing MMI={MMI} {YR}/{MM} f/cast mo={MMF}')
     # NSIDC interpolated
     pthnsidc = pthseas['ALL']['dirnsidc_intrp'].format(YR=YR)
     flnsidc = f'NSIDC_iconc_mnth_interpNEP{jdm}x{idm}_{YR}.nc'
     ds_nsidc = xarray.open_dataset(os.path.join(pthnsidc,flnsidc))
     CInsidc = ds_nsidc['ice_conc'].isel(time=itime).data
 
-    Rsq = (CIspear - CInsidc)**2
+    Rsq = (CInep - CInsidc)**2
     nB = np.count_nonzero(~np.isnan(Rsq[JB, IB]))
     nA = np.count_nonzero(~np.isnan(Rsq[JA, IA]))
     rmseB = np.sqrt(np.nansum(Rsq[JB,IB])/nB)
     rmseA = np.sqrt(np.nansum(Rsq[JA,IA])/nA)
-    biasB = np.nanmean(CIspear[JB,IB] - CInsidc[JB,IB])
-    biasA = np.nanmean(CIspear[JA,IA] - CInsidc[JA,IA])
+    biasB = np.nanmean(CInep[JB,IB] - CInsidc[JB,IB])
+    biasA = np.nanmean(CInep[JA,IA] - CInsidc[JA,IA])
 
     # Ice Extent Ber. Sea:
     Cber_nsidc = CInsidc[JB,IB]
-    Cber_spear = CIspear[JB,IB]
+    Cber_nep = CInep[JB,IB]
     Aber = Acell[JB,IB]
     knan = np.where(np.isnan(Cber_nsidc)) # mismatch near coasts, Aleutian islands
-    Cber_spear[knan] = np.nan
-    IAreaB_spear = np.nansum(Cber_spear*Aber)  # ice area, km2, Ber. Sea reg
+    Cber_nep[knan] = np.nan
+    IAreaB_nep = np.nansum(Cber_nep*Aber)  # ice area, km2, Ber. Sea reg
     IAreaB_nsidc = np.nansum(Cber_nsidc*Aber)
 
     # Ice Extent Arctic part:
     Carc_nsidc = CInsidc[JA,IA]
-    Carc_spear = CIspear[JA,IA]
+    Carc_nep = CInep[JA,IA]
     Aarc = Acell[JA,IA]
     knan = np.where(np.isnan(Carc_nsidc)) # mismatch near coasts, Aleutian islands
-    Carc_spear[knan] = np.nan
-    IAreaA_spear = np.nansum(Carc_spear*Aarc)  # ice area, km2, Ber. Sea reg
+    Carc_nep[knan] = np.nan
+    IAreaA_nep = np.nansum(Carc_nep*Aarc)  # ice area, km2, Ber. Sea reg
     IAreaA_nsidc = np.nansum(Carc_nsidc*Aarc)
 
     TM.append(dnmb)
@@ -168,9 +177,9 @@ for YR in range(YRS,YRE+1):
     RMSE_Arc.append(rmseA)
     BIAS_Ber.append(biasB)
     BIAS_Arc.append(biasA)
-    IAS_Ber.append(IAreaB_spear) # Ber S. ice area, spear
+    IAS_Ber.append(IAreaB_nep) # Ber S. ice area, nep
     IAN_Ber.append(IAreaB_nsidc) # -"- -"- -"- , nsidc
-    IAS_Arc.append(IAreaA_spear) # Arctic ice area, spear
+    IAS_Arc.append(IAreaA_nep) # Arctic ice area, nep
     IAN_Arc.append(IAreaA_nsidc) # -"- -"- -"- , nsidc
 
 RMSE_Ber = np.array(RMSE_Ber)
@@ -193,9 +202,9 @@ R2dB  = RMSE_Ber.reshape(nyr,12)
 R2dA  = RMSE_Arc.reshape(nyr,12)
 B2dB  = BIAS_Ber.reshape(nyr,12)
 B2dA  = BIAS_Arc.reshape(nyr,12)
-I2dSB = IAS_Ber.reshape(nyr,12) # ice area Ber. Sea spear
+I2dSB = IAS_Ber.reshape(nyr,12) # ice area Ber. Sea NEP f/cast
 I2dNB = IAN_Ber.reshape(nyr,12) # ice area Ber. Sea NSIDC
-I2dSA = IAS_Arc.reshape(nyr,12) # ice area Arc, spear
+I2dSA = IAS_Arc.reshape(nyr,12) # ice area Arc, NEP f/cast
 I2dNA = IAN_Arc.reshape(nyr,12) 
 
 # Bering Sea
@@ -240,7 +249,7 @@ def plot_rmse_bias(fgnmb,time_yrs, rmse, rmse_md,rmse_pu,rmse_pl,\
   time_yrs = DV[:,0]+(DV[:,1]-1)/12
   ax1 = plt.axes([0.06, 0.56, 0.4, 0.38])
   ax1.plot(time_yrs,rmse, '-', linewidth=2, color=clr1)
-  sttl = f'SPEAR vs NSIDC RMSE Ice Area \n {regn} {YRS}-{YRE}'
+  sttl = f'NEP f/cast MMI={MMI} e{ens_nmb:02d} vs NSIDC RMSE Ice Area \n {regn} {YRS}-{YRE}'
   ax1.set_title(sttl)
 
   # Monthly RMSE
@@ -258,7 +267,7 @@ def plot_rmse_bias(fgnmb,time_yrs, rmse, rmse_md,rmse_pu,rmse_pl,\
   # Time Series bias:
   ax3 = plt.axes([0.56, 0.56, 0.4, 0.38])
   ax3.plot(time_yrs,bias, '-', linewidth=2, color=clr1)
-  sttl = f'SPEAR vs NSIDC Bias Ice Area \n {regn} {YRS}-{YRE}'
+  sttl = f'NEP vs NSIDC Bias Ice Area \n {regn} {YRS}-{YRE}'
   ax3.set_title(sttl)
 
   # Monthly Bias
@@ -273,7 +282,7 @@ def plot_rmse_bias(fgnmb,time_yrs, rmse, rmse_md,rmse_pu,rmse_pl,\
   ax4.set_xlabel('Months')
 
 
-  btx = 'stat_iconc_SPEAR_NSIDC.py'
+  btx = 'stat_iconc_seafcstNEP_NSIDCmnth.py'
   bottom_text(btx, pos=[0.02,0.01])
 
   return fig1, ax1, ax2, ax3, ax4
@@ -298,25 +307,25 @@ fig3,ax31,ax32,ax33,ax34 = plot_rmse_bias(3,time_yrs,RMSE_Arc,R2dA_md,R2dA_pu,R2
 
 # Time Ser. of ice area:
 # Ber. Sea
-clr_spear = [0.,0.6,0.8]
-clr2_spear = [0.8,0.9,1]
+clr_nep = [0.,0.6,0.8]
+clr2_nep = [0.8,0.9,1]
 clr_nsidc = [0.8,0.3,0]
 clr2_nsidc = [1,0.9,0.8]
 fig2 = plt.figure(2,figsize=(9,8))
 plt.clf()
 # Time series 
 ax21 = plt.axes([0.06, 0.56, 0.4, 0.38])
-ln1, = ax21.plot(time_yrs,IAS_Ber, '-', linewidth=2, color=clr_spear, label='SPEAR')
+ln1, = ax21.plot(time_yrs,IAS_Ber, '-', linewidth=2, color=clr_nep, label='nep')
 ln2, = ax21.plot(time_yrs,IAN_Ber, '-', linewidth=1.6, color=clr_nsidc, label='NSIDC NRT')
-sttl21 = f'SPEAR & NSIDC Ice Area*1.e3 km2 \n Bering Sea Reg. {YRS}-{YRE}'
+sttl21 = f'NEP f/cast MMI={MMI} e{ens_nmb:02d} & NSIDC Ice Area*1.e3 km2 \n Bering Sea Reg. {YRS}-{YRE}'
 ax21.set_title(sttl21)
 
 ax22 = plt.axes([0.06,0.08,0.4,0.38])
-# SPEAR
-ax22.plot(time_mnth,I2dSB_md,'-',linewidth=2, color=clr_spear)
-ax22.plot(time_mnth,I2dSB_md, marker='o', markersize=7, color=clr_spear)
-ax22.plot(time_mnth,I2dSB_pu,'-',linewidth=1, color=clr2_spear)
-ax22.plot(time_mnth,I2dSB_pl,'-',linewidth=1, color=clr2_spear)
+# nep
+ax22.plot(time_mnth,I2dSB_md,'-',linewidth=2, color=clr_nep)
+ax22.plot(time_mnth,I2dSB_md, marker='o', markersize=7, color=clr_nep)
+ax22.plot(time_mnth,I2dSB_pu,'-',linewidth=1, color=clr2_nep)
+ax22.plot(time_mnth,I2dSB_pl,'-',linewidth=1, color=clr2_nep)
 # NDISC
 ax22.plot(time_mnth,I2dNB_md,'-',linewidth=2, color=clr_nsidc)
 ax22.plot(time_mnth,I2dNB_md, marker='o', markersize=7, color=clr_nsidc)
@@ -330,16 +339,16 @@ ax22.set_xlabel('Months')
 # Arctic:
 ax23 = plt.axes([0.56, 0.56, 0.4, 0.38])
 ax23.plot(time_yrs,IAN_Arc, '-', linewidth=2, color=clr_nsidc, label='NSIDC NRT')
-ax23.plot(time_yrs,IAS_Arc, '-', linewidth=1.6, color=clr_spear, label='SPEAR')
-sttl23 = f'SPEAR & NSIDC Ice Area*1.e3 km2 \n Arctic {YRS}-{YRE}'
+ax23.plot(time_yrs,IAS_Arc, '-', linewidth=1.6, color=clr_nep, label='nep')
+sttl23 = f'nep & NSIDC Ice Area*1.e3 km2 \n Arctic {YRS}-{YRE}'
 ax23.set_title(sttl23)
 
 ax24 = plt.axes([0.56,0.08,0.4,0.38])
-# SPEAR
-ax24.plot(time_mnth,I2dSA_md,'-',linewidth=2, color=clr_spear)
-ax24.plot(time_mnth,I2dSA_md, marker='o', markersize=7, color=clr_spear)
-ax24.plot(time_mnth,I2dSA_pu,'-',linewidth=1, color=clr2_spear)
-ax24.plot(time_mnth,I2dSA_pl,'-',linewidth=1, color=clr2_spear)
+# nep
+ax24.plot(time_mnth,I2dSA_md,'-',linewidth=2, color=clr_nep)
+ax24.plot(time_mnth,I2dSA_md, marker='o', markersize=7, color=clr_nep)
+ax24.plot(time_mnth,I2dSA_pu,'-',linewidth=1, color=clr2_nep)
+ax24.plot(time_mnth,I2dSA_pl,'-',linewidth=1, color=clr2_nep)
 # NDISC
 ax24.plot(time_mnth,I2dNA_md,'-',linewidth=2, color=clr_nsidc)
 ax24.plot(time_mnth,I2dNA_md, marker='o', markersize=7, color=clr_nsidc)
@@ -355,7 +364,7 @@ ax25 = plt.axes([0.48, 0.44, 0.1, 0.1])
 lgd = plt.legend(handles=[ln1,ln2], loc='upper right')
 ax25.axis('off')
 
-btx = 'stat_iconc_SPEAR_NSIDC.py'
+btx = 'stat_iconc_seafcstNEP_NSIDCmnth.py'
 bottom_text(btx, pos=[0.02,0.01])
 
 

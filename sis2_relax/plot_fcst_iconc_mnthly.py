@@ -65,7 +65,7 @@ f_cntrobs = True   # Plot observation-derived ice edge
 # experiments: 2 - daily OB seasonal forecasts, 3 - same as 2 but with sea ice relaxation
 # Default values: 
 expt     = 'seasonal_daily'  # seasonal forecasts with dailyOB from SPEAR
-ensnmb    = 1
+ensnmb = 1
 # Default Averaging time period:
 MMI   = 4    # f/cast init. month in each year, can be changed to months: 1, 4, 7, 10
 YRS = 1993   # Start: f/cast init. year to use for monthly averaging

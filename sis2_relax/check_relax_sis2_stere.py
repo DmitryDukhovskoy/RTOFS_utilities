@@ -61,7 +61,7 @@ parser.add_argument("--piomas", help="PIMOAS version: v1.0 - reconstr, v2.1 - re
 args = parser.parse_args()
 
 plot_fields = True
-plot_piomas = True
+plot_piomas = False    # Plot PIOMAS field to compare to check interpolation
 # Years in the relax file also used in the rlx file name:
 YR1 = 1993
 YR2 = 1994 
@@ -98,8 +98,10 @@ if YR1 > 2010 and piomas_vers == 'reconstr':
 print(f'PIOMAS version: {piomas_vers}')
 # Test point in Fortran indices:
 # make it <0 not to show
-iF0 = 230
-jF0 = 700
+#iF0 = 224
+#jF0 = 742
+iF0 = 184
+jF0 = 655
 i0 = iF0-1 ; j0 = jF0-1
 
 
@@ -125,7 +127,9 @@ HH = -HH
 HH = np.where(np.isnan(HH), 1., HH)
 jdm, idm = HH.shape
 
+# PIOMAS fields on MOM6 NEP grid, relax fields:
 pthsis  = gridfls['MOM6_NEP'][run_name]['pthsis']
+# Original PIOMAS fields: 
 pthdata = '/work/Dmitry.Dukhovskoy/data/PIOMAS_ice'
 if piomas_vers == 'reconstr':
   flthck = 'piomas20c.heff.1901.2010.v1.0.nc'
@@ -142,6 +146,7 @@ else:
 # Read saved relax. fields:
 flout = f'PIOMASv21_ithkn_iconc_{YR1}_{YR2}_{file_type}.nc'
 diclim = os.path.join(pthsis, flout)
+print(f'Reading relax fields from {diclim}')
 ds_rlx = xarray.open_dataset(diclim)
 Time = ds_rlx['time'].data
 TM = mmisc.convert_nptime_to_datenum(Time)

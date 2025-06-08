@@ -451,10 +451,11 @@ def derive_dP_from_ZZtopo(ZZ, HH):
 
   return dP3d
 
-def find_closest_output(pthoutp, dnmb0, fld='oceanm'):
+def find_closest_output(pthoutp, dnmb0, fld='oceanm', days_err=10):
   """
     Find closest output file to given date
     MOM/HYCOM file naming assumed: fld_YYYY_DAY.nc
+    days_err - max dlt days between requested and found file 
   """
   import os
   import mod_time as mtime
@@ -505,6 +506,10 @@ def find_closest_output(pthoutp, dnmb0, fld='oceanm'):
 #  print(f'Min ii={ii} year={year} jday={jday} dnmb={mtime.jday2dnmb(1994,58)}')
   dnmb  = mtime.jday2dnmb(year, jday)
   flname= LF[ii]
+
+  if D[ii] > days_err:
+    print(f'Closest match is {D[ii]} days apart from requested day, increase days_err to override')
+    raise Exception(f' Could not find closest file within {days_err} days ')
 
   return int(year), int(jday), dnmb, flname
 

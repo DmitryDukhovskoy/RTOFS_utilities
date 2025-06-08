@@ -199,14 +199,11 @@ def plot_field(fgnmb, m, xR, yR, A2d, clrmp, rmin, rmax, sttl=[]):
   img = m.pcolormesh(xR, yR, A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
   ax1.set_title(sttl)
 
-  cntr_clr = [0.2, 0.7, 1.0]
-  if fgnmb==1 : 
-    clevel=0.
-  else:
-    clevel=0.15
+  cntr_clr = [0.95, 0.95, 0.95]
+  hcntrs = [6,8,10,12,14,16,18,20]
 
-  #CS = ax1.contour(xR, yR, A2d, [clevel], linestyles='solid', colors=[cntr_clr], linewidths=1)
-  #ax1.clabel(CS, inline=1, fontsize=10)
+  CS = ax1.contour(xR, yR, A2d, hcntrs, linestyles='solid', colors=[cntr_clr], linewidths=1)
+  ax1.clabel(CS, inline=1, fontsize=10)
     
   # extend: min, max, both
   ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,

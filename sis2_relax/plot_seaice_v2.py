@@ -72,7 +72,7 @@ if not varnm == 'ithkn':
   f_obsthck = False
 
 # Start of the run - needed only for seasonal forecasts:
-MMI    = 4
+MMI    = 1
 DDS    = 1    
 ensnmb = 1    # ens # for ensemble runs
 
@@ -82,7 +82,7 @@ jday_plt = 0
 yr_plt   = 1993
 mo_plt   = 8
 day_plt  = 15
-expt_nmb = 2  
+expt_nmb = 3 
 
 if args.varnm:
   varnm = args.varnm
@@ -109,11 +109,11 @@ if expt_nmb == 3:
   if ensnmb==1:
     rlx_max=24
   elif ensnmb==2:
-    rlx_max=4
+    rlx_max=2
   elif ensnmb==3:
-    rlx_max=12
-  elif ensnmb==4:
     rlx_max=4
+  elif ensnmb==4:
+    rlx_max=24
 elif expt_nmb == 4:
   if ensnmb==1:
     rlx_max=2
@@ -210,6 +210,8 @@ YR0, MM0, DD0 = dv0[:3]
   
 flice_name = pthseas['MOM6_NEP'][expt]['ficename'].format(YR=YR0, jday=jday0)
 dfsis2 = os.path.join(pthfcst, flice_name)
+
+print(f'Reading {dfsis2}')
 
 # Averaging period:
 dnmb_av1 = dnmb0 - np.floor(ndav/2)

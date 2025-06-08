@@ -178,6 +178,25 @@ def pcws_lagr1(Xp,Yp,xx):
 
   return Pn
 
+def lininterp_2D_intime(Tp,Y2D,t0):
+  """
+    Given 2 time instances Tp[0,1]
+    and corresponding 2D fields [Y2d[0],Y2d[1]]
+    interpolate in time into time=t0 between Tp[0] and Tp[1]
+    Y2d is 2 x (idm,jdm) array
+  """
+  assert(Tp[1] > Tp[0]), 'Tp should be increasing '
+  assert(t0>=Tp[0] and t0<=Tp[1]),f'request time {t0} is outside the time interval Tp'
+  Y0 = Y2D[0,:,:].squeeze()
+  Y1 = Y2D[1,:,:].squeeze()
+
+  i1 = 0
+  i2 = 1
+  Pn = Y0*(t0-Tp[i2])/(Tp[i1]-Tp[i2]) + \
+       Y1*(t0-Tp[i1])/(Tp[i2]-Tp[i1])
+
+  return Pn
+
 def pcws_lagr2(Xp, Yp, xx):
   """
    Piecewise Lagr. Polynomial degree 2

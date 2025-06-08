@@ -40,6 +40,7 @@ import pickle
 from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
+import argparse
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
@@ -71,14 +72,55 @@ importlib.reload(mutob)
 
 dnmb = mtime.datenum([1994,4,1])
 expt = 'GLORYS_NEP'  # GLORYS extracted for NEP domain
-varnm = 'so'  # thetao, so, zos 
+varnm = 'salin'  # thetao, so, zos 
 # Averaging time period:
-YAVRG = [x for x in range(2011,2021)]
-MAVRG = [1,2,3]  # months to average:
-regn_name = 'CalCur' # CalCur - Calif Current region, Alaska - Alaska region, BerSea - Bering
+#YAVRG = [x for x in range(2011,2021)]
+YRS = 1993
+YRE = YRS
+MMS = 1
+MME = 1
+#YAVRG = [1995]
+#MAVRG = [1,2,3]  # months to average:
+regn_name = 'CalCur' # CalCur - Calif Current region, Alaska, BeringChuk
                      # Following Stoke et al., 2015
-lr0  = 1  # ocean layers from 1, ..., 75
-          # lr 31 =-102 m, lr 38 = -216 m
+lr0  = 22  # ocean layers from 1, ..., 75
+          # lr 22 = -47.5m, lr 31 =-102 m, lr 38 = -216 m
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--YRS", help=f"Start year to average, default={YRS}", type=int)
+parser.add_argument("--YRE", help=f"End Year to average, default={YRS}", type=int)
+parser.add_argument("--MMS", help=f"Start Month to average, default={MMS}", type=int)
+parser.add_argument("--MME", help=f"End Month to average, default={MMS}", type=int)
+parser.add_argument("--regn", help=f"Region: CalCur, BeringChuk, Alaska, default={regn_name}", type=str)
+parser.add_argument("--lr", help=f"Model layer to plot: 1,...,52, default={lr0}", type=int)
+parser.add_argument("--varnm", help=f"Variable name to plot: salin, temp, default={varnm}", type=str)
+args = parser.parse_args()
+
+if args.YRS:
+  YRS = args.YRS
+  YRE = YRS
+if args.YRE:
+  YRE = args.YRE
+if args.regn:
+  regn_name = args.regn
+if args.lr:
+  lr0 = args.lr
+if args.MMS:
+  MMS = args.MMS
+  MME = MMS
+if args.MME:
+  MME = args.MME
+if args.varnm:
+  varnm = args.varnm
+
+YAVRG = np.arange(YRS,YRE+1)
+MAVRG = np.arange(MMS,MME+1)
+
+if varnm == 'salin':
+  ncvar = 'so'
+elif varnm == 'temp':
+  ncvar = 'thetao'
 
 
 dv0 = mtime.datevec(dnmb)
@@ -116,14 +158,14 @@ for YRS in (YAVRG):
   pthdata = gridfls[expt]["monthly"]['pthoutp']
   flnm = gridfls[expt]["monthly"]['fdata'].format(year=YRS)
   dfl_glorys = os.path.join(pthdata,flnm)
-  print(f'Reading {varnm} <-- {dfl_glorys}')
+  print(f'Reading {ncvar} <-- {dfl_glorys}')
   dset = xarray.open_dataset(dfl_glorys)
 
   for MM in (MAVRG):
     itime = MM-1
     idepth = lr0-1
 
-    AA = dset[varnm].isel(time=itime, depth=idepth).data.squeeze()
+    AA = dset[ncvar].isel(time=itime, depth=idepth).data.squeeze()
 
     if icnt == 0:
       A2d = AA.copy()
@@ -149,7 +191,7 @@ xlim2 = max(II)
 ylim1 = min(JJ)
 ylim2 = max(JJ)
 
-rmin, rmax, tscntrs, tslabels = manseas.colormap_params(regn_name, varnm, zz0=zz0)
+rmin, rmax, tscntrs, tslabels = manseas.colormap_params(regn_name, ncvar, zz0=zz0)
 
 if varnm == 'salin' or varnm == 'salt' or varnm == 'so':
   clrmp = mclrmps.colormap_haline2()
@@ -165,9 +207,37 @@ elif varnm == 'ssh':
 
 btx = 'plot_GLORYS_timeavrgTS_regions.py'
 sttl = f"{run_info} z={zz0:8.1f} m"
+#match regn_name:
+#  case 'CalCur':
+#    manseas.plot2D_CalCur(A2d, clrmp, rmin, rmax, xlim1, xlim2, ylim1, ylim2, \
+#                  fgnmb=1, btx=btx, tscntrs=tscntrs, tslabels=tslabels, sttl=sttl, \
+#                  hlon=hlon, hlat=hlat, HH=HH)
+
+
+# Stereographic projection:
+from mpl_toolkits.basemap import Basemap, cm
 match regn_name:
   case 'CalCur':
-    manseas.plot2D_CalCur(A2d, clrmp, rmin, rmax, xlim1, xlim2, ylim1, ylim2, \
-                  fgnmb=1, btx=btx, tscntrs=tscntrs, tslabels=tslabels, sttl=sttl, \
-                  hlon=hlon, hlat=hlat, HH=HH)
+    width  = 4000*1.e3
+    height = 4000*1.e3
+    lat0   = 33.5
+    lon0   = -128.
+  case 'BeringChuk':
+    width  = 3300*1.e3
+    height = 3700*1.e3
+    lat0   = 65.
+    lon0   = -175.
+
+m = Basemap(width=width, height=height, resolution='l',\
+            projection='stere', lat_ts=55, lat_0=lat0, lon_0=lon0)
+
+xR, yR = m(hlon, hlat)
+
+plt.ion()
+fig1 = plt.figure(1,figsize=(9,8))
+plt.clf()
+
+ax1 = manseas.plot_stereogr_axis(fig1, m, xR, yR, A2d, clrmp, rmin, rmax, \
+                       btx=btx, tscntrs=tscntrs, tslabels=tslabels, sttl=sttl)
+
 

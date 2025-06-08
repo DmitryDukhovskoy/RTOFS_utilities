@@ -1,0 +1,13 @@
+---
+MOM6_NEP:
+  "spinup":
+    pthrun:  ' '
+    pthoutp: '/archive/Dmitry.Dukhovskoy/fre/NEP/hindcast_bgc/NEPbgc_nudged_spinup/history/{YR}'
+    pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
+    ftopo:   'topog.nc'
+    fgrid:   'ocean_hgrid.nc'
+    pthdump: '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp'
+    focname: 'oceanm_{YR}_{jday:03d}.nc'
+    ficename: 'icem_{YR}_{jday:03d}.nc'
+
+
