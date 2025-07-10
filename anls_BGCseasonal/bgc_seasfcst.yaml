@@ -9,5 +9,13 @@ MOM6_NEP:
     pthdump: '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp'
     focname: 'oceanm_{YR}_{jday:03d}.nc'
     ficename: 'icem_{YR}_{jday:03d}.nc'
+  "hindcast":
+    pthrun:  ' '
+    pthoutp: "/archive/Dmitry.Dukhovskoy/fre/NEP/hindcast_bgc/\
+              {hindcast_name}/history/{YR}{MM:02d}{DD:02d}"
+    pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
+    ftopo:   'topog.nc'
+    fgrid:   'ocean_hgrid.nc'
+    pthdump: "/work/Dmitry.Dukhovskoy/anls_output/NEPbgc_hindcast{enmb:02d}"
 
 

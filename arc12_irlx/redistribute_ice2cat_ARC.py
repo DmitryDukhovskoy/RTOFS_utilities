@@ -39,8 +39,6 @@ from mod_utils_fig import bottom_text
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
-YR0 = 1993
-MM0 = 5
 ifld = 'ithkn'  # ithkn, iarea
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
@@ -61,91 +59,80 @@ distribute_ice2cats thkn cat 10 hLim= 3.500
 distribute_ice2cats thkn cat 11 hLim= 4.000
 """
 # ICAT in NEP:
-ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
-#ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1, 1.5, 2.0, 2.5, 3.0, 3.5])
+#ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
+ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1, 1.5, 2.0, 2.5, 3.0, 3.5])
 
-fyaml = 'pypaths_gfdlpub.yaml'
-with open(fyaml) as ff:
-  gridfls = safe_load(ff)
+pthdata = '/work/Dmitry.Dukhovskoy/ARC12/irlx'
+pthtopo = '/work/Dmitry.Dukhovskoy/ARC12/topo_grid'
+frlx = 'nudging_ice.nc'
+dfrlx = os.path.join(pthdata,frlx)
+ds_irlx = xarray.open_dataset(dfrlx)
 
-# MOM6 NEP topo/grid:
-run_name   = 'seasonal_fcst_daily'
-pthtopo    = gridfls['MOM6_NEP'][run_name]['pthgrid']
-fgrid      = gridfls['MOM6_NEP'][run_name]['fgrid']
-ftopo_mom  = gridfls["MOM6_NEP"][run_name]["ftopo"]
-outdir     = gridfls['MOM6_NEP'][run_name]['pthoutp']
-hgrid      = xarray.open_dataset(os.path.join(pthtopo,fgrid))
-hmask      = xarray.open_dataset(os.path.join(pthtopo, 'ocean_mask.nc'))
-dstopo_nep = xarray.open_dataset(os.path.join(pthtopo, ftopo_mom))
-dfgrid_mom = os.path.join(pthtopo, fgrid)
-# Hgrid lon. lat:
-hlon, hlat  = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
-HH = dstopo_nep['depth'].data
-HH = np.where(HH < 1.e-20, np.nan, HH)
-HH = -HH
-HH = np.where(np.isnan(HH), 1., HH)
+MM = 3
+itime = MM-1
+Cice = ds_irlx['sic_rg'].isel(time=itime).data
+Hice = ds_irlx['sit_rg'].isel(time=itime).data
+
+dtopo = os.path.join(pthtopo,'ocean_topog.nc')
+ds_topo = xarray.open_dataset(dtopo)
+HH = -ds_topo['depth'].data
 jdm, idm = HH.shape
 
-pthsis  = gridfls['MOM6_NEP'][run_name]['pthsis']
-pthdata = '/work/Dmitry.Dukhovskoy/data/PIOMAS_ice'
-flthck = 'piomas20c.heff.1901.2010.v1.0.nc'
-varthck = 'sit'
-flconc  = 'piomas20c.area.1901.2010.v1.0.nc'
-varconc = 'sic'
+hlon = ds_irlx['lon'].data
+hlat = ds_irlx['lat'].data
 
-dflthkn = os.path.join(pthdata, flthck)
-dflconc = os.path.join(pthdata, flconc)
-
-ds_thkn = xarray.open_dataset(dflthkn)
-LAT  = ds_thkn['Latitude'].data
-LON  = ds_thkn['Longitude'].data
-
-# Read saved relax. fields:
-flout = f'PIOMAS_ithkn_iconc_{YR0}_{file_type}.nc'
-diclim = os.path.join(pthsis, flout)
-ds_rlx = xarray.open_dataset(diclim)
-Time = ds_rlx['time'].data
-TM = mmisc.convert_nptime_to_datenum(Time)
-dnmb0 = mtime.datenum([YR0,MM0,15,12])
-D = abs(TM-dnmb0)
-itime = np.argmin(D)
-dv0 = mtime.datevec(TM[itime])
-assert dv0[0]==YR0, f'Requested YR={YR0}, year in rlx file={dv0[0]}'
-assert dv0[1]==MM0, f'Requested month={MM0}, month in rlx file={dv0[1]}'
-
-Hice = ds_rlx['ithkn'].isel(time=itime).data
 Hice = np.where(HH>=0, np.nan, Hice)
-Cice = ds_rlx['iarea'].isel(time=itime).data
 Cice = np.where(HH>=0, np.nan, Cice)
 
 
 #i0 = 261
 #j0 = 728
-i0 = 150
-j0 = 634
+i0 = 188
+j0 = 0
 hice = Hice[j0,i0]
 cice = Cice[j0,i0]
 
+ICAT0 = ICAT
+ncat = len(ICAT0)
+hice = 0.2895118
+cice = 0.0415798
+hcat, ccat = msisrlx.redistribute_hice(hice, cice, ICAT=ICAT0, ck_min=1.e-2)
+# Check conservation:
+htot = np.sum(hcat*ccat)
+ctot = np.sum(ccat)
+
 # Test:
 import random
-ICAT0 = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
-ncat = len(ICAT0)
 
-nn=50
+nn=500
 CI = np.zeros((nn))
 HI = np.zeros((nn))
 CC = np.zeros((nn,ncat))
 HC = np.zeros((nn,ncat))
+ERRH = np.zeros((nn))
+ERRC = np.zeros((nn))
 print(f"Calling redistribute_hice")
 for ii in range(nn):
-  cice = random.uniform(0.,1.)
-  hice = random.uniform(0.,4.)
+  cice = random.uniform(0.,.5)
+  hice = random.uniform(0.,.3)
   print(f"ii={ii}, hice={hice:.4f} cice={cice:.4f}")
   hcat, ccat = msisrlx.redistribute_hice(hice, cice, ICAT=ICAT0, ck_min=1.e-2)
+# Check conservation:
+  htot = np.sum(hcat*ccat)
+  ctot = np.sum(ccat)
+  eh = np.abs(hice-htot)
+  ec = np.abs(cice-ctot)
+  if eh>1.e-6:
+    print(f'ERR: not conserved h: htot={htot} hice={hice}')
+  if ec>1.e-6:
+    print(f'ERR: not conserved c: ctot={ctot} cice={cice}')
+
   CI[ii] = cice
   HI[ii] = hice
   CC[ii,:] = ccat
   HC[ii,:] = hcat 
+  ERRH[ii] = eh
+  ERRC[ii] = ec
 
 
 ICATK = np.append(ICAT0,[3])

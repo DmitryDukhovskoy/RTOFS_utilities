@@ -1,14 +1,16 @@
 """
   Create relax fields from PIOMAS monthly ice thickness and concentration
-  over the time period yrs - yre 
-  create nyrs lreax. files
+  by averaging 5 perious years by months
+
+  Each file has "nyrs" (2 years) to allow 1-yr forecasts initialized at any month 
+  during the 1st year
+
 
   usage: piomasV21_relaxation_yearly.py --yrs 1994 --yre 1995 --fsave 1 --nyrs 2
 
   nyrs - # of years grouped into 1 relax file:
   e.g. nyrs 2:
   yrs = 1993 --> relax _1993_1994
-
 
   monthly fields
   1979-present
@@ -17,9 +19,6 @@
   PIOMASv2.1  is a sea ice reanalysis
   sea ice concentration (edge) is assimilated using sat. ice conc. 
   ice thickness - ???? not constrained ???
-
-  All variables should have the following information for FMS subroutine 
-  to process them correctly:
 
 """
 import datetime as dt
@@ -49,14 +48,20 @@ import mod_mom6 as mmom6
 import mod_utils as mutil
 import mod_colormaps as mclrmps
 import mod_misc1 as mmisc
+import mod_sis2_relax as msisrlx
+importlib.reload(msisrlx)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--yrs",   help="year start to extract PIOMAS: 1993, ..., 2020", type=int, required=True)
 parser.add_argument("--yre",   help="year end to extract PIOMAS: 1993, ..., 2020", type=int)
 parser.add_argument("--nyrs", help="number of years grouped in 1 relax. file, default=2", type=int)
-parser.add_argument("--fsave", help="flag > 0 to save the output", type=int, required=True)
+parser.add_argument("--nclim", help="number of years for averaging to create climatology, default=5", type=int)
+parser.add_argument("--fsave", help="flag > 0 to save the output, default: =1 - save ON", type=int)
 args = parser.parse_args()
 
+# Do not use "climatology", it has not been tested yet
+# in SIS2, create fake dates for climatology data if needed
+# and use as monthly fields during the run
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
                        # for monthly, daily, etc. need -dt and +dt at the beginn/end 
@@ -64,10 +69,14 @@ file_type = 'monthly'  # monthly, daily, ... or clim
 YRs  = args.yrs if args.yrs else None
 nyrs = args.nyrs if args.nyrs else 2
 YRe  = args.yre if args.yre else YRs
-if args.fsave > 0:
-  f_save = True
+NYclim = args.nclim if args.nclim else 5
+f_save = args.fsave is None or args.fsave > 0  # True if missing or fsave > 0
+
+if f_save:
+  print('Relax fields: F_SAVE flag is ON')
 else:
-  f_save = False
+  print('Relax fields will not be saved, F_SAVE flag is OFF')
+
 
 fyaml = 'pypaths_gfdlpub.yaml'
 with open(fyaml) as ff:
@@ -181,8 +190,34 @@ def create_time_array(YR1, nyrs, file_type):
   
   return(TMPLT)
 
-import mod_sis2_relax as msisrlx
-importlib.reload(msisrlx)
+
+def average_fields(yrS, yrE, pthdata, varnm, varnc):
+  print(f"Averaging {varnm} over {yrS}-{yrE}")
+  years = range(yrS, yrE)
+  match varnm:
+    case('ithkn'):
+      files = [os.path.join(pthdata, f'piomas_heff{yr}_v21.nc') for yr in years]
+    case('iconc'):
+      files = [os.path.join(pthdata, f'piomas_area{yr}_v21.nc') for yr in years]
+    case _:
+      raise ValueError(f"Unknown variable: {varnm}")
+
+  # Load PIOMAS data file, add 'year' coordinate, collect in list
+  ds_list = []
+  Fill_val = 9999.9
+  for yr, dfinp in zip(years, files):
+    ds = xarray.open_dataset(dfinp)
+    ds[varnc] = ds[varnc].where(ds[varnc] < Fill_val) # Replace fill values with NaN
+    ds = ds.expand_dims({'year':[yr]})  # add year dimension of length 1
+    ds_list.append(ds)
+  
+  # Combine datasets along 'year' dimension
+  combined = xarray.concat(ds_list, dim='year')
+
+  # Average over 'year', keep 'n' (months) intact
+  ds_avrg = combined.mean(dim='year', skipna=True)
+
+  return ds_avrg
 
 for YR1 in range(YRs,YRe+1):
   YR2 = YR1 + (nyrs-1)
@@ -207,27 +242,18 @@ for YR1 in range(YRs,YRe+1):
     yr0, mm0 = dv[:2]
 
     if yr0 != YRold:
-      flthck  = f'piomas_heff{yr0}_v21.nc'
-      flconc  = f'piomas_area{yr0}_v21.nc'
-      dflthkn = os.path.join(pthdata, flthck)
-      dflconc = os.path.join(pthdata, flconc)
-
-      ds_thkn = xarray.open_dataset(dflthkn)
-      LAT  = ds_thkn['lat_scaler'].data
-      LON  = ds_thkn['lon_scaler'].data
-
-      ds_conc = xarray.open_dataset(dflconc)
-
+      yrC1 = yr0-NYclim
+      yrC2 = yr0-1
+      ds_thkn = average_fields(yrC1, yrC2, pthdata, 'ithkn', varthck)
+      ds_conc = average_fields(yrC1, yrC2, pthdata, 'iconc', varconc)
+      LAT  = ds_thkn['lat_scaler'].values
+      LON  = ds_thkn['lon_scaler'].values
       YRold = yr0
 
-    # Find record #: monthly data
-    #tindx = mm0-1
+    Month = ds_thkn['month'].values
+    tindx = np.where(np.round(Month).astype(int) == mm0)[0][0]
 
-    Month = ds_thkn['month'].data
-    Year  = ds_thkn['year'].data
-    D     = np.sqrt((Month-mm0)**2 + (Year-yr0)**2)
-    tindx = np.argmin(D)
-    assert(D[tindx]==0), f"Requested {yr0}/{mm0} not found in {dflthkn}"
+    assert abs(Month[tindx]-mm0)<1.e-6, f"Requested {mm0} not found in {dflthkn}"
     print(f'Processing {dv[0]}/{dv[1]}/{dv[2]}, tindx={tindx}')
     H2d   = ds_thkn[varthck].data[tindx,:].squeeze()  # thikness, m
     C2d   = ds_conc[varconc].data[tindx,:].squeeze()  #conc
@@ -277,10 +303,10 @@ for YR1 in range(YRs,YRe+1):
   dset_Ice = xarray.merge([dset_Hmom, dset_Cmom])
 
   # Add attributes:
-  dset_Ice.attrs["history"] = f"Created from PIOMAS monthly ice fields {YR1}-{YR2}"
-  dset_Ice.attrs["code"] = "/home/Dmitry.Dukhovskoy/python/sis2_relax/piomasV21_relaxation_yearly.py"
+  dset_Ice.attrs["history"] = f"Created from PIOMAS monthly fields {YR1}-{YR2} averaged over {NYclim} previous years"
+  dset_Ice.attrs["code"] = "/home/Dmitry.Dukhovskoy/python/setup_BGC_NEP_seasonal/create_clim_piomasV21_rlx_yearly.py"
 
-  dset_Ice[ithknvar].attrs["long_name"] = "Mean ice thickness or volume per m2"
+  dset_Ice[ithknvar].attrs["long_name"] = "Mean ice thickness or volume per unit area"
   dset_Ice[ithknvar].attrs["units"] = "m3/m2"
   dset_Ice[iconcvar].attrs["long_name"] = "Ice partial area, fraction"
   dset_Ice[iconcvar].attrs["units"] = "unitless"
@@ -302,9 +328,9 @@ for YR1 in range(YRs,YRe+1):
 
   if f_save:
   #  encoding = {rlx_name: {'_FillValue': None}}
-    flout = f'PIOMASv21_ithkn_iconc_{YR1}_{file_type}.nc'
+    flout = f'PIOMASv21_ithkn_iconc_{YR1}_avrg{NYclim}yr.nc'
     if not YR1 == YR2:
-      flout = f'PIOMASv21_ithkn_iconc_{YR1}_{YR2}_{file_type}.nc'
+      flout = f'PIOMASv21_ithkn_iconc_{YR1}_{YR2}_avrg{NYclim}yr.nc'
 
     diclim = os.path.join(pthsis, flout)
 

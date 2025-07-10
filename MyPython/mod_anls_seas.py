@@ -2133,4 +2133,39 @@ def avrg_cice_NSIDC(YR1, YR2, MM1, MM2, get_coord=True):
 
   return ICM, LON, LAT
 
+def mask_BeringSea_NEPgrid(HH,hlon,hlat):
+  """
+    Return mask of the Bering Sea for NEP10k domain
+  """
+  LMsk = np.where(HH<0, 1, 0)
+  LMsk = np.where(hlat<53.,0,LMsk)
+  LMsk[:567,:] = 0
+  LMsk[:,:39] = 0
+  LMsk[:595,177:] = 0
+  # Mask for Bering Sea + Ber. Str. + S. Chukchi Shelf
+  BMsk = LMsk.copy()
+  BMsk[750:,189:] = 0
+  BMsk[:750,239:] = 0
+
+  return BMsk
+
+def mask_Arctic_NEPgrid(HH,hlon,hlat):
+  """
+    Return mask of the Arctic portion of the NEP10k domain
+  """
+  LMsk = np.where(HH<0, 1, 0)
+  LMsk = np.where(hlat<53.,0,LMsk)
+  LMsk[:567,:] = 0
+  LMsk[:,:39] = 0
+  LMsk[:595,177:] = 0
+  # Mask for Bering Sea + Ber. Str. + S. Chukchi Shelf
+  BMsk = LMsk.copy()
+  BMsk[750:,189:] = 0
+  BMsk[:750,239:] = 0
+
+  AMsk = LMsk.copy()
+  AMsk = np.where(BMsk==1, 0, AMsk)
+
+  return AMsk
+
 

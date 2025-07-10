@@ -53,8 +53,8 @@ import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--yr", help="start year of saved relaxed fields: 1993, ..., 2020", type=int)
-parser.add_argument("--mo", help="month to plot: 1,..., 12, ...", type=int)
+parser.add_argument("--yr", help="start year of saved relaxed fields: 1993, ..., 2020", type=int, required=True)
+parser.add_argument("--mo", help="month to plot: 1,..., 12, ...", type=int, required=True)
 parser.add_argument("--varnm", help="field to plot: ithkn or iarea", type=str)
 parser.add_argument("--yrplot", help="year to plot, >= yr_start and <= yr_end of relax fields", type=int)
 parser.add_argument("--piomas", help="PIMOAS version: v1.0 - reconstr, v2.1 - reanalys", type=str)
@@ -63,12 +63,7 @@ args = parser.parse_args()
 plot_fields = True
 plot_piomas = False    # Plot PIOMAS field to compare to check interpolation
 # Years in the relax file also used in the rlx file name:
-YR1 = 1993
-YR2 = 1994 
-YR0 = YR1   # year to plot, default - 1st year
-piomas_vers = 'reanalys'
 
-MM0 = 6      # month to plot
 ifld = 'iarea'  # ithkn, iarea
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
@@ -77,16 +72,13 @@ if args.yr:
   YR1 = args.yr
   YR0 = YR1
   YR2 = YR1+1
-if args.mo:
-  MM0 = args.mo
 if args.varnm:
   ifld = args.varnm
   if ifld=='iconc':
     ifld = 'iarea'
-if args.yrplot:
-  YR0 = args.yrplot
-if args.piomas:
-  piomas_vers = args.piomas
+MM0 = args.mo if args.mo else None
+YR0 = args.yrplot if args.yrplot else YR1
+piomas_vers = args.piomas if args.piomas else 'reanalysis'
 
 if YR0 < YR1 or YR0 > YR2:
   raise Exception(f"year to plot {YR0} is outside the time window in the file: {YR1}/{YR2}")

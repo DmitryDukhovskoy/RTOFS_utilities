@@ -1,5 +1,7 @@
-# Plot grid resolution for NEP domain
-#
+"""
+  Plot grid resolution for NEP domain
+  in lon/lat degrees
+"""
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -37,11 +39,10 @@ import mod_misc1 as mmsc1
 #import mod_valid_utils as mvutil
 importlib.reload(mcmp)
 
-#plot_fld = 'infin' # effective - Eucledian distance, infin - max(dx, dy)
-plot_fld = 'effective' # effective - Eucledian distance, infin - max(dx, dy)
 
 nrun = "MOM6_NEP"
 expt = "test"
+dlt_coord = 'lonlat'  # long or latit or lonlat = Euclidian 
 
 with open('pypaths_gfdlpub.yaml') as ff:
   dct = yaml.safe_load(ff)
@@ -57,37 +58,20 @@ HHM         = mom6util.read_mom6depth(dftopo_mom)
 jdm         = np.shape(HHM)[0]
 idm         = np.shape(HHM)[1]
 
-# Read grid resolution:
-# dX, dY are on MOM "supergrid" - half grid points
-nc  = ncFile(dfgrid_mom,'r')
-dX  = nc.variables['dx'][:].data
-dY  = nc.variables['dy'][:].data
-nyp = dX.shape[0]
-nx  = dX.shape[1]
-ny  = dY.shape[0]
-nxp = dY.shape[1]
+dlt_lon = np.diff(LONM, axis=1)
+dlt_lon = np.pad(dlt_lon, ((0, 0), (0, 1)), mode='edge')  # Pad last column
+dlt_lat = np.diff(LATM, axis=0)
+dlt_lat = np.pad(dlt_lat, ((0, 1), (0, 0)), mode='edge')  # Pad last row
 
-DX = dX[0:nyp-1:2,0:nx:2] + dX[1:nyp:2,1:nx:2]
-DY = dY[0:ny:2, 0:nxp-1:2] + dY[1:ny:2, 0:nxp-1:2] 
-#DX = dX[0:nyp-1:2,0:nx:2]
-#DY = dY[0:ny:2, 0:nxp-1:2]
+dlt_dgr = np.sqrt(dlt_lon**2 + dlt_lat**2)  # 
+mm,nn = LONM.shape
 
-if plot_fld == 'effective':
-  RS = np.sqrt(DX**2 + DY**2)*1.e-3  # km
-  stl = 'MOM6-SIS2 grid resolution ||dl||$_2$, km,  NEP region'
-elif plot_fld == 'infin':
-  RS = np.maximum(DX, DY)*1e-3
-  stl = fr'MOM6-SIS2 grid resolution $\|dl\|_\infty$, km, NEP region'
-
-mm = RS.shape[0]
-nn = RS.shape[1]
-
-# Check distance:
-DSouth = mmsc1.dist_sphcrd(LATM[0,0], LONM[0,0], LATM[0,-1], LONM[0,-1])*1e-3
-DLS    = np.nansum(DX[0,0:])*1e-3
-DNorth = mmsc1.dist_sphcrd(LATM[-1,0], LONM[-1,0], LATM[-1,-1], LONM[-1,-1])*1e-3
-DLN    = np.nansum(DX[-1,0:])*1e-3
-
+if dlt_coord == 'longit':
+  RS = dlt_lon
+elif dlt_coord == 'latit':
+  RS = dlt_lat
+elif dlt_coord == 'lonlat':
+  RS = dlt_dgr
 
 RS = np.where(HHM >= 0., np.nan, RS)
 
@@ -99,9 +83,10 @@ clrmp.set_bad(color=[0.2,0.2,0.2])
 
 fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
-ax1 = plt.axes([0.1, 0.24, 0.8, 0.7])
-rmin = 8.
-rmax = 16.
+rmin = 0.
+rmax = 0.22
+
+ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
 im1 = ax1.pcolormesh(RS, \
                  cmap=clrmp,\
                  vmin=rmin, \
@@ -124,7 +109,10 @@ ax1.contour(LATM,list(range(0,89,10)),
           linewidths=1.0)
 
 
+stl = f'MOM6-SIS2 grid dlt_{dlt_coord}  NEP region'
 ax1.set_title(stl)
+
+
 
 ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,
                    0.02, ax1.get_position().height])
@@ -137,7 +125,7 @@ clb.ax.set_yticklabels(["{:.3f}".format(i) for i in clb.get_ticks()], fontsize=1
 clb.ax.tick_params(direction='in', length=12)
 
 
-btx = 'plot_resolution.py'
+btx = 'plot_resolution_degrees.py'
 bottom_text(btx)
 
 

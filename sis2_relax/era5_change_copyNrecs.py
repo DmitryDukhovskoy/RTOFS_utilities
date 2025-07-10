@@ -7,15 +7,19 @@
   Try to modify the last day (padding) of the ERA5 padded files
   Replace the day following the model blow up by copying
   the fields at -dltHR over to N hours/records of data into all hrly slots
+  
+  Also possible to copy backward from t+dltHR
 
 
 #   1-hr fields are assumed
 #
 # ---*----X---*---*---X---*---*---*---*
-#   time-dltHR      date       time+dltHR
+#   time-dltHR       date       time+dltHR (dlthHR>0)
 #                 to replace
 #
-#         |---------->|   Data from (time-dltHR) copied
+#         |---------->|   Data from (time-dltHR) copied if dlthr<0
+#
+#         |<----------|   Data from (time+dltHR) copied if dlthr>0
 #
 
   ERA5 atm. forcing files:
@@ -66,21 +70,22 @@ import mod_utils_ob as mutob
 import mod_interp1D as mint1d
 #importlib.reload(mutob)
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--yr", help="year of file to change: 1993, ..., 2020", type=int)
 parser.add_argument("--date", help="Date needs to be changed: YYYYMMDD", type=int)
-parser.add_argument("--dlthr",help="Time window (hours) +/- from date to do time interpolation", type=int)
+parser.add_argument("--dlthr",help="Copy value from date + dlthhr ( back<0 or fwd >0) time=date", type=int)
 parser.add_argument("--varnm", help="field to change: u10,v10,lp,msl,sf,sphum,ssrd,strd,t2m", type=str)
 args = parser.parse_args()
 
 #VARS = ['u10','v10','lp','msl','sf','sphum','ssrd','strd','t2m']
 #VARS = ['msl','sf','sphum']
-#VARS = ['ssrd','strd','t2m']
-VARS = ['u10','v10','lp']
+#VARS = ['ssrd','strd','msl','sf','sphum']
+VARS = ['u10','v10','lp','t2m']
 
-f_save = False
+f_save = True
 
-dltHR = 1.
+dltHR = 0.
 if args.varnm:
   VARS = [args.varnm]
 if args.yr:
@@ -92,9 +97,15 @@ if args.date:
 if args.dlthr:
   dltHR = args.dlthr
 
-# Start-end dates to replace field:
-dnmb_prev = dnmb_ch-dltHR/24.0
-dnmb_next = dnmb_ch+dltHR/24.0
+if dltHR < 0:
+  f_b2f = True  # copy from back to forward time
+  print(f'Copy from previous time {dltHR} hrs forward to {date_change}')
+else:
+  f_b2f = False
+  print(f'Copy from forward time {dltHR} back to {date_change}')
+
+# Date that wll be copied to all time step until date_change to replace field:
+dnmb_copy = dnmb_ch+dltHR/24.0  # note sign of dltHR
 
 if not f_save:
   print(f'Files not saved at the end, f_save flag is off ...')
@@ -128,7 +139,7 @@ def read_ERA5_field(varnm,dnmbR):
   days   = tmP.day.to_numpy()
   hours  = tmP.hour.to_numpy()
   TM = np.zeros((nrec))
-  #TM     = mtime.datenum([years,months,days,hours]) <-- need to change mtime.datenum to work with 1D arrays
+  #TM= mtime.datenum([years,months,days,hours]) <-- need to change mtime.datenum to work with 1D arrays
   for irec in range(nrec):
     yy,mm,dd,hh = years[irec],months[irec],days[irec],hours[irec]
     TM[irec] = mtime.datenum([yy,mm,dd,hh])
@@ -140,26 +151,40 @@ def read_ERA5_field(varnm,dnmbR):
   assert(DD[itime] < 1.e-3),f'Could not find requested date  {dnmbR}'
   A2d = dset[varnm].isel(time=itime).data
 
-  return A2d, TM, dset
+  return A2d, TM, dset, itime
   
 ich = 181
 jch = 237
 nvars = len(VARS)
 for varnm in VARS:
-  # Read previous date from the data set being modified:
-  Aprev, TMp, dset = read_ERA5_field(varnm, dnmb_prev)
+  # Read data for the date being changed, keep dataset:
+  print(f'Reading data being changed')
+  _, TMp, dset, itime_ch = read_ERA5_field(varnm, dnmb_ch)
+  # Read data for the date being copied over all time steps:
+  print(f'Reading target data')
+  Acopy, TMcp, _, itime_copy = read_ERA5_field(varnm, dnmb_copy)
   darray = dset[varnm]
   dmm1 = darray.data[:,jch,ich].copy()
 
   # Define Time array of time being replaced:
   # Hourly data assumed
   # Cannot go beyond the last padded date
-  dltT = 1.0 / 24.0  # 1 hour in days
-  Tend = np.min([dnmb_next - dltT, TMp[-1]])
-  Tint = np.arange(dnmb_prev + dltT, Tend + dltT / 2, dltT)
-  yrP,mmP,ddP,hrP = mtime.datevec(dnmb_prev, round_hrs=True)[:4]
+  dltT = 1.0 / 24.0       # 1 hour in days
 
-  jdm,idm = Aprev.shape
+  if f_b2f: 
+    # Copy from back to forward  
+    Tend = np.min([dnmb_ch, TMp[-1]])
+    Tst  = np.max([TMp[0],dnmb_copy+dltT])
+    Tint = np.arange(Tst, Tend + dltT / 2, dltT)
+  else:
+    # Copy from forward time to back in time:
+    Tend = np.min([dnmb_copy-dltT, TMp[-1]])
+    Tint = np.arange(dnmb_ch, Tend + dltT/2., dltT)
+
+  yrP,mmP,ddP,hrP = mtime.datevec(dnmb_copy, round_hrs=True)[:4]
+
+  jdm,idm = Acopy.shape
+  ITT = np.zeros((len(Tint)), dtype=int)
   for it in range(len(Tint)):
     dnmbI = Tint[it]
     yri,mmi,ddi,hri = mtime.datevec(dnmbI, round_hrs=True)[:4]
@@ -168,22 +193,41 @@ for varnm in VARS:
     # Replace with the reference field:
     DT = abs(TMp-dnmbI)
     itime = np.argmin(DT)
+    ITT[it] = int(itime)
     assert(DT[itime]<1./24.),f'Time differes > 1hr, {dnmbI:.5f} vs {TMp[itime]:.5f}' 
-    # CHeck introduced difference:
-    D2 = darray.data[itime,:,:]-Aprev
+    # Check introduced difference:
+    D2 = darray.data[itime,:,:]-Acopy
     rmax = np.max(D2)
     rmin = np.min(D2)
     print(f"min/max error after interpolation = {rmin:.4f}/{rmax:.4f}")
     Dold = darray.data[itime,:,:].copy()    # for debugging
-    darray.data[itime,:,:] = Aprev
+    darray.data[itime,:,:] = Acopy
 
   dmm2 = darray.data[:,jch,ich].copy()
   dset[varnm] = darray
   dset.attrs["info"]=f"Modified {yr_ch}/{mm_ch}/{dd_ch}:0hr - {dltHR}hrs "
   dset.attrs["code"]="/home/Dmitry.Dukhovskoy/python/sis2_relax/era5_change_copyNrecs.py"
 
+  # Check:
+  f_chck = True
+  if f_chck:
+    print(f'Checking copied fields ...')
+    for it in range(len(ITT)):
+      Indx = ITT[it]
+      yy,mm,dd,hr = mtime.datevec(TMp[Indx], round_hrs=True)[:4]
+      print(f'Checking {yy}/{mm}/{dd}:{hr}')
+      A2d = dset[varnm].isel(time=Indx).data
+      dmax = np.max(abs(A2d - Acopy))
+      assert(dmax < 1.e-9), f'ERR: Copied fields do not match the reference date fields'
+      #print(f'Max diff {dmax:.12f}')
+    print('Check: ok')
+
   if f_save:
-    flnew = f'ERA5_{varnm}_{YR}_cp{int(dltHR):03d}hrs_padded.nc'
+    if dltHR > 0:
+      flnew = f'ERA5_{varnm}_{YR}_cp{int(dltHR):03d}hrs_padded.nc'
+    else:
+      flnew = f'ERA5_{varnm}_{YR}_cp{int(abs(dltHR)):03d}Bhrs_padded.nc'
+
     dflout = os.path.join(pthoutp, flnew)
     print(f"Saving to {dflout}")
     dset.to_netcdf(
@@ -199,9 +243,9 @@ if f_chck:
   dmin = -5.
   dmax = 5.
 
-  dI = Dold-Aprev
+  dI = Dold-Acopy
   
-  yrP,mmP,ddP,hrP = mtime.datevec(dnmb_prev, round_hrs=True)[:4]
+  yrP,mmP,ddP,hrP = mtime.datevec(dnmb_copy, round_hrs=True)[:4]
   sttl = f'Difference {varnm} {yri}/{mmi}/{ddi}:{hri:02d}h - {yrP}/{mmP}/{ddP}:{hrP:02d}h'
 
   plt.ion()

@@ -60,12 +60,14 @@ def inpolygon_1pnt(xq, yq, xv, yv):
   """
   from matplotlib import path
 
-  xv = xv.reshape(-1)
-  yv = yv.reshape(-1)
-  q = np.array([[xq,yq]])
-  p = path.Path([(xv[i], yv[i]) for i in range(xv.shape[0])])
+  xv = np.asarray(xv).reshape(-1)
+  yv = np.asarray(yv).reshape(-1)
+  polygon = path.Path(np.column_stack((xv, yv)))
 
-  return p.contains_points(q)[0]
+  q = np.array([[xq, yq]])
+
+  # contains_point returns False for edge points; workaround: use radius=1e-10
+  return polygon.contains_point((xq, yq), radius=1e-10)
 
 def rotate_vector(uin,vin,thtd):
   """

@@ -92,14 +92,62 @@ def ncoda_depths(zneg=True):
 
   return ZI, kzi, ZM, kzm
 
-def find_indx_lonlat(x0,y0,X0,Y0,xsct="none"):
+def find_indx_lonlat(x0, y0, X0, Y0, dlt_err=7000., fatal_err=True):
   """
+  Given pnt coordinates (x0,y0) and 2D lon/lat arrays (X0, Y0):
+  Find closest grid point (ii0,jj0) to lon/lat coordinate
+  For W-E sections - use find_indx_2Dsect 
+
+  dlt_err - max difference (degrees) between x0,y0 and found point on X0,Y0 before warning/error
+  fatal_error - fatal, otherwise - warning with indices < 0 returned 
+
+  Output: ii0, jj0 - indices closest to x0,y0 (lon, lat)
+  """
+  import mod_misc1 as mmisc
+  if x0 > 180.:
+    x0 = x0-360.
+
+  if abs(y0) > 90.:
+    raise Exception(f'latitude y0 >/< 90N/S, check y0 is lat: {y0}')
+
+  XX = X0.copy()
+  YY = Y0.copy()
+
+  if np.max(XX) > 180.:
+    XX = np.where(XX > 180., XX-360., XX)
+
+  dmm = mmisc.dist_sphcrd(y0,x0,YY,XX)   # distance in meters
+  jj0, ii0 = np.unravel_index(np.argmin(dmm), dmm.shape)
+  dmm_min = np.min(dmm)
+
+# Sanity check:
+#  print(f'jj0={jj0} ii0={ii0} x0={x0} y0={y0}')
+  derr = mmisc.dist_sphcrd(y0,x0,YY[jj0,ii0],XX[jj0,ii0])   # error in meters
+  #derr = np.sqrt((XX[jj0,ii0]-x0)**2 + (YY[jj0,ii0]-y0)**2)
+  if derr >= dlt_err:
+    ii0 = -ii0
+    jj0 = -jj0
+    print(f'WARNING: Found index is far away from given from lon/lat: Error = {derr*1e-3} km')
+    print(f'WARNING: Check lon0={x0} lat0={y0} matched to lon={XX[jj0,ii0]} lat={YY[jj0,ii0]}')
+    if fatal_err:
+      raise Exception(f'ERROR Finding index from lon/lat')
+
+  return ii0, jj0
+
+def find_indx_2Dsect(x0,y0,X0,Y0,xsct="none", dlt_err=1, fatal_err=True):
+  """
+  Given pnt coordinates (x0,y0) and 2D lon/lat arrays (X0, Y0):
   Find closest grid point (ii0,jj0) to lon/lat coordinate
   For W-E sections, provide xsct name 
   then indices are given relative to the section 1st index
+
+  dlt_err - max difference (degrees) between x0,y0 and found point on X0,Y0 before warning/error
+  fatal_error - fatal, otherwise - warning with indices < 0 returned 
+
   Output: ii0, jj0 - indices closest to x0,y0 (lon, lat)
           ip0, jp0 - indices relative to 1st pnt in the section
   """
+  import mod_misc1 as mmisc
   if x0 > 180.:
     x0 = x0-360.
 
@@ -113,9 +161,7 @@ def find_indx_lonlat(x0,y0,X0,Y0,xsct="none"):
     XX = np.where(XX > 180., XX-360., XX)
 
   dmm = np.sqrt((XX-x0)**2+(YY-y0)**2)
-  jj0, ii0 = np.where(dmm == np.min(dmm)) # global indices
-  jj0 = jj0[0]
-  ii0 = ii0[0]
+  jj0, ii0 = np.unravel_index(np.argmin(dmm), dmm.shape)
   dmm_min = np.min(dmm)
 #
 # Check for singularity along 180/-180 longitude
@@ -150,12 +196,15 @@ def find_indx_lonlat(x0,y0,X0,Y0,xsct="none"):
 
 # Sanity check:
 #  print(f'jj0={jj0} ii0={ii0} x0={x0} y0={y0}')
-  derr = np.sqrt((XX[jj0,ii0]-x0)**2 + (YY[jj0,ii0]-y0)**2)
-  if derr > 1.:
-    print(f'Finding index from lon/lat: Error = {derr}')
-    print(f'Check lon0={x0} lat0={y0} matched to lon={XX[jj0,ii0]} lat={YY[jj0,ii0]}')
-    raise Exception(f'ERROR Finding index from lon/lat')
-
+  derr = mmisc.dist_sphcrd(y0,x0,YY[jj0,ii0],XX[jj0,ii0])   # error in meters
+  #derr = np.sqrt((XX[jj0,ii0]-x0)**2 + (YY[jj0,ii0]-y0)**2)
+  if derr >= dlt_err:
+    ii0 = -ii0
+    jj0 = -jj0
+    print(f'WARNING: Found index is far away from given from lon/lat: Error = {derr}')
+    print(f'WARNING: Check lon0={x0} lat0={y0} matched to lon={XX[jj0,ii0]} lat={YY[jj0,ii0]}')
+    if fatal_err:
+      raise Exception(f'ERROR Finding index from lon/lat')
 #
 # If section provided, indices for this section:
   ip0 = -1
@@ -173,6 +222,7 @@ def find_indx_lonlat(x0,y0,X0,Y0,xsct="none"):
     return ii0, jj0, ip0, jp0
   else:
     return ii0, jj0
+
 
 def interp_indx_lonlat(x0,y0,LON,LAT):
   """

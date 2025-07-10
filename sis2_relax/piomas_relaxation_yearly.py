@@ -59,23 +59,18 @@ import mod_colormaps as mclrmps
 import mod_misc1 as mmisc
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--yrs",   help="year start to extract PIOMAS: 1993, ..., 2020", type=int)
+parser.add_argument("--yrs",   help="year start to extract PIOMAS: 1993, ..., 2020", type=int, required=True)
 parser.add_argument("--yre",   help="year end to extract PIOMAS: 1993, ..., 2020", type=int)
 parser.add_argument("--fsave", help="flag > 0 to save the output", type=int)
 args = parser.parse_args()
 
 f_save = True
-YRs = 1994
-YRe = 1995    # make YRe=YRs to create 1 yr field with padded start/end of the year
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
                        # for monthly, daily, etc. need -dt and +dt at the beginn/end 
 
-
-if args.yrs:
-  YRs = args.yrs
-if args.yre:
-  YRe = args.yre
+YRs = args.yrs if args.yrs else None
+YRe = args.yre if args.yre else YRS+1  # save 2-yrs of data for 1-yr f/casts that start anytime in the 1st yr
 if args.fsave > 0:
   f_save = True
 else:

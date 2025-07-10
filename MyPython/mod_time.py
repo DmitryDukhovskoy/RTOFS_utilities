@@ -510,23 +510,35 @@ def npdatetime_year(yrS, yrE=0, day_start=1, day_end=366, dlt_day=1, tprecis='D'
 def extract_yymmdd(date_int):
   """
     Parse integer date saved as YYYYMMDD into YYYY, MM, DD
+    Optional, hours can be added at the end: YYYYMMDDHH
+
   """
   if not isinstance(date_int,int):
     date_int = int(date_int)
 
-  year = date_int // 10000
-  month = (date_int % 10000) // 100
+  # Determine if hour is included based on length
+  if date_int // 10**8 > 1:  # More than 8 digits -> includes hour
+    has_hour = True
+    hr = date_int % 100
+    date_int //= 100
+  else:
+    has_hour = False
+    hr = 0
+
   day = date_int % 100
+  date_int //= 100
+  month = date_int % 100
+  year = date_int // 100
 
-  # Check:
-  assert(month>0 and month<12), f'ERR: extracted month = {month}'
-  assert(day>0 and day<32), f'ERR:extracted day={day}'
-  d2 = year*10000 + month*100 + day
-  err = abs(d2-date_int)
-  #print(f'd2={d2}')
-  assert (err<1.e-18), f'ERR: input date {date_int} mismatch extracted {year}/{month}/{day}'
+  # Validity checks
+  assert 1 <= month <= 12, f'ERR: extracted month = {month}'
+  assert 1 <= day <= 31, f'ERR: extracted day = {day}'
+  assert 0 <= hr <= 23, f'ERR: extracted hour = {hr}'
 
-  return year, month, day
+  if has_hour:
+      return year, month, day, hr
+  else:
+      return year, month, day
 
 
 
