@@ -52,8 +52,8 @@ import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--yrs",   help="year start to extract PIOMAS: 1993, ..., 2020", type=int, required=True)
-parser.add_argument("--yre",   help="year end to extract PIOMAS: 1993, ..., 2020", type=int)
+parser.add_argument("--yrs", help="year start to extract PIOMAS: 1993, ..., 2020", type=int, required=True)
+parser.add_argument("--yre", help="year end to extract PIOMAS: 1993, ..., 2020", type=int)
 parser.add_argument("--nyrs", help="number of years grouped in 1 relax. file, default=2", type=int)
 parser.add_argument("--nclim", help="number of years for averaging to create climatology, default=5", type=int)
 parser.add_argument("--fsave", help="flag > 0 to save the output, default: =1 - save ON", type=int)

@@ -5,7 +5,8 @@
 
   Relaxation field is created using complex transformation/mapping technique
 
-  Apply slower exp decay over the Bering Sea
+  Apply fast exp decay over the Bering Sea
+  used in the forecast simulations
  
 """
 import numpy as np
@@ -59,7 +60,7 @@ Irate_max_sec = 1./(rate_max_hrs*3600.)  # relaxation rate, s-1
 
 rlx_name = 'relax_rate' # name of the variable, should be the same in the SIS_input
 
-btx  = 'relax_timescale_v2.py'
+btx  = 'relax_timescale_v3.py'
 
 if not f_save:
   print(f'\n === WARNING: relaxation field is not saved, f_save: {f_save} ===\n')
@@ -116,7 +117,7 @@ irmaxE = 120
 
 # Adjust exponential decay of the relaxation off the Y=0 axis:
 f_adj = False
-sgmx = idm/2  # controls exponential decay of the Gaussian, decrease the denom. to slow the decay
+sgmx = idm/7.  # controls exponential decay of the Gaussian, decrease the denom. to slow the decay
 RLX = np.zeros((jdmD, idmD))
 for jj in range(jdmD):
   irmax0 = irmax
@@ -135,8 +136,8 @@ for jj in range(jdmD):
 
 # Perform 1st mapping using z**rexp
 # Use the fact that mapped domain is symmetric wrt real axis X
-rdnm = 1.4
-rexp = 1/rdnm
+rdnm = 1.8   # controls the bend of the region, higher value - stronger band
+rexp = 1./rdnm
 RMAP1 = np.zeros((jdmD, idmD))*np.nan
 RMAP2 = RMAP1.copy()*np.nan
 jD0 = np.argmin(np.abs(Y))
@@ -197,16 +198,22 @@ isD = idm-idmA
 jsD = jdm-jdmA
 RLXIS = np.zeros((jdm,idm))
 RLXIS[jsD:,isD:] = AA    # relaxation rate, s-1
-# No relaxation in the Gulf of Alaska:
-RLXIS[:575,170:] = 0.0
 
+# Make very weak rlx = 0
+# 3.2e-8 - 1yr rlx time scale
+rlx0 = 1.e-10
+RLXIS = np.where(RLXIS < rlx0, 0., RLXIS)
 
 # Add land mask and southern domains = 0
 lat_cut = 53.
 RLXIS = np.where(HH>=0, 0.0, RLXIS)
 RLXIS = np.where(hlat<lat_cut, 0.0, RLXIS)
 
+# Make 0 relaxation in the SWest Bering Sea:
+RLXIS[:,:108] = 0.0
+
 # No relaxation in the G. Alaska:
+RLXIS[:575,170:] = 0.0
 RLXIS[:574,140:] = 0.0
 RLXIS[:580,90:141] = 0.0
 RLXIS[:600,:86] = 0.0
@@ -238,9 +245,9 @@ ds_rlx.attrs["history"] = f"Created {cwd}/{btx}"
 if f_save:
   encoding = {rlx_name: {'_FillValue': None}}
   if rate_max_hrs >= 1:
-    flout = f'relax_rate_{int(rate_max_hrs):03d}hrs_v2.nc'
+    flout = f'relax_rate_{int(rate_max_hrs):03d}hrs_v3.nc'
   else:
-    flout = f'relax_rate_{int(rate_max_min):03d}min_v2.nc' 
+    flout = f'relax_rate_{int(rate_max_min):03d}min_v3.nc' 
   pthsis = gridfls['MOM6_NEP'][run_name]['pthsis']
   dflout = os.path.join(pthsis, flout)
 

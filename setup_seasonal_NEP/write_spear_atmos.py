@@ -41,13 +41,26 @@ except subprocess.CalledProcessError as err:
 
 # Specify year, month, ensembles to 
 # generate atm fields from SPEAR 
-yr1     = 2013
-yr2     = 2013
-#MM      = [1,4,7,10]
-MM       = [10]
-ensmb   = [1,2,3,4,5,6,7,8,9,10]
+parser = argparse.ArgumentParser()
+parser.add_argument("--yrs", help="Year to begin data extraction: 1993,...,2024", type=int, required=True)
+parser.add_argument("--yre", help="Year to end data extraction, default=yrs", type=int)
+parser.add_argument("--mms", help="1st month in each year to extract, default=1", type=int)
+parser.add_argument("--mme", help="Last month in each year to extract, default=10", type=int)
+parser.add_argument("--ensS", help="1st SPEAR ens. to extract: 1,...,10", type=int, required=True)
+parser.add_argument("--ensE", help="Last SPEAR ens. to extract, default=ensS", type=int)
+args = parser.parse_args()
+
+yr1  = args.yrs if args.yrs else None
+yr2  = args.yre if args.yre else yr1
+mms  = args.mms if args.mms else 1
+mme  = args.mme if args.mme else 10
+ensS = args.ensS if args.ensS else None
+ensE = args.ensE if args.ensE else ensS
+dltM = 3    # time interval between the initializations, months
+
+MM      = [x for x in range(mms,mme+1,dltM)]
+ensmb   = [x for x in range(ensS,ensE+1)]
 fconfig = 'config_nep.yaml'
-#fconfig = 'config_nwa12.yaml'
 
 print(f"Creating SPEAR atmos fields for NEP, {yr1}-{yr2}")
 print(f"N ensembles: {len(ensmb)}, Months: {MM}")
