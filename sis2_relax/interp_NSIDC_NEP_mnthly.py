@@ -44,10 +44,8 @@ import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--YRS", help="year to start interp.: 1993, ..., 2020", type=int)
+parser.add_argument("--YRS", help="year to start interp.: 1993, ..., 2020", type=int, required=True)
 parser.add_argument("--YRE", help="year to end interp.: 1993, ..., 2020", type=int)
-#parser.add_argument("--MMS", help="month to start interp, defualt=1 : 1,..., 12", type=int)
-#parser.add_argument("--MME", help="month to end interp, default=12 or =MMS: 1,..., 12", type=int)
 args = parser.parse_args()
 
 # experiment: year start, month start, ...
@@ -57,17 +55,12 @@ varnm  = 'iconc'
 
 # Default values that can be modified by keywords
 # Day to plot either in year days or actual date:
-YRS  = 1993
-YRE  = YRS
 MMS  = 1
 MME  = 12
-f_save = False
+f_save = True
 
-if args.YRS:
-  YRS = args.YRS
-  YRE = YRS
-if args.YRE:
-  YRE = args.YRE
+YRS = args.YRS if args.YRS else None
+YRE = args.YRE if args.YRE else YRS
 
 
 fyaml_param='relax_expts.yaml'

@@ -17,6 +17,7 @@ import sys
 #import pickle
 import matplotlib.pyplot as plt
 from yaml import safe_load
+import argparse
 
 import mod_utils_ob as mutob
 importlib.reload(mutob)
@@ -38,11 +39,17 @@ import mod_time as mtime
 import mod_mom6 as mmom6
 import mod_utils as mutil
 
-# Climatology derived for these years, started at mstart
+parser = argparse.ArgumentParser()
+parser.add_argument("--ens", help="SPEAR ens run used for creating OB, 1,...,10", type=int, required=True)
+parser.add_argument("--YRS", help="SPEAR initialization year, 1993,..., 2024", type=int, required=True)
+parser.add_argument("--MMS", help="SPEAR init month, should match NEP seas. f/cast: 1,4,7,10", type=int, required=True)
+args = parser.parse_args()
+
 # Inidicate start of the SPEAR forecast:
-ens_spear  = 1     # SPEAR ens run used for creating OB
-yr_start   = 1993
-mo_start   = 10
+ens_spear = args.ens if args.ens else None
+yr_start  = args.YRS if args.YRS else None
+mo_start  = args.MMS if args.MMS else None
+
 dnmb_start = mtime.datenum([yr_start,mo_start,1])
 dv_start   = mtime.datevec(dnmb_start)
 calendar   = 'gregorian'   # gregorian - actual dates in np datetime, julian - day 3 since day 1 of rec.

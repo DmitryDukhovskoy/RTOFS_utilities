@@ -1,0 +1,1 @@
+../setup_seasonal_NEP/write_spear_atmos.py

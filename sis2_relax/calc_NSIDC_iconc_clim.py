@@ -53,8 +53,8 @@ varnm  = 'iconc'
 # Default values that can be modified by keywords
 # Day to plot either in year days or actual date:
 # Years in the relax file also used in the rlx file name:
-YRS = 2010  # init yr
-YRE = 2014
+YRS = 2011  # init yr
+YRE = 2024
 MMI = 1     # init month
 f_save = True
 
