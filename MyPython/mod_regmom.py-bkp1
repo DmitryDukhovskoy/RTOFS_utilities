@@ -16,7 +16,7 @@ from matplotlib.patches import Polygon
 from matplotlib.colors import ListedColormap
 from mod_utils_fig import bottom_text
 
-def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5, skip_bndry=True, use_close_indx=False):
+def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5, skip_bndry=True):
   """
     Given pnt (x0,y0) find 4 grid points enclosing the pnt
     on a grid XX, YY - coordinates
@@ -33,13 +33,6 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5, skip_bndry=True, use_close_i
     The algorithms works for both regular (straight orthogonal Mercator-type grids)
     and irregular (e.g. bipolar with slented grid lines) although in discontinuity regions
     where grid boxes are too narrow and slented may give errors 
-
-    On a highly curvilinear portions of the domain (epsecially near the N. Pole)
-    the algorithm may fail 
-    because i-1, i+1, j-1, j+1 points may not be the closest points
-    As a last option, allow to use 4 closest indices around the pnt
-    use_close_indx=True  
-
 
     Specify offset for i,j indices if a subset XX, YY is ued
     instead of whole domain X and Y (to speed up distance calculation)
@@ -73,11 +66,10 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5, skip_bndry=True, use_close_i
   # Special treatment of x0 near discontinuities
   # If x0 is near 0-dgr longitude, keep LON -180, 180 to avoid discontinuity
   # Safe to have the threshold at least 2 grid points * dlt(lon)
-  lon_bndry = 60.
-  if x0 < lon_bndry:
+  if x0 < 10.:
     LON = np.where(LON > 180., LON-360., LON)
   # If x0 is near 360: 
-  if x0 > (360.-lon_bndry):
+  if x0 > 350.:
     LON = np.where(LON < 180, LON+360, LON)
 
 
@@ -110,18 +102,6 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5, skip_bndry=True, use_close_i
     print(f'pnt x0/y0: {x0:.3f}/{y0:.3f} on the boundary: i/j={iv1}/{jv1}, skipping ...')
     return [],[]
 
-  # Try a simple approach first:
-  INp = False
-  if not INp:
-    xv1 = LON[jv1,iv1]
-    yv1 = LAT[jv1,iv1]
-    IV,JV,INp = find_box_include([x0,y0],[iv1,jv1],LON,LAT)
-
-    if INp:
-      ixx = np.array(IV).astype(int)
-      jxx = np.array(JV).astype(int)
-      return ixx, jxx
-
   # First guess for xv2: 
   # Find where the point lies wrt to the closest pnt:
   #                          * x(jv+1,iv1)
@@ -133,15 +113,7 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5, skip_bndry=True, use_close_i
   #   *----------------------*-----------------* x(jv1,iv1+1)
   #  x(jv1,iv1-1)         x(jv1,iv1)
   #
-  # Note that this approach will fail for curvilinear grid
-  # when x0,y0 is very close to the closest point:
-  #
-  #                         x(jv1,iv1)
-  #                         * -----------------* x(jv1,iv1+1)
-  #                                                  
-  #                         * x0,y0
-  #   * (jv1,iv1-1)                                    
-  
+
   # Select some reference point wrt to 1st closest pnt:
   xref = xv1-0.01
   yref = yv1-0.01
@@ -347,15 +319,7 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5, skip_bndry=True, use_close_i
   
       icc += 1 
       if icc > 10:
-        if use_close_indx:
-          print(f'Could not adjust vx2,, x0={x0:.4f}E, y0={y0:.4f}N, use 4 closest grid pnts')
-          IV = [iv1-1, iv1,   iv1+1, iv1]
-          JV = [jv1,   jv1-1, jv1,   jv1+1]
-          ixx = np.array(IV).astype(int)
-          jxx = np.array(JV).astype(int)
-          return ixx, jxx
-        else:
-          raise Exception(f"adjusting vx2: too many steps {icc}")
+        raise Exception(f"adjusting vx2: too many steps {icc}")
 
 # Vertx 4: best guess use vertex 2 and vertex 3:
   iv4 = iv2
@@ -391,6 +355,7 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5, skip_bndry=True, use_close_i
 # Most of cases should be handled by the above algorithm
 # for very non-orthogonal I/J grid lines near singularities in 
 # tripolar grids the point may still be outside the box
+# Try this:
 # Adjust sides to include the pnt if it is not in the box
   SIDE2V = {
      "side1": [0, 1],
@@ -483,14 +448,8 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5, skip_bndry=True, use_close_i
 
           icc += 1
           if icc > 10: 
-            if use_close_indx:
-              print(f'Could not find 4pnts, x0={x0:.4f}E, y0={y0:.4f}N, use 4 closest grid pnts')
-              IV = [iv1-1, iv1,   iv1+1, iv1]
-              JV = [jv1,   jv1-1, jv1,   jv1+1]
-              INp = True
-              break
-            else:
-              raise Exception(f"Couldnot adjust side to include point #iter={icc}")
+            raise Exception(f"Couldnot adjust side to include point #iter={icc}")
+
 
     
   ixx = np.array(IV).astype(int)
@@ -498,56 +457,6 @@ def find_gridpnts_box(x0, y0, LON, LAT, dhstep=0.5, skip_bndry=True, use_close_i
   
   return ixx, jxx
 
-def find_box_include(XY0,IJ1,LON,LAT):
-  """
-    Find a grid cell that encloses a pnt XY0
-    given the first nearst vertex 
-  """
-  import mod_misc1 as mmisc1
-  import mod_bilinear as mblnr
-
-  x0, y0   = XY0 
-  iv1, jv1 = IJ1
-  BX = np.array([
-      [[iv1,   jv1],
-       [iv1,   jv1-1],
-       [iv1-1, jv1-1],
-       [iv1-1, jv1]],
-
-      [[iv1,   jv1],
-       [iv1+1, jv1],
-       [iv1+1, jv1-1],
-       [iv1,   jv1-1]],
-
-      [[iv1,   jv1],
-       [iv1,   jv1+1],
-       [iv1+1, jv1+1],
-       [iv1+1, jv1]],
-
-      [[iv1,   jv1],
-       [iv1-1, jv1],
-       [iv1-1, jv1+1],
-       [iv1,   jv1+1]]
-  ])
-
-  for ibox in range(4):
-    IV = BX[ibox,:,0]
-    JV = BX[ibox,:,1]
-    XX = LON[JV,IV]
-    YY = LAT[JV,IV]
-    XXc = 0.25*np.sum(XX)
-    YYc = 0.25*np.sum(YY)
-    XV, YV  = mblnr.lonlat2xy_wrtX0(XX, YY, XXc, YYc)
-    x0c, y0c = mblnr.lonlat2xy_pnt(x0,y0, XXc, YYc)
-    INp     = mmisc1.inpolygon_1pnt(x0c, y0c, XV, YV)
-    if INp: break
-
-  if not INp: 
-    IV = []
-    JV = []
-
-  return IV,JV,INp
-      
 def fill_land(aa1,aa2,aa3,aa4,HH,A3d,JJ,II,Jocn,Iocn):
   """
     Fill all nans in 1D arrays - land points

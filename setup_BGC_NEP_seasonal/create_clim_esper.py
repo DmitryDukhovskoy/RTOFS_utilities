@@ -53,6 +53,8 @@ pthbgc = '/work/Dmitry.Dukhovskoy/NEP_input/BGC_esper_seasfcast'
 flbgc  = 'bgc_esper_annual_1993_2024.nc'
 flbgc_out = 'bgc_esper_annual_clim.nc'
 
+NOT FINISHED
+
 
 
 

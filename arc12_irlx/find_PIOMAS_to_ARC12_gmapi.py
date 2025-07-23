@@ -30,7 +30,9 @@ import mod_colormaps as mclrmps
 import mod_misc1 as mmisc
 from mod_utils_fig import bottom_text
 import mod_sis2_relax as msisrlx
-importlib.reload(msisrlx)
+import mod_regmom as mrmom
+importlib.reload(mrmom)
+
 
 # ARC12 grid:
 ptharc  = '/work/Dmitry.Dukhovskoy/ARC12/topo_grid'
@@ -38,13 +40,14 @@ dflarc  = os.path.join(ptharc,'ocean_hgrid.nc')
 dfltopo = os.path.join(ptharc,'ocean_topog.nc')
 
 ds_topo = xarray.open_dataset(dfltopo)
-HH = ds_topo['depth'].data
+HH = -(ds_topo['depth'].data)  
 jdm, idm = HH.shape
+
+assert HH[300,200] < 0., f'Check sign of topography, ocean pnts should be < 0'
 
 hlon, hlat = mmom6.read_mom6grid(dflarc, grdpnt='hgrid') 
 
 # PIOMAS LON/LAT:
-import mod_regmom as mrmom
 fgmapi  = f'PIOMAS_mom6_ARC12_gmapi_{jdm}x{idm}.npz'
 pthgmapi = '/work/Dmitry.Dukhovskoy/ARC12/irlx'
 dfgmapi = os.path.join(pthgmapi, fgmapi)
@@ -54,7 +57,7 @@ varthck = 'heff'
 varconc = 'area'
 
 print('Searching gmapi for PIOMAS interpolation onto MOM6 ARC12')
-jS = 0
+jS = 20
 icc = -1
 IMOM = []
 JMOM = []
@@ -80,15 +83,20 @@ for ii in range(idm):
   for jj in range(jS,jdm):
     if HH[jj,ii] >= 0:
       continue
+
+    # Exclude Gulf of Alaska:
+    if ii > 418 and jj < 272: continue 
+    if ii < 372 and jj < 52: continue     # south Aleutian
+
     x0 = hlon[jj,ii]
     y0 = hlat[jj,ii]
-    if y0 < 50.:
+    if y0 < 52.:
       continue
     if y0 < np.min(LAT) or y0 > np.max(LAT):
       continue
 
     icc += 1
-    ixx, jxx = mrmom.find_gridpnts_box(x0, y0, LON, LAT, dhstep=1.)
+    ixx, jxx = mrmom.find_gridpnts_box(x0, y0, LON, LAT, dhstep=1., use_close_indx=True)
     # Ignore bndry points:
     if len(ixx) == 0 or len(jxx) == 0:
       continue
