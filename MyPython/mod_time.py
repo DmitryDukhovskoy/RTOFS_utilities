@@ -472,6 +472,16 @@ def month_days(imo, YR):
   """
     Define the number of days in a month
   """
+  # Check if imo and YR should be swapped
+  # Only for obvious cases
+  if 1 <= YR <= 12 and imo > 1000:
+    print(f'WARNING: input month={imo} and YR={YR} are swapped')
+    dmm = YR
+    YR  = imo
+    imo = dmm
+
+  assert imo<=12, f'Requested month={imo} is >12'
+    
   dnmb1 = datenum([YR,imo,1])
   dv2   = datevec(dnmb1 + 32)
   imoN  = dv2[1]

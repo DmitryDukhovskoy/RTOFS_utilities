@@ -92,8 +92,8 @@ print(f'PIOMAS version: {piomas_vers}')
 # make it <0 not to show
 #iF0 = 224
 #jF0 = 742
-iF0 = 184
-jF0 = 655
+iF0 = -184
+jF0 = -655
 i0 = iF0-1 ; j0 = jF0-1
 
 
@@ -179,6 +179,13 @@ def plot_ice(fgnmb, xR, yR, A2d, clrmp, rmin, rmax, sttl, xTst=-1, yTst=-1):
 
   img = ax1.pcolormesh(xR, yR, A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
   #  img = ax1.pcolormesh(RLXHR, cmap=clrmp)
+
+  # Contour Thick ice
+  cntr_clr = [0.95, 0.95, 0.95]
+  hcntrs = [4,6,8,10,12,14,16,18,20]
+
+  CS = ax1.contour(xR, yR, A2d, hcntrs, linestyles='solid', colors=[cntr_clr], linewidths=1)
+  ax1.clabel(CS, inline=1, fontsize=10)
 
   if xTst >=0 and yTst >= 0:
     ax1.plot(xTst,yTst,'o')

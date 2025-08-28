@@ -34,10 +34,16 @@ from mod_utils_fig import bottom_text
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
-rate_max_hrs = 24.                        # max relax. time, hrs
+parser = argparse.ArgumentParser()
+parser.add_argument("--trlx", help="relaxation time scale, hours", type=float, required=True)
+args = parser.parse_args()
+
+rate_max_hrs = args.trlx if args.trlx else None
 Irate_max_sec = 1./(rate_max_hrs*3600.)  # relaxation rate, s-1
 
-f_save    = True         # Save netcdf relax file
+lat_stop = 60. # no relaxation south of this lat
+
+f_save    = False         # Save netcdf relax file
 check_rlx = True         # Plot relaxation field
 
 rlx_name = 'relax_rate' # name of the variable, should be the same in the SIS_input
@@ -46,11 +52,19 @@ rlx_name = 'relax_rate' # name of the variable, should be the same in the SIS_in
 pthdata = '/work/Dmitry.Dukhovskoy/ARC12/irlx'
 pthtopo = '/work/Dmitry.Dukhovskoy/ARC12/topo_grid'
 
+dflarc  = os.path.join(pthtopo,'ocean_hgrid.nc')
+hlon, hlat = mmom6.read_mom6grid(dflarc, grdpnt='hgrid')
+
 dtopo = os.path.join(pthtopo,'ocean_topog.nc')
 ds_topo = xarray.open_dataset(dtopo)
 HH = -ds_topo['depth'].data
 jdm, idm = HH.shape
+
+assert HH[300,200] < 0., f'Check sign of topography, ocean pnts should be < 0'
 RLX = np.where(HH>=0, 0.0, Irate_max_sec)  # relax rate, s-1
+
+# No relaxation south of lat_stop:
+RLX[hlat<lat_stop] = 0.0
 
 # Rewrite old relax file:
 varnm = 'Idamp'
@@ -63,7 +77,7 @@ ds_irlx[varnm] = darray
 
 btx = 'prepare_ARC_rlxtime.py'
 cwd = os.getcwd()
-ds_irlx.attrs["info"]="Time relaxation scale for ARC12"
+ds_irlx.attrs["info"]=f"Time relaxation scale for ARC12, no nudging south of {lat_stop:.1f}N"
 ds_irlx.attrs["history"] = f"Created {cwd}/{btx}"
 
 if f_save:
@@ -101,6 +115,16 @@ if check_rlx:
   rmin=0
   rmax=3.5
 
+  latcntrs = [x for x in range(40,90,10)]
+  loncntrs1 = [x for x in range(10,350,10)]
+  loncntrs2 = [x for x in range(-10,10,10)]
+  hlon1 = np.where(hlon<0., hlon+360., hlon)
+  hlon1 = np.where(hlon1 > 350., np.nan, hlon1)
+  hlon1[hlat>80.] = np.nan
+  hlon2 = np.where(hlon > 150., np.nan, hlon)
+  hlon2 = np.where(hlon < -50., np.nan, hlon2)
+  hlon2[hlat>80.] = np.nan 
+
 
   fig1 = plt.figure(1,figsize=(9,8))
   plt.clf()
@@ -108,6 +132,10 @@ if check_rlx:
   img = ax1.pcolormesh(AP, cmap=clrmp, vmin=rmin, vmax=rmax)
   #ax1.contour(HH,[0],linestyles='solid', linewidths=1, colors=[(0., 0., 0.)])
   ax1.axis('scaled')
+  ax1.contour(hlat, latcntrs, linestyles='solid', linewidths=1, colors=[(0.5, 0.5, 0.5)]) 
+  ax1.contour(hlon1, loncntrs1, linestyles='solid', linewidths=1, colors=[(0.5, 0.5, 0.5)])
+  ax1.contour(hlon2, loncntrs2, linestyles='solid', linewidths=1, colors=[(0.5, 0.5, 0.5)])
+
   sttl = (f'Relaxation rate (s-1), strongest rlx {max_rlx:.1f} hrs')
   ax1.set_title(sttl)
 

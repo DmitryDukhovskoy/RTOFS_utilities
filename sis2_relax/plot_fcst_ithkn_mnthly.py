@@ -162,6 +162,8 @@ for YRA in (YAVRG):
 
     pthfcst = os.path.join(pthoutp,f'{YRI}-{MMI:02d}-e{ensnmb:02d}','history')
     dcice = os.path.join(pthfcst,f'ice_month.nc')
+#    pthfcst = '/work/Dmitry.Dukhovskoy/tmp'
+#    dcice = os.path.join(pthfcst,'20120101.ice_daily.nc')
     print(f'Reading {dcice}')
 
     MMF = manseas.mofcst_from_mocalend(YRI,MMI,MMA) # forecast month #

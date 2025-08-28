@@ -220,10 +220,15 @@ def read_PIOMASv21(yr0, mm0, dfpiomas, varnm):
   varthck = 'heff'
   varconc = 'area'
 
+  if varnm == 'iconc':
+    varnm = varconc
+  elif varnm == 'ithkn':
+    varnm = varthck
+
   print(f'Reading PIOMASv2.1 {yr0}/{mm0} {dfpiomas}')
 
   if not varnm==varconc and not varnm==varthck:
-    raise Exception (f'PIOMAS variables are {varcon} and {varthck}, requested {varnm}')
+    raise Exception (f'PIOMAS variables are {varconc} and {varthck}, requested {varnm}')
 
   ds_piomas = xarray.open_dataset(dfpiomas)
   Month = ds_piomas['month'].data
@@ -234,6 +239,92 @@ def read_PIOMASv21(yr0, mm0, dfpiomas, varnm):
   A2d   = ds_piomas[varnm].data[tindx,:].squeeze()  # thikness, m
 
   return A2d
+
+def read_relax_piomas(dnmb0, pthsis, varnm):
+  """
+   Read PIOMAS target relaxation fields from PIOMASv2.1
+   The fields are on NEP10k grid
+  """
+  import mod_time as mtime
+  import mod_misc1 as mmisc
+
+  YR0, MM0, DD0 = mtime.datevec(dnmb0)[:3]
+  flthck  = f'piomas_heff{YR0}_v21.nc'
+  varthck = 'heff'
+  flconc  = f'piomas_area{YR0}_v21.nc'
+  varconc = 'area'
+
+  # Read saved relax. fields:
+  YR1 = YR0
+  YR2 = YR0+1
+  flout = f'PIOMASv21_ithkn_iconc_{YR1}_{YR2}_monthly.nc'
+  diclim = os.path.join(pthsis, flout)
+  print(f'Reading relax fields from {diclim}')
+  ds_rlx = xarray.open_dataset(diclim)
+  Time = ds_rlx['time'].data
+  TM = mmisc.convert_nptime_to_datenum(Time)
+  #dnmb0 = mtime.datenum([YR0,MM0,15,12])
+  D = abs(TM-dnmb0)
+  itime = np.argmin(D)
+  dv0 = mtime.datevec(TM[itime])
+  assert dv0[0]==YR0, f'Requested YR={YR0}, year in rlx file={dv0[0]}'
+  assert dv0[1]==MM0, f'Requested month={MM0}, month in rlx file={dv0[1]}'
+
+  match varnm:
+    case('ithkn'):
+      ifld = 'ithkn'
+    case('iconc'):
+      ifld = 'iarea'
+
+  A2dS = ds_rlx[ifld].isel(time=itime).data
+
+  return A2dS, flout
+
+
+def read_sis2_testrun(dnmb0, pthtest, prfx, varnm, use_mnth):
+  """
+    Read output from the ice relaxation test runs
+    use_mnth - read monthly mean data
+               if not, read day 15 for this month
+               to compare with monthly mean PIOMAS
+  """
+  import mod_time as mtime
+  dv0  = mtime.datevec(dnmb0)
+  YR0, MM0, DD0 = dv0[:3]
+  dref = dnmb0 - mtime.datenum([1993,1,1])
+
+  print(f'{pthtest} Plot date: {YR0}/{MM0}/{DD0}')
+
+  if use_mnth:
+    floutp = 'ice_month.nc'
+  else:
+    floutp = 'ice_daily.nc'
+
+  if len(prfx) > 0:
+    flice_name = f'{prfx}.{floutp}'
+  else:
+    flice_name  = floutp
+
+  dfsis2 = os.path.join(pthtest, flice_name)
+
+  print(f'Reading {dfsis2}')
+
+  dset   = xarray.open_dataset(dfsis2, decode_times=False)
+
+  TIME = dset['time'].data
+  DTM = np.abs(TIME-dref)
+  itime = np.argmin(DTM)
+  assert DTM[itime] < 15, f'Given date: {YR0}/{MM0}/{DD0} - Check dates in the arch file {dfsis2}'
+
+  HIce = dset['sithick'].isel(time=itime).data
+  CIce = dset['siconc'].isel(time=itime).data
+  if varnm == 'iconc':
+    A2d = CIce
+  elif varnm == 'ithkn':
+    A2d = CIce*HIce
+
+  return A2d
+
 
 def linear_distr1D(A1d, nav=3):
   """
@@ -539,7 +630,7 @@ def redistribute_hice(hice, cice, ICAT=[], eps0=1.e-6, ck_min=1.e-3, verbose=Fal
 
 # Find ice cat. where grid cell mean hice falls in:
   icat = 1e3
-  hcat_k = hice/cice     # ice thickness in a category
+  hcat_k = hice/cice     # ice thickness in a category: m3/m2 --> m
   for kk in range(ncat):
     hbnd = ICAT[kk]
     if kk < ncat-1:
@@ -547,6 +638,7 @@ def redistribute_hice(hice, cice, ICAT=[], eps0=1.e-6, ck_min=1.e-3, verbose=Fal
     else:
       hbnd_up = 1.e3
 
+    #print(f'kk={kk} hcat_k={hcat_k:.2f} hbnd={hbnd} hbnd_up={hbnd_up}')
     if hcat_k >= hbnd and hcat_k < hbnd_up:
       icat = kk
       break
@@ -891,3 +983,97 @@ def calc_iconc_ithkn_mnthmean(dnmb0,pthtest,varnm, prfx='', ndav=5, outfld='icem
     A2d = Asum.copy()
 
   return A2d
+
+def cell_ithkn_sis2(dcice, imo, variconc='siconc', varimass='simass', rho_ice=905.0):
+  """
+    Estimate cell-mean ice thickness from sea ice mass:
+    hi_cell = Mice / rho_ice * aice
+    rho_ice is from SIS_input:
+    RHO_ICE = 905.0  
+    imo - time index of the ice field to extract = 0, ...
+
+    Still probably not the right approach
+    ice mass given in SIS output is kg (ice)/m2(ice area)
+    
+  """
+  with xarray.open_dataset(dcice) as ds:
+    M2d = ds[varimass].isel(time=imo).data.squeeze()
+    C2d = ds[variconc].isel(time=imo).data.squeeze()
+
+  hice_cell = M2d/rho_ice * C2d 
+
+  return hice_cell
+
+def mnthly_PIOMAS_linear_daily(diclim,dnmb0,varnm):
+  """
+    For more accurate comparison with simulated ice fields
+    that use time-wieghted values of A(Month-1):A(Month+1) 
+    Rederive monthly PIOMAS target iconc and ithkn using
+    saved 2-yr fields used for irlx
+
+    Use picewise linear Lagrange cardinal basis for interpolation
+    between time (t-1) and (t+1)
+  """
+  import mod_misc1 as mmisc
+  import mod_time as mtime
+
+  YR0, MM0, DD0 = mtime.datevec(dnmb0)[:3]
+  print(f"Deriving daily-weighted {varnm} for {YR0}/{MM0} {diclim}")
+  ds_rlx = xarray.open_dataset(diclim) 
+  Time = ds_rlx['time'].data
+  TM = mmisc.convert_nptime_to_datenum(Time)
+  D = abs(TM-dnmb0)
+  itime = np.argmin(D)
+  dv0 = mtime.datevec(TM[itime])
+  assert dv0[0]==YR0, f'Requested YR={YR0}, year in rlx file={dv0[0]}'
+  assert dv0[1]==MM0, f'Requested month={MM0}, month in rlx file={dv0[1]}'
+  assert itime > 0, f'Cannot interp: No previous record to Requested time in {diclim}'
+  assert itime < len(TM)-1, f'Cannot interp: No record passed Requested time in {diclim}' 
+ 
+  match varnm:
+    case('ithkn'):
+      ifld = 'ithkn'
+    case('iconc'):
+      ifld = 'iarea'
+    case _:
+      raise ValueError(f"Unexpected variable name: {varnm}")
+
+  tm_prv = np.floor(TM[itime-1])  # Time of the previous data point, i.e. previous month day 15
+  tm_nxt = np.floor(TM[itime+1])  # Time of the following data point, i.e. next month
+  tm0    = np.floor(TM[itime])    # Time for the current month
+  Aprv   = ds_rlx[ifld].isel(time=itime-1).data.squeeze()
+  Anxt   = ds_rlx[ifld].isel(time=itime+1).data.squeeze()
+  A0     = ds_rlx[ifld].isel(time=itime).data.squeeze()
+
+  dayS = int(mtime.datenum([YR0,MM0,1]))
+  mdays0 = mtime.month_days(MM0,YR0)
+  dayE = int(mtime.datenum([YR0,MM0,mdays0]))
+
+  Asum = np.zeros((Anxt.shape))
+  icnt = 0
+  for tt in range(dayS,dayE+1):
+    Phi_i = Phi_ip1 = 0.
+    if tt <= tm0:
+      # Cardinal basis:
+      Phi_i   = (tt-tm0)/(tm_prv-tm0)
+      Phi_ip1 = (tt-tm_prv)/(tm0-tm_prv)
+      # Node values:
+      Ai   = Aprv.copy()
+      Aip1 = A0.copy() 
+    else:
+      Phi_i = (tt-tm_nxt)/(tm0-tm_nxt)
+      Phi_ip1 = (tt-tm0)/(tm_nxt-tm0)
+      # Nodal values:
+      Ai   = A0.copy()
+      Aip1 = Anxt.copy()
+ 
+    Aintrp = Ai*Phi_i + Aip1*Phi_ip1
+    Asum = Asum + Aintrp
+    icnt += 1
+
+  Amnth = Asum / icnt
+
+  ds_rlx.close()
+
+  return Amnth
+

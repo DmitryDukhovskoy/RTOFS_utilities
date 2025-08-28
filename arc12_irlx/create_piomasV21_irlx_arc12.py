@@ -223,8 +223,8 @@ for YR1 in range(YRs,YRe+1):
     # Truncate very small ice thicknesses and concentrations
     iconc_min = 1.e-3
     ithkn_min = 1.e-2
-    H2di[H2di<ithkn_min] = ithkn_min
-    C2di[C2di<iconc_min] = iconc_min
+    H2di[H2di<ithkn_min] = 0.
+    C2di[C2di<iconc_min] = 0.
 
     # This should not happen but just in case:
     H2di[np.isnan(H2di)] = 0.
@@ -259,7 +259,7 @@ for YR1 in range(YRs,YRe+1):
   # Add attributes:
   dset_Ice.attrs["history"] = f"Created from PIOMAS monthly ice fields {YR1}-{YR2}"
   dset_Ice.attrs["code"] = "/home/Dmitry.Dukhovskoy/python/sis2_relax/create_piomasV21_irlx_arc12.py"
-  dset_Ice.attrs["info"] = f"Small ice conc truncated to {iconc_min}, ice thkn truncated to {ithkn_min}"
+  dset_Ice.attrs["info"] = f"Small ice conc < {iconc_min}, ice thkn < {ithkn_min} truncated to 0."
 
   dset_Ice[ithknvar].attrs["long_name"] = "Mean ice thickness or volume per m2"
   dset_Ice[ithknvar].attrs["units"] = "m3/m2"

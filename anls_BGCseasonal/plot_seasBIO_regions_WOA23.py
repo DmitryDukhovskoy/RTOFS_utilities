@@ -1,6 +1,13 @@
 """
-  Plot T/S fields for North East Pac. region
+  Plot BGC fields for North East Pac. regions
   for different seasons
+  from WOA23
+
+  BGC fields are available on 1 and 5-dgr grids
+  by seasons / months
+  for 1965-2022 
+  and 1971-2000 
+
 """
 import os
 import numpy as np
@@ -42,39 +49,43 @@ import mod_regmom as mregmom
 import mod_colormaps as mclrmps
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--varnm", help="salin or temp", type=str, required=True)
+parser.add_argument("--varnm", help="o2, po4, no3, sio4", type=str, required=True)
 parser.add_argument("--regnm", help="CalCur or BeringChuk", type=str, required=True)
-parser.add_argument("--yr", help="Year within a decade to plot", type=int, required=True)
-parser.add_argument("--mm", help="Month within WOA season, 1,..., 12, 13-annual", type=int, required=True)
-parser.add_argument("--lr", help="WOA vert layer 1,...,102", type=int, required=True)
+parser.add_argument("--mseas", help="Month/season WOA: 1,..,12, 13-Winter, ..., 0-annual", \
+                    type=int, required=True)
+parser.add_argument("--zz", help="Aprx depth to plot, m ", type=float, required=True)
 args = parser.parse_args()
 
-# Note WOA tempis in situ !!!
 varnm = args.varnm if args.varnm else None
 regn_name = args.regnm if args.regnm else None
-YR = args.yr if args.yr else None
-MM = args.mm if args.mm else None
-lr0 = args.lr if args.lr else None  # ocean layers from 1, ..., 102
-                                    # lr 11 =-50, lr 21 =-102 m, lr 25 = -200 m
+mseas = args.mseas if args.mseas else None
+zz_plt = args.zz if args.zz is not None else None # ocean depth to plot
 
-grd=0.25
-if grd==0.25:
-  cgrd=4
-woa='woa23'
+zz_plt = -abs(zz_plt)
 
-seas, decade, yr1_dec, yr2_dec = manseas.season_decade_woa(YR,MM) 
+cgrd = 1
+woa = 'woa23'
 
 woa_seas = {"13": "Jan-Mar",
             "14": "Apr-Jun",
             "15": "Jul-Spt",
             "16": "Oct-Dec",
-            "0": "annual"}
+            "00": "annual"}
 
 urlBase = 'https://www.ncei.noaa.gov/thredds-ocean/dodsC/woa23/DATA/'
-urlT    = f"{urlBase}temperature/netcdf/{decade}/0.25/"
-urlS    = f"{urlBase}salinity/netcdf/{decade}/0.25/"
-tfnm    = f"woa23_{decade}_t{seas:02d}_{cgrd:02d}.nc"
-sfnm    = f"woa23_{decade}_s{seas:02d}_{cgrd:02d}.nc"
+#'oxygen/netcdf/all/1.00/woa23_all_o00_01.nc'
+url_o2    = os.path.join(f"{urlBase}","oxygen/netcdf/all/1.00/")
+flnm_o2   = f"woa23_all_o{mseas:02d}_01.nc"
+#silicate/netcdf/all/1.00/woa23_all_i01_01.nc
+url_sio4  = os.path.join(f"{urlBase}","silicate/netcdf/all/1.00/")
+flnm_sio4 = f"woa23_all_i{mseas:02d}_01.nc"
+# nitrate/netcdf/all/1.00/woa23_all_n06_01.nc
+url_no3   = os.path.join(f"{urlBase}","nitrate/netcdf/all/1.00/")
+flnm_no3  = f"woa23_all_n{mseas:02d}_01.nc"
+# phosphate/netcdf/all/1.00/woa23_all_p02_01.nc
+url_po4   = os.path.join(f"{urlBase}","phosphate/netcdf/all/1.00/")
+flnm_po4  = f"woa23_all_p{mseas:02d}_01.nc"
+
 
 fyaml = 'paths_seasfcst.yaml'
 with open(fyaml) as ff:
@@ -126,30 +137,35 @@ def read_2Dfield_subsample(furl, var_read, lonW0, latW0, lon1, lon2, lat1, lat2,
   return A2d, lonW, latW, ix1, ix2, jx1, jx2
 
 # Get lon/lat
-iz0 = lr0-1
-furl = os.path.join(urlT,tfnm)
+furl = os.path.join(url_o2, flnm_o2)
 ZM  = read_field(furl,'depth')
 ZM  = -abs(ZM)
-zz0 = ZM[iz0]
+ZM = -abs(ZM)
+dZ = np.abs(ZM-zz_plt)
+iz0 = np.argmin(dZ)
+lr0  = iz0+1
+zz0 = ZM[iz0]  # actual depth to be plotted
 latW0 = read_field(furl,'lat')
 lonW0 = read_field(furl,'lon')
 
-# Read T/S:
-# For in situ T, need S to convert it to potential T
-furl = os.path.join(urlT,tfnm)
-if varnm == 'temp':
-  var_read = 't_an'
-  furl = os.path.join(urlT,tfnm)
-  furlS = os.path.join(urlS,sfnm)
-elif varnm == 'salin':
-  var_read = 's_an'
-  furl = os.path.join(urlS,sfnm)
+# Read fields from WOA23
+# Read objectively analyzed means
+# also available - mean of unflagged fields within the grid cell
+match varnm:
+  case 'o2':
+    furl = os.path.join(url_o2, flnm_o2)
+    varnc = 'o_an'
+  case 'po4':
+    furl = os.path.join(url_po4, flnm_po4)
+    varnc = 'p_an'
+  case 'no3':
+    furl = os.path.join(url_no3, flnm_no3)
+    varnc = 'n_an'
+  case 'sio4':
+    furl = os.path.join(url_sio4, flnm_sio4)
+    varnc = 'i_an'
 
-S2d = []
-A2d, lonW, latW, ix1, ix2, jx1, jx2 = read_2Dfield_subsample(furl, var_read, \
-                                      lonW0, latW0, lon1, lon2, lat1, lat2, iz0)
-if varnm == 'temp' and abs(zz0) > 10.:
-  S2d, _, _, _, _, _, _ = read_2Dfield_subsample(furlS, 's_an', \
+A2d, lonW, latW, ix1, ix2, jx1, jx2 = read_2Dfield_subsample(furl, varnc, \
                                       lonW0, latW0, lon1, lon2, lat1, lat2, iz0)
 
 jdm  = len(latW)
@@ -197,21 +213,68 @@ yNEP = LATW[JJG,IIG]
 
 rmin, rmax, tscntrs, tslabels = manseas.colormap_params(regn_name, varnm, zz0=zz0)
 
-seas_nm = woa_seas[f"{seas}"]
-sttl = f"WOA23 {varnm} decade:{yr1_dec}-{yr2_dec} {seas_nm} z={zz0:8.1f} m"
+if 0 < mseas < 13:
+  seas_nm = f"{mseas:02d}"
+else:
+  seas_nm = woa_seas[f"{seas}"]
 
-if varnm == 'salin' or varnm == 'salt':
-  clrmp = mclrmps.colormap_haline2()
-  clrmp.set_bad(color=[0., 0., 0.])
-#  clrmp.set_under(color=[0.6, 0.6, 0.6])
-elif varnm == 'temp' or varnm == 'potT':
-  clrmp = mclrmps.colormap_temp(clr_ramp=[0.9,0.8,1])
-  clrmp.set_bad(color=[0.,0.,0.])
-  sttl = f"WOA23 Tpotential decade:{yr1_dec}-{yr2_dec} {seas_nm} z={zz0:8.1f} m"
-elif varnm == 'ssh':
-  clrmp = mclrmps.colormap_ssh(nclrs=200)
-  rmin = -0.5
-  rmax = 0.5
+
+rmin, rmax, tscntrs, tslabels = manseas.colormap_params(regn_name, varnm, zz0=zz0)
+
+Ncmp = 200
+log_scale = False
+logstr = ''
+match varnm:
+  case 'o2':
+    cff = 1.
+    unts = 'mcromol/kg'
+    clrmp = mclrmps.colormap_haline2(end_clr=[0.7,0.1,0], start_clr=[0.8,0.8,1])
+
+  case 'po4':
+    cff = 1.
+    unts = 'mcromol/kg'
+    clrmp = mclrmps.colormap_conc()
+
+  case 'sio4':
+    cff = 1.
+    unts = 'mcromol/kg'
+    clrmp = mclrmps.colormap_ice_thkn()
+
+  case 'no3':
+    cff = 1.
+    log_scale = True
+    log_str = 'log'
+    unts = 'mcromol/kg'
+    CLRS = [[1, 1, 1],
+        [0.6, 0.02, 0.6],
+        [0.2, 0.38, 1],
+        [0., 0.8, 0.8],
+        [0.4, 0.8, 0],
+        [1, 1, 0.5],
+        [1, 0.8, 0.6],
+        [1, 0.6, 0],
+        [0.7, 0.1, 0.1]]
+
+    #clrmp = mclrmps.colormap_temp(clr_ramp=[1,1,1])
+    clrmp = mclrmps.colormap_posneg_uneven(CLRS)
+
+
+clrmp.set_bad(color=[0., 0., 0.])
+
+if log_scale:
+  JJ0,II0 = np.where(A2d <= 1.e-32)
+  if len(JJ0) > 0:
+    A2d[JJ0,II0] = np.nan
+  lA2d = np.log(A2d)
+  if len(JJ0) > 0:
+    lA2d[JJ0,II0] = 0.
+
+  A2d = lA2d.copy()
+
+
+
+sttl = f"WOA23 {log_str} {varnm} obj.mean 1965-2022 {seas_nm} z={zz0:8.1f} m"
+
 
 # Stereographic projection:
 from mpl_toolkits.basemap import Basemap, cm
@@ -232,7 +295,7 @@ m = Basemap(width=width, height=height, resolution='l',\
 
 xR, yR = m(LONW, LATW)
 
-btx = 'plot_seasTS_regions_WOA23.py'
+btx = 'plot_seasBIO_regions_WOA23.py'
 
 plt.ion()
 fig1 = plt.figure(1,figsize=(9,8))

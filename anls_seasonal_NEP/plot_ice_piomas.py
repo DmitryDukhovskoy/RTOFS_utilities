@@ -1,8 +1,11 @@
 """
   Plot ice thickness from PIOMAS ice reanalysis
   monthly fields
-  1901 - 2010
+  1901 - 2010, this is reconstruction reanalysis
   https://psc.apl.uw.edu/research/projects/piomas-20c/
+
+  for V21 - use check_piomas_sis2.py --> check_relax_sis2_stere.py
+  for plotting ice fields
 
 PIOMAS-20C is a sea ice thickness reconstruction covering the period 1901-2010. It is constructed using a coupled ice-ocean model using atmospheric forcing data from the ECMWF ERA-20C reanalysis to provide atmospheric forcing. Sea ice concentrations from the Hadley Center HadISST v2.0 data set are assimilated to constrain the model at the ice-edge. 
   
@@ -17,6 +20,7 @@ import xarray
 from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
+import argparse
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
@@ -41,9 +45,16 @@ import mod_anls_seas as manseas
 import mod_utils_ob as mutob
 importlib.reload(mutob)
 
-varnm = 'ithck' # ithck or iconc
-YR0 = 1994
-MM0 = 2
+parser = argparse.ArgumentParser()
+parser.add_argument("--yr", help="Calendar year to plot", type=int, required=True)
+parser.add_argument("--mm", help="Calendar month to plot", type=int)
+parser.add_argument("--varnm", help="iconc or ithkn", type=str, required=True)
+args = parser.parse_args()
+
+YR0 = args.yr if args.yr else None
+MM0 = args.mm if arg.mm else None
+varnm = args.varnm if args.varnm else None
+
 
 pthdata = '/work/Dmitry.Dukhovskoy/data/PIOMAS_ice'
 if varnm == 'ithck':

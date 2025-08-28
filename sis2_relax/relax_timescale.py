@@ -15,6 +15,7 @@ import importlib
 import sys
 import matplotlib.pyplot as plt
 from yaml import safe_load
+import argparse
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
@@ -33,6 +34,14 @@ import mod_colormaps as mclrmps
 import mod_misc1 as mmisc
 from mod_utils_fig import bottom_text
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--rlxhr", help="Maximum relaxation time scale, hrs", type=int, required=True)
+parser.add_argument("--save", help=">0: Save relax field, =0: do not save, default=Save", type=int)
+parser.add_argument("--ptransf", help=">0: Plot domain transformation, =0: do not plot, default=Plot", type=int)
+parser.add_argument("--prlx", help=">0: Plot rlx field, =0: do not plot, default=Plot", type=int)
+args = parser.parse_args()
+
+
 # Select max and min relaxation time scales, hrs
 # max relaxation - strongest, typically along the OBs
 # min relaxation - somewhere in the domain where sea ice presents
@@ -40,19 +49,37 @@ from mod_utils_fig import bottom_text
 # rx_min, ry_min - approximate # of i, j pnts from the ice OBs
 #                  i.e., from i=imax to Ber. Str. (342-200)
 # relaxation time scales will be going to 0 away from the ice OBs
-rate_max_hrs  = 24.                     # max relaxation time, hrs
+
+rate_max_hrs = args.rlxhr if args.rlxhr else None
+if args.save == 0:
+  f_save = False
+else:
+  f_save = True
+
+if args.ptransf == 0:
+  check_ref_domain = False
+else:
+  check_ref_domain = True
+
+if args.prlx == 0:
+  check_rlx = False
+else:
+  check_rlx = True
+
+
+#rate_max_hrs  = 24.                     # max relaxation time, hrs
 Irate_max_sec = 1./(rate_max_hrs*3600.)  # relaxation rate, s-1
 
-f_save    = False         # Save netcdf relax file
-check_rlx = True         # Plot relaxation field
-check_ref_domain = True  # Plot transformations of the reference domain
+#f_save    = False         # Save netcdf relax file
+#check_rlx = True         # Plot relaxation field
+#check_ref_domain = True  # Plot transformations of the reference domain
 
 rlx_name = 'relax_rate' # name of the variable, should be the same in the SIS_input
 
 btx  = 'relax_timescale.py'
 
 if not f_save:
-  print(f'WARNING: relaxation field is not saved, f_save: {f_save}')
+  print(f'\nWARNING: relaxation field is not saved, f_save: {f_save}\n')
 
 fyaml = 'pypaths_gfdlpub.yaml'
 with open(fyaml) as ff:
@@ -237,7 +264,7 @@ if f_save:
 if check_rlx:
   plt.ion()
 
-  clrmp = mclrmps.colormap_temp2()
+  #clrmp = mclrmps.colormap_temp2()
   clrmp = mclrmps.colormap_conc() 
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
   cff = 1.e5
@@ -278,9 +305,9 @@ if check_rlx:
   elif rate_max_hrs <=24:
     tscntrs = [24,26,30,60,80,120,240,360,480,600,720,960,1440]
   elif rate_max_hrs <=120:
-    tscntrs = [120,150,240,360,480,600,720,960,1440]
+    tscntrs = [120,150,240,360,480,600,720,960,1440,2880]
   else:
-    tscntrs = [120,150,240,360,480,600,720,960,1440]
+    tscntrs = [120,150,240,360,480,600,720,960,1440,2880,5760,11520]
 
 
   tslabels = tscntrs
@@ -292,7 +319,7 @@ if check_rlx:
   ax2 = fig1.add_axes([ax0.get_position().x1+0.025, ax0.get_position().y0,
                      0.02, ax0.get_position().height])
   # extend: min, max, both
-  clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='both')
+  clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='max')
   ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
   ax2.set_yticklabels(ax2.get_yticks())
   ticklabs = clb.ax.get_yticklabels()

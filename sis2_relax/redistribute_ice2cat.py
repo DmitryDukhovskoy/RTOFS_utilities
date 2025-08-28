@@ -45,6 +45,9 @@ ifld = 'ithkn'  # ithkn, iarea
 file_type = 'monthly'  # monthly, daily, ... or clim
                        # for climatologies, do not need padded time - data will be recycled
                        # for monthly, daily, etc. need -dt and +dt at the beginn/end 
+YR1 = YR0
+YR2 = YR1+1
+
 """ 
 ICAT in ARC:
  check: CatIce=10
@@ -61,8 +64,9 @@ distribute_ice2cats thkn cat 10 hLim= 3.500
 distribute_ice2cats thkn cat 11 hLim= 4.000
 """
 # ICAT in NEP:
-ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
-#ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1, 1.5, 2.0, 2.5, 3.0, 3.5])
+#ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
+# ICAT in ARC:
+ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1, 1.5, 2.0, 2.5, 3.0, 3.5])
 
 fyaml = 'pypaths_gfdlpub.yaml'
 with open(fyaml) as ff:
@@ -101,7 +105,7 @@ LAT  = ds_thkn['Latitude'].data
 LON  = ds_thkn['Longitude'].data
 
 # Read saved relax. fields:
-flout = f'PIOMAS_ithkn_iconc_{YR0}_{file_type}.nc'
+flout = f'PIOMASv21_ithkn_iconc_{YR1}_{YR2}_{file_type}.nc'
 diclim = os.path.join(pthsis, flout)
 ds_rlx = xarray.open_dataset(diclim)
 Time = ds_rlx['time'].data
@@ -128,8 +132,8 @@ cice = Cice[j0,i0]
 
 # Test:
 import random
-ICAT0 = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
-ncat = len(ICAT0)
+#ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
+ncat = len(ICAT)
 
 nn=50
 CI = np.zeros((nn))
@@ -137,18 +141,25 @@ HI = np.zeros((nn))
 CC = np.zeros((nn,ncat))
 HC = np.zeros((nn,ncat))
 print(f"Calling redistribute_hice")
+ifx = 10
+#ck_min = 1.e-2     # approximate ice concentration used for filling thinner ice cats 
+ck_min = 0.8e-1     # approximate ice concentration used for filling thinner ice cats 
 for ii in range(nn):
   cice = random.uniform(0.,1.)
   hice = random.uniform(0.,4.)
+  # Fix values for comparison:
+  if ii == ifx:
+    cice = 0.95
+    hice = 2.55
   print(f"ii={ii}, hice={hice:.4f} cice={cice:.4f}")
-  hcat, ccat = msisrlx.redistribute_hice(hice, cice, ICAT=ICAT0, ck_min=1.e-2)
+  hcat, ccat = msisrlx.redistribute_hice(hice, cice, ICAT=ICAT, ck_min=ck_min)
   CI[ii] = cice
   HI[ii] = hice
   CC[ii,:] = ccat
   HC[ii,:] = hcat 
 
 
-ICATK = np.append(ICAT0,[3])
+ICATK = np.append(ICAT,[100])
 
 from matplotlib.patches import Polygon
 plt.ion()
@@ -156,31 +167,49 @@ fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
 ax1 = plt.axes([0.1, 0.4, 0.8, 0.5])
 
-ii = 10
+ii = ifx
 ccat = CC[ii,:]
 hcat = HC[ii,:]
 hice = HI[ii]
 cice = CI[ii]
-#plt.bar(ICAT0, ccat, color=[0.8,0.9,1], width=0.2)
-#ax1.plot(ICAT0, CC[ii,:],'-o')
+
+sinfo=''
+for ik in range(len(ccat)):
+  txt = f'cat {ik+1}: hi={hcat[ik]:.3e}, ai={ccat[ik]:.3e}\n'
+  sinfo = sinfo + txt
+
+vol_tot = np.sum(ccat*hcat)
+ai_tot = np.sum(cice)
+txt = f'Total: vol_ice={vol_tot:.3e} m3/m2, iconc_tot={ai_tot:.3e}'
+sinfo = sinfo + txt
+
+#plt.bar(ICAT, ccat, color=[0.8,0.9,1], width=0.2)
+#ax1.plot(ICAT, CC[ii,:],'-o')
 dltE=0.01
 clr=[0.5,0.8,1]
 for kk in range(ncat):
   hmin = ICATK[kk]+dltE
   hmax = ICATK[kk+1]-dltE
+  if kk == ncat-1:
+    hmax = hmin + 1.
   verts = [(hmin,0),(hmin,ccat[kk]),(hmax,ccat[kk]),(hmax,0)]
   poly  = Polygon(verts, facecolor=clr, edgecolor=clr, zorder=5)
   ax1.add_patch(poly)
 #  ax1.plot([hmin,hmax],[ccat[kk],ccat[kk]],'-',linewidth=2, color=[0.,0.5,0.9])
 
-ax1.set_xlim([0,1.5])
+xup = ICAT[-1]+(ICAT[-1]-ICAT[-2])
+ax1.set_xlim([0,xup])
 
-stl = f"hice={hice:.4f}, cice={cice:.4f}"
+stl = f"hice={hice:.4f}, cice={cice:.4f}, ck_min={ck_min:.3e}"
 ax1.set_title(stl)
-ax1.set_xticks(ICAT0)
+ax1.set_xticks(ICAT)
 ax1.set_xlabel('Ice Cat min Thicknesses')
 ax1.set_ylabel('partial area')
 ax1.grid('on')
+
+ax2 = plt.axes([0.1,0.1,0.8,0.25])
+ax2.text(0.1,0.1,sinfo)
+ax2.axis('off')
 
 btx = 'redistribute_ice2cat.py'
 bottom_text(btx)

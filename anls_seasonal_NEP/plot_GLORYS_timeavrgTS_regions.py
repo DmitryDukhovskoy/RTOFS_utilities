@@ -74,16 +74,16 @@ dnmb = mtime.datenum([1994,4,1])
 expt = 'GLORYS_NEP'  # GLORYS extracted for NEP domain
 varnm = 'salin'  # thetao, so, zos 
 # Averaging time period:
-#YAVRG = [x for x in range(2011,2021)]
-YRS = 1993
-YRE = YRS
+YRS = 1995
+YRE = 2004
+YAVRG = [x for x in range(YRS,YRE+1)]
 MMS = 1
-MME = 1
+MME = 3
 #YAVRG = [1995]
-#MAVRG = [1,2,3]  # months to average:
+MAVRG = [x for x in range(MMS,MME+1)]
 regn_name = 'CalCur' # CalCur - Calif Current region, Alaska, BeringChuk
                      # Following Stoke et al., 2015
-lr0  = 22  # ocean layers from 1, ..., 75
+lr0  = 31  # ocean layers from 1, ..., 75
           # lr 22 = -47.5m, lr 31 =-102 m, lr 38 = -216 m
 
 

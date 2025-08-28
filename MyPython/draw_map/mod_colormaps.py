@@ -338,9 +338,12 @@ def colormap_haline(nclrs=200):
 
   return CMP
 
-def colormap_haline2(nclrs=200, start_clr=[0, 0, 153]):
+def colormap_haline2(nclrs=200, end_clr=None, start_clr=[0, 0, 153]):
   """
     Colormap for salinity
+    optional: specify start / end colors
+     end_clr = [R,G,B]
+     start_clr = [R,G,B]
   """
 #  import mod_colormaps as mclrs
   CLR = [[ 0,    0, 153],
@@ -364,8 +367,21 @@ def colormap_haline2(nclrs=200, start_clr=[0, 0, 153]):
          [245, 141,  99],
          [255, 236, 236]]
 
-  CLR[0] = start_clr
-  CLR = np.array(CLR)/255.
+  CLR = np.array(CLR, dtype=float)/255.
+  if start_clr is not None and len(start_clr) > 0:
+    start_clr = np.array(start_clr, dtype=float)
+    if np.max(start_clr) > 1.:
+      start_clr /= 255.
+
+    CLR[0, :] = start_clr
+
+  if end_clr is not None and len(end_clr) > 0:
+    end_clr = np.array(end_clr, dtype=float)
+    if np.max(end_clr) > 1.:
+      end_clr /= 255.
+
+    CLR[-1, :] = end_clr
+
   CMP = create_colormap(CLR, nclrs)
 
   return CMP

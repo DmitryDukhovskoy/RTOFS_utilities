@@ -610,6 +610,7 @@ def derive_bottom_temp(T3d, dP, dpmin=1.e-1):
 def yrmo_seasonal_fcst(yr_init, mo_init, nmo_fcst=12):
   """
     Find calendar years / months for a seasonal f/cast that starts on yr_init / mo_init
+    Returns an array of YRS/Months for the forecast period
   """
   dstrt = mtime.datenum([yr_init, mo_init,15])
   dold = dstrt - 32
@@ -624,6 +625,21 @@ def yrmo_seasonal_fcst(yr_init, mo_init, nmo_fcst=12):
     Time[imo,1] = int(dv_new[1])
 
   return Time
+
+def mocalend_from_mofcast(YYI, MMI, MMF):
+  """
+    Find calendar month & year corresponding to the forecast lead month MMF
+    for the f/cast run initializaed on YYI/MMI
+  """
+  mtot = MMI+MMF-1
+  nyr  = (mtot-1) // 12
+  YYF  = YYI + nyr
+  MMF  = mtot%12
+  if MMF == 0:
+    MMF = 12
+
+  return YYF, MMF
+  
 
 def mofcst_from_mocalend(yr_init,mo_init,MM):
   """
@@ -652,7 +668,7 @@ def yr_init_fcst_from_datenum(dnmb, MMI):
   elif dnmb < dnmbF_start:
     yr_init = yr0-1
   else:
-    raise Excpetion(f"Could not find year init for {yr0}/{mm0}/{dd0}")
+    raise Exception(f"Could not find year init for {yr0}/{mm0}/{dd0}")
 
   return yr_init
 
@@ -1416,6 +1432,51 @@ def colormap_params(regn_name, varnm, zz0=-1.):
           rmax = 0.1
           tscntrs = [x/100 for x in range(0,40,2)]
           tslabels = [x/100 for x in range(0,40,4)]
+
+      if varnm == 'o2':
+        if zz0 >= -100.:
+          rmin = 150.
+          rmax = 300.
+        else:
+          rmin = 100.  # micro-moles/kg !
+          rmax = 250.
+        tscntrs = [x for x in range(100,500,25)]
+        tslabels = [x for x in range(100,500,25)]
+        
+      if varnm == 'po4':
+        if zz0 >= -50.:
+          rmin = 0.
+          rmax = 2.5
+        else:
+          rmin = 0.  # micro-moles/kg !
+          rmax = 2.5
+        tscntrs = [x/10 for x in range(5,50,5)]
+        tslabels = [x/10 for x in range(5,50,5)]
+
+      if varnm == 'sio4':
+        if zz0 >= -80.:
+          rmin = 0.
+          rmax = 30.
+        else:
+          rmin = 0.  # micro-moles/kg !
+          rmax = 40.
+        tscntrs = [x for x in range(0,50,5)]
+        tslabels = [x for x in range(0,50,5)]
+
+      if varnm == 'no3':
+        # For log natural transformed data:
+        if zz0 >= -20.:
+          rmin = -7.
+          rmax = 3.
+        elif -60 <= zz0 < -20:
+          rmin = -10.
+          rmax = 5.
+        else:
+          rmin = -1.  # micro-moles/kg !
+          rmax = 4.
+        tscntrs = [x for x in range(0,50,5)]
+        tslabels = [x for x in range(0,50,5)]
+
     case 'BeringChuk':
       if varnm == 'salin' or varnm == 'salt' or varnm == 'so':
         if zz0 >= -20.:
@@ -1488,6 +1549,26 @@ def colormap_params(regn_name, varnm, zz0=-1.):
           tscntrs = [x/100 for x in range(0,40,2)]
           tslabels = [x/100 for x in range(0,40,4)]
               
+      if varnm == 'o2':
+        if zz0 >= -50.:
+          rmin = 120.
+          rmax = 420.
+        else:
+          rmin = 120.  # micro-moles/kg !
+          rmax = 340.
+        tscntrs = [x for x in range(100,500,50)]
+        tslabels = [x for x in range(100,500,50)]
+
+      if varnm == 'po4':
+        if zz0 >= -50.:
+          rmin = 0.
+          rmax = 2.5
+        else:
+          rmin = 0.  # micro-moles/kg !
+          rmax = 2.5
+        tscntrs = [x/10 for x in range(5,50,5)]
+        tslabels = [x/10 for x in range(5,50,5)]
+
   return rmin, rmax, tscntrs, tslabels
 
 def arrange_1segm(CNTR, x0, y0, dltD=50.):

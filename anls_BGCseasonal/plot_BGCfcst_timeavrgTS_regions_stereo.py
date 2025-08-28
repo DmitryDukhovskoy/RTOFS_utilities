@@ -1,5 +1,7 @@
 """
   Plot 2D mean T/S fields to analyze seasonal water mass structure
+  BGC seasona forecasts
+
   stereographic projection
   in different regions: # CalCur - Calif Current region, Alaska - Alaska region, BerSea - Bering
   Following Stoke et al., 2015
@@ -17,10 +19,10 @@ import sys
 import importlib
 import matplotlib
 import xarray
-import pickle
 from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
+import argparse
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
@@ -52,30 +54,48 @@ import mod_colormaps as mclrmps
 importlib.reload(mutob)
 importlib.reload(manseas)
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--varnm", help="salin or temp", type=str, required=True)
+parser.add_argument("--regnm", help="CalCur (default) or BeringChuk", type=str)
+parser.add_argument("--mmi", help="f/cast init Month: 1,4,7,10", type=int, required=True)
+parser.add_argument("--ens", help="ensemble run number: 1,...,10", type=int, required=True)
+parser.add_argument("--yrs", help="Year to start averaging", type=int, required=True)
+parser.add_argument("--yre", help="Year to end averaging", type=int, required=True)
+parser.add_argument("--seas", help="WOA season: 13-JFM, 14-AMJ, 15-JJS, 16-OND, 0-annual", \
+                    type=int, required=True)
+parser.add_argument("--lr", help="MOM6 NEP vert layer 1,...,75", type=int, required=True)
+args = parser.parse_args()
 
-# Initial date
-# Look at ens run #1 - the only ens. that has 5-day av. output fields
-expt     = 'seasonal_daily'  # seasonal forecasts with dailyOB from SPEAR
-varnm    = 'salin'  # temp (potential) / salin
-#dnmbS    = mtime.datenum([2015,1,1])
-# Averaging time period:
-MMS   = 1    # f/cast init. month in each year, can be changed to months: 1, 4, 7, 10
-YAVRG = [x for x in range(1995,2005)]
-MAVRG = [1,2,3]  # months to average: Winter  JFM, Summer: JAS
-#MAVRG = [7,8,9]  # months to average: Winter  JFM, Summer: JAS
-regn_name = 'CalCur' # CalCur - Calif Current region, Alaska - Alaska region, 
-                     # BeringChuk - Bering Sea and Chukchi Shelf
-                     # Following Stoke et al., 2015
-lr0  = 31 # ocean layers from 1, ..., 75
-          # lr 22 = -49.9 m, lr 31 =-102 m, lr 37 = -192 m
+varnm = args.varnm if args.varnm else None
+regn_name = args.regnm if args.regnm else 'CalCur'
+MMI   = args.mmi if args.mmi else None
+YRS   = args.yrs if args.yrs else None
+YRE   = args.yre if args.yre else None
+seas  = args.seas if args.seas else None
+ens_nmb = args.ens if args.ens else None
+lr0   = args.lr if args.lr else None # ocean layers from 1, ..., 75
+                                     # lr 22 = -49.9 m, lr 31 =-102 m, lr 37 = -192 m
 
-nensR    = 1
-expt_nmb = 2   # 2 - seas f/casts with dailyOB
+YAVRG = [x for x in range(YRS,YRE+1)]
+match seas:
+  case 13:
+    MAVRG=[1,2,3]
+  case 14:
+    MAVRG=[4,5,6]
+  case 15:
+    MAVRG=[7,8,9]
+  case 16:
+    MAVRG=[10,11,12]
+  case 0:
+    MAVRG = [x for x in range(1,13)]
+  case mm if 1 <= mm <= 12:
+    MAVRG = [mm]
+  case _:
+    raise Exception(f"{seas} is not a valid value for season")
 
-
-#expt_name = f'NEPphys_frcst_climOB{expt_nmb:02d}'
-expt_name = f'NEPphys_frcst_dailyOB{expt_nmb:02d}'
-run_info = f'{expt_name} init MM={MMS} e{nensR:02d}, avrg {varnm}: {min(YAVRG)}-{max(YAVRG)} Mo: {min(MAVRG)}-{max(MAVRG)}'
+expt_nmb = 1
+expt_name = f'NEPbgc_fcst_dailyOB{expt_nmb:02d}'
+run_info = f'{expt_name} MMI={MMI} e{ens_nmb:02d}, avrg {varnm}: {min(YAVRG)}-{max(YAVRG)} Mo: {min(MAVRG)}-{max(MAVRG)}'
 
 print(f'Plotting {varnm} {expt_name} ')
 print(f'{run_info}')
@@ -84,14 +104,13 @@ fyaml = 'paths_seasfcst.yaml'
 with open(fyaml) as ff:
   pthseas = safe_load(ff)
 
-pthtopo    = pthseas['MOM6_NEP'][expt]['pthgrid']
-fgrid      = pthseas['MOM6_NEP'][expt]['fgrid']
-ftopo_mom  = pthseas["MOM6_NEP"][expt]["ftopo"]
+pthtopo    = pthseas['MOM6_NEP']['seasonal_daily']['pthgrid']
+fgrid      = pthseas['MOM6_NEP']['seasonal_daily']['fgrid']
+ftopo_mom  = pthseas["MOM6_NEP"]['seasonal_daily']["ftopo"]
 hgrid      = xarray.open_dataset(os.path.join(pthtopo,fgrid))
 hmask      = xarray.open_dataset(os.path.join(pthtopo, 'ocean_mask.nc'))
 dstopo_nep = xarray.open_dataset(os.path.join(pthtopo, ftopo_mom))
 dfgrid_mom = os.path.join(pthtopo, fgrid)
-ndav       = pthseas['MOM6_NEP'][expt]['ndav']  # # of days output averaged
 
 # Hgrid lon. lat:
 hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
@@ -101,38 +120,53 @@ HH = np.where(HH < 1.e-20, np.nan, HH)
 HH = -HH
 HH = np.where(np.isnan(HH), 1., HH)
 
-#mo_fcsts = manseas.yrmo_seasonal_fcst(YRS, MMS)
+#mo_fcsts = manseas.yrmo_seasonal_fcst(YRS, MMI)
 
-ocnfld = 'oceanm'
-pthoutp0 = pthseas['MOM6_NEP'][expt]['pthoutp'].format(expt_nmb=expt_nmb)
-YR=2011
-MM=4
-subdir=f'oceanm_{YR}{MM:02d}'
-pthfcst0 = os.path.join(pthoutp0,f'{YR}-{MM:02d}-e01','history')
-list_files = manseas.list_oceanice_files(pthfcst0, prefix=ocnfld, subdir=subdir)
-pthfull = os.path.join(pthfcst0,subdir)
-floceanm = list_files[0]
-ZM = manseas.read_oceanm3D_field(pthfull, floceanm, 'zl', notime=False)
+# Read vertical layers from oceanm archive file:
+ptharch = f'/archive/Dmitry.Dukhovskoy/fre/NEP/forecast_bgc/NEPbgc_fcst_dailyOB01'
+
+def read_mnth_mom6(YRI, MMI, yr0, mm0, varnc, isel1=None):
+  pthfull = os.path.join(ptharch,f'{YRI}-{MMI:02d}-e{ens_nmb:02d}','history')
+  flnm = f'oceanm_{yr0}_{mm0:02d}.nc'
+  dflnm = os.path.join(pthfull,flnm)
+  with xarray.open_dataset(dflnm) as ds_mom:
+    if isel1 is not None:
+      AA = ds_mom[varnc].isel(zl=isel1).data.squeeze()
+    else:
+      AA = ds_mom[varnc].data
+
+  return AA
+
+ZM = read_mnth_mom6(1994,1,1994,1,'zl')
 ZM = -abs(ZM)
 zz0 = ZM[lr0-1]
 
+if varnm == 'salin':
+  varnc = 'salt'
+elif varnm == 'temp':
+  varnc = 'potT'
+
 Time = []
-iyr  = 0
-for YRS in (YAVRG):
-  dnmbS    = mtime.datenum([YRS,MMS,1])
-  pthfcst0 = os.path.join(pthoutp0,f'{YRS}-{MMS:02d}-e{nensR:02d}','history')
-  AA, TM = manseas.monthly_mean_from_Ndaily_ocean2D(pthfcst0, YRS, MMS, varnm, ocnfld, lr0, MAVRG=MAVRG)
+irec = 0
+# 1995 - 2004
+for YR0 in YAVRG:
+  for MM0 in MAVRG:
+    print(f'Reading {YR0}/{MM0}')
+    dnmb0 = mtime.datenum([YR0,MM0,15])
+    # Find init year for requested year and month given init month:
+    YRI = manseas.yr_init_fcst_from_datenum(dnmb0, MMI,)
+    AA  = read_mnth_mom6(YRI, MMI, YR0, MM0, varnc, isel1=lr0-1)
+    Time.append(dnmb0)
 
-  if iyr == 0:
-    A2d = AA.copy()
-  else:
-    A2d = A2d + AA
-  Time = Time + TM
+    if irec == 0:
+      A2d = AA.copy()
+    else:
+      A2d = A2d + AA
 
-  iyr += 1
+    irec += 1
 
-A2d = A2d/iyr
-DV = mtime.datevec2D(Time)
+A2d = A2d/irec
+DV = mtime.datevec1D(Time)
 
 # Mask ocean > zmin depth:
 #A2d = np.where( (np.isnan(A2d)) & (HH<0), -1.e3, A2d)
@@ -176,7 +210,7 @@ elif varnm == 'ssh':
   rmin = -0.5
   rmax = 0.5
 
-btx = 'plot_timeavrgTS_regions_stereogr.py'
+btx = 'plot_BGCtimeavrgTS_regions_stereo.py'
 sttl = f"{run_info} z={zz0:8.1f} m"
 
 # Stereographic projection:

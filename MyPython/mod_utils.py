@@ -940,7 +940,7 @@ def plot_boxplot_v2(ax1, AA, sttl='boxplots', CLRS=[], XX=[], clrln=[0,0,0], \
 
   ndim = len(AA.shape)
   if ndim == 2: 
-    AA = np.expand_dims(AA, axis=(0))
+    AA = np.expand_dims(AA, axis=2)
   kdm, jdm, idm = AA.shape
 
   Ngrps = kdm 
@@ -1017,6 +1017,89 @@ def plot_boxplot_v2(ax1, AA, sttl='boxplots', CLRS=[], XX=[], clrln=[0,0,0], \
     bottom_text(btx, pos=[0.05, 0.08])
 
   plt.sca(ax1)
+
+  return ax1
+
+def plot_boxplot2D(ax1, AA, sttl='boxplots', CLRS=[], XX=None, clrln=[0,0,0], \
+                    xlbl='x axis', ylbl='y axis', grp_names=[], btx=[]):
+  """
+    Plot boxplot diagr for 2D AA array [Ngroups x stat]
+    stat = median, 25th, 75th percentiles, min, max values for whiskies
+           5 values
+
+    Provide grp_names for X labeling
+    grp_names = list of strings, len(grp_names) = Ngrps
+
+  """
+  import mod_colormaps as mclrmps
+  from matplotlib.patches import Polygon
+
+  ndim = len(AA.shape)
+  assert ndim == 2, 'Stat array should be 2D: groups x stat data'
+  kdm, jdm = AA.shape
+  assert jdm >= 5, 'The number of statistics should be >=5: median, 25,75 prc, min, max'
+
+  Ngrps = kdm 
+
+  if len(CLRS) == 0:
+    CLRS = np.zeros((Ngrps,3))
+    for kk in range(Ngrps):
+      CLRS[kk,:] = np.array([0.6,0.6,0.6])
+
+# Define box width and distance between boxes:
+  if XX is None or len(XX) == 0:
+    XX = np.arange(1,Ngrps+1)
+
+# Add some space between boxplots along XX axis 
+# for visual separation: d1box = 1/Ngrps - all boxplots have
+# sames separation, 0.8/Ngrps - boxplots are sqiuzzed within XX intervals
+  d1box   = 0.6     # box widths
+  dspace  = 0.1*d1box  # half-spacer between boxes
+  dbx_hlf = 0.5*(d1box - 2*dspace)  # half box width
+  dtg   = 0.05  # hash tag
+   
+  for igrp in range(Ngrps):
+    xx0 = XX[igrp]
+    stat = AA[igrp,:].squeeze()
+    if len(stat) >= 5:
+      mdn, lprc, uprc, tmin, tmax = stat[:5]
+
+    verts = [(xx0-dbx_hlf, lprc),(xx0-dbx_hlf,uprc),(xx0+dbx_hlf,uprc),\
+             (xx0+dbx_hlf,lprc)]
+    fclr = CLRS[igrp]
+    poly = Polygon(verts, facecolor=fclr, zorder=2)
+    ax1.add_patch(poly)
+
+    # Draw a box
+    ax1.plot([xx0-dbx_hlf, xx0-dbx_hlf],[lprc,uprc],'-',linewidth=1, color=clrln)
+    ax1.plot([xx0+dbx_hlf, xx0+dbx_hlf],[lprc,uprc],'-',linewidth=1, color=clrln)
+    ax1.plot([xx0-dbx_hlf, xx0+dbx_hlf],[uprc,uprc],'-',linewidth=1, color=clrln)
+    ax1.plot([xx0-dbx_hlf, xx0+dbx_hlf],[lprc,lprc],'-',linewidth=1, color=clrln)
+
+    # Draw whiskies showing the range of the data
+    ax1.plot([xx0-dbx_hlf,xx0+dbx_hlf],[mdn,mdn],linewidth=2, color=clrln)
+    ax1.plot([xx0,xx0],[uprc,tmax],'-',linewidth=2, color=clrln)
+    ax1.plot([xx0,xx0],[tmin,lprc],'-',linewidth=2, color=clrln)
+    ax1.plot([xx0-dtg,xx0+dtg],[tmax,tmax],'-',linewidth=2, color=clrln)
+    ax1.plot([xx0-dtg,xx0+dtg],[tmin,tmin],'-',linewidth=2, color=clrln)
+
+  if len(XX)>1:
+    dX = XX[1]-XX[0]
+  else:
+    dX = 0.8
+
+  ax1.set_xticks(XX)
+  ax1.set_xlim([XX[0]-dX,XX[-1]+dX])
+  ax1.grid('on')
+  ax1.set_xlabel(xlbl)
+  ax1.set_ylabel(ylbl)
+  ax1.set_title(sttl)
+
+  if len(grp_names) == len(XX):
+    ax1.set_xticklabels(grp_names)
+
+  if len(btx) > 0:
+    bottom_text(btx, pos=[0.05, 0.08])
 
   return ax1
 
