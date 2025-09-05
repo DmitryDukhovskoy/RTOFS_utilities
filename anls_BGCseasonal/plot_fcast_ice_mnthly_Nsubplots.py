@@ -1,8 +1,7 @@
 """
   Create N x M subplots to show N*M months
 
-  Plot monthly ice conc/thickness from NEP BGC hindcasts with ocean GLORYS and ice PIOMAS nudging 
-  Specify months (calendar numbering!) to average statistics by seasons
+  Plot monthly ice conc/thickness from NEP BGC f/casts with ocean GLORYS and ice PIOMAS nudging 
 
   Usage: plot_fcst_iconc_mnthly.py --MMI=4 --YRS=1993 --YRE=1993 --MFS=10 --MFE=10
   use --help for more information on keywargs
@@ -110,7 +109,7 @@ if varnm == 'iconc':
   rmax = 1.
 
   ci0=0.15
-  hcntrs = [cio]
+  hcntrs = [ci0]
   cntr_clr = [1, 0.4, 0]
 
 elif varnm == 'ithkn':
@@ -326,9 +325,9 @@ for MFA in range(MFS,MFE+1):
     ax1.clabel(CS1, inline=1, fontsize=10)
 
   if f_cntrobs and varnm == 'iconc':
-    ax1 = contour_nsidc(ax1,YAVRG,MFA,xR,yR,cntr_nsidc)
+    ax1 = contour_nsidc(ax1,YAVRG,mcal,xR,yR,cntr_nsidc)
   if f_cntrrlx and varnm == 'iconc':
-    ax1 = contour_piomas_irlx(ax1,xR,yR,YAVRG,MFA,cntr_irlx,HH)
+    ax1 = contour_piomas_irlx(ax1,xR,yR,YAVRG,mcal,cntr_irlx,HH)
 
 #plt.tight_layout()
 

@@ -2,6 +2,8 @@
   Plot monthly ice thickness from seas f/cast experiments
   Specify months (calendar numbering!) to average statistics by seasons
 
+  use only for NEP, as ARC does not need orthonormal projection
+
   use --help for more information on keywargs
 
 """
@@ -47,20 +49,27 @@ importlib.reload(manseas)
 parser = argparse.ArgumentParser()
 parser.add_argument("--expt", help="f/cast experiment number: 1, 2, 3, ..5, 11, 12,", type=int)
 parser.add_argument("--yr", help="year to plot, default 2001 for NEP and 1995 for ARC", type=int)
-parser.add_argument("--regn", help="NEP or ARC", type=str, required=True)
+#parser.add_argument("--regn", help="NEP or ARC", type=str, required=True)
 parser.add_argument("--varnm", help="iconc or ithkn", type=str, required=True)
-parser.add_argument("--mms", help="Calendar month to start averaging", type=int)
+parser.add_argument("--mms", help="Calendar month to start averaging", type=int, required=True)
 parser.add_argument("--mme", help="Calendar month to end averaging, default=MMS", type=int)
 args = parser.parse_args()
 
 # Test runs were performed for only 1 year
-regn = args.regn if args.regn else None
-YRS = args.yr if args.yr else 2001
+#regn = args.regn if args.regn else None
+YRS = args.yr if args.yr else None
 MMS = args.mms if args.mms else None
 MME = args.mme if args.mme else MMS
 varnm = args.varnm if args.varnm else None
 expt_nmb = args.expt if args.expt else None
 
+regn = 'NEP'
+
+if YRS is None:
+  if regn == 'NEP':
+    YRS = 2001
+  else:
+    YRS = 1995
 
 expt_name = f'{regn}phys_irlxtest_-expt{expt_nmb:02d}'
 
@@ -117,6 +126,10 @@ for MMA in range(MMS,MME+1):
   with xarray.open_dataset(dcice) as ds:
     C2d = ds['siconc'].isel(time=imo).data.squeeze()
     H2d = ds['sithick'].isel(time=imo).data.squeeze()   # ice thicknes m, need m3/m2 
+
+  if varnm == 'iconc':
+    A2d = C2d
+  else:  
     A2d = H2d*C2d      # m3/m2 - grid cell mean thickness
 
   if icc == 0:
@@ -129,11 +142,16 @@ for MMA in range(MMS,MME+1):
 if icc > 1:
   AMN  = AMN.squeeze()/icc
 
-clrmp = mclrmps.colormap_ice_thkn()
-clrmp.set_bad(color=[0.2, 0.2, 0.2])
-rmin = 0.
-rmax = 4.
-
+if varnm == 'iconc':
+  clrmp = mclrmps.colormap_conc()
+  clrmp.set_bad(color=[0.2, 0.2, 0.2])
+  rmin = 0.
+  rmax = 1.
+else:
+  clrmp = mclrmps.colormap_ice_thkn()
+  clrmp.set_bad(color=[0.2, 0.2, 0.2])
+  rmin = 0.
+  rmax = 4.
 
 def plot_field(fgnmb, m, xR, yR, A2d, clrmp, rmin, rmax, sttl=[]):
   fig1 = plt.figure(fgnmb,figsize=(9,8))

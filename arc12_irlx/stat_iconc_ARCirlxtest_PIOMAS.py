@@ -50,8 +50,13 @@ interp_mnthly = interp > 0  # for more accurate comparison, do time interpolatio
                       # when deriving iconc ithkn for day=d0 from PIOMAS target fields
 #use_mnth = not (args.fday and args.fday > 0)
 regn = 'ARC'
+lat_rlx = 60.  # compute statistics inside relax zone north of lat_rlx, make it 0 to ignore
 use_mnth = True
 plt_rgn = False # Show Arc and Ber regions
+
+if lat_rlx > 1.e-16:
+  print(f' ===  NOTE: statistics computed inside rlx zone north of {lat_rlx:.1f}N  ===')
+
 
 pthrlx  = '/work/Dmitry.Dukhovskoy/ARC12/irlx'
 
@@ -78,8 +83,9 @@ LMsk = np.where(hlat<60., 0, LMsk)
 JA,IA = np.where(LMsk == 1)
 Aarc = Acell[JA,IA]
 
-
-Nexpts = 5
+#EXPTS = [1,2,3,4,5,21]   # 21 - 1hr rlx, no ridging
+EXPTS = [1,2,3,4,5]
+Nexpts = len(EXPTS)
 RMSE_Arc_ai = np.zeros((12,Nexpts))
 RMSE_Arc_hi = np.zeros((12,Nexpts))
 BIAS_Arc_ai = np.zeros((12,Nexpts))
@@ -90,8 +96,9 @@ IAREA_pms = np.zeros((12))
 IVOL_pms  = np.zeros((12))
 TM = []
 
-for kexpt in range(5):
-  expt_nmb = kexpt+1
+kexpt = -1
+for expt_nmb in EXPTS:
+  kexpt += 1
   pthtest = f'/archive/Dmitry.Dukhovskoy/fre/ARC12/test_ice_relax/ARCphys_expt{expt_nmb:02d}/{YRS}-01'
 
   YR = YRS
@@ -117,6 +124,12 @@ for kexpt in range(5):
       CIpms,_ = msisrlx.read_relax_piomas(dnmb0, pthrlx, 'iconc') 
       HIpms,_ = msisrlx.read_relax_piomas(dnmb0, pthrlx, 'ithkn') 
 
+    if lat_rlx > 1.e-16:
+      CIarc[hlat<lat_rlx] = np.nan
+      HIarc[hlat<lat_rlx] = np.nan
+      CIpms[hlat<lat_rlx] = np.nan
+      HIpms[hlat<lat_rlx] = np.nan
+
     # RMSE ice conc:
     Rsq = (CIarc - CIpms)**2
     #nB = np.count_nonzero(~np.isnan(Rsq[(JB, IB)])) # this counts 0 and non-0 after np.isnan check
@@ -137,10 +150,10 @@ for kexpt in range(5):
     IAreaA_pms = np.nansum(Cpms*Aarc)
 
     # Ice volume:
-    VolIce_arc  = HIarc*CIarc*Acell*1e-3   # km3, HI - m, Acell - km
+    VolIce_arc  = HIarc*CIarc*Acell*1e-6   # x10^3 km3, HI - m, Acell - km
     VolA_arc = np.nansum(VolIce_arc[JA,IA])
 
-    VolIce_pms  = HIpms*CIpms*Acell*1e-3   # km3, HI - m, Acell - km
+    VolIce_pms  = HIpms*CIpms*Acell*1e-6   # x10^3 km3, HI - m, Acell - km
     VolA_pms = np.nansum(VolIce_pms[JA,IA])
 
     # Register:
@@ -165,8 +178,8 @@ for kexpt in range(5):
     # Time
     TM.append(dnmb0)
 
-IAREA_arc = IAREA_arc*1e-3  # 1e3 km2
-IAREA_pms = IAREA_pms*1e-3  # 1e3 km2
+IAREA_arc = IAREA_arc*1e-6  # 1e6 km2
+IAREA_pms = IAREA_pms*1e-6  # 1e6 km2
 
 TM = np.array(TM)
 DV = mtime.datevec1D(TM, fHR=False)
@@ -176,7 +189,8 @@ ECOLR = [[0.,0.4,0.9],
          [0.9,0.5,0],
          [0.,0.9,0.7],
          [1.,0.9,0],
-         [0.8,0.,0.5]]
+         [0.8,0.,0.5],
+         [0.7, 1, 0.2]]
 
 pms_clr = [0,0.,0.4]
 
@@ -199,7 +213,7 @@ def plot_ice_stat(fgnmb, iarea_nep, iarea_pms, ivol_nep, ivol_pms,
   ax1.set_xticks(time_m)
   ax1.grid('on')
   ax1.set_xlim([0.5,12.5])
-  sttl = f'IceArea x10^3 km2, {regn}, irlx tests'
+  sttl = f'IceArea x10^6 km2, {regn}, irlx tests'
   ax1.set_title(sttl)
 
   # Ice volume:
@@ -212,7 +226,7 @@ def plot_ice_stat(fgnmb, iarea_nep, iarea_pms, ivol_nep, ivol_pms,
   ax2.set_xticks(time_m)
   ax2.grid('on')
   ax2.set_xlim([0.5,12.5])
-  sttl2 = f'IceVol km3, {regn}'
+  sttl2 = f'IceVol x10^3 km3, {regn}'
   ax2.set_title(sttl2)
 
   # Rmse ice conc
@@ -310,7 +324,7 @@ def plot_ice_stat(fgnmb, iarea_nep, iarea_pms, ivol_nep, ivol_pms,
   ax7.set_ylim([0.12,0.5])
   ax7.axis('off')
  
-  btx = 'stat_iconc_irlxtest_PIOMAS.py'
+  btx = 'stat_iconc_ARCirlxtest_PIOMAS.py'
   bottom_text(btx, pos=[0.02,0.01])
 
   return fig1, ax1, ax2, ax3, ax4, ax5, ax6, ax7
@@ -339,35 +353,14 @@ if f_debug:
 fgnmb=1
 time_yrs = DV[:,0]+(DV[:,1]-1)/12
 
+if lat_rlx > 1.e-16:
+  regn_name = f'ARC {lat_rlx:.1f}N'
+else:
+  regn_name = 'ARC0.08'
+
 fig1,ax11,ax12,ax13,ax14,ax15, ax16, ax17 = plot_ice_stat(1, IAREA_arc, IAREA_pms, \
-                                         IVOL_arc, IVOL_pms, \
-                                         RMSE_Arc_ai, RMSE_Arc_hi, BIAS_Arc_ai, BIAS_Arc_hi, 'ArcOc')
-
-if plt_regn:
-  fig3 = plt.figure(3,figsize=(9,8))
-  plt.clf()
-  # Ice area:
-  ax31 = plt.axes([0.1, 0.1, 0.8, 0.8])
-  LMSK = np.where(HH<0,1,0)
-  cmp_lmsk = mclrmps.colormap_landmask()
-  ax31.pcolormesh(LMSK, cmap=cmp_lmsk)
-  ax31.axis('scaled')
-  ax31.set_ylim([550,816])
-  ax31.plot(IA,JA,'.',color=[0.8,0.8,0.8])
-  ax31.plot(IB,JB,'.',color=[0.4,0.4,0.4])
-
-  loncntrs = [x for x in range(140,360,10)]
-  latcntrs = [x for x in range(40,89,10)]
-  ax31.contour(hlon, levels=loncntrs, linstyles='-', linewidths=1, colors=[[0.9,0.9,0.9]])
-  ax31.contour(hlat, levels=latcntrs, linstyles='-', linewidths=1, colors=[[0.9,0.9,0.9]])
-
-  sttl = 'Ber and Arc regions for stat anls'
-  ax31.set_title(sttl)
-
-  btx = 'stat_iconc_irlxtest_PIOMAS.py'
-  bottom_text(btx, pos=[0.1,0.08])
- 
-
+                                    IVOL_arc, IVOL_pms, \
+                                    RMSE_Arc_ai, RMSE_Arc_hi, BIAS_Arc_ai, BIAS_Arc_hi, regn_name)
 
   
 

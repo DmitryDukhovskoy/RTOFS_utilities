@@ -9,6 +9,12 @@
   e.g. nyrs 2:
   yrs = 1993 --> relax _1993_1994
 
+  To avoid unnecessary interpolation (slow):
+  For overlapping relax files when first yr in this file = last year in the prev. file:
+  if previous years exist, read the already created irlx netcdf file
+   otherwise - interpolate from PIOMAS
+
+  For 2025 - no PIOMAS data available, so use 5-yr climatology computed from 2020-2024
 
   monthly fields
   1979-present
@@ -54,7 +60,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--yrs",   help="year start to extract PIOMAS: 1993, ..., 2020", type=int, required=True)
 parser.add_argument("--yre",   help="year end to extract PIOMAS: 1993, ..., 2020", type=int)
 parser.add_argument("--nyrs", help="number of years grouped in 1 relax. file, default=2", type=int)
-parser.add_argument("--fsave", help="flag > 0 to save the output", type=int, required=True)
+parser.add_argument("--fsave", help="flag > 0 to save the output, default = 1 (true)", type=int)
 args = parser.parse_args()
 
 file_type = 'monthly'  # monthly, daily, ... or clim
@@ -64,7 +70,8 @@ file_type = 'monthly'  # monthly, daily, ... or clim
 YRs  = args.yrs if args.yrs else None
 nyrs = args.nyrs if args.nyrs else 2
 YRe  = args.yre if args.yre else YRs
-if args.fsave > 0:
+fsave = args.fsave if args.fsave else 1
+if fsave > 0:
   f_save = True
 else:
   f_save = False
@@ -157,6 +164,8 @@ else:
     pickle.dump([IMOM, JMOM, INDX, JNDX], fid)
 
 # Create time array:
+dnmb_ref = mtime.datenum([1993,1,1])
+dv_ref = mtime.datevec(dnmb_ref)
 def create_time_array(YR1, nyrs, file_type):
   YR2 = YR1+(nyrs-1)
   match file_type:
@@ -196,6 +205,9 @@ for YR1 in range(YRs,YRe+1):
   H3d = np.zeros((nrec,jdm,idm))
   C3d = np.zeros((nrec,jdm,idm))
 
+  # File for previous time interval:
+  flprev = f'PIOMASv21_ithkn_iconc_{YR1-(nyrs-1)}_{YR1}_{file_type}.nc'
+
   #LMsk = HH.copy()
   LMsk = np.where(HH<0, 1, 0)
   icc  = -1
@@ -207,56 +219,86 @@ for YR1 in range(YRs,YRe+1):
     yr0, mm0 = dv[:2]
 
     if yr0 != YRold:
-      flthck  = f'piomas_heff{yr0}_v21.nc'
-      flconc  = f'piomas_area{yr0}_v21.nc'
-      dflthkn = os.path.join(pthdata, flthck)
-      dflconc = os.path.join(pthdata, flconc)
+      if yr0 < 2025:
+        flthck  = f'piomas_heff{yr0}_v21.nc'
+        flconc  = f'piomas_area{yr0}_v21.nc'
+        dflthkn = os.path.join(pthdata, flthck)
+        dflconc = os.path.join(pthdata, flconc)
 
-      ds_thkn = xarray.open_dataset(dflthkn)
-      LAT  = ds_thkn['lat_scaler'].data
-      LON  = ds_thkn['lon_scaler'].data
+        ds_thkn = xarray.open_dataset(dflthkn)
+        ds_conc = xarray.open_dataset(dflconc)
+        LAT  = ds_thkn['lat_scaler'].data
+        LON  = ds_thkn['lon_scaler'].data
 
-      ds_conc = xarray.open_dataset(dflconc)
+        # Check if this year has been already interpolated and saved:
+        dflprev = os.path.join(pthsis, flprev)
+        f_intrp = True
+        if os.path.isfile(dflprev) and os.path.getsize(dflprev) > 0:
+          print(f'No interp, use ice fields for {yr0} from{dflprev}')
+          f_intrp = False
+          ds_thkn.close()
+          ds_conc.close()
 
+          with xarray.open_dataset(dflprev, decode_times=False)  as ds_ice:
+            H3d_clm = ds_ice['ithkn'].data
+            C3d_clm = ds_ice['iarea'].data
+            TM_clm  = ds_ice['time'].data + dnmb_ref
+      
+      else:
+        # Use 5-yr clim for missing PIOMAS data:
+        fliclm = 'PIOMASv21_ithkn_iconc_2024_2025_avrg5yr.nc'
+        dfliclm = os.path.join(pthsis, fliclm)
+        with xarray.open_dataset(dfliclm, decode_times=False)  as ds_ice:
+          H3d_clm = ds_ice['ithkn'].data
+          C3d_clm = ds_ice['iarea'].data
+          TM_clm  = ds_ice['time'].data + dnmb_ref
+          f_intrp = False
+          
       YRold = yr0
-
+    
     # Find record #: monthly data
     #tindx = mm0-1
+    if f_intrp:
+      Month = ds_thkn['month'].data
+      Year  = ds_thkn['year'].data
+      D     = np.sqrt((Month-mm0)**2 + (Year-yr0)**2)
+      tindx = np.argmin(D)
+      assert(D[tindx]==0), f"Requested {yr0}/{mm0} not found in {dflthkn}"
+      print(f'Processing {dv[0]}/{dv[1]}/{dv[2]}, tindx={tindx}')
+      H2d   = ds_thkn[varthck].data[tindx,:].squeeze()  # thikness, m
+      C2d   = ds_conc[varconc].data[tindx,:].squeeze()  #conc
+      #C2d   = np.where(C2d > 1., 1., C2d)
 
-    Month = ds_thkn['month'].data
-    Year  = ds_thkn['year'].data
-    D     = np.sqrt((Month-mm0)**2 + (Year-yr0)**2)
-    tindx = np.argmin(D)
-    assert(D[tindx]==0), f"Requested {yr0}/{mm0} not found in {dflthkn}"
-    print(f'Processing {dv[0]}/{dv[1]}/{dv[2]}, tindx={tindx}')
-    H2d   = ds_thkn[varthck].data[tindx,:].squeeze()  # thikness, m
-    C2d   = ds_conc[varconc].data[tindx,:].squeeze()  #conc
-    #C2d   = np.where(C2d > 1., 1., C2d)
+      # Get rid off the land values along the southern boundary:
+      nbnd = 4
+      for ik in range(nbnd):
+        H2d[ik,:] = H2d[nbnd,:]
+        C2d[ik,:] = C2d[nbnd,:]
 
-    # Get rid off the land values along the southern boundary:
-    nbnd = 4
-    for ik in range(nbnd):
-      H2d[ik,:] = H2d[nbnd,:]
-      C2d[ik,:] = C2d[nbnd,:]
+      # Get rid of nans - fill land:
+      H2df = mmom6.fill_land3d(H2d, land_mask=9999.9)
+      C2df = mmom6.fill_land3d(C2d, land_mask=9999.9)
+      C2df  = np.where(C2df > 1., 1., C2df)
+      C2df  = np.where(C2df < 0.0, 0.0, C2df)
+      
+      # interpolate onto MOM6 grid
+      H2di = msisrlx.interp2Dfld(H2df, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
+      C2di = msisrlx.interp2Dfld(C2df, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
 
-    # Get rid of nans - fill land:
-    H2df = mmom6.fill_land3d(H2d, land_mask=9999.9)
-    C2df = mmom6.fill_land3d(C2d, land_mask=9999.9)
-    C2df  = np.where(C2df > 1., 1., C2df)
-    C2df  = np.where(C2df < 0.0, 0.0, C2df)
-    
-    # interpolate onto MOM6 grid
-    H2di = msisrlx.interp2Dfld(H2df, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
-    C2di = msisrlx.interp2Dfld(C2df, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
+      C2di = np.where(C2di>0.99, 1.0, C2di) # interp error 1--> 0.99, also caps max conc = 1
 
-    C2di = np.where(C2di>0.99, 1.0, C2di) # interp error 1--> 0.99, also caps max conc = 1
+    else:
+      # Clim data for 2025 or previous year files (yr<2025):
+      D = np.sqrt((TM_clm - dnmb)**2)  
+      tindx = np.argmin(D)
+      assert(D[tindx]<1), f"Requested {yr0}/{mm0} not found in {dfliclm}"
+      H2di = H3d_clm[tindx,:,:].squeeze()
+      C2di = C3d_clm[tindx,:,:].squeeze()
 
     H3d[icc,:,:] = H2di
     C3d[icc,:,:] = C2di
 
   # Construct time array: days since the reference day:
-  dnmb_ref = mtime.datenum([1993,1,1])
-  dv_ref = mtime.datevec(dnmb_ref)
   #dnmb0 = mtime.datenum([2003,12,15,12]) 
   TM_ref = TMPLT - dnmb_ref 
   if TM_ref[0] < 0:
@@ -277,7 +319,10 @@ for YR1 in range(YRs,YRe+1):
   dset_Ice = xarray.merge([dset_Hmom, dset_Cmom])
 
   # Add attributes:
-  dset_Ice.attrs["history"] = f"Created from PIOMAS monthly ice fields {YR1}-{YR2}"
+  if YR2 == 2025:
+    dset_Ice.attrs["history"] = f"Created from PIOMAS monthly ice fields {YR1}, {YR2} - 5yr clim 2020-2024"
+  else:
+    dset_Ice.attrs["history"] = f"Created from PIOMAS monthly ice fields {YR1}-{YR2}"
   dset_Ice.attrs["code"] = "/home/Dmitry.Dukhovskoy/python/sis2_relax/piomasV21_relaxation_yearly.py"
 
   dset_Ice[ithknvar].attrs["long_name"] = "Mean ice thickness or volume per m2"
@@ -308,7 +353,7 @@ for YR1 in range(YRs,YRe+1):
 
     diclim = os.path.join(pthsis, flout)
 
-    print(f'Saving PIOMAS climatology --> {diclim}')
+    print(f'Saving PIOMAS ice relax fields --> {diclim}')
     dset_Ice.to_netcdf(
          diclim,
          format='NETCDF3_64BIT',

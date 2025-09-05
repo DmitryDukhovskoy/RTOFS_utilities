@@ -51,6 +51,7 @@ YRS   = args.yrs if args.yrs else None
 YRE   = args.yre if args.yre else YRS
 varnm = args.varnm if args.varnm else None
 
+plt_era_crpt = False    # true - plot segement of the hindcast02 with corrupted era5 for checking
 hcast_bgc = 'NEPbgc_nudged_hindcast02'
 hcast_phys = 'NEPphys_nudged_hindcast' 
 
@@ -111,6 +112,13 @@ for ii in range(len(MCAL)):
          hindcast_name=hcast_bgc, YR=YY, MM=MINIT, DD=1
     )
   )
+  # Hindcast with corrputed ERA5:
+  # Segment 1993-1999 of hindcast02 was replaced with hindcast03 
+  # that was run with corrected ERA5
+  # the rest of hindcast02 not changed
+  if YY <= 1999 and plt_era_crpt:
+    pthhcst_bgc = '/archive/Dmitry.Dukhovskoy/fre/NEP/hindcast_bgc/NEPbgc_nudged_hindcast02/history/' +\
+                  f'{YY}{MINIT:02d}01crpt_forc'
 
   pthhcst_phys = '/archive/Dmitry.Dukhovskoy/fre/NEP/2024/NEP_physics_202404_nudging-15d/' + \
                  f'gfdl.ncrc5-intel22-repro/history/{YY}-{MINIT:02d}'
@@ -173,7 +181,7 @@ if f_crct:
   print('Computing RMSE for corrected hindcast 03')
   RMSE_crct = []
   TM_crct = []
-  for YY in range(1993,1997): 
+  for YY in range(1993,2000): 
     for MINIT in range(1,13,3):
       if YY == 1993 and MINIT == 1:
         continue

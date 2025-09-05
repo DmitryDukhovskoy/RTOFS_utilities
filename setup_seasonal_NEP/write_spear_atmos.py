@@ -105,6 +105,34 @@ def extract_spear_atmos(ystart, mstart, ens, outdir=None):
 
   return new_files
 
+def add_T1T2(ds):
+  """
+    average_T1 and average_T2 fields are time bounds for 
+    averaged fields, repeated in time_bnds arra
+
+    originally developed script assumes that these fields are in netcdf
+    add them if they are missing
+  """
+  if 'average_T1' in ds and 'average_T2' in ds:
+    print("average_T1 average_T2 found")
+    return ds
+
+  print("average_T1 or average_T2 not found")
+  if 'time_bnds' in ds:
+    T1 = ds['time_bnds'].isel(bnds=0).values
+    T2 = ds['time_bnds'].isel(bnds=1).values
+  else:
+    # Construct those
+    t0 = ds['time'].values[0]
+    TM = (ds['time'].values - t0) / np.timedelta64(1, 'D')
+    T1 = TM.copy()
+    T2 = T1+1 
+
+  # Add to dataset
+  ds['average_T1'] = (('time',), T1)
+  ds['average_T2'] = (('time',), T2)
+
+  return ds
     
 for ystart in range(yr1,yr2+1):
   for mstart in MM:
@@ -128,6 +156,10 @@ for ystart in range(yr1,yr2+1):
           print(f'{str(f)}')
           #open
           ds = xarray.open_dataset(f).sel(lat=lat_slice, lon=lon_slice)
+
+          # Later versions (2024/07 ...) do not have average_T1, T2 fields
+          # Add those to keep the code logic:
+          ds = add_T1T2(ds)
 
           # Need to mask just the variable of interest and not the
           # coordinate/metadata variables 

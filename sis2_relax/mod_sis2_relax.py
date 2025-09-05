@@ -1077,3 +1077,247 @@ def mnthly_PIOMAS_linear_daily(diclim,dnmb0,varnm):
 
   return Amnth
 
+
+def derive_iconc_contour(A2d, ic0=0.15, npmin=10):
+  """
+    Derive ice conc contour 
+    A2d - ice conc 2D fields
+    npmin - the min # of points in the contour to keep
+  """
+
+  plt.ioff()
+  figA = plt.figure(10, figsize=(8,8))
+  plt.clf()
+
+  ny, nx = A2d.shape
+  x = np.arange(nx)
+  y = np.arange(ny)
+  X, Y = np.meshgrid(x, y)
+
+  ax0 = plt.axes([0.1,0.1,0.8,0.8])
+  #ax0.contour(X, Y, HH, linestyles='solid', levels=[0], colors=[(0.5, 0.5, 0.5)])
+  CS = ax0.contour(X,Y,A2d, levels=[ic0], colors=[(0,0.5,1)])
+  #ax0.axis('scaled')
+
+  # For NEP:
+  xl1 = 24
+  xl2 = 342
+  yl1 = 565
+  yl2 = 816
+  ax0.set_xlim([xl1,xl2])
+  ax0.set_ylim([yl1,yl2])
+
+  SGS  = CS.allsegs[0]  # should be only 1 contoured value
+  nsgs = len(SGS)
+
+# Delete all small segments:
+  CNTR = []
+  for isg in range(nsgs):
+    XY = SGS[isg]
+    X  = XY[:,0]
+    Y  = XY[:,1]
+    if len(X) < npmin:
+      continue
+
+    CNTR.append(XY)
+
+# Arranage all segments in order
+  nC  = len(CNTR)
+  TCNT = []
+
+  if nC > 1:
+    for ii in range(nC):
+      if ii == 0:
+        cntr0 = CNTR[0]
+        x0   = cntr0[0,0]
+        y0   = cntr0[0,1]
+        dltD = 500.
+      else:
+        x0   = TCNT[-1,0]
+        y0   = TCNT[-1,1]
+        dltD = 200.
+
+      xsgm, ysgm, imin, jmin = arange_1segm(CNTR,x0,y0, dltD=dltD)
+
+      if len(xsgm) == 0:
+        continue
+
+      # Remove selected segment:
+      CNTR.pop(imin)
+
+      if ii == 0:
+        TCNT = np.transpose(np.array((xsgm,ysgm)))
+      else:
+        aa   = np.transpose(np.array((xsgm,ysgm)))
+        TCNT = np.append(TCNT, aa, axis=0)
+
+  else:
+    TCNT = np.array(CNTR).squeeze()
+
+
+  #X = TCNT[:,0]
+  #Y = TCNT[:,1]
+  #axA1.plot(X,Y,'.-') 
+  plt.close(figA)
+  plt.ion()
+
+  return TCNT
+
+def derive_iconc_contour_ARC(A2d, ic0=0.15, npmin=20):
+  """
+    Derive ice conc contour 
+    A2d - ice conc 2D fields
+    npmin - the min # of points in the contour to keep
+  """
+
+  plt.ioff()
+  figA = plt.figure(10, figsize=(8,8))
+  plt.clf()
+
+  ny, nx = A2d.shape
+  x = np.arange(nx)
+  y = np.arange(ny)
+  X, Y = np.meshgrid(x, y)
+
+  ax0 = plt.axes([0.1,0.1,0.8,0.8])
+  #ax0.contour(X, Y, HH, linestyles='solid', levels=[0], colors=[(0.5, 0.5, 0.5)])
+  CS = ax0.contour(X,Y,A2d, levels=[ic0], colors=[(0,0.5,1)])
+  #ax0.axis('scaled')
+
+  SGS  = CS.allsegs[0]  # should be only 1 contoured value
+  nsgs = len(SGS)
+
+# Delete all small segments:
+  CNTR = []
+  for isg in range(nsgs):
+    XY = SGS[isg]
+    X  = XY[:,0]
+    Y  = XY[:,1]
+    if len(X) < npmin:
+      continue
+
+    CNTR.append(XY)
+
+# Arranage all segments in order
+  nC  = len(CNTR)
+  TCNT = []
+
+  if nC > 1:
+    for ii in range(nC):
+      if ii == 0:
+        cntr0 = CNTR[0]
+        x0   = cntr0[0,0]
+        y0   = cntr0[0,1]
+        dltD = 500.
+      else:
+        x0   = TCNT[-1,0]
+        y0   = TCNT[-1,1]
+        dltD = 200.
+
+      xsgm, ysgm, imin, jmin = arange_1segm(CNTR,x0,y0, dltD=1e6)
+
+      if len(xsgm) == 0:
+        continue
+
+      # Remove selected segment:
+      CNTR.pop(imin)
+
+      if ii == 0:
+        TCNT = np.transpose(np.array((xsgm,ysgm)))
+      else:
+        aa   = np.transpose(np.array((xsgm,ysgm)))
+        TCNT = np.append(TCNT, aa, axis=0)
+
+  else:
+    TCNT = np.array(CNTR).squeeze()
+
+
+  #X = TCNT[:,0]
+  #Y = TCNT[:,1]
+  #axA1.plot(X,Y,'.-') 
+  plt.close(figA)
+  plt.ion()
+
+  return TCNT
+
+def arange_1segm(CNTR, x0, y0, dltD=50.):
+  """
+    Find segment closest to x0, y0 
+    arange the orientation of the segment
+    so that it starts from the pnt closest to x0, y0
+    CNTR - list with segments X,Y as np arrays
+    Ignore contours that are > dltD points from the previous segment
+  """
+  nC  = len(CNTR)
+  DFS = np.zeros((nC,2))*np.nan
+  for isg in range(nC):
+    XY = CNTR[isg]
+    X  = XY[:,0]
+    Y  = XY[:,1]
+
+    d1 = np.sqrt((X[0]-x0)**2+(Y[0]-y0)**2)
+    d2 = np.sqrt((X[-1]-x0)**2+(Y[-1]-y0)**2)
+
+    DFS[isg,0] = d1
+    DFS[isg,1] = d2
+
+  imin = np.argmin(np.min(DFS, axis=1))
+  jmin = np.argmin(np.min(DFS, axis=0))
+
+  xsgm = CNTR[imin][:,0]
+  ysgm = CNTR[imin][:,1]
+
+  if jmin == 1:
+    xsgm = np.flip(xsgm)
+    ysgm = np.flip(ysgm)
+
+# Disconnected segment - ignore:
+  if np.min(DFS > dltD):
+    xsgm = []
+    ysgm = []
+    imin = []
+    jmin = []
+
+  return xsgm, ysgm, imin, jmin
+
+def mask_NEP10k_BerArc(HH,hlat):
+  """
+    Defines regional masks to include
+    only Bering Sea or Arctic/Chukchi portion of NEP10k
+  """
+  jdm, idm = HH.shape
+  # Check that this is NEP10k:
+  assert jdm == 816 and idm ==342, f'Check domain dimensions, NEP10k j/i: {jdm}/{idm}'
+
+  # Bering Sea - Chukchi Sea :
+  hsh = -5000.
+  LMsk = np.where((HH>=hsh) & (HH<0), 1, 0)
+  # Mask out southern lats:
+  LMsk = np.where(hlat<55.,0,LMsk)
+  LMsk[:567,:] = 0
+  LMsk[:,:39] = 0
+  LMsk[:595,177:] = 0
+  LMsk[:579,:129] = 0
+  LMsk[:575,:143] = 0
+  #LMsk[748:,:143] = 0
+
+  # Remove near-boundary points:
+  LMsk[810:,:] = 0
+  LMsk[:,338:] = 0
+
+  # 
+  # Mask for Bering Sea
+  # Bounded by the Bering Strait 
+  BMsk = LMsk.copy()
+  BMsk = np.where(hlat>66,0,BMsk)
+  #JB,IB = np.where(BMsk==1)
+  # Mask for the Arctic Oc. part of the domain:
+  # Ber. Str. + S. Chukchi Shelf
+  AMsk = LMsk.copy()
+  AMsk = np.where(BMsk==1, 0, AMsk)
+  AMsk[:,:192] = 0
+
+  return BMsk, AMsk
+
+
+

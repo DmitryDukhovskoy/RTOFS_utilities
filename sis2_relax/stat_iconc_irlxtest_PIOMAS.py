@@ -36,7 +36,7 @@ import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--regn", help="Region: NEP or ARC", type=str)
+#parser.add_argument("--regn", help="Region: NEP or ARC", type=str)
 parser.add_argument("--yr", help="year to plot, default 2001", type=int)
 parser.add_argument("--intrp", help=" =1: interp PIOMAS mnth to daily for better accur., default=1", \
                     type=int)
@@ -45,7 +45,7 @@ parser.add_argument("--nocntr", help=" =1: do not show the control no irlx run, 
 args = parser.parse_args()
 
 # Test runs were performed for only 1 year
-regn = args.regn if args.regn else None
+#regn = args.regn if args.regn else None
 YRS = args.yr if args.yr else 2001
 interp = args.intrp if args.intrp else 1
 nocntr = args.nocntr if args.nocntr else 0
@@ -364,7 +364,7 @@ def plot_ice_stat(fgnmb, iarea_nep, iarea_pms, ivol_nep, ivol_pms,
   ax5.set_xticks(time_m)
   ax5.grid('on')
   ax5.set_xlim([0.5,12.5])
-  ax5.set_ylim([-ylm,ylm])
+  #ax5.set_ylim([-ylm,ylm])
   sttl5 = f'bias_ai (m), {regn}'
   ax5.set_title(sttl5)
  
@@ -387,7 +387,7 @@ def plot_ice_stat(fgnmb, iarea_nep, iarea_pms, ivol_nep, ivol_pms,
   ax6.set_xticks(time_m)
   ax6.grid('on')
   ax6.set_xlim([0.5,12.5])
-  ax6.set_ylim([-ylm,ylm])
+  #ax6.set_ylim([-ylm,ylm])
   sttl6 = f'bias_hi (m), {regn}'
   ax6.set_title(sttl6)
 
