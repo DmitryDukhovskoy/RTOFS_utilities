@@ -265,4 +265,11 @@ ANLS_NEP:
     smax_0: 34.0
     tmin_0: -1.8
     tmax_0: 12.0
+  "GulfAlaska":
+    II: [1,   1,   290, 290]
+    JJ: [395, 620, 620, 395]
+    smin_0: 30.0
+    smax_0: 34.0
+    tmin_0: -1.8
+    tmax_0: 15.0
 

@@ -1485,12 +1485,12 @@ def colormap_params(regn_name, varnm, zz0=-1.):
           tscntrs = [x/10 for x in range(240,354,5)]
           tslabels = [x/10 for x in range(240,350,10)]
         elif zz0 < -20. and zz0 >= -100:
-          rmin = 29.0
-          rmax = 33.4
+          rmin = 31
+          rmax = 33.5
           tscntrs = [x/10 for x in range(290,350,5)]
           tslabels = [x/10 for x in range(290,350,10)]
         elif zz0 < -100. and zz0 >= -150:
-          rmin = 31.5
+          rmin = 32.0
           rmax = 33.5
           tscntrs = [x/10 for x in range(320,360,2)]
           tslabels = [x/10 for x in range(320,360,2)]
@@ -1568,6 +1568,99 @@ def colormap_params(regn_name, varnm, zz0=-1.):
           rmax = 2.5
         tscntrs = [x/10 for x in range(5,50,5)]
         tslabels = [x/10 for x in range(5,50,5)]
+
+    case 'GulfAlaska':
+      if varnm == 'salin' or varnm == 'salt' or varnm == 'so':
+        if zz0 >= -20.:
+          rmin = 27.
+          rmax = 33.
+          tscntrs = [x/10 for x in range(240,354,5)]
+          tslabels = [x/10 for x in range(240,350,10)]
+        elif zz0 < -20. and zz0 >= -100:
+          rmin = 29.0
+          rmax = 33.4
+          tscntrs = [x/10 for x in range(290,350,5)]
+          tslabels = [x/10 for x in range(290,350,10)]
+        elif zz0 < -100. and zz0 >= -150:
+          rmin = 32
+          rmax = 34.
+          tscntrs = [x/10 for x in range(320,360,2)]
+          tslabels = [x/10 for x in range(320,360,2)]
+        elif zz0 < -150. and zz0 >= -500:
+          rmin = 33.4
+          rmax = 35.0
+          tscntrs = [x/10 for x in range(320,360,2)]
+          tslabels = [x/10 for x in range(320,360,2)]
+        else: 
+          rmin = 33.0
+          rmax = 35.0
+          tscntrs = [x/10 for x in range(320,360,2)]
+          tslabels = [x/10 for x in range(320,360,2)]
+
+      if varnm == 'temp' or varnm == 'potT' or varnm == 'thetao':
+        if zz0 >= -20.:
+          rmin = -1.8
+          rmax = 18.
+          tscntrs = [x for x in range(-2,20,1)]
+          tslabels = [x for x in range(-2,20,2)]
+        elif zz0 < -20. and zz0>= -51.:
+          rmin = -1.8
+          rmax = 14.
+          tscntrs = [x for x in range(-2,20,1)]
+          tslabels = [x for x in range(-2,20,2)]
+        elif zz0 < -51. and zz0 >= -150:
+          rmin = -1.8
+          rmax = 12.
+          tscntrs = [x for x in range(5,24,1)]
+          tslabels = [x for x in range(5,24,1)]
+        elif zz0 < -150. and zz0 >= -250:
+          rmin = -1.8
+          rmax = 6.0
+          tscntrs = [x for x in range(5,24,1)]
+          tslabels = [x for x in range(5,24,1)]
+        elif zz0 < -250. and zz0 >= -500:
+          rmin = -1.8
+          rmax = 6.0
+          tscntrs = [x for x in range(10,24,1)]
+          tslabels = [x for x in range(10,24,1)]
+        else: 
+          rmin = -1.8
+          rmax = 6.0
+          tscntrs = [x/10 for x in range(20,140,5)]
+          tslabels = [x/10 for x in range(20,140,20)]
+
+      if varnm == 'UV' or varnm == 'Uspeed':
+        if zz0 >= -50.:
+          rmin = 0
+          rmax = 0.2
+          tscntrs = [x/100 for x in range(0,50,5)]
+          tslabels = [x/100 for x in range(0,50,10)]
+        else:
+          rmin = 0
+          rmax = 0.1
+          tscntrs = [x/100 for x in range(0,40,2)]
+          tslabels = [x/100 for x in range(0,40,4)]
+              
+      if varnm == 'o2':
+        if zz0 >= -50.:
+          rmin = 120.
+          rmax = 420.
+        else:
+          rmin = 120.  # micro-moles/kg !
+          rmax = 340.
+        tscntrs = [x for x in range(100,500,50)]
+        tslabels = [x for x in range(100,500,50)]
+
+      if varnm == 'po4':
+        if zz0 >= -50.:
+          rmin = 0.
+          rmax = 2.5
+        else:
+          rmin = 0.  # micro-moles/kg !
+          rmax = 2.5
+        tscntrs = [x/10 for x in range(5,50,5)]
+        tslabels = [x/10 for x in range(5,50,5)]
+
 
   return rmin, rmax, tscntrs, tslabels
 

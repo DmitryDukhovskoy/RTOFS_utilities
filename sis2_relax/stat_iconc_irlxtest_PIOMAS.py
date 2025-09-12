@@ -482,5 +482,16 @@ if plt_rgn:
  
 
 
-  
+# Estimate S change due to ice vol change:
+Ivol_expt1 = IVOL_Arc_nep[:,0]
+Ivol_expt2 = IVOL_Arc_nep[:,1]   
+Sice = 3.4
+Soc = 30.
+dltIvol = Ivol_expt1-Ivol_expt2 # km3
+Vfw = dltIvol*(1.-Sice/Soc)
+dltZ = 50*1e-3  # ocean layer, km
+Voc = np.sum(Aarc*dltZ) # ocean vol, km3
+
+dltS = -Soc*Vfw/Voc
+
 

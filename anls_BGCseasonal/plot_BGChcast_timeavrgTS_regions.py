@@ -56,12 +56,12 @@ importlib.reload(manseas)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--varnm", help="salin or temp", type=str, required=True)
-parser.add_argument("--regnm", help="CalCur (default) or BeringChuk", type=str)
+parser.add_argument("--regnm", help="CalCur, BeringChuk, GulfAlaska", type=str)
 parser.add_argument("--yrs", help="Year to start averaging", type=int, required=True)
 parser.add_argument("--yre", help="Year to end averaging, defualt = yrs", type=int)
 parser.add_argument("--mms", help="Calendar month, start of avrg", type=int, required=True)
 parser.add_argument("--mme", help="Calendar month, end of avrg, default=yrs", type=int)
-parser.add_argument("--lr", help="MOM6 NEP vert layer 1,...,75", type=int, required=True)
+parser.add_argument("--zz", help="Depth to plot, m >0", type=int, required=True)
 args = parser.parse_args()
 
 varnm = args.varnm if args.varnm else None
@@ -70,7 +70,10 @@ YRS   = args.yrs if args.yrs else None
 YRE   = args.yre if args.yre else YRS
 MMS   = args.mms if args.mms else None
 MME   = args.mme if args.mme else MMS
-lr0   = args.lr if args.lr else None # ocean layers from 1, ..., 75
+zz_plt = args.zz if args.zz else None
+if zz_plt is not None:
+  zz_plt = -abs(zz_plt)
+#lr0   = args.lr if args.lr else None # ocean layers from 1, ..., 75
                                      # lr 22 = -49.9 m, lr 31 =-102 m, lr 37 = -192 m
 
 YAVRG = [x for x in range(YRS,YRE+1)]
@@ -111,6 +114,14 @@ HH = np.where(np.isnan(HH), 1., HH)
 # Read vertical layers from oceanm archive file:
 ptharch = '/archive/Dmitry.Dukhovskoy/fre/NEP/hindcast_bgc/NEPbgc_nudged_hindcast02/history'
 
+def find_depth_indx(ZM, zz_plt):
+  dZ = np.abs(ZM-zz_plt)
+  ilr0 = np.argmin(dZ)
+  lr0  = ilr0+1
+  zz0 = ZM[ilr0]
+
+  return ilr0, lr0, zz0
+
 def read_mnth_mom6(YRI, MMI, yr0, mm0, varnc, iselZ=None, iselT=None):
   """
     3 month runs are assumed for the hindcasts
@@ -128,7 +139,7 @@ def read_mnth_mom6(YRI, MMI, yr0, mm0, varnc, iselZ=None, iselT=None):
 
 ZM = read_mnth_mom6(1994,1,1994,1,'z_l')
 ZM = -abs(ZM)
-zz0 = ZM[lr0-1]
+ilr0, lr0, zz0 = find_depth_indx(ZM, zz_plt)
 
 if varnm == 'salin':
   varnc = 'so'
@@ -150,7 +161,7 @@ for YR0 in YAVRG:
     imo = MM0-MMI      # current month index in the archive output
     YRI = YR0         # hindcast start year, 3-mo segments
 
-    AA  = read_mnth_mom6(YRI, MMI, YR0, MM0, varnc, iselZ=lr0-1, iselT=imo)
+    AA  = read_mnth_mom6(YRI, MMI, YR0, MM0, varnc, iselZ=ilr0, iselT=imo)
     Time.append(dnmb0)
 
     if irec == 0:
@@ -221,6 +232,12 @@ match regn_name:
     height = 3700*1.e3
     lat0   = 65.
     lon0   = -175.
+  case 'GulfAlaska':
+    width  = 3900*1.e3
+    height = 3200*1.e3
+    lat0   = 52.
+    lon0   = -149.
+
 
 m = Basemap(width=width, height=height, resolution='l',\
             projection='stere', lat_ts=55, lat_0=lat0, lon_0=lon0)

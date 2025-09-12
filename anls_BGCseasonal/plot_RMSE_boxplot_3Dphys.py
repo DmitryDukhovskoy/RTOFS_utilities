@@ -126,7 +126,7 @@ match varnm:
     varnc = 'v'
 
 
-def find_depth_indx(ZM, zz_plt, ds_ocean):
+def find_depth_indx(zz_plt, ds_ocean):
   ZM = ds_ocean['zl'].data
   ZM = -abs(ZM)
   dZ = np.abs(ZM-zz_plt)
@@ -187,8 +187,8 @@ for ii in range(len(MCAL)):
       pthfcst_ref = os.path.join(pthmain,f'{YINIT}-{MINIT:02d}-e{ens_ref:02d}','history')
       docn_ref = os.path.join(pthfcst_ref, f'oceanm_{YY}_{MM:02d}.nc')
       with xarray.open_dataset(docn_ref, decode_times=False) as ds_ref:
-        ZM = ds_ref['zl'].data
-        ilr0, lr0, zz0 = find_depth_indx(ZM, zz_plt, ds_ref)    
+        #ZM = ds_ref['zl'].data
+        ilr0, lr0, zz0 = find_depth_indx(zz_plt, ds_ref)    
    
         A2d_ref = ds_ref[varnc].isel(zl=ilr0).data.squeeze()
 

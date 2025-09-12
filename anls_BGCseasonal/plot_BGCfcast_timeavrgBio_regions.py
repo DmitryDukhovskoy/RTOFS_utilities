@@ -13,11 +13,8 @@ Phosphate (µmol/kg)
 Nitrate (µmol/kg)
 
   stereographic projection
-  in different regions: # CalCur - Calif Current region, Alaska - Alaska region, BerSea - Bering
+  in different regions: # CalCur - Calif Current region, GulfAlaska - Alaska region, BeringChuk - Bering
 """
-NOT FINISHED for f/casts - change paths to the forecasts and 
-selection og the init Months, etc
-
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -61,12 +58,14 @@ importlib.reload(manseas)
 #    5750, 6250
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--varnm", help="o2 no3 po4 ", type=str, required=True)
-parser.add_argument("--regnm", help="CalCur (default) or BeringChuk", type=str)
+parser.add_argument("--varnm", help="o2 no3 po4 sio4", type=str, required=True)
+parser.add_argument("--regnm", help="CalCur BeringChuk GulfAlaska", type=str)
 parser.add_argument("--yrs", help="Year to start averaging", type=int, required=True)
 parser.add_argument("--yre", help="Year to end averaging, defualt = yrs", type=int)
 parser.add_argument("--mms", help="Calendar month, start of avrg", type=int, required=True)
 parser.add_argument("--mme", help="Calendar month, end of avrg, default=yrs", type=int)
+parser.add_argument("--mini", help="Initialization month 1,4,7,10", type=int, required=True)
+parser.add_argument("--ensmb", help="Ensemble run number, 1,...,10", type=int, required=True)
 parser.add_argument("--zz", help="approximate depth to plot: 0, ..., 5000 m", type=float, required=True)
 args = parser.parse_args()
 

@@ -1,7 +1,10 @@
 """
-  Show timeseries of monthly surface T/S
+  Extract and Plot timeseries of monthly surface T/S
   inside the relaxation zone
   to check for the drifts due to ice relaxation
+
+  from PHYS run with no GLORYS nudging and with IRLX
+  to check for drift
 
 """
 import os
@@ -16,7 +19,6 @@ from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 import argparse
-import pickle
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
@@ -46,10 +48,10 @@ import mod_hausdorff_distance as mmhd
 importlib.reload(mutob)
 importlib.reload(msisrlx)
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--yrs", help="year to start", type=int, required=True)
 parser.add_argument("--yre", help="year to end", type=int)
-parser.add_argument("--expt", help="BGC or PHYS hindcast, default=BGC", type=str)
 parser.add_argument("--regn", help="NEPA - Arct.part of NEP only, NEPB - Ber.Sea NEP only", \
                      type=str, required=True)
 #parser.add_argument("--varnm", help="temp or salin", type=str, required=True)
@@ -59,15 +61,13 @@ args = parser.parse_args()
 regn = args.regn if args.regn else None
 YRS = args.yrs if args.yrs else None
 YRE = args.yre if args.yre else YRS
-expt_hind = args.expt if args.expt else 'BGC'
 #varnm = args.varnm if args.varnm else None
 
-f_save = False   # save time series for plotting
+f_save = True   # save time series for plotting
 mstart = 1  # current test runs all started on Jan 1, 2001
-expt_nmb = 2 # hindcast 2
+expt_name='NEPphys_nonudg_irlx_hcast' 
 # relax hours:
 RLXH = [24]
-
 
 fyaml = 'paths_seasfcst.yaml'
 with open(fyaml) as ff:
@@ -105,15 +105,11 @@ def region_lim(A2d, regn):
    # Bering Sea / Chukchi sea regions in NEP10k
    # Use Chukchi Sea only
    A2d[AMsk==0] = np.nan    # average over the Arctic portion of the domain
-  return A2d 
+  return A2d
 
 
 DX, DY = mmom6.dx_dy(hlon, hlat)
 Acell  = DX*DY*1.e-6  # km2
-
-hcst_time = 3 # f/csat time interval, months
-hcst_interv = np.array([x for x in range(1,12+hcst_time,hcst_time)], dtype=int)
-
 
 tvarnc = 'tos'
 svarnc = 'sos'
@@ -131,26 +127,17 @@ for YR in range(YRS,YRE+1):
     dnmb0 = mtime.datenum([YR,MM,DD])
     print(f"Processing {YR}/{MM}/{DD} ...")
     irec += 1
+    imo = MM-1
 
     TM.append(dnmb0)
 
-    # Find init date for given month, assuming hcst_time (n months) f/cast interval
-    kint = np.searchsorted(hcst_interv, MM, side='right') - 1
-    assert(hcst_interv[kint] <= MM < hcst_interv[kint+1]), f'Wrong time bin {kint} for {MMA}'
-    MINIT = hcst_interv[kint]
-    imo = MM-MINIT      # current month in the archive output
-
-    if expt_hind == 'BGC':
-      pthhnd = f'/archive/Dmitry.Dukhovskoy/fre/NEP/hindcast_bgc/NEPbgc_nudged_hindcast02/history/{YR}{MINIT:02d}01'
-    elif expt_hind == 'PHYS':
-      pthhnd = '/archive/Dmitry.Dukhovskoy/fre/NEP/2024/NEP_physics_202404_nudging-15d/gfdl.ncrc5-intel22-repro/'+\
-               f'history/{YR}-{MINIT:02d}'
+    pthhnd = f'/archive/Dmitry.Dukhovskoy/fre/NEP/hindcast_phys/NEPphys_nonudg_irlx_hcast/{YR}'
     docn = os.path.join(pthhnd,f'ocean_month.nc')
     #print(f'Reading {docn}')
     with xarray.open_dataset(docn) as ds:
       T2d = ds[tvarnc].isel(time=imo).data.squeeze()
       S2d = ds[svarnc].isel(time=imo).data.squeeze()
-    
+
     T2d[HH>=0]=np.nan
     T2d = region_lim(T2d, regn)
     S2d[HH>=0]=np.nan
@@ -164,11 +151,11 @@ for YR in range(YRS,YRE+1):
     t_mn = np.nansum(Tmn) / np.nansum(Acell_msk)
     Smn = S2d * Acell_msk
     s_mn = np.nansum(Smn) / np.nansum(Acell_msk)
-    
+
     TFLD[irec] = t_mn
     SFLD[irec] = s_mn
-    print(f'NEP10k hcast, {regn}  mean SST={t_mn:.4f} SSS={s_mn:.4f}')
-    
+    print(f'{expt_name} {regn}  mean SST={t_mn:.4f} SSS={s_mn:.4f}')
+
 
 CLR = [[0.,0.3,1],
        [0.9,0.5,0],
@@ -176,6 +163,14 @@ CLR = [[0.,0.3,1],
        [1.,0.9,0],
        [0.8,0.,0.5],
        [0.7, 1, 0.2]]
+
+def get_timeyr(TM):
+  TM = np.array(TM)
+  DV = mtime.datevec1D(TM, fHR=False)
+  DV = np.array(DV).transpose()
+  time_yrs = DV[:,0]+(DV[:,1]-1)/12
+
+  return time_yrs
 
 TM = np.array(TM)
 DV = mtime.datevec1D(TM, fHR=False)
@@ -189,10 +184,6 @@ if regn == 'NEPA':
 elif regn == 'NEPB':
   regn_name = 'NEP10k BeringSea'
 
-if expt_hind == 'BGC':
-  expt_name = 'NEPbgc_nudged_hindcast02'
-elif expt_hind == 'PHYS':
-  expt_name = 'NEPphys_nudged_hindcast'
 xtck = [x for x in range(YRS,YRE+1)]
 
 plt.ion()
@@ -200,25 +191,26 @@ fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
 ax1 = plt.axes([0.1, 0.55, 0.8, 0.4])
 ax1.plot(time_yrs,SFLD, '-', linewidth=2, color=clr)
-
+  
 ax1.set_xticks(xtck)
 ax1.set_xlim([YRS,YRE+1])
 ax1.grid('on')
 sttl = f'{expt_name} irlx={rlxt} hrs, SSS spat.avrg, {regn_name}'
 ax1.set_title(sttl)
-
+    
 # Plot T
 ax2 = plt.axes([0.1, 0.08, 0.8, 0.4])
 ax2.plot(time_yrs,TFLD, '-', linewidth=2, color=[0.,0.9,0.3])
-
+    
 ax2.set_xticks(xtck)
 ax2.set_xlim([YRS,YRE+1])
 ax2.grid('on')
 sttl = f'{expt_name} irlx={rlxt} hrs, SST spat.avrg, {regn_name}'
 ax2.set_title(sttl)
 
-btx = 'timeser_surfTSicerlx_hind.py'
+btx = 'plot_timeser_surfTSirlx_phys_nonudg.py'
 bottom_text(btx, pos=[0.05,0.02])
+
 
 # Save for plotting:
 if f_save:

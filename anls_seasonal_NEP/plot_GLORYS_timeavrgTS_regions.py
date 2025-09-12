@@ -68,54 +68,49 @@ import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
 import mod_anls_seas as manseas
 import mod_utils_ob as mutob
-importlib.reload(mutob)
+importlib.reload(manseas)
 
 dnmb = mtime.datenum([1994,4,1])
 expt = 'GLORYS_NEP'  # GLORYS extracted for NEP domain
 varnm = 'salin'  # thetao, so, zos 
 # Averaging time period:
-YRS = 1995
-YRE = 2004
-YAVRG = [x for x in range(YRS,YRE+1)]
-MMS = 1
-MME = 3
+yrs = 1995
+yre = 2004
+YAVRG = [x for x in range(yrs,yre+1)]
+mms = 1
+mme = 3
 #YAVRG = [1995]
-MAVRG = [x for x in range(MMS,MME+1)]
+MAVRG = [x for x in range(mms,mme+1)]
 regn_name = 'CalCur' # CalCur - Calif Current region, Alaska, BeringChuk
                      # Following Stoke et al., 2015
-lr0  = 31  # ocean layers from 1, ..., 75
+#lr0  = 31  # ocean layers from 1, ..., 75
           # lr 22 = -47.5m, lr 31 =-102 m, lr 38 = -216 m
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--YRS", help=f"Start year to average, default={YRS}", type=int)
-parser.add_argument("--YRE", help=f"End Year to average, default={YRS}", type=int)
-parser.add_argument("--MMS", help=f"Start Month to average, default={MMS}", type=int)
-parser.add_argument("--MME", help=f"End Month to average, default={MMS}", type=int)
-parser.add_argument("--regn", help=f"Region: CalCur, BeringChuk, Alaska, default={regn_name}", type=str)
-parser.add_argument("--lr", help=f"Model layer to plot: 1,...,52, default={lr0}", type=int)
+parser.add_argument("--yrs", help=f"Start year to average, default={yrs}", type=int)
+parser.add_argument("--yre", help=f"End Year to average, default={yrs}", type=int)
+parser.add_argument("--mms", help=f"Start Month to average, default={mms}", type=int)
+parser.add_argument("--mme", help=f"End Month to average, default={mms}", type=int)
+parser.add_argument("--regnm", help=f"Region: CalCur, BeringChuk, GulfAlaska, default={regn_name}", type=str)
+parser.add_argument("--zz", help="Depth to plot, m >0", type=float, required=True)
 parser.add_argument("--varnm", help=f"Variable name to plot: salin, temp, default={varnm}", type=str)
 args = parser.parse_args()
 
-if args.YRS:
-  YRS = args.YRS
-  YRE = YRS
-if args.YRE:
-  YRE = args.YRE
-if args.regn:
-  regn_name = args.regn
-if args.lr:
-  lr0 = args.lr
-if args.MMS:
-  MMS = args.MMS
-  MME = MMS
-if args.MME:
-  MME = args.MME
-if args.varnm:
-  varnm = args.varnm
 
-YAVRG = np.arange(YRS,YRE+1)
-MAVRG = np.arange(MMS,MME+1)
+varnm = args.varnm if args.varnm else None
+regn_name = args.regnm if args.regnm else 'CalCur'
+yrs   = args.yrs if args.yrs else None
+yre   = args.yre if args.yre else yrs
+mms   = args.mms if args.mms else None
+mme   = args.mme if args.mme else mms
+zz_plt = args.zz if args.zz else None
+if zz_plt is not None:
+  zz_plt = -abs(zz_plt)
+
+
+YAVRG = np.arange(yrs,yre+1)
+MAVRG = np.arange(mms,mme+1)
 
 if varnm == 'salin':
   ncvar = 'so'
@@ -154,23 +149,28 @@ HH = np.where(np.isnan(HH), 1., HH)
 hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 
 icnt = 0
-for YRS in (YAVRG):
+for yrs in (YAVRG):
   pthdata = gridfls[expt]["monthly"]['pthoutp']
-  flnm = gridfls[expt]["monthly"]['fdata'].format(year=YRS)
+  flnm = gridfls[expt]["monthly"]['fdata'].format(year=yrs)
   dfl_glorys = os.path.join(pthdata,flnm)
   print(f'Reading {ncvar} <-- {dfl_glorys}')
   dset = xarray.open_dataset(dfl_glorys)
 
+  if icnt == 0:
+    ZM = dset['depth'].data.squeeze()
+    ZM = -np.abs(ZM)
+    dZ = np.abs(ZM-zz_plt)
+    ilr0 = np.argmin(dZ)
+    lr0  = ilr0+1
+    zz0 = ZM[ilr0]
+
   for MM in (MAVRG):
     itime = MM-1
-    idepth = lr0-1
 
-    AA = dset[ncvar].isel(time=itime, depth=idepth).data.squeeze()
+    AA = dset[ncvar].isel(time=itime, depth=ilr0).data.squeeze()
 
     if icnt == 0:
       A2d = AA.copy()
-      ZM = dset['depth'].data.squeeze()
-      ZM = -abs(ZM)
     else:
       A2d = A2d + AA
 
@@ -227,6 +227,11 @@ match regn_name:
     height = 3700*1.e3
     lat0   = 65.
     lon0   = -175.
+  case 'GulfAlaska':
+    width  = 3900*1.e3
+    height = 3200*1.e3
+    lat0   = 52.
+    lon0   = -149.
 
 m = Basemap(width=width, height=height, resolution='l',\
             projection='stere', lat_ts=55, lat_0=lat0, lon_0=lon0)
