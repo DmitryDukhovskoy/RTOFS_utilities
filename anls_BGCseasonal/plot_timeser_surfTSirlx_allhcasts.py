@@ -89,10 +89,10 @@ def read_output(flout):
 
   return TM, SFLD, TFLD
 
-CLR = [[0.,0.3,1],
-       [0.9,0.3,0],
+CLR = [[0.,0.2,.8],
+       [0.9,0.3,0.0],
+       [0.,0.8,0.3],
        [0.,0.9,0.2],
-       [1.,0.9,0],
        [0.8,0.,0.5],
        [0.7, 1, 0.2]]
 
@@ -112,10 +112,17 @@ for iexp in range(nexp):
   clr1 = CLR[iexp]
 
   expt_info = EXPTS_INFO[iexp]
-  ln1, = ax1.plot(tyrs, SFLD, '-', linewidth=2, color=clr1, label=expt_info)
+  if iexp==0:
+    lwd=3.5
+  elif iexp==1:
+    lwd=2.5
+  else:
+    lwd=1.5
+
+  ln1, = ax1.plot(tyrs, SFLD, '-', linewidth=lwd, color=clr1, label=expt_info)
   hndls.append(ln1)
   # Plot T
-  ax2.plot(tyrs, TFLD, '-', linewidth=2, color=clr1)
+  ax2.plot(tyrs, TFLD, '-', linewidth=lwd, color=clr1)
 
 
 ax1.set_xticks(xtck)

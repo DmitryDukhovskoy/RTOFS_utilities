@@ -64,34 +64,39 @@ parser.add_argument("--yrs", help="Year to start averaging", type=int, required=
 parser.add_argument("--yre", help="Year to end averaging, defualt = yrs", type=int)
 parser.add_argument("--mms", help="Calendar month, start of avrg", type=int, required=True)
 parser.add_argument("--mme", help="Calendar month, end of avrg, default=yrs", type=int)
-parser.add_argument("--mini", help="Initialization month 1,4,7,10", type=int, required=True)
-parser.add_argument("--ensmb", help="Ensemble run number, 1,...,10", type=int, required=True)
+parser.add_argument("--minit", help="Initialization month 1,4,7,10", type=int, required=True)
+parser.add_argument("--ensS", help="Start ens avergaing: Ensemb numb, 1,...,10", type=int, required=True)
+parser.add_argument("--ensE", help="End ens avergaing, default=ensS no averaging", type=int)
 parser.add_argument("--zz", help="approximate depth to plot: 0, ..., 5000 m", type=float, required=True)
 args = parser.parse_args()
 
-varnm = args.varnm if args.varnm else None
+varnm  = args.varnm if args.varnm else None
 regn_name = args.regnm if args.regnm else 'CalCur'
 YRS    = args.yrs if args.yrs else None
 YRE    = args.yre if args.yre else YRS
 MMS    = args.mms if args.mms else None
 MME    = args.mme if args.mme else MMS
-zz_plt = args.zz if args.zz else None # ocean depth to plot
+MMI    = args.minit if args.minit else None
+ensS   = args.ensS if args.ensS else None
+ensE   = args.ensE if args.ensE else ensS
+zz_plt = args.zz if args.zz is not None else None # ocean depth to plot
 
 zz_plt = -abs(zz_plt)
 varnc = varnm
+if varnm == 'sio4':
+  varnc='si'
 
 YAVRG = [x for x in range(YRS,YRE+1)]
 MAVRG = [x for x in range(MMS,MME+1)]
+ENSMB = [x for x in range(ensS,ensE+1)]
 
-expt_nmb = 2
-expt_name = 'NEPbgc_nudged_hindcast02'
-run_info = f'{expt_name} avrg {varnm}: {min(YAVRG)}-{max(YAVRG)} Mo: {min(MAVRG)}-{max(MAVRG)}'
+expt_name = 'NEPbgc_fcst_dailyOB01'
+run_info = f'{expt_name} avrg {varnm} MI={MMI} {min(YAVRG)}-{max(YAVRG)} '+\
+           f'Mo: {min(MAVRG)}-{max(MAVRG)} e{ensS:02d}-e{ensE:02d}'
 
-print(f'Plotting {varnm} {expt_name} ')
+print(f'Plotting {varnm} {expt_name} e-{ensS:02d}-e{ensE:02d} ')
 print(f'{run_info}')
 
-hcst_time = 3 # f/csat time interval, months
-hcst_interv = np.array([x for x in range(1,12+hcst_time,hcst_time)], dtype=int)
 
 fyaml = 'paths_seasfcst.yaml'
 with open(fyaml) as ff:
@@ -113,18 +118,17 @@ HH = np.where(HH < 1.e-20, np.nan, HH)
 HH = -HH
 HH = np.where(np.isnan(HH), 1., HH)
 
-#mo_fcsts = manseas.yrmo_seasonal_fcst(YRS, MMI)
-
 # Read vertical layers from oceanm archive file:
-ptharch = '/archive/Dmitry.Dukhovskoy/fre/NEP/hindcast_bgc/NEPbgc_nudged_hindcast02/history'
+ptharch = f'/archive/Dmitry.Dukhovskoy/fre/NEP/forecast_bgc/{expt_name}'
 
-def read_mnth_mom6(YRI, MMI, yr0, mm0, varnc, iselZ=None, iselT=None):
+def read_mnth_mom6(YRI, MMI, ens_nmb, varnc, iselZ=None, iselT=None):
   """
     3 month runs are assumed for the hindcasts
   """
-  pthfull = os.path.join(ptharch,f'{YRI}{MMI:02d}01')
+  pthfull = os.path.join(ptharch,f'{YRI}-{MMI:02d}-e{ens_nmb:02d}/history')
   flnm = 'ocean_cobalt_tracers_month_z.nc'
   dflnm = os.path.join(pthfull,flnm)
+  print(f'Reading {dflnm}')
   with xarray.open_dataset(dflnm) as ds_mom:
     if (iselZ is not None) and (iselT is not None):
       AA = ds_mom[varnc].isel(time=iselT,z_l=iselZ).data.squeeze()
@@ -133,7 +137,7 @@ def read_mnth_mom6(YRI, MMI, yr0, mm0, varnc, iselZ=None, iselT=None):
 
   return AA
 
-ZM = read_mnth_mom6(1994,1,1994,1,'z_l')
+ZM = read_mnth_mom6(YRS, MMI, ensS, 'z_l')
 ZM = -abs(ZM)
 dZ = np.abs(ZM-zz_plt)
 ilr0 = np.argmin(dZ)
@@ -141,38 +145,100 @@ lr0  = ilr0+1
 zz0 = ZM[ilr0]  # actual depth to be plotted
 
 
+rmin, rmax, tscntrs, tslabels = manseas.colormap_params(regn_name, varnm, zz0=zz0)
+
+Ncmp = 200
+log_scale = False
+logstr = ''
+match varnm:
+  case 'o2':
+    cff = 1.e6
+    unts = 'mcromol/kg'
+    clrmp = mclrmps.colormap_haline2(end_clr=[0.7,0.1,0], start_clr=[0.8,0.8,1])
+
+  case 'po4':
+    cff = 1.e6
+    unts = 'mcromol/kg'
+    #clrmp = mclrmps.colormap_temp_coldhot()
+    #clrmp = mclrmps.colormap_speed()
+    #clrmp = mclrmps.colormap_ice_thkn()
+    clrmp = mclrmps.colormap_conc()
+
+  case 'sio4':
+    cff = 975.61          # output is mole/m3 --> micro mole/kg, assuming rho_ocean = 1025 kg/m3
+    unts = 'mcromol/kg'
+    #clrmp = mclrmps.colormap_temp_coldhot()
+    #clrmp = mclrmps.colormap_speed()
+    clrmp = mclrmps.colormap_ice_thkn()
+    #clrmp = mclrmps.colormap_conc()
+
+  case 'no3':
+    cff = 1.e6
+    log_scale = True
+    log_str = 'log'
+    unts = 'mcromol/kg'
+    CLRS = [[1, 1, 1],
+        [0.6, 0.02, 0.6],
+        [0.2, 0.38, 1],
+        [0., 0.8, 0.8],
+        [0.4, 0.8, 0],
+        [1, 1, 0.5],
+        [1, 0.8, 0.6],
+        [1, 0.6, 0],
+        [0.7, 0.1, 0.1]]
+
+    #clrmp = mclrmps.colormap_temp(clr_ramp=[1,1,1])
+    clrmp = mclrmps.colormap_posneg_uneven(CLRS)
+
+clrmp.set_bad(color=[0., 0., 0.])
+
+
 Time = []
 irec = 0
 # 1995 - 2004
 for YR0 in YAVRG:
   for MM0 in MAVRG:
-    print(f'Reading {YR0}/{MM0}')
-    dnmb0 = mtime.datenum([YR0,MM0,15])
+    dnmb0 = mtime.datenum([YR0, MM0, 15])
+    YRI = manseas.yr_init_fcst_from_datenum(dnmb0, MMI)  # init year
+    if YRI < 1993:
+      continue    # cycle, outside the f/cast time period
+    elif YRI > 2024:
+      continue
 
-    # Find init date for given month, assuming hcst_time (n months) f/cast interval
-    kint = np.searchsorted(hcst_interv, MM0, side='right') - 1
-    assert(hcst_interv[kint] <= MM0 < hcst_interv[kint+1]), f'Wrong time bin {kint} for {MMA}'
-    MMI = hcst_interv[kint]
-    imo = MM0-MMI      # current month index in the archive output
-    YRI = YR0         # hindcast start year, 3-mo segments
-
-    AA  = read_mnth_mom6(YRI, MMI, YR0, MM0, varnc, iselZ=lr0-1, iselT=imo)
     Time.append(dnmb0)
 
-    if irec == 0:
-      A2d = AA.copy()
-    else:
-      A2d = A2d + AA
+    for ens_nmb in ENSMB:
+      MMF = manseas.mofcst_from_mocalend(YRI, MMI, MM0)
+      imo = MMF-1      # forecast month index in the archive output
+      print(f'Reading ens {ens_nmb:02d}, MMI={MMI} MMF={MMF} imo={imo}')
+      AA  = read_mnth_mom6(YRI, MMI, ens_nmb, varnc, iselZ=ilr0, iselT=imo)
 
-    irec += 1
+      if irec == 0:
+        A2d = AA.copy()
+      else:
+        A2d = A2d + AA
 
-A2d = A2d/irec
+      irec += 1
+
+A2d = A2d/irec * cff
 DV = mtime.datevec1D(Time)
 
 # Mask ocean > zmin depth:
 #A2d = np.where( (np.isnan(A2d)) & (HH<0), -1.e3, A2d)
 if lr0 > 2:
   A2d = np.where(HH>=zz0, np.nan, A2d)
+
+
+if log_scale:
+  JJ0,II0 = np.where(A2d <= 1.e-32)
+  if len(JJ0) > 0:
+    A2d[JJ0,II0] = np.nan
+  lA2d = np.log(A2d)
+  if len(JJ0) > 0:
+    lA2d[JJ0,II0] = 0.
+
+  A2d = lA2d.copy()
+
 
 II = pthseas['ANLS_NEP'][regn_name]['II']
 JJ = pthseas['ANLS_NEP'][regn_name]['JJ']
@@ -197,43 +263,14 @@ lat_e = hlat[ylim1:ylim2+1, xlim2]
 Xreg, Yreg = mmisc.connect_segments([lon_w, lon_n, lon_e, lon_s], \
                                     [lat_w, lat_n, lat_e, lat_s])
 
-rmin, rmax, tscntrs, tslabels = manseas.colormap_params(regn_name, varnm, zz0=zz0)
 
-Ncmp = 200
-match varnm:
-  case 'o2':
-    cff = 1.e6
-    unts = 'mcromol/kg'
-    clrmp = mclrmps.colormap_haline2(end_clr=[0.7,0.1,0], start_clr=[0.8,0.8,1])
-    rmin = 120.
-    rmax = 340.
-
-  case 'po4':
-    cff = 1.e6
-    unts = 'mcromol/kg'
-    clrmp = mclrmps.colormap_haline2(end_clr=[0.7,0.1,0], start_clr=[0.8,0.8,1])
-    rmin = 120.
-    rmax = 340.
-
-
-clrmp.set_bad(color=[0., 0., 0.])
-
-btx = 'plot_BGChcast_timeavrgBio_regions.py'
-sttl = f"{run_info} z={zz0:8.1f} m"
+btx = 'plot_BGCfcast_timeavrgBio_regions.py'
+sttl = f"{run_info} z={zz0:6.1f} m"
 
 # Stereographic projection:
 from mpl_toolkits.basemap import Basemap, cm
-match regn_name:
-  case 'CalCur':
-    width  = 4000*1.e3
-    height = 4000*1.e3
-    lat0   = 33.5
-    lon0   = -128.
-  case 'BeringChuk':
-    width  = 3300*1.e3
-    height = 3700*1.e3
-    lat0   = 65.
-    lon0   = -175.
+
+lon0, lat0, height, width = manseas.stereogr_params_regions(regn_name)
 
 m = Basemap(width=width, height=height, resolution='l',\
             projection='stere', lat_ts=55, lat_0=lat0, lon_0=lon0)

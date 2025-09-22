@@ -42,6 +42,7 @@ parser.add_argument("--intrp", help=" =1: interp PIOMAS mnth to daily for better
                     type=int)
 parser.add_argument("--nocntr", help=" =1: do not show the control no irlx run, default=0", \
                     type=int)
+parser.add_argument("--warea", help="T: weight RMSE and bias by cell area, default=N", choices=["T","F"], type=str)
 args = parser.parse_args()
 
 # Test runs were performed for only 1 year
@@ -49,12 +50,19 @@ args = parser.parse_args()
 YRS = args.yr if args.yr else 2001
 interp = args.intrp if args.intrp else 1
 nocntr = args.nocntr if args.nocntr else 0
+warea = args.warea if args.warea else "F"
 
 interp_mnthly = interp > 0  # for more accurate comparison, do time interpolation of PIOMAS 
                       # to get mnthly mean values, similar to how it is done in SIS2
                       # when deriving iconc ithkn for day=d0 from PIOMAS target fields
 skip_noirlx = nocntr == 1  # Do not show control run with no irlx
 
+if warea.lower() == "t":
+    wt_area = True
+elif warea.lower() == "f":
+    wt_area = False
+else:
+    raise Exception(f"Unknown option for warea: {warea}")
 
 #use_mnth = not (args.fday and args.fday > 0)
 use_mnth = True
@@ -207,21 +215,46 @@ for kexpt in range(Nexpts):
     # RMSE ice conc:
     Rsq = (CInep - CIpms)**2
     #nB = np.count_nonzero(~np.isnan(Rsq[(JB, IB)])) # this counts 0 and non-0 after np.isnan check
-    nB = np.sum(~np.isnan(Rsq[JB, IB]))
-    nA = np.sum(~np.isnan(Rsq[JA, IA]))
-    rmseB_ai = np.sqrt(np.nansum(Rsq[JB,IB])/nB)
-    rmseA_ai = np.sqrt(np.nansum(Rsq[JA,IA])/nA)
-    biasB_ai = np.nanmean(CInep[JB,IB] - CIpms[JB,IB])
-    biasA_ai = np.nanmean(CInep[JA,IA] - CIpms[JA,IA])
+    maskB = ~np.isnan(Rsq[JB, IB])
+    maskA = ~np.isnan(Rsq[JA, IA])
+    if wt_area:
+      # Do cell area weighted RMSE & Bias
+      nB = np.sum(Acell[JB, IB][maskB])
+      nA = np.sum(Acell[JA, IA][maskA])
+      rmseB_ai = np.sqrt(np.nansum(Acell[JB, IB][maskB] * Rsq[JB, IB][maskB]) / nB)
+      rmseA_ai = np.sqrt(np.nansum(Acell[JA, IA][maskA] * Rsq[JA, IA][maskA]) / nA)
+      biasB_ai = np.nansum(Acell[JB, IB][maskB]* (CInep[JB,IB][maskB] - CIpms[JB,IB][maskB])) / nB
+      biasA_ai = np.nansum(Acell[JA, IA][maskA]* (CInep[JA,IA][maskA] - CIpms[JA,IA][maskA])) / nA
+    else:
+      # No area weighting: 
+      nB = np.sum(~np.isnan(Rsq[JB, IB]))
+      nA = np.sum(~np.isnan(Rsq[JA, IA]))
+      rmseB_ai = np.sqrt(np.nansum(Rsq[JB,IB])/nB)
+      rmseA_ai = np.sqrt(np.nansum(Rsq[JA,IA])/nA)
+      biasB_ai = np.nanmean(CInep[JB,IB] - CIpms[JB,IB])
+      biasA_ai = np.nanmean(CInep[JA,IA] - CIpms[JA,IA])
 
     # RMSE ice thickness:
     Rsq = (HInep - HIpms)**2
-    nB = np.sum(~np.isnan(Rsq[JB, IB]))
-    nA = np.sum(~np.isnan(Rsq[JA, IA]))
-    rmseB_hi = np.sqrt(np.nansum(Rsq[JB,IB])/nB)
-    rmseA_hi = np.sqrt(np.nansum(Rsq[JA,IA])/nA)
-    biasB_hi = np.nanmean(HInep[JB,IB] - HIpms[JB,IB])
-    biasA_hi = np.nanmean(HInep[JA,IA] - HIpms[JA,IA])
+    maskB = ~np.isnan(Rsq[JB, IB])
+    maskA = ~np.isnan(Rsq[JA, IA])
+    if wt_area:
+      # Do cell area weighted RMSE & Bias
+      nB = np.sum(Acell[JB, IB][maskB])
+      nA = np.sum(Acell[JA, IA][maskA])
+      rmseB_hi = np.sqrt(np.nansum(Acell[JB, IB][maskB] * Rsq[JB, IB][maskB]) / nB)
+      rmseA_hi = np.sqrt(np.nansum(Acell[JA, IA][maskA] * Rsq[JA, IA][maskA]) / nA)
+      biasB_hi = np.nansum(Acell[JB, IB][maskB]* (HInep[JB,IB][maskB] - HIpms[JB,IB][maskB])) / nB
+      biasA_hi = np.nansum(Acell[JA, IA][maskA]* (HInep[JA,IA][maskA] - HIpms[JA,IA][maskA])) / nA
+
+    else:
+      # No area weigthing:
+      nB = np.sum(~np.isnan(Rsq[JB, IB]))
+      nA = np.sum(~np.isnan(Rsq[JA, IA]))
+      rmseB_hi = np.sqrt(np.nansum(Rsq[JB,IB])/nB)
+      rmseA_hi = np.sqrt(np.nansum(Rsq[JA,IA])/nA)
+      biasB_hi = np.nanmean(HInep[JB,IB] - HIpms[JB,IB])
+      biasA_hi = np.nanmean(HInep[JA,IA] - HIpms[JA,IA])
     
     # Ice Extent Ber. Sea:
     Cber_pms = CIpms[JB,IB]

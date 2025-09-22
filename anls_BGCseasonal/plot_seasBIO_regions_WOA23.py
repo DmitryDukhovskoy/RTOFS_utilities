@@ -47,10 +47,11 @@ import mod_plot_xsections as mxsct
 import matplotlib as mtplt
 import mod_regmom as mregmom
 import mod_colormaps as mclrmps
+importlib.reload(manseas)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--varnm", help="o2, po4, no3, sio4", type=str, required=True)
-parser.add_argument("--regnm", help="CalCur or BeringChuk", type=str, required=True)
+parser.add_argument("--regnm", help="CalCur BeringChuk GulfAlaska", type=str, required=True)
 parser.add_argument("--mseas", help="Month/season WOA: 1,..,12, 13-Winter, ..., 0-annual", \
                     type=int, required=True)
 parser.add_argument("--zz", help="Aprx depth to plot, m ", type=float, required=True)
@@ -223,7 +224,7 @@ rmin, rmax, tscntrs, tslabels = manseas.colormap_params(regn_name, varnm, zz0=zz
 
 Ncmp = 200
 log_scale = False
-logstr = ''
+log_str = ''
 match varnm:
   case 'o2':
     cff = 1.
@@ -278,18 +279,9 @@ sttl = f"WOA23 {log_str} {varnm} obj.mean 1965-2022 {seas_nm} z={zz0:8.1f} m"
 
 # Stereographic projection:
 from mpl_toolkits.basemap import Basemap, cm
-match regn_name:
-  case 'CalCur':
-    width  = 4000*1.e3
-    height = 4000*1.e3
-    lat0   = 33.5
-    lon0   = -128.
-  case 'BeringChuk':
-    width  = 3300*1.e3
-    height = 3700*1.e3
-    lat0   = 65.
-    lon0   = -175.
- 
+
+lon0, lat0, height, width = manseas.stereogr_params_regions(regn_name)
+
 m = Basemap(width=width, height=height, resolution='l',\
             projection='stere', lat_ts=55, lat_0=lat0, lon_0=lon0)
 

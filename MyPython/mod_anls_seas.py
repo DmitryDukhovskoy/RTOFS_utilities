@@ -1479,12 +1479,12 @@ def colormap_params(regn_name, varnm, zz0=-1.):
 
     case 'BeringChuk':
       if varnm == 'salin' or varnm == 'salt' or varnm == 'so':
-        if zz0 >= -20.:
-          rmin = 27.
+        if zz0 >= -25.:
+          rmin = 28.
           rmax = 33.
           tscntrs = [x/10 for x in range(240,354,5)]
           tslabels = [x/10 for x in range(240,350,10)]
-        elif zz0 < -20. and zz0 >= -100:
+        elif zz0 < -25. and zz0 >= -100:
           rmin = 31
           rmax = 33.5
           tscntrs = [x/10 for x in range(290,350,5)]
@@ -1506,12 +1506,12 @@ def colormap_params(regn_name, varnm, zz0=-1.):
           tslabels = [x/10 for x in range(320,360,2)]
 
       if varnm == 'temp' or varnm == 'potT' or varnm == 'thetao':
-        if zz0 >= -20.:
+        if zz0 >= -25.:
           rmin = -1.8
           rmax = 14.
           tscntrs = [x for x in range(-2,20,1)]
           tslabels = [x for x in range(-2,20,2)]
-        elif zz0 < -20. and zz0>= -51.:
+        elif zz0 < -25. and zz0>= -51.:
           rmin = -1.8
           rmax = 8.
           tscntrs = [x for x in range(-2,20,1)]
@@ -1551,8 +1551,8 @@ def colormap_params(regn_name, varnm, zz0=-1.):
               
       if varnm == 'o2':
         if zz0 >= -50.:
-          rmin = 120.
-          rmax = 420.
+          rmin = 150.
+          rmax = 400.
         else:
           rmin = 120.  # micro-moles/kg !
           rmax = 340.
@@ -1568,6 +1568,30 @@ def colormap_params(regn_name, varnm, zz0=-1.):
           rmax = 2.5
         tscntrs = [x/10 for x in range(5,50,5)]
         tslabels = [x/10 for x in range(5,50,5)]
+
+      if varnm == 'sio4':
+        if zz0 >= -100.:
+          rmin = 0.
+          rmax = 65.
+        else:
+          rmin = 0.  # micro-moles/kg !
+          rmax = 80.
+        tscntrs = [x for x in range(0,50,5)]
+        tslabels = [x for x in range(0,50,5)]
+
+      if varnm == 'no3':
+        # For log natural transformed data:
+        if zz0 >= -20.:
+          rmin = -7.
+          rmax = 3.
+        elif -100 <= zz0 < -20:
+          rmin = 0.
+          rmax = 3.5
+        else:
+          rmin = 1.  # micro-moles/kg !
+          rmax = 4.
+        tscntrs = [x/10 for x in range(0,50,5)]
+        tslabels = [x/10 for x in range(0,50,5)]
 
     case 'GulfAlaska':
       if varnm == 'salin' or varnm == 'salt' or varnm == 'so':
@@ -1598,12 +1622,12 @@ def colormap_params(regn_name, varnm, zz0=-1.):
           tslabels = [x/10 for x in range(320,360,2)]
 
       if varnm == 'temp' or varnm == 'potT' or varnm == 'thetao':
-        if zz0 >= -20.:
+        if zz0 >= -30.:
           rmin = -1.8
           rmax = 18.
           tscntrs = [x for x in range(-2,20,1)]
           tslabels = [x for x in range(-2,20,2)]
-        elif zz0 < -20. and zz0>= -51.:
+        elif zz0 < -30. and zz0>= -51.:
           rmin = -1.8
           rmax = 14.
           tscntrs = [x for x in range(-2,20,1)]
@@ -1642,27 +1666,80 @@ def colormap_params(regn_name, varnm, zz0=-1.):
           tslabels = [x/100 for x in range(0,40,4)]
               
       if varnm == 'o2':
-        if zz0 >= -50.:
-          rmin = 120.
-          rmax = 420.
+        if zz0 >= -100.:
+          rmin = 180.
+          rmax = 350.
         else:
-          rmin = 120.  # micro-moles/kg !
-          rmax = 340.
-        tscntrs = [x for x in range(100,500,50)]
-        tslabels = [x for x in range(100,500,50)]
+          rmin = 100.  # micro-moles/kg !
+          rmax = 300.
+        tscntrs = [x for x in range(100,500,25)]
+        tslabels = [x for x in range(100,500,25)]
 
       if varnm == 'po4':
-        if zz0 >= -50.:
+        if zz0 >= -20.:
+          rmin = 0.
+          rmax = 2.2
+        elif -100 < zz0 < -20.:
           rmin = 0.
           rmax = 2.5
         else:
           rmin = 0.  # micro-moles/kg !
-          rmax = 2.5
+          rmax = 2.8
         tscntrs = [x/10 for x in range(5,50,5)]
         tslabels = [x/10 for x in range(5,50,5)]
 
+      if varnm == 'sio4':
+        if zz0 >= -100.:
+          rmin = 0.
+          rmax = 65.
+        else:
+          rmin = 0.  # micro-moles/kg !
+          rmax = 80.
+        tscntrs = [x for x in range(0,50,5)]
+        tslabels = [x for x in range(0,50,5)]
+
+      if varnm == 'no3':
+        # For log natural transformed data:
+        if zz0 >= -20.:
+          rmin = -7.
+          rmax = 3.
+        elif -100 <= zz0 < -20:
+          rmin = -6.
+          rmax = 4.
+        else:
+          rmin = 1.  # micro-moles/kg !
+          rmax = 4.
+        tscntrs = [x/10 for x in range(0,50,5)]
+        tslabels = [x/10 for x in range(0,50,5)]
 
   return rmin, rmax, tscntrs, tslabels
+
+
+def stereogr_params_regions(regn_name):
+  """
+    Parameters for sterographic projections
+    for some regions NEP10k
+  """
+  match regn_name:
+    case 'CalCur':
+      width  = 4000*1.e3
+      height = 4000*1.e3
+      lat0   = 33.5
+      lon0   = -128.
+    case 'BeringChuk':
+      width  = 3300*1.e3
+      height = 3700*1.e3
+      lat0   = 65.
+      lon0   = -175.
+    case 'GulfAlaska':
+      width  = 3900*1.e3
+      height = 3200*1.e3
+      lat0   = 52.
+      lon0   = -149.
+    case _:
+      raise ValueError("undefined region: {regn_name}")
+
+  return lon0, lat0, height, width
 
 def arrange_1segm(CNTR, x0, y0, dltD=50.):
   """

@@ -221,23 +221,8 @@ sttl = f"{run_info} z={zz0:8.1f} m"
 
 # Stereographic projection:
 from mpl_toolkits.basemap import Basemap, cm
-match regn_name:
-  case 'CalCur':
-    width  = 4000*1.e3
-    height = 4000*1.e3
-    lat0   = 33.5
-    lon0   = -128.
-  case 'BeringChuk':
-    width  = 3300*1.e3
-    height = 3700*1.e3
-    lat0   = 65.
-    lon0   = -175.
-  case 'GulfAlaska':
-    width  = 3900*1.e3
-    height = 3200*1.e3
-    lat0   = 52.
-    lon0   = -149.
 
+lon0, lat0, height, width = manseas.stereogr_params_regions(regn_name)
 
 m = Basemap(width=width, height=height, resolution='l',\
             projection='stere', lat_ts=55, lat_0=lat0, lon_0=lon0)

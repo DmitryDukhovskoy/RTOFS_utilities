@@ -56,48 +56,39 @@ importlib.reload(manseas)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--varnm", help="salin or temp", type=str, required=True)
-parser.add_argument("--regnm", help="CalCur (default) or BeringChuk", type=str)
-parser.add_argument("--mmi", help="f/cast init Month: 1,4,7,10", type=int, required=True)
-parser.add_argument("--ens", help="ensemble run number: 1,...,10", type=int, required=True)
+parser.add_argument("--regnm", help="CalCur BeringChuk GulfAlaska", type=str)
 parser.add_argument("--yrs", help="Year to start averaging", type=int, required=True)
-parser.add_argument("--yre", help="Year to end averaging", type=int, required=True)
-parser.add_argument("--seas", help="WOA season: 13-JFM, 14-AMJ, 15-JJS, 16-OND, 0-annual", \
-                    type=int, required=True)
-parser.add_argument("--lr", help="MOM6 NEP vert layer 1,...,75", type=int, required=True)
+parser.add_argument("--yre", help="Year to end averaging", type=int)
+parser.add_argument("--mms", help="Calendar month, start of avrg", type=int, required=True)
+parser.add_argument("--mme", help="Calendar month, end of avrg, default=yrs", type=int)
+parser.add_argument("--minit", help="Initialization month 1,4,7,10", type=int, required=True)
+parser.add_argument("--ensS", help="Start ens avergaing: Ensemb numb, 1,...,10", type=int, required=True)
+parser.add_argument("--ensE", help="End ens avergaing, default=ensS no averaging", type=int)
+parser.add_argument("--zz", help="approximate depth to plot: 0, ..., 5000 m", type=float, required=True)
 args = parser.parse_args()
 
 varnm = args.varnm if args.varnm else None
 regn_name = args.regnm if args.regnm else 'CalCur'
-MMI   = args.mmi if args.mmi else None
-YRS   = args.yrs if args.yrs else None
-YRE   = args.yre if args.yre else None
-seas  = args.seas if args.seas else None
-ens_nmb = args.ens if args.ens else None
-lr0   = args.lr if args.lr else None # ocean layers from 1, ..., 75
-                                     # lr 22 = -49.9 m, lr 31 =-102 m, lr 37 = -192 m
+YRS    = args.yrs if args.yrs else None
+YRE    = args.yre if args.yre else YRS
+MMS    = args.mms if args.mms else None
+MME    = args.mme if args.mme else MMS
+MMI    = args.minit if args.minit else None
+ensS   = args.ensS if args.ensS else None
+ensE   = args.ensE if args.ensE else ensS
+zz_plt = args.zz if args.zz is not None else None # ocean depth to plot
+
+zz_plt = -abs(zz_plt)
 
 YAVRG = [x for x in range(YRS,YRE+1)]
-match seas:
-  case 13:
-    MAVRG=[1,2,3]
-  case 14:
-    MAVRG=[4,5,6]
-  case 15:
-    MAVRG=[7,8,9]
-  case 16:
-    MAVRG=[10,11,12]
-  case 0:
-    MAVRG = [x for x in range(1,13)]
-  case mm if 1 <= mm <= 12:
-    MAVRG = [mm]
-  case _:
-    raise Exception(f"{seas} is not a valid value for season")
+MAVRG = [x for x in range(MMS,MME+1)]
+ENSMB = [x for x in range(ensS,ensE+1)]
 
-expt_nmb = 1
-expt_name = f'NEPbgc_fcst_dailyOB{expt_nmb:02d}'
-run_info = f'{expt_name} MMI={MMI} e{ens_nmb:02d}, avrg {varnm}: {min(YAVRG)}-{max(YAVRG)} Mo: {min(MAVRG)}-{max(MAVRG)}'
+expt_name = 'NEPbgc_fcst_dailyOB01'
+run_info = f'{expt_name} avrg {varnm} MI={MMI} {min(YAVRG)}-{max(YAVRG)} '+\
+           f'Mo: {min(MAVRG)}-{max(MAVRG)} e{ensS:02d}-e{ensE:02d}'
 
-print(f'Plotting {varnm} {expt_name} ')
+print(f'Plotting {varnm} {expt_name} e-{ensS:02d}-e{ensE:02d} ')
 print(f'{run_info}')
 
 fyaml = 'paths_seasfcst.yaml'
@@ -123,23 +114,30 @@ HH = np.where(np.isnan(HH), 1., HH)
 #mo_fcsts = manseas.yrmo_seasonal_fcst(YRS, MMI)
 
 # Read vertical layers from oceanm archive file:
-ptharch = f'/archive/Dmitry.Dukhovskoy/fre/NEP/forecast_bgc/NEPbgc_fcst_dailyOB01'
+ptharch = f'/archive/Dmitry.Dukhovskoy/fre/NEP/forecast_bgc/{expt_name}'
 
-def read_mnth_mom6(YRI, MMI, yr0, mm0, varnc, isel1=None):
-  pthfull = os.path.join(ptharch,f'{YRI}-{MMI:02d}-e{ens_nmb:02d}','history')
+def read_mnth_mom6(YRI, MMI, yr0, mm0, ens_nmb, varnc, iselZ=None):
+  """
+    3 month runs are assumed for the hindcasts
+  """
+  pthfull = os.path.join(ptharch,f'{YRI}-{MMI:02d}-e{ens_nmb:02d}/history')
   flnm = f'oceanm_{yr0}_{mm0:02d}.nc'
   dflnm = os.path.join(pthfull,flnm)
+  print(f'Reading {dflnm}')
   with xarray.open_dataset(dflnm) as ds_mom:
-    if isel1 is not None:
-      AA = ds_mom[varnc].isel(zl=isel1).data.squeeze()
+    if (iselZ is not None):
+      AA = ds_mom[varnc].isel(zl=iselZ).data.squeeze()
     else:
       AA = ds_mom[varnc].data
 
   return AA
 
-ZM = read_mnth_mom6(1994,1,1994,1,'zl')
+ZM = read_mnth_mom6(YRS, MMI, YRS, MMI, ensS, 'zl')
 ZM = -abs(ZM)
-zz0 = ZM[lr0-1]
+dZ = np.abs(ZM-zz_plt)
+ilr0 = np.argmin(dZ)
+lr0  = ilr0+1
+zz0 = ZM[ilr0]  # actual depth to be plotted
 
 if varnm == 'salin':
   varnc = 'salt'
@@ -155,15 +153,19 @@ for YR0 in YAVRG:
     dnmb0 = mtime.datenum([YR0,MM0,15])
     # Find init year for requested year and month given init month:
     YRI = manseas.yr_init_fcst_from_datenum(dnmb0, MMI,)
-    AA  = read_mnth_mom6(YRI, MMI, YR0, MM0, varnc, isel1=lr0-1)
+
     Time.append(dnmb0)
 
-    if irec == 0:
-      A2d = AA.copy()
-    else:
-      A2d = A2d + AA
+    for ens_nmb in ENSMB:
+      print(f'Reading ensmb e{ens_nmb:02d}')
+      AA  = read_mnth_mom6(YRI, MMI, YR0, MM0, ens_nmb, varnc, iselZ=ilr0)
 
-    irec += 1
+      if irec == 0:
+        A2d = AA.copy()
+      else:
+        A2d = A2d + AA
+
+      irec += 1
 
 A2d = A2d/irec
 DV = mtime.datevec1D(Time)
@@ -210,22 +212,13 @@ elif varnm == 'ssh':
   rmin = -0.5
   rmax = 0.5
 
-btx = 'plot_BGCtimeavrgTS_regions_stereo.py'
+btx = 'plot_BGCfcast_timeavrgTS_regions.py'
 sttl = f"{run_info} z={zz0:8.1f} m"
 
 # Stereographic projection:
 from mpl_toolkits.basemap import Basemap, cm
-match regn_name:
-  case 'CalCur':
-    width  = 4000*1.e3
-    height = 4000*1.e3
-    lat0   = 33.5
-    lon0   = -128.
-  case 'BeringChuk':
-    width  = 3300*1.e3
-    height = 3700*1.e3
-    lat0   = 65.
-    lon0   = -175.
+
+lon0, lat0, height, width = manseas.stereogr_params_regions(regn_name)
 
 m = Basemap(width=width, height=height, resolution='l',\
             projection='stere', lat_ts=55, lat_0=lat0, lon_0=lon0)
