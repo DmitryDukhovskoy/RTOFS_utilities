@@ -14,12 +14,10 @@ import sys
 import importlib
 import matplotlib
 import xarray
-import pickle
 from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 import argparse
-import pickle
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:

@@ -185,9 +185,10 @@ def rdate2date(rdate):
   return Ldate
 
 
+
 def rdate2datenum(rdate):
   """
-  Convert rtofs date YYYYMMDD or YYYYMMDDHR to
+  Convert rtofs date string YYYYMMDD or YYYYMMDDHR to
   matlab-type datenum
   """
   YR     = int(rdate[0:4])
@@ -203,6 +204,19 @@ def rdate2datenum(rdate):
   dnmb = datenum(Ldate)
 
   return dnmb
+
+def dateint2datenum(dateInt):
+  """
+    Convert integer date YYYYMMHH to datenum
+  """
+  year = dateInt // 10000
+  month = (dateInt % 10000) // 100
+  day = dateInt % 100
+
+  dnmb = datenum([year,month,day])
+
+  return dnmb
+
 
 def datevec(dnmb, ldate_ref=[1,1,1], round_hrs=False):
   """

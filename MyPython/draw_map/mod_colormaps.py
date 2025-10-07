@@ -1085,6 +1085,7 @@ def colormap_warm(CLRMP=['summer','Wistia','gist_heat_r'], clrS=[1,1,1], nclrs=5
 #  iS  = int(len(CLR) - 0.4*nclrs)
   iS = 0
   CLR = smooth_colors(CLR, smoothS=iS, smooth_wnd=0.15)
+  CLR[0,:] = clrS
  
   CMP = ListedColormap(CLR) 
   return CMP
