@@ -46,7 +46,7 @@ import mod_utils_ob as mutob
 dayS = 20250110
 dayE = 20250111
 rho_water = 1000.
-rho_snow = 200.  # GFS atmos, snow rho = 200, CICE=300
+rho_snow = 300.  # GFS atmos, snow rho = 200, CICE=300
 pltfld = 'mean'  # mean snowfall rate or cumulative fields to plot
 
 # hs_h - grid cell mean (!) snow thickness, m

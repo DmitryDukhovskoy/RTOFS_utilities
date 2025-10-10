@@ -32,6 +32,12 @@
   dt - from ufs.model_configure
   dt = 150 sec
 
+  From Fanglin:
+  I believe the total precipitation (`tprcp`) for each 150s time step is in 
+  water equivalent units (m/s), which equals 1000 kg/m²/s.
+   Assuming a snow density of 300 kg/m³, the snow depth could be calculated as
+   tprcp * 1000 * cpofp / (dt_atmos * 300)
+
 """
 import os
 import numpy as np
@@ -68,7 +74,7 @@ import mod_utils_ob as mutob
 expt = 'rt13_upd01_stream3'
 init_date = 20250104
 init_hr = 0
-varnm = 'tprcp'
+varnm = 'tprcp'  # total precip in water equiv. units !!!
 #rho_snow = 300.
 pltfld = 'mean'  # mean snowfall rate or cumulative fields to plot
 
@@ -94,6 +100,7 @@ TLON = TLAT = LMSK = None
 dlt_hr = 3  # delta hours between saved/avrg output 
 dTsec = 150.   # atm. time step, preceip are instantaneous, "time-step precip"
 HRFCST = np.arange(fhrS,fhrE+1,dlt_hr).astype(int)
+rho_snow = 300.  # snow density
 
 pthoutp = f"/work/Dmitry.Dukhovskoy/GFSv17/{expt}/gfs.{init_date}/{init_hr:02d}/atmos"
 
@@ -116,7 +123,7 @@ for hrf in HRFCST:
       LMSK = ds['land'].data.squeeze()   # sea-land-ice mask (0-sea, 1-land, 2-ice)
 
   # Convert snow weight (kg/m2) --> cm of snow accumulated over a time step
-  Fsnow = (A2d * PercFrz / dTsec) * 100.  # cm/sec
+  Fsnow = (A2d * PercFrz / dTsec) * 1000./rho_snow * 100.  # cm/sec
 
   if AAsum is None:
     #AIsum = Aice.copy()
@@ -149,15 +156,17 @@ if pltfld == 'mean':
   units = 'cm/day'
   clrmp = mclrmps.colormap_ice_thkn()
   rmin = 0.
-  rmax = 3.
-  sinfo = 'Derived: (tprcp * cpofp)/dt_atmos *100 cm), tprcp - total time-step precip \n'
+  rmax = 1.
+  sinfo = 'Derived: (tprcp * cpofp)/dt_atmos *1000./rho_snow *100 cm), \n'
+  sinfo = sinfo + f'rho_snow = {rho_snow}, tprcp - total time-step precip in liquid water equiv.\n'
 elif pltfld == 'cumul':
   varplt = 'cumul snowfall'
   units = 'cm'
   clrmp = mclrmps.colormap_warm()
   rmin = 0.
   rmax = 10.
-  sinfo = 'Derived: (tprcp * cpofp)/dt_atmos *100 cm), tprcp - total time-step precip \n'
+  sinfo = 'Derived: (tprcp * cpofp)/dt_atmos *1000./rho_snow *100 cm), \n'
+  sinfo = sinfo + f'rho_snow = {rho_snow}, tprcp - total time-step precip in liquid water equiv.\n'
 
 sinfo = sinfo + pthoutp
 

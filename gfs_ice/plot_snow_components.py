@@ -40,6 +40,7 @@ import mod_utils_ob as mutob
 expt = 'rt13_upd01_stream3'
 init_date = 20250104
 init_hr = 0
+rho_snow = 300. # in CICE rho_snow = 330
 
 # hs_h - grid cell mean (!) snow thickness, m
 # snow_ai - snowfall rate cm/day
@@ -68,9 +69,9 @@ HRFCST = np.arange(fhrS,fhrE+1,dlt_hr).astype(int)
 pthoutp = f"/work/Dmitry.Dukhovskoy/GFSv17/{expt}/gfs.{init_date}/{init_hr:02d}"
 
 
-
 sinfo = pthoutp
 
+lwe2snow = 1000./rho_snow # convert m of water equivalent snow fall to m of snow
 irec = 0
 VFall_sn = []
 VMelt_sn = []
@@ -87,9 +88,9 @@ for hrf in HRFCST:
   # melts_h  - top snow melt (cm/day)
   with xarray.open_dataset(dflice) as ds:
     Aice = ds['aice_h'].isel(time=0).squeeze().data 
-    fsnow = ds['snow_ai_h'].isel(time=0).squeeze().data*0.01   # cm/day --> m/day
-    melts = ds['melts_h'].isel(time=0).squeeze().data*0.01     # cm/day --> m/day
-    hsnow = ds['hs_h'].isel(time=0).squeeze().data             # m, grid cell mean
+    fsnow = ds['snow_ai_h'].isel(time=0).squeeze().data*0.01*lwe2snow   # cm/day of water  --> m/day of snow, cell mean
+    melts = ds['melts_h'].isel(time=0).squeeze().data*0.01              # cm/day --> m/day, ice mean
+    hsnow = ds['hs_h'].isel(time=0).squeeze().data                      # m, ice mean
     if TLON is None:
       TLON = ds['TLON'].data
       TLAT = ds['TLAT'].data
@@ -116,7 +117,7 @@ for hrf in HRFCST:
 
   # Volume of snow on ice, m3:
   hsnow = np.where(Lantrc==0, np.nan, hsnow)  # grid cell mean snow thickness, m
-  vsn   = np.nansum(hsnow * Acell)    # m3
+  vsn   = np.nansum(hsnow *Aice * Acell)    # m3
   Vol_sn.append(vsn)
 
   irec += 1
@@ -125,6 +126,11 @@ for hrf in HRFCST:
 VFall_sn = np.array(VFall_sn) * 1e-9   # m3 --> km3
 VMelt_sn = np.array(VMelt_sn) * 1e-9   # m3 --> km3 
 Vol_sn   = np.array(Vol_sn) * 1.e-9    # m3 --> km3
+
+# Compare melt+snowfall and d(vol)/dt
+dFallMelt = (VFall_sn - VMelt_sn)/dlt_hr # net snow chnage from precip and melt, km3/hr
+dVol = np.diff(Vol_sn)/dlt_hr           # volume change of deposited snow, km3/yr
+dVol = np.insert(dVol,0,np.nan)
 
 fday = HRFCST/24.
 time_days = np.arange(np.ceil(max(fday))+1)
@@ -137,9 +143,12 @@ clrfsn = [0., 0.5, 0.9]
 clrmlt = [0.9, 0.3, 0]
 clrvsn = [0.8, 0., 0.6]
 
+clr1 = [0., 0.5, 1]
+clr2 = [0.3, 0.9, 0]
+
 fig1 = plt.figure(1,figsize=(9,9))
 plt.clf()
-ax1 = plt.axes([0.1, 0.5, 0.8, 0.4])
+ax1 = plt.axes([0.1, 0.57, 0.8, 0.4])
 
 ln1, = ax1.plot(fday, VFall_sn, '.-', linewidth=2, color=clrfsn, label='snowfall')
 ln2, = ax1.plot(fday, VMelt_sn, '.-', linewidth=2, color=clrmlt, label='snow melt')
@@ -164,16 +173,33 @@ ax1.set_title(sttl)
 #labels = [l.get_label() for l in lns]
 #ax1.legend(lns, labels, loc='upper left')
 
-ax2 = plt.axes([0.8, 0.35, 0.1, 0.1])
-lgd = plt.legend(handles=[ln1,ln2,ln3], loc='upper right')
-ax2.axis('off')
+# Plot budget
+ax2 = plt.axes([0.1, 0.05, 0.8, 0.4])
+ln21, = ax2.plot(fday, dFallMelt, '.-', linewidth=2, color=clr1, label='SFall-Melt')
+ln22, = ax2.plot(fday, dVol, '.-', linewidth=2, color=clr2, label='dltVol')
 
-ax3 = fig1.add_axes([0.1, 0.32, 0.8, 0.06])
-ax3.text(0, 0, sinfo, fontsize=8)
-ax3.axis('off')
+ax2.grid('on')
+ax2.set_xticks(time_days)
+ax2.set_xlim([0, time_days[-1]+0.2])
+#ax2.set_xlabel('F/cast days')
+ax2.set_ylabel('Snow Volume change')
+ax2.set_title('Snow volume change, km3/hr')
+
+ax12 = plt.axes([0.85, 0.45, 0.1, 0.1])
+lgd = plt.legend(handles=[ln1,ln2,ln3], loc='lower right')
+ax12.axis('off')
+
+ax13 = plt.axes([0.02, 0.45, 0.1, 0.1])
+lgd = plt.legend(handles=[ln21,ln22], loc='lower left')
+ax13.axis('off')
+
+
+#ax3 = fig1.add_axes([0.1, 0.32, 0.8, 0.06])
+#ax3.text(0, 0, sinfo, fontsize=8)
+#ax3.axis('off')
 
 #btx = 'plot_snowfall_ant.py'
 btx = 'plot_snow_components.py'
-bottom_text(btx, pos=[0.1, 0.28])
+bottom_text(btx, pos=[0.01, 0.01])
 
 

@@ -1,15 +1,17 @@
 """
-  Use snowfall rate from GFSv17 forecasts
-  output from atmospheric model
-  use "accumulated surface snow in bucket" (kg/m2)
-  as probably the closest to the "snowfall rate" (cm/day) in CICE
+  Plot cpofp =  (pptsnow + pptgraul + pptice) / (RAINNCV(i,j)+R1) 
+  ratio of frozen precip vs total precip including convective precip
 
-  Will need to convert kg/m2 --> kg/m2*s --> cm/day
+  float cpofp(time, grid_yt, grid_xt) ;
+    cpofp:_FillValue = 9.99e+20f ;
+    cpofp:cell_methods = "time: point" ;
+    cpofp:long_name = "Percent frozen precipitation" ;
+    cpofp:missing_value = 9.99e+20f ;
+    cpofp:output_file = "sfc" ;
+    cpofp:units = "fraction" ;
 
-  May need to combine with: 
-  accumulated surface graupel in bucket (kg/m2) - frozrb
-  accumulated surface freezing rain in bucket (kg/m2) - frzrb
-
+  Note that gettgin fsnow = cpofp * tprcp may not be accurate
+  where convective precip. occur
 
 """
 import os
@@ -47,9 +49,7 @@ import mod_utils_ob as mutob
 expt = 'rt13_upd01_stream3'
 init_date = 20250104
 init_hr = 0
-varnm = 'tsnowpb'
-rho_snow = 300.
-pltfld = 'mean'  # mean snowfall rate or cumulative fields to plot
+varnm = 'cpofp'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--expt", help="expt name, e.g. rt13_upd01_stream3", type=str)
@@ -57,9 +57,6 @@ parser.add_argument("--init", help=f"init date, default={init_date}", type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
 parser.add_argument("--fhrS", help=f"forecast hour, Start avrg: 6,12,...,240", type=int, required=True)
 parser.add_argument("--fhrE", help=f"forecast hour, End avrg: 6,12,...,240", type=int)
-parser.add_argument("--pfld", help=f"Plot mean or accumulated field, default={pltfld}",
-                    choices=['mean','cumul'],
-                    type=str)
 args = parser.parse_args()
 
 expt = args.expt if args.expt else expt
@@ -67,7 +64,6 @@ init_date = args.init if args.init else init_date
 init_hr = args.ihr if args.ihr else init_hr
 fhrS = args.fhrS if args.fhrS else None
 fhrE = args.fhrE if args.fhrE else fhrS
-pltfld = args.pfld if args.pfld else pltfld
 TLON = TLAT = LMSK = None
 
 dlt_hr = 3  # delta hours between saved/avrg output 
@@ -93,62 +89,28 @@ for hrf in HRFCST:
       TLAT = ds['lat'].data
       LMSK = ds['land'].data.squeeze()   # sea-land-ice mask (0-sea, 1-land, 2-ice)
 
-  # Convert snow weight (kg/m2) --> cm of snow accumulated over a time step
-  #Fsnow = A2d / (Rho_snow * dTsec) * 100.  # cm/sec
-  Fsnow = A2d / (rho_snow * dTsec) * 100.  # cm/sec, to make conistent with CICE, use rho=300
-
   if AAsum is None:
-    #AIsum = Aice.copy()
-    AAsum = Fsnow.copy()
+    AAsum = A2d.copy()
   else:
-    #AIsum = AIsum + Aice
-    AAsum = AAsum + Fsnow
+    AAsum = AAsum + A2d
 
   irec += 1
 
+A2d = AAsum / float(irec)
 
-# Convert AAsum --> cm/day - mean snowfall rate 
-A2d = AAsum * 86400./float(irec)
+varplt = 'cpofp'
+units = 'cm'
+clrmp = mclrmps.colormap_warm()
+rmin = 0.
+rmax = 1.
 
-if pltfld == 'cumul':
-  A2d = AAsum.copy() * dTsec    # cumul snowfall in cm over all hourly output
-
-
-#if irec > 1:
-#  Aice = AIsum / float(irec)
-#  A2d = AAsum / float(irec)
-
-# Mask land:
-#A2d[LMSK==1] = np.nan
-jdim, idim = A2d.shape
-
-
-if pltfld == 'mean':
-  varplt = 'snowfall'
-  units = 'cm/day'
-  clrmp = mclrmps.colormap_ice_thkn()
-  rmin = 0.
-  rmax = 1.
-elif pltfld == 'cumul':
-  varplt = 'cumul snowfall'
-  units = 'cm'
-  clrmp = mclrmps.colormap_warm()
-  rmin = 0.
-  rmax = 10.
-
-sinfo = f'Derived from atmos output {varnm} (accumulated surface snow in bucket) (kg/m2) \n'
-if Rho_snow is None:
-  sinfo = sinfo + f'and converted to cm/day, rho_snow={rho_snow}\n'
-else:
-  sinfo = sinfo + f'and converted to cm/day, rho_snow={np.nanmean(Rho_snow):.1f} from atmos output\n'
-
+sinfo = f'Percent frozen precip. from atmos {varnm} \n'
 sinfo = sinfo + pthoutp
 
 clrmp.set_bad(color=[0.1, 0.1, 0.1])
 cntr_clr = [0.6,0.6,0.6]
 
-#sttl = f'{varnm}/ai {units}, GFSv17 {expt} init:{init_date}/{init_hr} fcast:{fhrS}-{fhrE}'
-sttl = f'{varplt} {units}, GFSv17 {expt} init:{init_date}/{init_hr} fcast:{fhrS}-{fhrE}'
+sttl = f'{varplt}, GFSv17 {expt} init:{init_date}/{init_hr} fcast:{fhrS}-{fhrE}'
 
 plt.ion()
 
@@ -189,7 +151,7 @@ ax3 = fig1.add_axes([0.02, 0.03, 0.8, 0.06])
 ax3.text(0, 0, sinfo, fontsize=8)
 ax3.axis('off')
 
-btx = 'plot_snowfall_atmos.py'
+btx = 'plot_cpofp_atmos.py'
 #btx = 'plot_snow_ant.py'
 bottom_text(btx, pos=[0.2, 0.01])
 

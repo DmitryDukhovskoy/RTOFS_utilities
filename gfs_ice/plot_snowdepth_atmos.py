@@ -47,7 +47,6 @@ init_date = 20250104
 init_hr = 0
 varnm = 'snod'
 #rho_snow = 300.
-pltfld = 'mean'  # mean snowfall rate or cumulative fields to plot
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--expt", help="expt name, e.g. rt13_upd01_stream3", type=str)

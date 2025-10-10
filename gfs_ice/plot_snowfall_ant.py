@@ -2,6 +2,17 @@
   Use snowfall rate from GFSv17 forecasts
   Output from CICE
   snowfall rate - averaged over output time period (6hr)
+
+  in CICE, snowfall rate dumped to history is converted from kg/m2*s -->
+  cm/day in liquid water equivalent  !!!
+
+  in define_hist_field:
+        call define_hist_field(n_snow_ai,"snow_ai","cm/day",tstr2D, tcstr, &
+             "snowfall rate",                                             &
+             "weighted by ice area", mps_to_cmpdy/rhofresh, c0,           &
+             ns1, f_snow_ai)
+
+    rhofresh = 1000. 
 """
 import os
 import numpy as np
@@ -75,6 +86,7 @@ fhrE = args.fhrE if args.fhrE else fhrS
 val_mean = args.mean if args.mean else val_mean
 #varnm = args.varnm if args.varnm else None
 varnm = 'snow_ai'
+rho_snow = 300.
 TLON = TLAT = LMSK = None
 
 dlt_hr = 6  # delta hours between saved/avrg output 
@@ -96,8 +108,12 @@ elif varnm == 'snow_ai':
   clrmp = mclrmps.colormap_ice_thkn()
   rmin = 0.
   rmax = 1.
-  #sinfo = 'snowfall rate, cm/day, wegithed by ice area (grid cell mean) converted to ice area mean\n'
-  sinfo = 'snowfall rate, cm/day, wegithed by ice area (grid cell mean)\n'
+  if val_mean == 'ice':
+    sinfo = 'snowfall rate, cm/day, ice area mean\n'
+  else:
+    sinfo = 'snowfall rate, cm/day, wegithed by ice area (grid cell mean)\n'
+
+  sinfo = sinfo + f'Converted from snowfall in liquid equiv. water cm to snow cm, using rho_snow={rho_snow:.0f}\n'
 
 sinfo = sinfo + pthoutp
 
@@ -123,6 +139,10 @@ for hrf in HRFCST:
   if val_mean == 'ice':
     A2d = np.divide(A2d, Aice, out=np.zeros_like(A2d), where=Aice > 0)
 
+  if varnm == 'snow_ai':
+    # convert from liq. equiv. water --> snow depth
+    A2d = A2d*1000./rho_snow
+
   if AIsum is None:
     AIsum = Aice.copy()
     AAsum = A2d.copy()
@@ -143,8 +163,10 @@ jdim, idim = A2d.shape
 clrmp.set_bad(color=[0.1, 0.1, 0.1])
 cntr_clr = [0.6,0.6,0.6]
 
-#sttl = f'{varnm}/ai {units}, GFSv17 {expt} init:{init_date}/{init_hr} fcast:{fhrS}-{fhrE}'
-sttl = f'{varnm} {units}, {val_mean}-mean, GFSv17 {expt} init:{init_date}/{init_hr} fcast:{fhrS}-{fhrE}'
+if val_mean == 'cell':
+  sttl = f'{varnm} {units}, {val_mean}-mean, GFSv17 {expt} init:{init_date}/{init_hr} fcast:{fhrS}-{fhrE}'
+else:
+  sttl = f'{varnm}/ai {units}, {val_mean}-mean, GFSv17 {expt} init:{init_date}/{init_hr} fcast:{fhrS}-{fhrE}'
 
 plt.ion()
 
