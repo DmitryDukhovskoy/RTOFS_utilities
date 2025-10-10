@@ -1,0 +1,23 @@
+---
+MOM6:
+  "003":
+    pthrun:  '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/008mom6cice6_003/'
+    pthoutp: '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/MOM6_CICE6/expt003/'
+    pthgrid: '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/008mom6cice6_003/INPUT/'
+    ftopo:   'ocean_topog.nc'
+    fgrid:   'regional.mom6.nc'
+RTOFS:
+  "product":
+    pthrun:  '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/wcoss2.prod/'
+    pthoutp: '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/RTOFS_production/'
+    pthgrid: '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
+    ftopo:   'regional.depth'
+    fgrid:   'regional.grid'
+GOFS3.1:
+  "93.0":
+    pthrun:  '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data/GOFS3.1/restart/'
+    pthoutp: '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/GOFS3.1/'
+    pthgrid: '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
+    ftopo:   'regional.depth'
+    fgrid:   'regional.grid'
+...

@@ -453,7 +453,7 @@ def read_hycom_restart(fina, finb, fld, IDM, JDM, \
   nl0 = 0
   cntr=0      # poisition record # in restart
   nrec=-1     # conseq. # of the output field
-  FLOC = np.array([],dtype=np.int)
+  FLOC = np.array([], dtype=int)
   while nl0 >= 0:
     nl0 += 1
     data = fgb.readline().split()

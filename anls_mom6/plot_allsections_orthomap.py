@@ -17,10 +17,16 @@ import matplotlib.mlab as mlab
 from matplotlib.patches import Polygon
 from matplotlib.colors import ListedColormap
 
-sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/hycom_utils')
-sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/draw_map')
-sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython')
-sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/mom6_utils')
+PPTHN = '/home/Dmitry.Dukhovskoy/python'
+if len(PPTHN) == 0:
+  cwd   = os.getcwd()
+  aa    = cwd.split("/")
+  nii   = cwd.split("/").index('python')
+  PPTHN = '/' + os.path.join(*aa[:nii+1])
+sys.path.append(PPTHN + '/MyPython/hycom_utils')
+sys.path.append(PPTHN + '/MyPython/draw_map')
+sys.path.append(PPTHN + '/MyPython')
+sys.path.append(PPTHN + '/MyPython/mom6_utils')
 
 import mod_read_hycom as mhycom
 import mod_time as mtime
@@ -35,11 +41,11 @@ import matplotlib.colors as colors
 import matplotlib.mlab as mlab
 
 
-
 plt.ion()
 
 SCTNMS = ['DavisS2','Fram79s2','BarentsS','BeringS','DenmarkS','IclShtl',
-          'ShtlScot','LaManch','NAtl39','BaffNAFram','AlaskaIcld']
+          'ShtlScot','LaManch','NAtl39','BaffNAFram','AlaskaIcld','GoMCarib',
+          'Yucatan2','FlorCabl']
 
 pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
 ftopo = 'regional.depth'
@@ -128,7 +134,7 @@ for isct in range(nscts):
   XI = (np.cumsum(LSgm)-LSgm[0])*1.e-3           # distance along section, km
 
   if isct==0:
-    m = Basemap(projection='ortho', lon_0=-10, lat_0=60, resolution='l')
+    m = Basemap(projection='ortho', lon_0=-50, lat_0=45, resolution='l')
 
     xh, yh = m(LON,LAT)  # modl grid coordinates on the projections
 

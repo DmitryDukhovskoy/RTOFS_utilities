@@ -13,8 +13,7 @@ from copy import copy
 import matplotlib.colors as colors
 from matplotlib.patches import Polygon
 
-# Assumed file structure
-PPTHN = []
+PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
   cwd   = os.getcwd()
   aa    = cwd.split("/")

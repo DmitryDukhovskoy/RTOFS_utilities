@@ -13,6 +13,7 @@ import importlib
 import time
 #import struct
 import pickle
+import yaml
 from netCDF4 import Dataset as ncFile
 from copy import copy
 import matplotlib.colors as colors
@@ -20,10 +21,18 @@ import matplotlib.mlab as mlab
 from matplotlib.patches import Polygon
 from matplotlib.colors import ListedColormap
 
-sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/hycom_utils')
-sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/draw_map')
-sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython')
-sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/mom6_utils')
+PPTHN = '/home/Dmitry.Dukhovskoy/python'
+if len(PPTHN) == 0:
+  cwd   = os.getcwd()
+  aa    = cwd.split("/")
+  nii   = cwd.split("/").index('python')
+  PPTHN = '/' + os.path.join(*aa[:nii+1])
+sys.path.append(PPTHN + '/MyPython/hycom_utils')
+sys.path.append(PPTHN + '/MyPython/draw_map')
+sys.path.append(PPTHN + '/MyPython')
+sys.path.append(PPTHN + '/MyPython/mom6_utils')
+sys.path.append(PPTHN + '/MyPython/ncoda_utils')
+sys.path.append(PPTHN + '/MyPython/anls_mom6')
 
 import mod_time as mtime
 from mod_utils_fig import bottom_text
@@ -36,22 +45,23 @@ YRR   = 2023
 
 fld2d = 'salt'
 #fld2d = 'potT'
-nrun  = 'GOFS3.1'  # MOM6, RTOFS, GOFS3.1
+nrun  = 'MOM6'  # MOM6, RTOFS, GOFS3.1
 
 #sctnm = 'Fram79s2'
 #sctnm = 'DavisS2'
 #sctnm = 'Yucatan2'  # slanted section
 #sctnm = 'BarentsS'
-#sctnm = 'BeringS'
+sctnm = 'BeringS'
 #sctnm = 'DenmarkS'
 #sctnm = 'IclShtl'
 #sctnm = 'ShtlScot'
 #sctnm = 'LaManch'
 #sctnm = 'NAtl39'
+#sctnm = 'DrakePsg'
 #======= Ocean Sections =====
 #sctnm = 'BaffNAFram'
-sctnm = 'AlaskaIcld' 
-
+#sctnm = 'AlaskaIcld' 
+#sctnm = 'GoMCarib'
 
 if nrun == 'MOM6':
   expt = '003'
@@ -83,46 +93,38 @@ importlib.reload(mom6util)
 importlib.reload(mmisc)
 importlib.reload(mcmp)
 
+with open('paths_expts.yaml') as ff:
+  dct = yaml.safe_load(ff)
+
+pthrun  = dct[nrun][expt]["pthrun"]
+pthoutp = dct[nrun][expt]["pthoutp"]
+pthgrid = dct[nrun][expt]["pthgrid"]
+ftopo   = dct[nrun][expt]["ftopo"]
+fgrid   = dct[nrun][expt]["fgrid"]
+
+
 if nrun == 'MOM6':
-  pthrun  = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
-            '008mom6cice6_' + expt + '/'
-  pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/' + \
-            'MOM6_CICE6/expt{0}/'.format(expt)
   floutp  = f"mom6-{expt}_{fld2d}VFlx_{dv1[0]}" + \
             f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
-  pthgrid   = pthrun + 'INPUT/'
-  fgrd_mom  = pthgrid + 'regional.mom6.nc'
-  ftopo_mom = pthgrid + 'ocean_topog.nc'
+  fgrd_mom  = os.path.join(pthgrid, fgrid)
+  ftopo_mom = os.path.join(pthgrid, ftopo)
   HH  = mom6util.read_mom6depth(ftopo_mom)
 elif nrun == 'RTOFS':
   if fld2d == 'salt':
     fld = 'salin'
   elif fld2d == 'potT':
     fld = 'temp'
-
-  pthrun  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/wcoss2.prod/'
-  pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/RTOFS_production/'
   floutp  = f"rtofs-{expt}_{fld}xsct_{dv1[0]}" + \
             f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
-  pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
-  ftopo   = 'regional.depth'
-  fgrid   = 'regional.grid'
   _, _, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
 elif nrun == 'GOFS3.1':
   if fld2d == 'salt':
     fld = 'saln'
   elif fld2d == 'potT':
     fld = 'temp'
-
-  pthrun  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data/GOFS3.1/restart/'
-  pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/GOFS3.1/'
   floutp  = f"gofs31-930_{fld}xsct_{dv1[0]}" + \
             f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
-  pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
-  ftopo   = 'regional.depth'
-  fgrid   = 'regional.grid'
   _, _, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
-
 
 ffout = pthoutp + floutp
 

@@ -1,5 +1,5 @@
 """
-  Find T/S profiles from MOM6 using WOD observed T/S profiles
+  Find T/S profiles from RTOFS using WOD observed T/S profiles
   Subsampling for the same locations / months
 
 """
@@ -39,17 +39,21 @@ import mod_utils as mutil
 importlib.reload(mwod)
 importlib.reload(mom6vld)
 
-expt  = '003'
 hg    = 1.e15
+huge  = 1.e15
+rg    = 9806.
 
-# WOD data
-pthwod = '/scratch1/NCEPDEV/stmp4/Dmitry.Dukhovskoy/WOD_profiles/'
+# 
+pthwod  = '/scratch1/NCEPDEV/stmp4/Dmitry.Dukhovskoy/WOD_profiles/'
+pthrun  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/wcoss2.prod/'
+#pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/GOFS3.1/ts_prof/'
 pthoutp= '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/MOM6_CICE6/ts_prof/'
-pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
-         '008mom6cice6_' + expt + '/'
 
 # Select lon, lat to search for WOD profiles
 f_save = True
+expt   = 'product'
+sfx    = 'n-24'
+
 YR1    = 2018
 YR2    = 2022
 mo1    = 1
@@ -65,13 +69,14 @@ y0 = REGNS[regn]["lat0"]
 dx = REGNS[regn]["dlon"]
 dy = REGNS[regn]["dlat"]
 
-print(f'Extracting MOM6 T/S for WOD UID {regn} {YR1} {YR2} mo={mo1}-{mo2}\n')
-
+print(f'Extracting GOFS3.1 T/S for WOD UID {regn} {YR1} {YR2} mo={mo1}-{mo2}\n')
 
 fuid_out = f'uidWOD_{regn}_{YR1}-{YR2}.pkl'
 dflout   = os.path.join(pthoutp,fuid_out)
-flts_out = f'mom6TS_{regn}_{YR1}-{YR2}.pkl'
+flts_out = f'rtofsTS_{regn}_{YR1}-{YR2}.pkl'
 dfltsout = os.path.join(pthoutp, flts_out)
+
+print(f'Extracted T/S saved to ---> {dfltsout}')
 
 # Load saved UID:
 print(f'Loading {dflout}')
@@ -86,16 +91,36 @@ print(f'# profiles CTD: {lctd}, DRB: {ldrb}, PFL: {lpfl}')
 
 ZZi = mom6vld.zlevels()
 
-pthgrid   = pthrun + 'INPUT/'
-fgrd_mom  = pthgrid + 'regional.mom6.nc'
-ftopo_mom = pthgrid + 'ocean_topog.nc'
-LON, LAT  = mom6util.read_mom6grid(fgrd_mom, grdpnt='hpnt')
-HH        = mom6util.read_mom6depth(ftopo_mom)
+pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
+ftopo = 'regional.depth'
+fgrid = 'regional.grid'
+LON, LAT, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
+IDM = HH.shape[1]
+JDM = HH.shape[0]
 
 # For model use only 1 year - the only output available
-YRmom = 2021
-YR    = YRmom
+YR    = 2023
 MMin  = 0
+
+# List of existing model files for processing, dates:
+fall = os.listdir(pthrun)
+# Separate directories from files etc
+# and select only the right ones
+LL   = [fnm for fnm in fall if os.path.isdir(os.path.join(pthrun,fnm))]
+LL   = [fnm for fnm in LL if (fnm[:6] == 'rtofs.')]
+nfls = len(LL)
+TMG  = np.zeros((nfls))
+JDG  = np.zeros((nfls))
+for ifl in range(nfls):
+  rdate    = LL[ifl][6:]
+  dnmb     = mtime.rdate2datenum(rdate)
+  _, jday = mtime.dnmb2jday(dnmb)
+  TMG[ifl] = dnmb
+  JDG[ifl] = jday
+
+TMG = np.sort(TMG)
+JDG = np.sort(JDG)
+
 # Keep truck of model indices to avoid duplicates:
 Indx  = np.array(([]))
 Jndx  = np.array(([]))
@@ -137,6 +162,7 @@ for obtype  in ['CTD', 'DRB', 'PFL']:
       YY  = DV[0]
       MM  = DV[1]  # months
       DM  = DV[2]  # month days
+      DD  = DM
       jday= int(mtime.date2jday([YY,MM,DM]))
       HR  = 12
 
@@ -158,29 +184,44 @@ for obtype  in ['CTD', 'DRB', 'PFL']:
 
 # If loaded data from the same month - use what is loaded
 # Day is not important for this analysis
+# Find closest date
       if MM != MMin:
-        pthbin = pthrun + 'tarmom_{0}{1:02d}/'.format(YR,MM)
-        flmom  = 'ocnm_{0}_{1:03d}_{2}.nc'.format(YR,jday,HR)
-        flin   = pthbin + flmom
-        MMin   = MM
+        dmm   = abs(JDG - jday)
+        imm   = np.argmin(dmm)
+        dnmbG = TMG[imm]
+        DVG   = mmisc.datevec(dnmbG)
+        YYG   = DVG[0]
+        MMG   = DVG[1]  # months
+        DMG   = DVG[2]  # month days
 
-        print(f"Reading thknss {flin}")
+        pthbin  = pthrun + f"rtofs.{YYG}{MMG:02d}{DMG:02d}/"
+        flhycom = f"rtofs_glo.t00z.{sfx}.archv"
+        fina    = pthbin + flhycom + '.a'
+        finb    = pthbin + flhycom + '.b'
+        MMin    = MM
+
+        print(f"Reading thknss {fina}")
 # Read layer thicknesses:
-        dH     = mom6util.read_mom6(flin, 'h', finfo=False)
-        ssh    = mom6util.read_mom6(flin, 'SSH', finfo=False)
-        ZZ, ZM = mom6util.zz_zm_fromDP(dH, ssh, f_intrp=True, finfo=False)
+        dH, _, _, _ = mhycom.read_hycom(fina,finb,'thknss')
+        dH = dH/rg
+        dH = np.where(dH>huge, np.nan, dH)
+        dH = np.where(dH<0.001, 0., dH)
+        ZZ, ZM = mhycom.zz_zm_fromDP(dH, f_btm=False, finfo=False)
 
 # Get T profile
-        print(f"Reading pot T")
-        T3d   = mom6util.read_mom6(flin, 'potT', finfo=False)
+        print(f"Reading temp {fina}")
+        T3d, _, _, _ = mhycom.read_hycom(fina, finb, 'temp', finfo=False)
+        T3d = np.where(T3d >= huge, np.nan, T3d)
 # Get S profile:
-        S3d   = mom6util.read_mom6(flin, 'salt', finfo=False)
+        print(f"Reading saln {fina}")
+        S3d, _, _, _ = mhycom.read_hycom(fina, finb, 'salin', finfo=False)
+        S3d = np.where(S3d >= huge, np.nan, S3d)
 
       zm    = np.squeeze(ZM[:,jj0,ii0])
       Tprf  = np.squeeze(T3d[:,jj0,ii0])
-      Ti    = mom6vld.interp_prof2zlev(Tprf, zm, ZZi)
+      Ti    = mom6vld.interp_prof2zlev(Tprf, zm, ZZi, fill_surf=True)
       Sprf  = np.squeeze(S3d[:,jj0,ii0])
-      Si    = mom6vld.interp_prof2zlev(Sprf, zm, ZZi)
+      Si    = mom6vld.interp_prof2zlev(Sprf, zm, ZZi, fill_surf=True)
 
       if f_new:
         SPROF = mom6vld.PROF1D(ZZi,Si)
@@ -212,7 +253,7 @@ if f_pltobs:
   fig1 = plt.figure(1,figsize=(9,9))
   plt.clf()
 
-  sttl = f'MOM6-003 T \n{flin}'
+  sttl = f'RTOFS T \n{fina}'
   zlim = np.floor(zm[-1])
   ax1 = plt.axes([0.08, 0.1, 0.4, 0.8])
   ln1, = ax1.plot(Tprf,zm,'.-', label="obs")
@@ -221,7 +262,7 @@ if f_pltobs:
   ax1.grid('on')
   ax1.set_title(sttl)
 
-  sttl = f'MOM6-003 S '
+  sttl = f'RTOFS S '
   ax2 = plt.axes([0.58, 0.1, 0.4, 0.8])
   ax2.plot(Sprf,zm,'.-', label="obs")
   ax2.plot(Si,ZZi,'.-', label="intrp")

@@ -2,7 +2,7 @@
   Plot SSH and Gulfstream front using SSH from RTOFS 
   or GOFS3.1
   0.08 grid
-
+  Dmitry Dukhovskoy NOAA NCEP EMC Jan 2024
 """
 import os
 import numpy as np
@@ -36,8 +36,9 @@ importlib.reload(mtime)
 expt      = 'product'
 rdate0    = '20240101'
 sfx       = 'n-24'
-f_gofs    = True
+f_gofs    = False
 f_sshanls = True
+f_mhd     = True
 
 sshg      = 0.05    # Gulf Stream contour
 
@@ -121,6 +122,49 @@ if f_sshanls:
   IGS_anls, JGS_anls = mgulf.derive_GSssh_anls(pthanls, fanls, \
                                    II, JJ, ISH, JSH, LON, LAT, HH, sshg=0.05)
 
+if f_mhd:
+  if not f_sshanls:
+    raise Exception('f_sshanls flag should be turned on for MHD')
+
+  print('Mapping RTOFS GS index ---> Lon/Lat space ...')
+  XGS_rtofs, YGS_rtofs = [], []
+  krt = len(IGS_rtofs)
+  for ik in range(krt):
+    if ik%50 == 0:
+      prc = float(ik)/float(krt)*100.
+      print(f'  {prc:.2f}% done ...')
+
+    xrt, yrt = mrtofs.interp_indx2lonlat(IGS_rtofs[ik], JGS_rtofs[ik], LON, LAT)
+    XGS_rtofs.append(xrt)
+    YGS_rtofs.append(yrt)
+
+  XGS_rtofs = np.array(XGS_rtofs)
+  YGS_rtofs = np.array(YGS_rtofs)
+
+  print('Mapping 2dvar analysis GS index ---> Lon/Lat space ...')
+  XGS_anls, YGS_anls = [], []
+  kan = len(IGS_anls)
+  for ik in range(kan):
+    if ik%50 == 0:
+      prc = float(ik)/float(kan)*100.
+      print(f'  {prc:.2f}% done ...')
+
+    xrt, yrt = mrtofs.interp_indx2lonlat(IGS_anls[ik], JGS_anls[ik], LON, LAT)
+    XGS_anls.append(xrt)
+    YGS_anls.append(yrt)
+
+  XGS_anls = np.array(XGS_anls)
+  YGS_anls = np.array(YGS_anls)
+
+  P = np.zeros((krt,2))
+  Q = np.zeros((kan,2))
+  P[:,0] = XGS_rtofs
+  P[:,1] = YGS_rtofs
+  Q[:,0] = XGS_anls
+  Q[:,1] = YGS_anls
+  mhdGS = mmhd.modifHD(P, Q, geo2cart=True)
+  print(f'RTOFS vs Anls GS MHD = {mhdGS:.2f}km')
+
 
 # Plot fields:
 print(' ===== Plotting ====')
@@ -150,7 +194,8 @@ fig1.clf()
 
 ax1 = fig1.add_axes([0.1, 0.1, 0.8, 0.8])
 im1 = ax1.pcolormesh(SSH, cmap=cmpr, vmin=-1., vmax=1.)
-ax1.set_title(f'RTOFS-product ssh & GS front {rdateP}')
+ax1.set_title(f'RTOFS-product ssh & GS front {rdateP}, \n' + \
+              f'MHD RTOFS vs anls={mhdGS:.2f}km')
 
 ax1.axis('scaled')
 ax1.set_xlim([xlim1,xlim2])

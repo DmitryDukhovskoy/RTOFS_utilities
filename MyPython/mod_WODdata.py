@@ -143,6 +143,32 @@ def search_UID(furl, x0, y0, dx, dy,YR1=0, YR2=0, \
 
   return LAT, LON, TM, UID
 
+def derive_lonlatWOD(SID, pthwod, obtype):
+  """
+    For WOD obs UID find lont/lat
+  """
+  ll  = len(SID)
+  print(f'Reading lon/lat for {obtype} {ll} records')
+  LON = []
+  LAT = []
+  if ll == 0:
+    return LON, LAT
+
+  for ii in range(ll):
+    if ii%500 == 0 or ii==ll-1:
+      nprc = float((ii)/ll)*100.
+      print(f'  {nprc:.1f}% done ...')
+    uid     = SID[ii]
+    flnm    = f'wod_0{uid}O.nc'
+    pthdata = os.path.join(pthwod, obtype)
+    dflnm   = os.path.join(pthdata, flnm)
+    lon0    = read_ncfld(dflnm, 'lon', finfo=False)
+    lat0    = read_ncfld(dflnm, 'lat', finfo=False)
+    LON.append(lon0)
+    LAT.append(lat0)
+
+  return LON, LAT  
+
 def read_WOA18_3D(finp, idm, jdm, kdm, f_info=True):
   """
     Read WOA18 climatology

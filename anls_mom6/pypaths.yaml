@@ -1,0 +1,32 @@
+---
+"plot_flux":|
+  if nrun == 'MOM6':
+    pthrun = '/scratch1/NCEPDEV/stmp2/Dmitry.Dukhovskoy/MOM6_run/' + \
+              '008mom6cice6_' + expt + '/'
+    pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/' + \
+               'MOM6_CICE6/expt{0}/'.format(expt)
+    floutp = f"mom6-{expt}_{fld2d}VFlx_{dv1[0]}" + \
+              f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
+    pthgrid   = pthrun + 'INPUT/'
+    fgrd_mom  = pthgrid + 'regional.mom6.nc'
+    ftopo_mom = pthgrid + 'ocean_topog.nc'
+    HH  = mom6util.read_mom6depth(ftopo_mom)
+  elif nrun == 'RTOFS':
+    pthrun  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/wcoss2.prod/'
+    pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/RTOFS_production/'
+    floutp  = f"rtofs-{expt}_{fld2d}xsct_{dv1[0]}" + \
+              f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
+    pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
+    ftopo   = 'regional.depth'
+    fgrid   = 'regional.grid'
+    _, _, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
+  elif nrun == 'GOFS3.1':
+    pthrun  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data/GOFS3.1/restart/'
+    pthoutp = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data_anls/GOFS3.1/'
+    floutp  = f"gofs31-930_{fld2d}xsct_{dv1[0]}" + \
+              f"{dv1[1]:02d}-{dv2[0]}{dv2[1]:02d}_{sctnm}.pkl"
+    pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
+    ftopo   = 'regional.depth'
+    fgrid   = 'regional.grid'
+    _, _, HH = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
+
