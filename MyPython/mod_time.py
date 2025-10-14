@@ -191,11 +191,14 @@ def rdate2datenum(rdate):
   Convert rtofs date string YYYYMMDD or YYYYMMDDHR to
   matlab-type datenum
   """
+  if not isinstance(rdate, str):
+    rdate = str(rdate)
+
   YR     = int(rdate[0:4])
   MM     = int(rdate[4:6])
   DD     = int(rdate[6:8])
 
-  if len(rdate) > 9:
+  if len(rdate) > 8:
     HR = int(rdate[8:10])
   else:
     HR = 0
