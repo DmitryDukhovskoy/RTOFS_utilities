@@ -41,7 +41,7 @@ f_cont = False     # load saved and start from last saved
 #sctnm = 'DavisS2'
 #sctnm = 'Fram79s2'
 #sctnm = 'BarentsS'
-#sctnm = 'BeringS'
+sctnm = 'BeringS'
 #sctnm = 'DenmarkS'
 #sctnm = 'IclShtl'
 #sctnm = 'ShtlScot'
@@ -50,7 +50,7 @@ f_cont = False     # load saved and start from last saved
 #======= Ocean Sections =====
 #sctnm = 'BaffNAFram'
 #sctnm = 'AlaskaIcld' 
-sctnm = 'GoMCarib'
+#sctnm = 'GoMCarib'
 
 pthgrid = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/hycom_fix/'
 ftopo = 'regional.depth'
