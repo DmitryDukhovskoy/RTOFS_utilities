@@ -991,3 +991,37 @@ def remap_enthalpy_bins(qicen4, nilyrs4, nilyrs6, eps_dq=1.e-5):
 
   return qicen6
 
+def read_topo_ab(pthtopo, ftopo, IDM, JDM, dpth_neg=True, lmask=False):
+# Read topo from HYCOM *.a and *.b files
+#only need to know I and J dimensions
+# read HYCOM grid and topo files *.[ab]
+# lmask = True: also return land mask (=0 - land, =1 - ocean)
+#
+  fltopoa = pthtopo+ftopo+'.a'
+  fltopob = pthtopo+ftopo+'.b'
+
+  IJDM = IDM*JDM
+  npad =4096-IJDM%4096
+
+  print('Reading HYCOM topo {0} '.format(ftopo))
+  print('Grid: IDM={0}, JDM={1}'.format(IDM,JDM))
+
+# Read bottom topography:
+# Big endian float 32
+  fbt = open(fltopoa,'rb')
+  fbt.seek(0)
+  HH = np.fromfile(fbt, dtype='>f', count=IJDM)
+  HH = HH.reshape((JDM,IDM))
+  fbt.close()
+
+  if dpth_neg:
+    HH[HH<1.e10] = -1.*HH[HH<1.e10]
+    HH[HH>1.e10] = 100.
+
+  #print('Min/max Depth = {0}, {1}'.format(np.min(HH),np.max(HH)))
+  if lmask:
+    Lmsk = np.where(HH<0, 1., 0.)
+    return HH, Lmsk
+  else
+    return HH
+

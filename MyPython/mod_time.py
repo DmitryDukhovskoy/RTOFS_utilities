@@ -166,7 +166,6 @@ def parse_rdate(rdate):
 
   return yr, mo, md, hr
 
-
 def rdate2date(rdate):
   """
   Convert rtofs date YYYYMMDD or YYYYMMDDHR to YY, MM, DD, HR
@@ -176,7 +175,7 @@ def rdate2date(rdate):
   MM     = int(rdate[4:6])
   DD     = int(rdate[6:8])
 
-  if len(rdate) > 9:
+  if len(rdate) > 8:
     HR = int(rdate[8:10])
   else:
     HR = 0
@@ -184,21 +183,23 @@ def rdate2date(rdate):
   Ldate = [YR,MM,DD,HR]
   return Ldate
 
-
-
 def rdate2datenum(rdate):
   """
   Convert rtofs date string YYYYMMDD or YYYYMMDDHR to
   matlab-type datenum
   """
-  YR     = int(rdate[0:4])
-  MM     = int(rdate[4:6])
-  DD     = int(rdate[6:8])
-
-  if len(rdate) > 9:
-    HR = int(rdate[8:10])
+  if len(rdate) == 8:
+      YR = int(rdate[0:4])
+      MM = int(rdate[4:6])
+      DD = int(rdate[6:8])
+      HR = 0  # default hour
+  elif len(rdate) == 10:
+      YR = int(rdate[0:4])
+      MM = int(rdate[4:6])
+      DD = int(rdate[6:8])
+      HR = int(rdate[8:10])
   else:
-    HR = 0
+      raise ValueError("Unsupported date format: must be YYYYMMDD or YYYYMMDDhh")
 
   Ldate = [YR,MM,DD,HR]
   dnmb = datenum(Ldate)
@@ -207,16 +208,26 @@ def rdate2datenum(rdate):
 
 def dateint2datenum(dateInt):
   """
-    Convert integer date YYYYMMHH to datenum
+    Convert integer date YYYYMMDDhh to datenum
   """
-  year = dateInt // 10000
-  month = (dateInt % 10000) // 100
-  day = dateInt % 100
+  if dateInt > 1e10:
+    raise ValueError("Unsupported date format: YYYYMMDD or YYYYMMDDhh")
 
-  dnmb = datenum([year,month,day])
+  if dateInt > 1e8:
+    # Hours
+    year = dateInt // 1_000_000
+    month = (dateInt % 1_000_000) // 10000
+    day = dateInt % 10000 // 100
+    hr  = dateInt % 100
+    dnmb = datenum([year,month,day,hr,0])
+  else:
+    # No hours:
+    year = dateInt // 10000
+    month = (dateInt % 10000) // 100
+    day = dateInt % 100
+    dnmb = datenum([year,month,day])
 
   return dnmb
-
 
 def datevec(dnmb, ldate_ref=[1,1,1], round_hrs=False):
   """
