@@ -997,8 +997,8 @@ def read_topo_ab(pthtopo, ftopo, IDM, JDM, dpth_neg=True, lmask=False):
 # read HYCOM grid and topo files *.[ab]
 # lmask = True: also return land mask (=0 - land, =1 - ocean)
 #
-  fltopoa = pthtopo+ftopo+'.a'
-  fltopob = pthtopo+ftopo+'.b'
+  fltopoa = os.path.join(pthtopo,f"{ftopo}.a")
+  fltopob = os.path.join(pthtopo,f"{ftopo}.b")
 
   IJDM = IDM*JDM
   npad =4096-IJDM%4096
@@ -1022,6 +1022,98 @@ def read_topo_ab(pthtopo, ftopo, IDM, JDM, dpth_neg=True, lmask=False):
   if lmask:
     Lmsk = np.where(HH<0, 1., 0.)
     return HH, Lmsk
-  else
+  else:
     return HH
+
+def interp_uvelE_vvelN(uvel, aicen):
+  """
+    Interpolate Uvel from U point of the B grid point to
+    E grid point on C grid
+
+           Vn(i,j)
+    ------|-------+ U(i,j) Uu,Vu (i,j) on the B grid
+   |              |
+   |              |
+   |      *       - Ue(i,j)
+   |    T(i,j)    |
+   |              |
+    --------------+ U(i,j-1)
+
+   Ue: Interpolate into T(i,j) and T(i+1,j)
+       average
+   Ve: Interpoalte into T(i,j) and T(i,j+1) 
+       average
+
+   Assuming that grid cells are ~rectangular (not accurate for the Arct. Ocean)
+   TODO: more accurate bilinear interpolation for not-rectangular grid boxes
+  """
+  uvelE = uvel*0.0
+  vvelN = uvel*0.0
+  jdim, idim = uvel.shape
+  ice_indx = np.argwhere(aicen > 1.e-10)
+
+  print('Interpolating uvelE and vvelN')
+  nindx = ice_indx.shape[0]
+  cntr = 0
+  for jj, ii in ice_indx:
+    cntr += 1
+    if cntr%1000 == 0:
+      print(f'   processed {cntr/nindx*100:.1f}% ...')
+
+    # uvelE - interp into T(i,j) and T(i+1,j)
+    if jj > 0:
+      if ii == 0:
+        uL1 = uvel[jj,-1]
+        uL2 = uvel[jj,ii]
+        uL3 = uvel[jj-1,ii]
+        ul4 = uvel[jj-1,-1]
+      else:
+        uL1 = uvel[jj,ii-1]
+        uL2 = uvel[jj,ii]
+        uL3 = uvel[jj-1,ii]
+        ul4 = uvel[jj-1,ii-1]
+
+      if ii+1 == idim:
+        uR1 = uvel[jj,ii]
+        uR2 = uvel[jj,-1]
+        uR3 = uvel[jj-1,-1]
+        uR4 = uvel[jj-1,ii]
+      else:
+        uR1 = uvel[jj,ii]
+        uR2 = uvel[jj,ii+1]
+        uR3 = uvel[jj-1,ii+1]
+        uR4 = uvel[jj-1,ii]
+
+      uT_lft = 0.25*(uL1 + uL2 + uL3 + uL4)
+      uT_rht = 0.25*(uR1 + uR2 + uR3 + uR4)
+      uvelE[jj,ii] = 0.5*(uT_lft + uT_rht) 
+
+    else:
+      uvelE[jj,ii] = uvel[jj,ii]
+
+    # vvelN - interp into T(i,j) and T(i,j+1)
+    if ii > 0:
+      if jj == 0:
+        vB1 = vB4 = vvel[jj,ii-1]
+        vB2 = vB3 = vvel[jj,ii]
+      else:
+        vB1 = vvel[jj,ii-1]
+        vB2 = vvel[jj,ii]
+        vB3 = vvel[jj-1,ii]
+        vB4 = vvel[jj-1,ii-1] 
+
+    if jj+1 < jdim:
+      vvelN[jj,ii] = 0.5*(vvel[jj,ii] + vvel[jj+1,ii])
+    else:
+      vvelN[jj,ii] = vvel[jj,ii]
+
+  print('100% Finished')
+  print(f'uvel  min/max orig:   {np.nanmin(uvel):.2f}/{np.nanmax(uvel):.2f}')
+  print(f'uvelE min/max interp: {np.nanmin(uvelE):.2f}/{np.nanmax(uvelE):.2f}')
+  print(f'vvel  min/max orig:   {np.nanmin(vvel):.2f}/{np.nanmax(vvel):.2f}')
+  print(f'vvelN min/max interp: {np.nanmin(vvelN):.2f}/{np.nanmax(vvelN):.2f}\n')
+
+  return uvelE, vvelN
+
+
 

@@ -45,23 +45,22 @@ from mod_utils_fig import bottom_text
 import mod_time as mtime
 importlib.reload(mc6util)
 
-# Define CICE4 and CICE6 directories:
-pthrst4  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/GLBb0.08_expt93.0/'
-pthrstT  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data/MOM6_CICE6/' +\
-              'cice_restart/'
-pthrst6  = '/scratch2/NCEPDEV/marine/Dmitry.Dukhovskoy/data/MOM6_CICE6/' +\
-              'cice_restart/'
 # Default values:
 fyaml = 'cice4_cice6.yaml'
 rdateT = 2000121600        # restart date and time in template cice6 restart
+rdate4 = 1900010100        # date in CICE4 restart, not really needed
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--fyaml", help=f"yaml file with paths, default={fyaml}", type=str)
-parser.add_argument("--rdate4", help="Restart date in CICE4: YYYYMMDDhh", required=True, type=int)
+parser.add_argument("--fyaml", help=f"yaml file with paths, filenames, params, default={fyaml}", type=str)
+parser.add_argument("--rdate4", help=f"Restart date in CICE4: YYYYMMDDhh, default={rdate4}", type=int)
 parser.add_argument("--rdate6", help="Restart date in CICE6: YYYYMMDDhh", required=True, type=int)
-parser.add_argument("--rdateT", help="Restart date in CICE4: YYYYMMDDhh, default={rdateT}", type=int)
+parser.add_argument("--rdateT", help=f"Restart date in CICE4: YYYYMMDDhh, default={rdateT}", type=int)
 args = parser.parse_args()
 
+fyaml  = args.fyaml if args.fyaml else fyaml
+rdate4 = args.rdate4 if args.rdate4 else 1900010100
+rdate6 = args.rdate6 if args.rdate6 else None
+rdateT = args.rdateT if args.rdateT else rdateT
 
 # CICE4 restart date:
 dnmb4  = mtime.dateint2datenum(rdate4)
@@ -75,7 +74,6 @@ YRtmp, MMtmp, MDtmp, HRtmp, _ = mtime.datevec(dnmbT, round_hrs=True)
 # Output restart for CICE6:
 dnmb6 = mtime.dateint2datenum(rdate6)
 YRc6, MMc6, MDc6, HRc6, _ = mtime.datevec(dnmb6, round_hrs=True)
-
 
 # Get input/output paths for CICE restart files:
 with open(fyaml) as ff:
@@ -97,12 +95,15 @@ print(f'Input CICE4 restart:     {fl_restart4}')
 print(f'Template CICE6 restart:  {fl_restartT}')
 print(f'Output CICE6 restart:    {fl_restart6}')
 
+# Read CICE params:
+ice_grid4 = PATHS["cice_params"]["cice4"]["grid"]
+ice_grid6 = PATHS["cice_params"]["cice6"]["grid"]
 
-import mod_datm_utils as mdatm
-importlib.reload(mdatm)
+#import mod_datm_utils as mdatm
+#importlib.reload(mdatm)
 
 # Create new restart from template for writing CICE4 fields
-mdatm.cice6_newfile(fl_restartT, fl_restart6)
+#mdatm.cice6_newfile(fl_restartT, fl_restart6)
 
 # Grid CICE4 - unformatted binary file
 pthgrd4 = PATHS["grid_topo"]["cice4"]["pthgrid"]
@@ -115,7 +116,7 @@ grdfl   = PATHS["grid_topo"]["cice6"]["filegrid"]
 fgrdin  = os.path.join(pthgrd, grdfl)
 
 # depth:
-pthdpth = PATHS["grid_topo"]["cice6"]["pthgrid"]
+pthdpth = PATHS["grid_topo"]["cice6"]["pthtopo"]
 dpthfl  = PATHS["grid_topo"]["cice6"]["filedepth"]
 
 # Check if this is .a, .b or .nc depth file:
@@ -124,18 +125,23 @@ topo_nc = False
 topo_ab = False
 
 if dpthfl.endswith('.nc'):
-  fldpthnc = fdpthin
+  fldpthnc = pthdpth
   fdpthin = os.path.join(pthdpth, dpthfl)
   topo_nc = True
 elif dpthfl.endswith('.a'):
-  fldptha = fdpthin
+  fldptha = dpthfl
   fldpthb = fldptha.replace('.a', '.b')
-  ftopo   = fdptha.removesuffix('.a')
+  ftopo   = fldptha.removesuffix('.a')
   #fdpthin_a = os.path.join(pthdpth, fldptha)
   #fdpthin_b = os.path.join(pthdpth, fldpthb)
   topo_ab = True
 else:
   raise ValueError(f"topo file {dpthfl} not recognized, expected *.a or *.nc")
+
+if topo_nc:
+  Lmsk  = mc6util.read_ncfile(fdpthin,'wet')
+else:
+  _, Lmsk = mc6util.read_topo_ab(pthdpth, ftopo, nx, ny, lmask=True)
 
 
 def read_ncfield(dirflnc, varnc):
@@ -165,7 +171,7 @@ def print_minmax(sfld,A):
   return
 
 
-print(f'Creating CICE6 restart for {YRc6}/{MMc6:02d}/{MDc6:02d} {NRc6:02d}hr UTC')
+print(f'Creating CICE6 restart for {YRc6}/{MMc6:02d}/{MDc6:02d} {HRc6:02d}hr UTC')
 print(f'CICE4 restart:     fl_restart4')
 print(f'CICE6 template:    fl_restartT')
 print(f'New CICE6 restart: fl_restart6')
@@ -192,7 +198,6 @@ hg        = 1.e20    # bad values, land mask, etc.
 rdn2dgr   = 180./np.pi
 dgr2rdn   = np.pi/180.
 
-
 #  Input parameters - check with ice_in
 #  Edit mod_cice6_utils param_cice4 if needed
 # Note in GOFS3.1 CICE has 1 row less than HYCOM
@@ -217,12 +222,12 @@ else:
 
 spval = 1.e30
 
-if os.path.exists('fl_restart4'):
+if os.path.exists(fl_restart4):
   fid = open(fl_restart4, 'rb')
 else:
   raise FileNotFoundError(f"Does not exist: {fl_restart4}")
 
-print('Reading restart: ' + fl_restart4)
+print(f'Reading restart: {fl_restart4}')
 
 fid.seek(0)
 # Read Fortran binary
@@ -280,26 +285,35 @@ print('\n Ice energy:')
 for k in range(ntilyr):
   A = read_rest_cice4(fid,nx,ny)
   eicen[k,:,:] = A
-  print_minmax(f'{k=1} eicen',A)
+  print_minmax(f'{k+1} eicen',A)
 
 # Snow energy:
 esnon = np.zeros((ntslyr,ny,nx), dtype='float64')
 print('\n Snow energy:')
 
 for k in range(ntslyr):
-  A = read_rest_cice4(fidnx,ny)
+  A = read_rest_cice4(fid,nx,ny)
   esnon[k,:,:] = A
   print_minmax('{0} esnon'.format(k+1),A)
 
 # Velocities:
 print('\n Velocity components:')
-A = read_rest_cice4(fid,nx,y)
+A = read_rest_cice4(fid,nx,ny)
 uvel = A.copy()
 print_minmax('U vel',A)
 
 A = read_rest_cice4(fid,nx,ny)
 vvel = A.copy()
 print_minmax('V vel',A)
+
+# For C-grid need vel components on N/E points of the grid cell
+# For now, simple linear interpolation
+# TODO: apply higher-order interpolation polynomial for 
+# deriving uvelE, vvelN
+uvelE = None
+vvelN = None
+if ice_grid6 == 'C':
+  uvelE = mc6util.interp_uvelE(uvel, aicen) 
 
 # Radiation fields
 # 4 radiative categories
@@ -448,16 +462,10 @@ stress12_4   = np.where(stress12_4 > 0.5*spval, 0., stress12_4)
 sst          = np.where(sst > 0.5*spval, 0., sst)
 frzmlt       = np.where(frzmlt > 0.5*spval, 0., frzmlt)
 
-
 # ----------------------
 # See: ufs-weather-model/CICE-interface/CICE/cicecore/cicedynB/infrastructure/io/io_netcdf
 # ice_restart.F90
 #
-
-if depth_nc:
-  Lmsk  = mc6util.read_ncfile(fdpthin,'wet')
-else:
-  _, Lmsk = mc6util.read_topo_ab(pthdpth, ftopo, nx, ny, lmask=True)
 
 cice6 = mc6util.cice6()
 
@@ -525,7 +533,7 @@ uloni4 = mc6util.read_cice4_grid(fgrdin4, 'uloni', IDM=nx, JDM=ny)
 ulati6 = read_ncfield(fgrdin, 'ulat')
 uloni6 = read_ncfield(fgrdin, 'ulon')
 
-# It seems to be an error in CICE4 regional grid:
+# In CICE4 regional grid:
 # last column (in the top ~100 rows) in lat is repeated (end-1) column
 # in CICE6, these are different columns
 mc6util.check_cice_grids(ulati4,uloni4,ulati6,uloni6)
@@ -713,8 +721,6 @@ if not cice6.nslyr == cice4.nslyr:
   print('!!! Need to check snow enthalpy interpolation \n\n!!!!')
   qsnon = mc6util.remap_enthalpy_bins(qsnon, cice4.nilyr, cice6.nilyr)
 
-#AA = PP
-
 # =======================================================
 # 
 #  scale_factor - scaling factor for shortwave radiation components
@@ -723,48 +729,71 @@ if not cice6.nslyr == cice4.nslyr:
 # scale_factor: netsw scaling factor (new netsw / old netsw)
 # see: icepack_shortwave.F90
 #
+# Collect updated fields:
+updated_vars = {
+  'uvel':         uvel,
+  'vvel':         vvel,
+  'uvelE':        uvelE,
+  'vvelN':        vvelN,
+  'scale_factor': scale_factor,
+  'swvdr':        swvdr,
+  'swvdf':        swvdf,
+  'swidr':        swidr,
+  'swidf':        swidf,
+  'strocnxT':     strocnxT,
+  'strocnyT':     strocnyT,
+  'stressp_1':    stressp_1, 
+  'stressp_2':    stressp_2, 
+  'stressp_3':    stressp_3, 
+  'stressp_4':    stressp_4, 
+  'stressm_1':    stressm_1, 
+  'stressm_2':    stressm_2, 
+  'stressm_3':    stressm_3, 
+  'stressm_4':    stressm_4, 
+  'stress12_1':   stress12_1, 
+  'stress12_2':   stress12_2, 
+  'stress12_3':   stress12_3, 
+  'stress12_4':   stress12_4, 
+  'iceumask':     iceumask,
+  'fsnow':        fsnow,
+  'aicen':        aicen,
+  'vicen':        vicen,
+  'vsnon':        vsnon,
+  'Tsfcn':        trcrn,
+  'coszen':       coszen_new,
+  'iage':         iage,
+  'alvl':         alvl,
+  'vlvl':         vlvl,
+  'apnd':         apnd,
+  'hpnd':         hpnd,
+  'ipnd':         ipnd,
+  'dhs':          dhs,
+  'ffrac':        ffrac
+}
+
 print(' \n\n -------------\n Creating CICE6 restart')
-print('Created CICE6 restart: \n' + fl_restart6)
+dst = xr.open_dataset(fl_restartT)
 
-if not os.path.isfile(fl_restart6):
-  raise Exception ('CICE6 restart missing: ' + fl_restart6)
+for varname, new_data in updated_vars.items():
+  if varnm in dst:
+    dst[varname] = xr.DataArray(
+      new_data,
+      dims=dst[varname].dims,
+      coords=dst[varname].coords
+    )
+  else:
+    print(f"{varnm} is not in {fl_restartT}")
 
-mc6util.modify_fld_nc(fl_restart6,'uvel',uvel)
-mc6util.modify_fld_nc(fl_restart6,'vvel',vvel)
-mc6util.modify_fld_nc(fl_restart6,'scale_factor',scale_factor)
-mc6util.modify_fld_nc(fl_restart6,'swvdr',swvdr)
-mc6util.modify_fld_nc(fl_restart6,'swvdf',swvdf)
-mc6util.modify_fld_nc(fl_restart6,'swidr',swidr)
-mc6util.modify_fld_nc(fl_restart6,'swidf',swidf)
-mc6util.modify_fld_nc(fl_restart6,'strocnxT',strocnxT)
-mc6util.modify_fld_nc(fl_restart6,'strocnyT',strocnyT)
-mc6util.modify_fld_nc(fl_restart6,'stressp_1',stressp_1)
-mc6util.modify_fld_nc(fl_restart6,'stressp_2',stressp_2)
-mc6util.modify_fld_nc(fl_restart6,'stressp_3',stressp_3)
-mc6util.modify_fld_nc(fl_restart6,'stressp_4',stressp_4)
-mc6util.modify_fld_nc(fl_restart6,'stressm_1',stressm_1)
-mc6util.modify_fld_nc(fl_restart6,'stressm_2',stressm_2)
-mc6util.modify_fld_nc(fl_restart6,'stressm_3',stressm_3)
-mc6util.modify_fld_nc(fl_restart6,'stressm_4',stressm_4)
-mc6util.modify_fld_nc(fl_restart6,'stress12_1',stress12_1)
-mc6util.modify_fld_nc(fl_restart6,'stress12_2',stress12_2)
-mc6util.modify_fld_nc(fl_restart6,'stress12_3',stress12_3)
-mc6util.modify_fld_nc(fl_restart6,'stress12_4',stress12_4)
-mc6util.modify_fld_nc(fl_restart6,'iceumask',iceumask)
-mc6util.modify_fld_nc(fl_restart6,'fsnow',fsnow)
-mc6util.modify_fld_nc(fl_restart6,'aicen',aicen)
-mc6util.modify_fld_nc(fl_restart6,'vicen',vicen)
-mc6util.modify_fld_nc(fl_restart6,'vsnon',vsnon)
-mc6util.modify_fld_nc(fl_restart6,'Tsfcn',trcrn)
-mc6util.modify_fld_nc(fl_restart6,'coszen',coszen_new)
-mc6util.modify_fld_nc(fl_restart6,'iage',iage)
-mc6util.modify_fld_nc(fl_restart6,'alvl',alvl)
-mc6util.modify_fld_nc(fl_restart6,'vlvl',vlvl)
-mc6util.modify_fld_nc(fl_restart6,'apnd',apnd)
-mc6util.modify_fld_nc(fl_restart6,'hpnd',hpnd)
-mc6util.modify_fld_nc(fl_restart6,'ipnd',ipnd)
-mc6util.modify_fld_nc(fl_restart6,'dhs',dhs)
-mc6util.modify_fld_nc(fl_restart6,'ffrac',ffrac)
+# Add a new variable to restart file:
+def add_newvar(dst, varnm, A3d):
+  new_fld = xr.DataArray(A3d, 
+                        dims=src[varnm].dims, 
+                        coords=src[varnm].coords)
+  dst[varnm] = new_fld
+
+  return dst
+
+!!!TODO: compute uvelE and vvelN
 
 #  4D fields:
 # sice - ice bulk salinity
@@ -777,39 +806,46 @@ mc6util.modify_fld_nc(fl_restart6,'ffrac',ffrac)
 # Ice salinity by layers - compute S profile using BZ99 formulation:
 for ik in range(1,cice6.nilyr+1): 
   sice_lr = mc6util.sice_lr_cice4(ik, cice6.nilyr, aicen)
-  fldout = 'sice{0:03d}'.format(ik)
-  print('Updating ' + fldout)
-  mc6util.modify_fld_nc(fl_restart6,fldout,sice_lr)
+  varnm = f'sice{ik:03d}'
+  print(f'Updating {varnm}')
+  dst = add_newvar(dst, varnm, sice_lr)
 
 # Ice enthalpy by layers:
 for ik in range(1,cice6.nilyr+1): 
   qice_lr = qicen[ik-1,:,:,:]
-  fldout = 'qice{0:03d}'.format(ik)
-  print('Updating ' + fldout)
-  mc6util.modify_fld_nc(fl_restart6,fldout,qice_lr)
+  varnm = f'qice{ik:03d}'
+  print(f'Updating {varnm}')
+  dst = add_newvar(dst, varnm, qice_lr)
+  #mc6util.modify_fld_nc(fl_restart6,fldout,qice_lr)
 
 # Snow enthalpy by layers
 for ik in range(1,cice6.nslyr+1):
   qsnon_lr = qsnon[ik-1,:,:,:]
-  fldout = 'qsno{0:03d}'.format(ik)
-  print('Updating ' + fldout)
-  mc6util.modify_fld_nc(fl_restart6, fldout, qsnon_lr)
+  varnm = f'qsno{ik:03d}'
+  print('Updating {varnm}')
+  dst = add_newvar(dst, varnm, qsnon_lr)
+  #mc6util.modify_fld_nc(fl_restart6, fldout, qsnon_lr)
 
 #
 # Change restart date:
-print('Changing global attributes: restart time to {0}/{1:02d}/{2:02d} {3} sec'.\
-       format(YRc6, MMc6, MDc6, int(HRc6*3600.)))
-mc6util.modify_glattr_nc(fl_restart6, 'myear',  int(YRc6))
-mc6util.modify_glattr_nc(fl_restart6, 'mmonth', int(MMc6))
-mc6util.modify_glattr_nc(fl_restart6, 'mday',   int(MDc6))
-mc6util.modify_glattr_nc(fl_restart6, 'msec',   int(HRc6*3600.))
+print(f'Changing global attributes: restart time to {YRc6}/{MMc6:02d}/{MDc6:02d} {HRc6*3600} sec')
+dst.attrs['myear']  = np.int32(YRc6)
+dst.attrs['mmonth'] = np.int32(MMc6)
+dst.attrs['mday']   = np.int32(MDc6)
+dst.attrs['msec']   = np.int32(HRc6*3600)
+dst.attrs['info1']  = f"Restart created from CICE4: {cicerst4}"
+dst.attrs['info2']  = f"code: btx"
 
-# Add info:
-# Do not use for now - the code freezes up
-inf1 = 'Restart created from GOFS3.2-93.0 CICE4: ' + cicerst4
-inf2 = 'code: cice4_cice6_restart.py, NOAA EMC'
-#mc6util.addnew_glattr_nc(fl_restart6, 'Info1', inf1)
+print(f"Saving cice restart ---> {fl_restart6}")
+ds.to_netcdf(fl_restart6, encoding={var: {'_FillValue': None} for var in dst.data_vars}, \
+              format='NETCDF3_64BIT')
 
+dst.close()
+ds6.close()
 
+print(f'Created CICE6 restart: {fl_restart6}\n')
+
+if not os.path.isfile(fl_restart6):
+  raise Exception ('CICE6 restart missing: ' + fl_restart6)
 
 

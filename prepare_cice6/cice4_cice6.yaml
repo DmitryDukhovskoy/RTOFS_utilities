@@ -18,10 +18,19 @@ rest_names:
   
 grid_topo:
   "cice4":
-    pthgrid: '/work/Dmitry.Dukhovskoy/CICE6/topo_grid'
-    filegrid: 'regional.cice.r'
-  "cice6":
-    pthgrid: '/work/Dmitry.Dukhovskoy/CICE6/topo_grid'
-    filegrid: 'grid_cice_NEMS_mx008.nc'
+    pthgrid:   '/work/Dmitry.Dukhovskoy/CICE6/topo_grid'
+    filegrid:  'regional.cice.r'
+    pthtopo:   '/work/Dmitry.Dukhovskoy/CICE6/topo_grid'
     filedepth: 'depth_GLBb0.08_09m11.a'
+  "cice6":
+    pthgrid:   '/work/Dmitry.Dukhovskoy/CICE6/topo_grid'
+    filegrid:  'grid_cice_NEMS_mx008.nc'
+    pthtopo:   '/work/Dmitry.Dukhovskoy/CICE6/topo_grid'
+    filedepth: 'depth_GLBb0.08_09m11.a'
+
+cice_params:
+  "cice4":
+    grid: "B"
+  "cice6":
+    grid: "C"
 
