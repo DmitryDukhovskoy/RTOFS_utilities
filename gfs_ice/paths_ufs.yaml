@@ -3,9 +3,13 @@ gaea:
   "MOM6":
     pthgrid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
     pthdata: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data'
+    pthcice: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/ufs_datm_mx025/expt{enmb:02d}/cice6'
+    pthrun:  '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS'
 
 dtn:
   "MOM6":
     pthgrid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
     pthdata: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data'
+    pthcice: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/ufs_datm_mx025/expt{enmb:02d}/cice6'
+    pthrun:  '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS'
 

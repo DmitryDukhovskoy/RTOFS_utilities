@@ -1,0 +1,186 @@
+"""
+  Interpolate NSIDC sea ice concentration 
+  to MOM6/CICE6 mesh025 grid
+
+  gmapi indices: get_gmapi_NSIDC_to_mesh025.py
+
+  NSIDC fields from 
+  https://noaadata.apps.nsidc.org/NOAA/G02202_V6/north/daily/2025/
+
+"""
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import importlib
+import matplotlib  
+import xarray
+from copy import copy
+import matplotlib.colors as colors 
+from yaml import safe_load
+from mpl_toolkits.basemap import Basemap, cm
+import argparse
+                   
+# Append custom module paths
+PPTHN = None
+if 'PPTHN' not in locals() or PPTHN is None:
+  cwd = os.getcwd()    
+  parts = cwd.split(os.sep)
+  if 'python' in parts:
+    idx = parts.index('python')
+    PPTHN = os.sep + os.path.join(*parts[:idx + 1])
+  else:
+    raise RuntimeError("Directory 'python' not found in current working directory path.")
+
+sys.path.extend([
+    os.path.join(PPTHN, 'MyPython', 'hycom_utils'),
+    os.path.join(PPTHN, 'MyPython', 'draw_map'),
+    os.path.join(PPTHN, 'MyPython'),
+    os.path.join(PPTHN, 'MyPython', 'mom6_utils')
+])
+
+
+from mod_utils_fig import bottom_text
+import mod_time as mtime
+import mod_utils as mutil
+import mod_misc1 as mmisc
+import mod_colormaps as mclrmps
+import mod_anls_seas as manseas
+import mod_utils_ob as mutob
+import mod_mom6 as mmom6
+import mod_misc1 as mmisc
+import mod_sis2_relax as msisrlx
+importlib.reload(msisrlx)
+
+YR = 2025
+MM = 1 
+DD = 15
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--regn", help="hemisphere: north or south", type=str, required=True)
+parser.add_argument("--yr", help=f"year of NSIDC data, default={YR}", type=int)
+parser.add_argument("--mm", help=f"month of NSIDCS data to interpolat, default={MM}", type=int)
+args = parser.parse_args()
+  
+regn = args.regn if args.regn else None
+YR   = args.yr if args.yr else YR
+MM   = args.mm if args.mm else MM
+  
+syst_info = os.uname() 
+machine = syst_info.nodename
+  
+if 'dtn' in machine:
+  print("Running on DTN node:", machine)
+  node_nm = "dtn"
+elif 'gaea' in machine:
+  print("Running on Gaea compute node:", machine)
+  node_nm = "gaea"
+else:
+  print("Unknown machine:", machine)
+    
+fyaml = 'paths_ufs.yaml'
+with open(fyaml) as ff:
+  pths_ufs = safe_load(ff)
+    
+# Get MOM6 grid
+pthgrid = pths_ufs[node_nm]["MOM6"]["pthgrid"]
+dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
+dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
+    
+hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
+
+with xarray.open_dataset(dftopo_mom) as dstopo:
+  HH = dstopo['depth'].data.squeeze()
+
+HH = np.where(HH < 1.e-20, np.nan, HH)
+HH = -HH
+HH = np.where(np.isnan(HH), 1., HH)
+
+jdm, idm = HH.shape
+LMsk = np.where(HH<0, 1, 0)
+
+# Mask out not needed latitudes:
+if regn == 'south':
+  LMsk = np.where(hlat > -55, 0, LMsk)
+else:
+  LMsk = np.where(hlat < 50, 0, LMsk)
+
+# Get gmapi 4 NSIDC grid points for interpolation
+pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
+pthdump  = os.path.join(pthdata,"gmapi_NSIDC")
+fgmapi  = f'NSIDC_NRTice_MOM6_gmapi_{idm}x{jdm}_{regn}.nc'
+dfgmapi = os.path.join(pthdump, fgmapi)
+print(f'Loading gmapi --> {dfgmapi}')
+
+dgmapi = xarray.open_dataset(dfgmapi)
+IMOM = dgmapi['mom_indx'].data
+JMOM = dgmapi['mom_jndx'].data
+INDX = dgmapi['gmapi_i'].data
+JNDX = dgmapi['gmapi_j'].data
+
+
+def read_NSIDC(YR,MM,DD,regn,pthnsidc,varnm):
+  if regn == 'south':
+    flnsidc = f"sic_pss25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"  
+  else:
+    flnsidc = f"sic_psn25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"  
+
+  with xarray.open_dataset(os.path.join(pthnsidc,flnsidc)) as ds_nsidc:
+    A = ds_nsidc[varnm].data.squeeze()
+
+  return A
+
+# Get lon/lat for NSIDC data
+pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
+Xnsidc = read_NSIDC(YR,MM,1,regn,pthnsidc,'x')
+Ynsidc = read_NSIDC(YR,MM,1,regn,pthnsidc,'y')
+
+XX, YY = np.meshgrid(Xnsidc, Ynsidc, indexing='xy')
+# Determine ellipsoid parameters from NSIDC information
+# Note that Radius of ellipsoid WGS84 is typically referred to major semi-axis (equatorial radius)
+if regn == 'south':
+  slat0 = -70.  # latitude of 0 distortion, standard lat. 
+  lon0  = -90.   # orientation of the 0 longitude wth to X axis on polar grid, not NSIDC is fliped upside down
+  flat_inv = 298.279411123064
+  ax_maj = 6378273.
+  flat = 1./flat_inv  # flattening
+  eccentr = np.sqrt(2*flat - flat**2)
+  R_polar = ax_maj*(1.-flat)   # polar radius or semi-minor axis
+
+
+  LON, LAT = mmisc.convert_polarXY_lonlat(XX,YY, North=False, E=eccentr, RE=ax_maj, SLAT=slat0, LON0_dir=lon0)
+  assert np.max(LAT) < 0., f"For southern hemisphere latitudes should be < 0"
+  LON = -LON   # nor sure why but this makes sign of the longitudes right
+
+
+icc = 0
+ndays = mtime.month_days(MM,YR)
+A3d = np.zeros((ndays,jdm,idm))
+time_days = np.arange(1,ndays+1)
+for mday in range(1,ndays+1):
+  print(f"Processing {YR}/{MM}/{mday} ...")
+  AA = read_NSIDC(YR, MM, mday, regn, pthnsidc, 'cdr_seaice_conc')
+  CIint = msisrlx.interp2Dfld(AA, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
+  CIint = np.where(HH>=0, np.nan, CIint)
+  A3d[mday-1,:,:] = CIint
+
+
+darr_cice = xarray.DataArray(A3d, dims=("time","jdim","idim"),\
+                   coords={"time": time_days,\
+                           "jdim": np.arange(jdm),\
+                           "idim": np.arange(idm)})
+dset = xarray.Dataset({"ice_conc": darr_cice})
+dset['ice_conc'].attrs['long_name']='ice partial area'
+# Add global attributes:
+dset.attrs['title']       = 'NRT NSIDC v6 sea ice conc daily interpolated onto mash025 grid'
+dset.attrs['institution'] = 'NOAA NWS NCEP MDC'
+dset.attrs['source']      = 'interp_NSIDC_mesh025.py'
+dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'
+dset.attrs['region']      = regn
+dset.attrs['Grid_idm_jdm'] = f'{idm}x{jdm}'
+
+fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}_{regn}.nc'
+dfliceout = os.path.join(pthnsidc,fliceout)
+print(f'Dumping interpolated ice conc --> {dfliceout}')
+dset.to_netcdf(dfliceout, format='NETCDF4', engine='netcdf4')
+

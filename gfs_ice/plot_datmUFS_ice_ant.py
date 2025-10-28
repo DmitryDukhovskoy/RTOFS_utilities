@@ -34,7 +34,6 @@ sys.path.extend([
     os.path.join(PPTHN, 'MyPython', 'mom6_utils')
 ])
 
-
 from mod_utils_fig import bottom_text
 import mod_time as mtime
 import mod_utils as mutil
@@ -46,6 +45,7 @@ import mod_utils_ob as mutob
 expt = 'ufs_datm_mx025_v02'
 init_date = 20250103
 init_hr = 0
+regn = 'south'
 
 # hs_h - grid cell mean (!) snow thickness, m
 # snow_ai - snowfall rate cm/day (in liquid water equivalent !)
@@ -58,6 +58,7 @@ parser.add_argument("--init", help=f"init date, default={init_date}", type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
 parser.add_argument("--fday", help=f"forecast day to plot: 1,...,14, =0 - init. cond.", type=int, required=True)
 parser.add_argument("--varnm", help="field to plot: iconc or ithkn", type=str)
+parser.add_argument("--regn", help="region to plot: south or north, default={regn}", type=str)
 args = parser.parse_args()
 
 enmb      = args.enmb if args.enmb else None
@@ -65,11 +66,10 @@ init_date = args.init if args.init else init_date
 init_hr   = args.ihr if args.ihr else init_hr
 fday      = args.fday if args.fday is not None else None
 varnm     = args.varnm if args.varnm else None
+
+cntr_nsidc = True # contour ice edge from NSIDC data interpolated onto CICE6 mesh025 grid
+
 TLON = TLAT = LMSK = None
-
-dlt_hr = 24.  # delta hours between saved/avrg output 
-
-pthoutp = f"/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/ufs_datm_mx025/expt{enmb:02d}/cice6"
 
 # Get date:
 dnmbI = mtime.rdate2datenum(init_date*100+init_hr)  # init. day nmb
@@ -80,13 +80,16 @@ nsec0 = hr0*3600
 plot_init = dnmb0 == dnmbI
 
 
+pthoutp = f"/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/ufs_datm_mx025/expt{enmb:02d}/cice6"
+pthnsidc = f'/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{yr0}'
+
+
 if varnm == 'iconc':
   if plot_init:
     varnc = 'aice'
   else:
     varnc = 'aice_d'
   units = 'fraction'
-  clrmp = mclrmps.colormap_uv()
   clrmp = mclrmps.colormap_conc()
   rmin = 0.
   rmax = 1.
@@ -122,15 +125,27 @@ with xarray.open_dataset(dflice) as ds:
     TLAT = ds['TLAT'].data
     LMSK = ds['tmask'].data
 
-
+jdm, idm = TLON.shape
+if cntr_nsidc:
+  fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{yr0}{mm0:02d}_{regn}.nc'
+  dfliceout = os.path.join(pthnsidc,fliceout)
+  print(f"Loading {dfliceout} ...")
+  iday = dd0-1
+  with xarray.open_dataset(dfliceout) as ds_nsidc:
+    Cice_NSIDC = ds_nsidc['ice_conc'].isel(time=iday).squeeze()
 
 clrmp.set_bad(color=[0.1, 0.1, 0.1])
-cntr_clr = [0.6,0.6,0.6]
+cntr_clr  = [0.5,0.5,0.5]
+cntr_clr2 = [1.,0.2,0.]
 
 if plot_init:
-  sttl = f'{varnm} {units}, {expt}-expt{enmb:02d} init field {init_date}:{init_hr:02d}hr'
+  sttl = f'{varnm}, {expt}-expt{enmb:02d} init field {init_date}:{init_hr:02d}hr'
 else:
-  sttl = f'{varnm} {units}, {expt}-expt{enmb:02d} init:{init_date}:{init_hr:02d}hr daily av.:{yr0}/{mm0:02d}/{dd0:02d}'
+  sttl = f'{varnm}, {expt}-expt{enmb:02d} init:{init_date}:{init_hr:02d}hr daily av.:{yr0}/{mm0:02d}/{dd0:02d}'
+
+if cntr_nsidc:
+  sttl = sttl + " cntr NSIDC (red)"
+  sinf = sinfo + "\n NSIDC NRT daily fields, contour ice edge (red)"
 
 print(f'Plotting {sttl} ...')
 plt.ion()
@@ -139,6 +154,12 @@ m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
 #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
 #x, y = m(lons, lats) # compute map proj coordinates.
 xh, yh = m(TLON,TLAT) # GFS coords
+
+if regn == 'south':
+  xl1 = -8.e6
+  xl2 = -1.2e6
+  yl1 = xl1
+  yl2 = xl2
 
 fig1 = plt.figure(1,figsize=(9,9))
 plt.clf()
@@ -156,6 +177,14 @@ img = ax1.pcolormesh(xh, yh, A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
 if varnm == 'iconc':
   # Contour ice edge:
   CS = ax1.contour(xh, yh, A2d, [0.15], linestyles='solid', colors=[cntr_clr], linewidths=1)
+
+  if cntr_nsidc:
+    ax1.contour(xh, yh, Cice_NSIDC, [0.15], linestyles='solid', colors=[cntr_clr2], linewidths=1)
+
+ax1.set_xlim([xl1, xl2])
+ax1.set_ylim([yl1, yl2])
+ax1.invert_yaxis()
+ax1.invert_xaxis()
 
 ax1.set_title(sttl)
 

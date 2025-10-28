@@ -148,6 +148,13 @@ m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
 #x, y = m(lons, lats) # compute map proj coordinates.
 xh, yh = m(TLON,TLAT) # GFS coords
 
+if regn == 'south':
+  xl1 = -8.e6
+  xl2 = -1.2e6
+  yl1 = xl1
+  yl2 = xl2
+
+
 fig1 = plt.figure(1,figsize=(9,9))
 plt.clf()
 ax1 = plt.axes([0.08, 0.1, 0.8, 0.8])
@@ -163,6 +170,10 @@ m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
 img = ax1.pcolormesh(xh, yh, A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
 # Contour ice edge:
 CS = ax1.contour(xh, yh, Aice, [0.15], linestyles='solid', colors=[cntr_clr], linewidths=1)
+ax1.set_xlim([xl1, xl2])
+ax1.set_ylim([yl1, yl2])
+ax1.invert_yaxis()
+ax1.invert_xaxis()
 
 ax1.set_title(sttl)
 
