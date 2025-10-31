@@ -1,0 +1,36 @@
+---
+# Directories with CICE4 and CICE6 restart files
+cice_paths:
+  "cice4":
+    pth: '/work/Dmitry.Dukhovskoy/CICE6/cice4'
+  "cice6":
+    pth: '/work/Dmitry.Dukhovskoy/CICE6/cice6'
+  "tmplt":
+    pth: '/work/Dmitry.Dukhovskoy/CICE6/tmplt'
+
+rest_names:
+  "cice4":
+    flnm: 'rtofs_glo.t00z.n-24.restart_cice'
+  "cice6":
+    flnm: "iced.{yr}-{mm:02d}-{dd:02d}-{hr:02d}000.new.nc"
+  "tmplt":
+    flnm: "iced.{yr}-{mm:02d}-{dd:02d}-{hr:02d}000.nc"
+  
+grid_topo:
+  "cice4":
+    pthgrid:   '/work/Dmitry.Dukhovskoy/CICE6/topo_grid'
+    filegrid:  'regional.cice.r'
+    pthtopo:   '/work/Dmitry.Dukhovskoy/CICE6/topo_grid'
+    filedepth: 'depth_GLBb0.08_09m11.a'
+  "cice6":
+    pthgrid:   '/work/Dmitry.Dukhovskoy/CICE6/topo_grid'
+    filegrid:  'grid_cice_NEMS_mx008.nc'
+    pthtopo:   '/work/Dmitry.Dukhovskoy/CICE6/topo_grid'
+    filedepth: 'depth_GLBb0.08_09m11.a'
+
+cice_params:
+  "cice4":
+    grid: "B"
+  "cice6":
+    grid: "C"
+

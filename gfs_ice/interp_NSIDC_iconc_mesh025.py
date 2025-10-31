@@ -75,6 +75,9 @@ if 'dtn' in machine:
 elif 'gaea' in machine:
   print("Running on Gaea compute node:", machine)
   node_nm = "gaea"
+elif 'an' in machine:
+  print("Running on PPAN node:", machine)
+  node_nm = "ppan"
 else:
   print("Unknown machine:", machine)
     

@@ -1,8 +1,5 @@
 """
-  Check Interpolated NSIDC sea ice concentration 
-  to MOM6/CICE6 mesh025 grid
-
-  gmapi indices: get_gmapi_NSIDC_to_mesh025.py
+  RMSE of ice conc. btw datm UFS experiments and NSIDC NRT fields
 
   NSIDC fields from 
   https://noaadata.apps.nsidc.org/NOAA/G02202_V6/north/daily/2025/

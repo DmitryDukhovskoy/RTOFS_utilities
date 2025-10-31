@@ -65,6 +65,7 @@ enmb      = args.enmb if args.enmb else None
 init_date = args.init if args.init else init_date
 init_hr   = args.ihr if args.ihr else init_hr
 fday      = args.fday if args.fday is not None else None
+regn      = args.regn if args.regn else None
 varnm     = args.varnm if args.varnm else None
 
 cntr_nsidc = True # contour ice edge from NSIDC data interpolated onto CICE6 mesh025 grid

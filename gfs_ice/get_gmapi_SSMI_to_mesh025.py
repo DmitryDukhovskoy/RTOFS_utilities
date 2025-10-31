@@ -1,13 +1,11 @@
 """
- Daily ice concentration fields from NRT NSIDC
-
- see PPAN scripts for getting NSIDC:
-  script:  data_process/get_NRT_seaconc.sh
-   github.com:DmitryDukhovskoy/mom6_sis2_regional.git
-   5101931..a1d2136  ppan_gfdl -> ppan_gfdl
+  NASA SSMI & AMSR snow thickness on sea ice in Antarctic
+  grid is similar to NSDIC (Polar Sterographic)
+  however, NSIDC grid is flipped
+  Need to rederive gmapi for NASA grid
 
   Derive gmapi indices for bi-linear interpolation
-  of NSIDC data onto 0.25 CICE6 grid tri-polar
+  of NASA S. Ocean data from Polar stereogr. to 0.25 CICE6 grid tri-polar
 
   derive indices separately for S and N hemispheres
 
@@ -97,45 +95,18 @@ HH = np.where(HH < 1.e-20, np.nan, HH)
 HH = -HH
 HH = np.where(np.isnan(HH), 1., HH)
 
-# Derive geo-coordinates from NSIDC Polar Coordinates
+# Lon/lats have been derived in the code
+# that computed monthly clim for NASA hsnow
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
-pthdump  = os.path.join(pthdata,"gmapi_NSIDC")
-
-if regn == 'south':
-  flnsidc = f"sic_pss25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"
-  slat0 = -70.  # latitude of 0 distortion, standard lat. 
-  lon0  = -90.   # orientation of the 0 longitude wth to X axis on polar grid, not NSIDC is fliped upside down
-  flat_inv = 298.279411123064
-  ax_maj = 6378273.
-  
-
-ds_nsidc = xarray.open_dataset(os.path.join(pthnsidc,flnsidc))
-Xnsidc = ds_nsidc['x'].data
-Ynsidc = ds_nsidc['y'].data
-C2d = ds_nsidc['cdr_seaice_conc'].data.squeeze()
-
-ds_nsidc.close()
-
-# Have to flip Y axis in the NSIDC grid to get right coordinates, why? 
-#Ynsidc  = np.flipud(Ynsidc)
-# Have to flip Y axis in the NSIDC grid to get right orientation of the field, why? 
-#C2d = np.flipud(C2d)
-
-import mod_misc1 as mmisc
-XX, YY = np.meshgrid(Xnsidc, Ynsidc, indexing='xy')
-#YY = -YY
-
-# Determine ellipsoid parameters from NSIDC information
-# Note that Radius of ellipsoid WGS84 is typically referred to major semi-axis (equatorial radius)
-flat = 1./flat_inv  # flattening
-eccentr = np.sqrt(2*flat - flat**2)
-R_polar = ax_maj*(1.-flat)   # polar radius or semi-minor axis
-
-if regn == 'south':
-  LON, LAT = mmisc.convert_polarXY_lonlat(XX,YY, North=False, E=eccentr, RE=ax_maj, SLAT=slat0, LON0_dir=lon0)
-  assert np.max(LAT) < 0., f"For southern hemisphere latitudes should be < 0"
-  LON = -LON   # nor sure why but this makes sign of the longitudes right
+pthsnow = os.path.join(pthdata, 'snow_nasa')
+flhs = 'AMSR_Antarctic_hsnow_month_clim_1998_2007.nc'
+dflhs = os.path.join(pthsnow,flhs)
+print(f"Loading {dflhs}")
+with xarray.open_dataset(dflhs) as dshs:
+  XX = dshs['xpolar'].data.squeeze()
+  YY = dshs['ypolar'].data.squeeze()
+  LON = dshs['lon'].data.squeeze()
+  LAT = dshs['lat'].data.squeeze()
 
 
 import mod_regmom as mrmom
@@ -216,26 +187,30 @@ dset['gmapi_i'].attrs['long_name'] = 'I indices NSIDC grid for interpolation'
 dset['gmapi_j'].attrs['long_name'] = 'J indices NSIDC grid for interpolation'
 
 # Global attributes
-dset.attrs['title']       = 'Grid mapping between NSIDC and MOM6 grids'
+dset.attrs['title']       = 'Grid mapping between NASA Polar sterographic south and MOM6 grids'
 dset.attrs['institution'] = 'NOAA NWS NCEP MDC'
-dset.attrs['source']      = 'get_gmapi_NSIDC_to_mesh025.py'
-dset.attrs['history']     = 'NSIDC NRT daily ice concentration, polar stereogr converted to geogr. coordinates'
+dset.attrs['source']      = 'get_gmapi_SSMI_to_mesh025.py'
+dset.attrs['history']     = 'SSMI hsnow fields, polar stereogr converted to geogr. coordinates'
 dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'
 dset.attrs['region']      = regn
 dset.attrs['Grid_idm_jdm'] = f'{idm}x{jdm}'
 
-fgmapi  = f'NSIDC_NRTice_MOM6_gmapi_{idm}x{jdm}_{regn}.nc'
+pthdump = os.path.join(pthdata,'gmapi_NSIDC')
+fgmapi  = f'SSMI_hsnow_MOM6_gmapi_{idm}x{jdm}_{regn}.nc'
 dfgmapi = os.path.join(pthdump, fgmapi)
 
 print(f'Saving gmapi --> {dfgmapi}')
 dset.to_netcdf(dfgmapi, format='NETCDF4', engine='netcdf4')
 
 
-
-
 f_chck = False
 f_xy = False     # True - plot on X.Y grid. False - plot on index space
 if f_chck:
+# monthly snow depth, Antarctica:
+  MM = 2
+  with xarray.open_dataset(dflhs) as dshs:  
+    C2d = dshs['snow_depth'].isel(time=MM-1).data.squeeze()
+
   clrmp = mclrmps.colormap_conc()
   rmin = 0.
   rmax = 1.
@@ -276,6 +251,7 @@ if f_chck:
   else:
     # Plot on grid:
     ax1.pcolormesh(C2d, cmap=clrmp, vmin=rmin, vmax=rmax)
+    # Check longitudes:
     cs = ax1.contour(LON1, lon_cntr1, linestyles='solid', colors=[(0.6,0.6,0.6)], linewidths=1)
     ax1.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
     cs2 = ax1.contour(LON2, lon_cntr2, linestyles='solid', colors=[(0.,0.5,0.9)], linewidths=1)
@@ -283,15 +259,16 @@ if f_chck:
     cs3 = ax1.contour(LON1,[0], linestyles='solid', colors=[(1,0.,0.)], linewidths=2)
     ax1.clabel(cs3, inline=True, fontsize=12, fmt="%.1f")
     ax1.contour(LON3,[180], linestyles='solid', colors=[(0.6,0.,0.9)], linewidths=1)
-    cs = ax1.contour(LAT, lat_cntr, linestyles='solid', colors=[(0.5,0.5,0.5)], linewidths=1)
-    ax1.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
+    ax1.contour(LAT, lat_cntr, linestyles='solid', colors=[(0.5,0.5,0.5)], linewidths=1)
+    ax1.contour(LAT,[-75], linestyles='solid', colors=[(1,0.,0.)], linewidths=1)  
     ax1.axis('scaled')
-    ax1.invert_yaxis() 
-    ax1.set_ylabel('Inverted j index')
+    #ax1.invert_yaxis() 
+    #ax1.set_ylabel('Inverted j index')
+    ax1.set_ylabel('j index')
     ax1.set_xlabel('i index')
 
-  ax1.set_title('Derived lon/lat from NSIDC polar sterogr. projection')
-  btx = 'get_gmapi_NSIDC_to_mesh025.py'
+  ax1.set_title('Derived lon/lat from NASA SSMI South polar sterogr. projection')
+  btx = 'get_gmapi_SSMI_to_mesh025.py'
   bottom_text(btx) 
 
 

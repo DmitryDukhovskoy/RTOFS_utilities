@@ -148,12 +148,18 @@ fig1.subplots_adjust(
 )
 
 
-clrmp = mclrmps.colormap_ice_thkn()
-clrmp.set_bad(color=[0.2, 0.2, 0.2])
+units = 'cm'
+clrmp = mclrmps.colormap_temp()
 rmin = 0.
+#rmax = 20.
 rmax = 50.
+#clrmp = mclrmps.colormap_ice_thkn()
+#rmin = 0.
+#rmax = 50.
+clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
 iplt = 0
+
 for MM in range(moS,moE+1):
   sttl=f'hsnow MM={MM:02d}, {yrS}-{yrE}'
 

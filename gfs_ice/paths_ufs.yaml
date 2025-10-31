@@ -5,6 +5,14 @@ gaea:
     pthdata: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data'
     pthcice: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/ufs_datm_mx025/expt{enmb:02d}/cice6'
     pthrun:  '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS'
+    pthrest: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields' 
+
+  "CICE6":
+    pthgrid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
+    pthdata: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data'
+    pthcice: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/ufs_datm_mx025/expt{enmb:02d}/cice6'
+    pthrun:  '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS'
+    pthrest: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields' 
 
 dtn:
   "MOM6":
@@ -12,4 +20,5 @@ dtn:
     pthdata: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data'
     pthcice: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/ufs_datm_mx025/expt{enmb:02d}/cice6'
     pthrun:  '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS'
+    pthrest: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields' 
 
