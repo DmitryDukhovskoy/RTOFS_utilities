@@ -1223,7 +1223,7 @@ def convert_polarXY_lonlat(X, Y, RE=6378137.0, E=0.08181919, SLAT=70., North=Tru
                            LON0_dir = -45., units='m'):
   """
   Transform polar X, Y coordinates (m) to geogr. lon/lat
-  in N. hemisphere  and S. hemisphere (has not checked yet S.Hem.)
+  in N. hemisphere  and S. hemisphere (check signs for longitudes in S. hemisphere)
   The code is based on fortran version :
   https://github.com/nsidc/polarstereo-latlon-convert-fortran/blob/main/locate/locate.for
   as well as matlab version:
