@@ -154,6 +154,8 @@ def parse_rdate(rdate):
   """
   Derive date fields from rtofs string
   """
+  if not isinstance(rdate, str):
+    rdate = str(rdate)
 
   ll = len(rdate)
   yr = int(rdate[0:4])
@@ -172,6 +174,9 @@ def rdate2date(rdate):
   Convert rtofs date YYYYMMDD or YYYYMMDDHR to YY, MM, DD, HR
   return list
   """
+  if not isinstance(rdate, str):
+    rdate = str(rdate)
+
   YR     = int(rdate[0:4])
   MM     = int(rdate[4:6])
   DD     = int(rdate[6:8])
@@ -183,7 +188,6 @@ def rdate2date(rdate):
 
   Ldate = [YR,MM,DD,HR]
   return Ldate
-
 
 
 def rdate2datenum(rdate):

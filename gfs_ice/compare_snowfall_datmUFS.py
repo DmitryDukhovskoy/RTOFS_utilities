@@ -6,6 +6,9 @@
   cm/day in liquid water equivalent  !!!
 
 """
+
+NOT FINISHED
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -52,15 +55,15 @@ regn = 'south'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help="hemisphere: north or south", type=str, required=True)
-parser.add_argument(f"--dinit", help="init date of f/cast, default={init_date}", type=int)
-parser.add_argument(f"--hinit", help="init hour of f/cast, default={init_hr}", type=int)
+parser.add_argument(f"--dinit", help=f"init date of f/cast, default={init_date}", type=int)
+parser.add_argument(f"--ihr", help=f"init hour of f/cast, default={init_hr}", type=int)
 parser.add_argument("--enmb1", help="Experiment 1 = 1, ..., ", type=int, required=True)
 parser.add_argument("--enmb2", help="Experiment 2 = 1, ...", type=int, required=True)
 parser.add_argument("--dfcst", help="Forecast day to plot = 1, ..., 14", type=int, required=True)
 args = parser.parse_args()
   
 regn = args.regn if args.regn else None
-init_date = args.init if args.init else init_date
+init_date = args.dinit if args.dinit else init_date
 init_hr = args.ihr if args.ihr else init_hr
 dfcst = args.dfcst if args.dfcst is not None else None
 enmb1 = args.enmb1 if args.enmb1 else None

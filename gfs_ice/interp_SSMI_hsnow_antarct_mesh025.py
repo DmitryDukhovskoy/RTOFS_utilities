@@ -21,6 +21,10 @@
   available data: 1993-2008
   daily data
 
+
+  Code to derived monthly SSM/I fileds are on PPAN:
+  derive_hsnow_monthly_SSMI_Antarctic.py
+
 """
 import os
 import numpy as np

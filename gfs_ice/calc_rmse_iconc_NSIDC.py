@@ -120,15 +120,8 @@ def read_NSIDC(YR,MM,DD,regn,pthnsidc,varnm):
 
   return A
 
-# Get lon/lat for NSIDC data
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
-Xnsidc = read_NSIDC(YR,MM,1,regn,pthnsidc,'x')
-Ynsidc = read_NSIDC(YR,MM,1,regn,pthnsidc,'y')
-
-XX, YY = np.meshgrid(Xnsidc, Ynsidc, indexing='xy')
-# Determine ellipsoid parameters from NSIDC information
-# Note that Radius of ellipsoid WGS84 is typically referred to major semi-axis (equatorial radius)
 if regn == 'south':
   RMsk = np.where(HH>=0, 0, 1)
   RMsk = np.where(hlat > -60., 0, RMsk)
@@ -213,7 +206,7 @@ lgd = plt.legend(handles=LNS, loc='upper left')
 ax3.axis('off')
 
 btx = 'calc_rmse_iconc_NSIDC.py'
-bottom_text(btx, pos=[0.1,0.2])
+bottom_text(btx, pos=[0.1,0.1])
 
 f_chck = False
 if f_chck:

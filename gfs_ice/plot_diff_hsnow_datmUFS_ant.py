@@ -1,6 +1,7 @@
 """
-  Plot snow fields from sensitivity tests with
-  atm.-forced UFS (datm UFS)
+  Plot difference of snow depth fields from sensitivity tests with
+  atm.-forced UFS (datm UFS) vs NASA SSM/I monthly clim
+  interpolated to mesh025 
 
 """
 import os
@@ -16,16 +17,22 @@ from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
 import argparse
 
-PPTHN = '/home/Dmitry.Dukhovskoy/python'
-if len(PPTHN) == 0:
-  cwd   = os.getcwd()
-  aa    = cwd.split("/")
-  nii   = cwd.split("/").index('python')
-  PPTHN = '/' + os.path.join(*aa[:nii+1])
-sys.path.append(PPTHN + '/MyPython/hycom_utils')
-sys.path.append(PPTHN + '/MyPython/draw_map')
-sys.path.append(PPTHN + '/MyPython')
-sys.path.append(PPTHN + '/MyPython/mom6_utils')
+PPTHN = None
+if 'PPTHN' not in locals() or PPTHN is None:
+  cwd = os.getcwd()
+  parts = cwd.split(os.sep)
+  if 'python' in parts:
+    idx = parts.index('python')
+    PPTHN = os.sep + os.path.join(*parts[:idx + 1])
+  else:
+    raise RuntimeError("Directory 'python' not found in current working directory path.")
+
+sys.path.extend([
+    os.path.join(PPTHN, 'MyPython', 'hycom_utils'),
+    os.path.join(PPTHN, 'MyPython', 'draw_map'),
+    os.path.join(PPTHN, 'MyPython'),
+    os.path.join(PPTHN, 'MyPython', 'mom6_utils')
+])
 
 from mod_utils_fig import bottom_text
 import mod_time as mtime
@@ -39,7 +46,7 @@ expt = 'ufs_datm_mx025_v02'
 init_date = 20250103
 init_hr = 0
 regn = 'south'
-fld_avrg = "cell"
+fld_avrg = "ice"  # use hsnow over ice area, i.e. hsn = vsn / aice = m3 / m2_ice
 
 # hs_h - grid cell mean (!) snow thickness, m
 # snow_ai - snowfall rate cm/day (in liquid water equivalent !)
@@ -64,9 +71,24 @@ fld_avrg  = args.avrg if args.avrg else fld_avrg
 
 TLON = TLAT = LMSK = None
 
-dlt_hr = 24.  # delta hours between saved/avrg output 
-
 pthoutp = f"/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/ufs_datm_mx025/expt{enmb:02d}/cice6"
+
+syst_info = os.uname()
+machine = syst_info.nodename
+
+if 'dtn' in machine:
+  print("Running on DTN node:", machine)
+  node_nm = "dtn"
+elif 'gaea' in machine:
+  print("Running on Gaea compute node:", machine)
+  node_nm = "gaea"
+else:
+  print("Unknown machine:", machine)
+
+fyaml = 'paths_ufs.yaml'
+with open(fyaml) as ff:
+  pths_ufs = safe_load(ff)
+
 
 # Get date:
 plot_init = fday == 0  # initial conditions
@@ -103,22 +125,33 @@ if fld_avrg == 'ice':
   A2d = np.divide(A2d, Aice, out=np.zeros_like(A2d), where=Aice > 0)
 A2d[LMSK==0] = np.nan
 
+# Read interpolated snow depths:
+# Snow depth climatology, Interpolated fields mesh025:
+pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
+pthsnow = os.path.join(pthdata,'snow_nasa')
+flhsn = f'SSMI_hsnow_interp_mesh025_1080x1440_mnthly_clim_south.nc'
+dflhsn = os.path.join(pthsnow,flhsn)
+print(f"Reading interpolated hsnow {dflhsn}")
+with xarray.open_dataset(dflhsn) as ds_snow:
+  HSi = ds_snow['snow_depth'].isel(time=mm0-1).data.squeeze()
+  LON = ds_snow['lon'].data
+  LAT = ds_snow['lat'].data
+
+dHS = A2d - HSi
 
 units = 'cm'
-clrmp = mclrmps.colormap_temp()
-rmin = 0.
-rmax = 20.
+clrmp = mclrmps.colormap_uv()
+rmin = -50
+rmax = 50
+clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
-
-clrmp.set_bad(color=[0.1, 0.1, 0.1])
-cntr_clr = [0.9,0.,1]
 
 if fld_avrg == 'cell':
-  sttl = f'hsnow m3/m2_cell, datmUFS expt{enmb} init:{init_date}/{init_hr} fcast:{YR}/{MM:02d}/{DD:02d}'
-  sinfo = 'grid cell mean snow thickness, 100*(m3 per m2 od grid cell)\n'
+  sttl = f'diff hsnow m3/m2_cell, datmUFS expt{enmb:02d} vs SSM/I clim  init:{init_date}/{init_hr} fcast:{YR}/{MM:02d}/{DD:02d}'
+  sinfo = 'difference datmUFS-climatology grid cell mean snow thickness, 100*(m3 per m2 od grid cell)\n'
 else:
-  sttl = f'hsnow m3/m2_ice, datmUFS expt{enmb} init:{init_date}/{init_hr} fcast:{YR}/{MM:02d}/{DD:02d}'
-  sinfo = 'mean snow thickness, 100*(m3 per m2 of ice area)\n'
+  sttl = f'diff hsnow m3/m2_ice, datmUFS expt{enmb} vs SSM/I clim init:{init_date}/{init_hr} fcast:{YR}/{MM:02d}/{DD:02d}'
+  sinfo = 'difference datmUFS-climatology ice area mean snow thickness, 100*(m3 per m2 of ice)\n'
 if plot_init:
   sttl = sttl + ' INIT'
 sinfo = sinfo + pthoutp
@@ -148,9 +181,7 @@ m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
 meridians = np.arange(-360,359.,45.)
 m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
 
-img = ax1.pcolormesh(xh, yh, A2d, cmap=clrmp, vmin=rmin, vmax=rmax, shading='auto')
-# Contour ice edge:
-CS = ax1.contour(xh, yh, Aice, [0.15], linestyles='solid', colors=[cntr_clr], linewidths=1)
+img = ax1.pcolormesh(xh, yh, dHS, cmap=clrmp, vmin=rmin, vmax=rmax, shading='auto')
 
 ax1.set_xlim([xl1, xl2])
 ax1.set_ylim([yl1, yl2])
@@ -177,7 +208,7 @@ ax3 = fig1.add_axes([0.02, 0.03, 0.8, 0.06])
 ax3.text(0, 0, sinfo, fontsize=8)
 ax3.axis('off')
 
-btx = 'plot_datmUFS_snow_ant.py'
+btx = 'plot_datmUFS_hsnow_ant.py'
 bottom_text(btx, pos=[0.2, 0.01])
 
 

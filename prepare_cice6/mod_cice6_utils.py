@@ -841,7 +841,7 @@ def sice_lr_cice4(klr, Ni, aice_lr, Smax=3.2, a=0.407, b=0.573):
     number of ice layers = Ni
   """
   if klr > Ni:
-    raise Exception ('klr {0} cannot be > Ni {1}'.format(klr,Ni))
+    raise Exception (f'klr {klr} cannot be > {Ni}')
 
   sice_lr = aice_lr.copy()*0.0
   z       = (klr-0.5)/float(Ni)

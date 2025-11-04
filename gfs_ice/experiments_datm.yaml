@@ -1,0 +1,34 @@
+---
+expt:
+  "01":
+    "name": "control run"
+    "ktherm": 2
+    "kdyn": 1
+    "snwredost": "none"
+    "atmforc": "GFS"
+    "initice": "GDAS GFS"
+    "initmom": "GDAS GFS"
+    "inittime": 2025010300
+    "info": "base expt with standard GFS setup from rt13"
+  "02": 
+    "name": "control run"
+    "ktherm": 2
+    "kdyn": 1
+    "snwredost": "none"
+    "atmforc": "GFS"
+    "initice": "GDAS GFS"
+    "initmom": "GDAS GFS"
+    "inittime": 2025010300
+    "info": "snowfall rate x3"
+  "03": 
+    "name": "control run"
+    "ktherm": 2
+    "kdyn": 1
+    "snwredost": "none"
+    "atmforc": "GFS"
+    "initice": "GDAS GFS"
+    "initmom": "GDAS GFS"
+    "inittime": 2025010300
+    "info": "snowfall rate x10"
+
+
