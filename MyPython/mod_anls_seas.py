@@ -2379,6 +2379,7 @@ def avrg_cice_NSIDC(YR1, YR2, MM1, MM2, get_coord=True):
         ICM = ICM + ICnrt
 
       jcc += 1        
+      dset_nsidc.close()
 
   ICM = ICM.squeeze()/jcc
 

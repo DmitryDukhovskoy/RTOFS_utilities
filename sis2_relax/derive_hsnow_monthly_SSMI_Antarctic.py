@@ -17,17 +17,24 @@ import matplotlib.colors as colors
 from yaml import safe_load
 import argparse
 
-PPTHN = '/home/Dmitry.Dukhovskoy/python'
-if len(PPTHN) == 0:
-  cwd   = os.getcwd()
-  aa    = cwd.split("/")
-  nii   = cwd.split("/").index('python')
-  PPTHN = '/' + os.path.join(*aa[:nii+1])
-sys.path.append(PPTHN + '/MyPython/hycom_utils')
-sys.path.append(PPTHN + '/MyPython/draw_map')
-sys.path.append(PPTHN + '/MyPython')
-sys.path.append(PPTHN + '/MyPython/mom6_utils')
+# Append custom module paths
+PPTHN = None
+if 'PPTHN' not in locals() or PPTHN is None:
+  cwd = os.getcwd()    
+  parts = cwd.split(os.sep)
+  if 'python' in parts:
+    idx = parts.index('python')
+    PPTHN = os.sep + os.path.join(*parts[:idx + 1])
+  else:
+    raise RuntimeError("Directory 'python' not found in current working directory path.")
 
+sys.path.extend([
+    os.path.join(PPTHN, 'MyPython', 'hycom_utils'),
+    os.path.join(PPTHN, 'MyPython', 'draw_map'),
+    os.path.join(PPTHN, 'MyPython'), 
+    os.path.join(PPTHN, 'MyPython', 'mom6_utils')
+])
+  
 from mod_utils_fig import bottom_text
 import mod_time as mtime
 import mod_utils as mutil
@@ -161,47 +168,34 @@ def read_NSIDC(YR,MM,DD,regn,pthnsidc,varnm):
 
 # Get polar coordinates for Antarctica
 # Same grid as in NSIDC ice conc. fields
+# Southern Hemisphere Projection Based on WGS 1984
+# https://nsidc.org/data/user-resources/help-center/guide-nsidcs-polar-stereographic-projection
 YR = 2025
 MM = 1
 if node_nm == 'ppan':
   pthnsidc = f'/work/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{YR}'
   pthout_snow = '/work/Dmitry.Dukhovskoy/data/snow_nasa/'
 Xnsidc = read_NSIDC(YR,MM,1,regn,pthnsidc,'x')
-Ynsidc = read_NSIDC(YR,MM,1,regn,pthnsidc,'y')
+Ynsidc0 = read_NSIDC(YR,MM,1,regn,pthnsidc,'y')
+# NOAA NSIDC vertical axis is fliped upside down, so need to correct:
+Ynsidc = np.flipud(Ynsidc0)
 
 XX, YY = np.meshgrid(Xnsidc, Ynsidc, indexing='xy')
 # Determine ellipsoid parameters from NSIDC information
 # Note that Radius of ellipsoid WGS84 is typically referred to major semi-axis (equatorial radius)
 if regn == 'south':
   slat0 = -70.  # latitude of 0 distortion, standard lat. 
-  lon0  = -90.   # orientation of the 0 longitude wth to X axis on polar grid, not NSIDC is fliped upside down
+  lon0  = -90.   # orientation of the 0 longitude wrt to X axis on polar grid
   flat_inv = 298.279411123064
   ax_maj = 6378273. 
   flat = 1./flat_inv  # flattening
   eccentr = np.sqrt(2*flat - flat**2)
   R_polar = ax_maj*(1.-flat)   # polar radius or semi-minor axis
 
-
+if regn == 'south':
   LON, LAT = mmisc.convert_polarXY_lonlat(XX,YY, North=False, E=eccentr, RE=ax_maj, SLAT=slat0, LON0_dir=lon0)
   assert np.max(LAT) < 0., f"For southern hemisphere latitudes should be < 0"
-  assert np.max(LON) < 360., f"Check LON derived from Polar stereogr., maxLON={np.max(LON):.2d}"
-  LON = np.where(LON>180., LON-360., LON)
-
-  # NSIDC grid seems to be flipped upside down wrt to LON, undo this:
-  # 0 meridian is expected to go straight up from the S. Pole, i.e.
-  # lon = 0 should be in the top row
-  lon_top = LON[-1,:]
-  lon_top = np.where(lon_top<0, lon_top+360, lon_top)
-  if np.min(lon_top) > 0.5:
-    LON = np.flipud(LON)
-
-  lon_top = LON[-1,:]
-  lon_top = np.where(lon_top<0, lon_top+360, lon_top)
-  assert np.min(lon_top) < 0.5, f"Check LON: 0 meridian expected go up from S. Pole"
-
-  # Also, not sure why but have to flip signs of longitudes to make it look right
-  if LON[175,-1] < 0:
-    LON = -LON
+  LON = -LON   # nor sure why but this makes sign of the longitudes right
 
 # Double --> single precision
 H3D = H3D.astype('float32')
@@ -294,9 +288,6 @@ if f_chck:
   rmin = 0.
   #rmax = 20.
   rmax = 50.
-  #clrmp = mclrmps.colormap_ice_thkn()
-  #rmin = 0.
-  #rmax = 50.
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
   LON1 = LON.copy()
@@ -309,26 +300,53 @@ if f_chck:
   lon_cntr2 = [x for x in range(45,178,45)]  # blue: 0 to 180 E
   lat_cntr = [x for x in range(-80,-20,10)]
 
-  MM = 1
+  MM = 2
   sttl=f'hsnow MM={MM:02d}, {yrS}-{yrE}'
+
+  hs2d = H3D[MM-1,:,:].squeeze()
+  
+  fig1 = plt.figure(1,figsize=(12, 10))
+  fig1.clf()  # Clear the figure
   ax1 = plt.axes([0.08,0.1, 0.8,0.8])
 
-  hs2d = H3D[MM-moS,:,:].squeeze()
-  img = ax1.pcolormesh(hs2d, cmap=clrmp, vmin=rmin, vmax=rmax)
-  
-  # Check longitudes:
-  cs = ax1.contour(LON1, lon_cntr1, linestyles='solid', colors=[(0.6,0.6,0.6)], linewidths=1)
-  ax1.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
-  cs2 = ax1.contour(LON2, lon_cntr2, linestyles='solid', colors=[(0.,0.5,0.9)], linewidths=1)
-  ax1.clabel(cs2, inline=True, fontsize=10, fmt="%.1f")
-  cs3 = ax1.contour(LON1,[0], linestyles='solid', colors=[(1,0.,0.)], linewidths=2)
-  ax1.clabel(cs3, inline=True, fontsize=12, fmt="%.1f")
-  ax1.contour(LON3,[180], linestyles='solid', colors=[(0.6,0.,0.9)], linewidths=1)
-  ax1.contour(LAT, lat_cntr, linestyles='solid', colors=[(0.5,0.5,0.5)], linewidths=1)
-  ax1.axis('scaled')
+  f_xy = True
+  if f_xy: 
+    img = ax1.pcolormesh(XX,YY,hs2d, cmap=clrmp, vmin=rmin, vmax=rmax)
+    #ax1.invert_yaxis()
+    # plot on XX,YY:
+    cs = ax1.contour(XX,YY,LON1, lon_cntr1, linestyles='solid', colors=[(0.6,0.6,0.6)], linewidths=1)
+    ax1.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
+    cs = ax1.contour(XX,YY,LON2, lon_cntr2, linestyles='solid', colors=[(0.,0.5,0.9)], linewidths=1)
+    ax1.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
+    cs = ax1.contour(XX,YY,LAT, lat_cntr, linestyles='solid', colors=[(0.5,0.5,0.5)], linewidths=1)
+    ax1.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
+    cs = ax1.contour(XX,YY,LON1,[0], linestyles='solid', colors=[(1,0.,0.)], linewidths=1)
+    ax1.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
+    cs = ax1.contour(XX,YY,LAT,[-75], linestyles='solid', colors=[(1,0.,0.)], linewidths=1)
+    ax1.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
+    cs = ax1.contour(XX,YY,LON3,[180], linestyles='solid', colors=[(0.6,0.,0.9)], linewidths=1)
+    ax1.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
+    ax1.axis('scaled')
 
-  #ax1.set_xlim([10,310])
-  #ax1.set_ylim([20,330])
+  else:
+    img = ax1.pcolormesh(hs2d, cmap=clrmp, vmin=rmin, vmax=rmax)
+    
+    # Check longitudes:
+    cs = ax1.contour(LON1, lon_cntr1, linestyles='solid', colors=[(0.6,0.6,0.6)], linewidths=1)
+    ax1.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
+    cs2 = ax1.contour(LON2, lon_cntr2, linestyles='solid', colors=[(0.,0.5,0.9)], linewidths=1)
+    ax1.clabel(cs2, inline=True, fontsize=10, fmt="%.1f")
+    cs3 = ax1.contour(LON1,[0], linestyles='solid', colors=[(1,0.,0.)], linewidths=2)
+    ax1.clabel(cs3, inline=True, fontsize=12, fmt="%.1f")
+    ax1.contour(LON3,[180], linestyles='solid', colors=[(0.6,0.,0.9)], linewidths=1)
+    cs = ax1.contour(LAT, lat_cntr, linestyles='solid', colors=[(0.5,0.5,0.5)], linewidths=1)
+    ax1.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
+    cs = ax1.contour(LAT,[-75], linestyles='solid', colors=[(1,0.,0.)], linewidths=1)
+    ax1.clabel(cs, inline=True, fontsize=10, fmt="%.1f")
+    ax1.axis('scaled')
+
+    #ax1.set_xlim([10,310])
+    #ax1.set_ylim([20,330])
   ax1.set_title(sttl)
 
   # Colorbar

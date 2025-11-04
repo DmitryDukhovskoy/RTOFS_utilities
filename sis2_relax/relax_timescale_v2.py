@@ -19,15 +19,20 @@ from yaml import safe_load
 import argparse
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
-if len(PPTHN) == 0:
+if PPTHN is None:
+  # Try default location of MyPython: ../
   cwd   = os.getcwd()
   aa    = cwd.split("/")
-  nii   = cwd.split("/").index('python')
-  PPTHN = '/' + os.path.join(*aa[:nii+1])
-sys.path.append(PPTHN + '/MyPython/hycom_utils')
-sys.path.append(PPTHN + '/MyPython/draw_map')
-sys.path.append(PPTHN + '/MyPython')
-sys.path.append(PPTHN + '/MyPython/mom6_utils')
+  if 'python' in aa:
+      nii = aa.index('python')
+      PPTHN = '/' + os.path.join(*aa[:nii+1])
+  else:
+      raise ValueError("'python' not found in current path")
+sys.path.append(os.path.join(PPTHN, 'MyPython'))
+sys.path.append(os.path.join(PPTHN, 'MyPython', 'draw_map'))
+sys.path.append(os.path.join(PPTHN, 'MyPython', 'hycom_utils'))
+sys.path.append(os.path.join(PPTHN, 'MyPython', 'mom6_utils'))
+
 import mod_time as mtime
 import mod_mom6 as mmom6
 import mod_utils as mutil
