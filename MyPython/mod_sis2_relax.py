@@ -28,7 +28,7 @@ from mod_utils_fig import bottom_text
 
 
 def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
-                eps_err=1.e-2, land_mask=False):
+                eps_err=1.e-2, land_mask=False, info_step=10000):
   """
     Interpolate A2d (2D field) from PIOMAS onto MOM6 grid
     IMOM, JMOM - MOM6 indices where fields need to be interpolated
@@ -48,6 +48,8 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
 
   npnts = len(INDX)
   jdm, idm = LMsk.shape
+  assert np.max(LMsk) == 1 and np.min(LMsk) == 0,\
+    f"LMsk should be 0 and 1, given: np.min(LMsk) and np.max(LMsk)"
 
   print(f'Interpolating 2D {npnts} pnts ...')
 # Make sure that gmapi is for the right section:
@@ -58,7 +60,7 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
     Ai = np.where(LMsk==0,np.nan, Ai)
 
   for ikk in range(npnts):
-    if ikk%10000 == 0:
+    if ikk%info_step == 0:
       print(f'   {ikk/npnts*100.:.2f}% done ...')
     imom = IMOM[ikk]
     jmom = JMOM[ikk]
@@ -76,16 +78,28 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
     yy = LATs[JJ,II]
 
 # Use cartesian coordinates for mapping
-    if x0 < 0.: x0 = x0+360.
-    xx = np.where(xx<0., xx+360., xx)
+    # To avoid the wrapping discontinuity
+    #  -180/180 or 360/0 discontinuity 
+    # of the box vertix coordinates (e.g, xx = 359, 0.5, 0.5, 359)
+    # and x0 coordinate wrt to box vertices e.g. x0 = -0.2, xx=359, 0.5, 0.5, 359
+    # shift all coordinates to -180,180 wrt to x0
+    xx = mblnr.shift_longitudes(xx, ref_lon=x0)
+
+    assert np.max(abs(np.diff(xx))) < 180., \
+      f"ikk={ikk} Check lon coordinates, big difference -180/180 or 0/360 discontinuity ?"
+    assert np.max(abs(xx-x0)) < 180., \
+      f"ikk={ikk} Check x0 wrt xx coord, big difference -180/180 or 0/360 discontinuity ?"
+
     f_repeated= muob.check_repeated_vertices(xx,yy)
     if f_repeated:
       print(f"Bad box with coninciding vertices ikk={ikk}, approximate interpolation")
       xht = 1.e-3
       yht = 1.e-3
     else:
-      xref     = x0-0.1
-      yref     = y0-0.1
+      #xref     = x0-0.1
+      #yref     = y0-0.1
+      xref     = np.mean(xx)
+      yref     = np.mean(yy)
       XV, YV   = mblnr.lonlat2xy_wrtX0(xx, yy, xref, yref)
       x0c, y0c = mblnr.lonlat2xy_pnt(x0, y0, xref, yref)
       # For rotated grid boxes, mapping may give singular matrix AA

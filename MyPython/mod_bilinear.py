@@ -311,6 +311,21 @@ def rotate_box(XV, YV, x0c, y0c):
 
   return XR, YR, x0r, y0r
 
+def shift_longitudes(lons, ref_lon=360):
+  """
+  Normalize longitudes (degrees East) to a consistent range near a reference.
+  If ref_lon is given, wrap longitudes so they are within +/-180dgr of ref_lon.
+  The function shifts all longitudes so that they are around and close to the reference 
+  longitue (ref_lon = x0).
+  Default: normalize to [0, 360)
+  """
+  lons = np.array(lons, dtype=float)
+  if ref_lon == 360:
+    lons = np.mod(lons, 360.0)
+  else:
+    # Shift so that longitudes are within +/-180° of ref_lon
+    lons = (lons - ref_lon + 180.0) % 360.0 - 180.0 + ref_lon
+  return lons
 
 def lonlat2xy_wrtX0(XX, YY, x0, y0):
   """
