@@ -71,13 +71,19 @@ import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
 regn = 'south'  # only south region has been done so far
+yrS = 1998
+yrE = 2007
 
 parser = argparse.ArgumentParser()
-parser.add_argument(f"--regn", help="hemisphere: north or south, default={regn}", type=str)
+parser.add_argument(f"--regn", help=f"hemisphere: north or south, default={regn}", type=str)
+parser.add_argument(f"--yrs", help=f"start year of derived monthly clim, default={yrS}", type=int)
+parser.add_argument(f"--yre", help=f"end year of derived monthly clim, default={yrE}", type=int)
 args = parser.parse_args()
   
 regn = args.regn if args.regn else regn
-  
+yrS = args.yrs if args.yrs else yrS
+yrE = args.yre if args.yre else yrE
+
 syst_info = os.uname() 
 machine = syst_info.nodename
   
@@ -134,8 +140,8 @@ INDX = dgmapi['gmapi_i'].data
 JNDX = dgmapi['gmapi_j'].data
 
 # monthly snow depth, Antarctica:
-pthsnow = os.path.join(pthdata,'snow_nasa')
-flsnow = 'AMSR_Antarctic_hsnow_month_clim_1998_2007.nc'
+pthsnow = os.path.join(pthdata,'snow_nasa','monthly_clim')
+flsnow = f'SSMI_Antarctic_hsnow_month_clim_{yrS}_{yrE}_316x332.nc'
 dflsnow = os.path.join(pthsnow, flsnow)
 
 print(f"Loading {dflsnow}")
@@ -196,17 +202,17 @@ dset_hs['lat'].attrs.update({
 })
 
 dset_hs.attrs.update({
-    "title": "Snow depth climatology from SSM/I (1998–2007) interpolated onto mesh025 grid",
+    "title": f"Snow depth climatology from SSM/I ({yrS}–{yrE}) interpolated onto mesh025 grid",
     "institution": "NOAA NWS NCEP MDC",
-    "source": "interp_SSMI_hsnow_antarct_mesh025.py",
-    "contact": "dmitry.dukhovskoy@noaa.gov",
+    "source": "interp_SSMI_hsnow_monthly_antarct_mesh025.py",
     "region": regn,
 })
 
-fliceout = f'SSMI_hsnow_interp_mesh025_{jdm}x{idm}_mnthly_clim_{regn}.nc'
+fliceout = f'SSMI_hsnow_mnthclim_{yrS}_{yrE}_mesh025_{idm}x{jdm}_{regn}.nc'
 dfliceout = os.path.join(pthsnow,fliceout)
 print(f'Dumping interpolated snow depth --> {dfliceout}')
-dset_hs.to_netcdf(dfliceout, format='NETCDF4', engine='netcdf4')
-
+dset_hs.to_netcdf(dfliceout, 
+        encoding={var: {'_FillValue': 1e30} for var in dset_hs.data_vars},
+        format='NETCDF4')
 
 

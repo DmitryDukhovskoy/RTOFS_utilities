@@ -47,12 +47,20 @@ import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
   
 regn = 'south'  # only south region has been done so far
+yrS = 1998
+yrE = 2007
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--mm", help="month to plot", type=int, required=True)
+parser.add_argument(f"--regn", help=f"hemisphere: north or south, default={regn}", type=str)
+parser.add_argument(f"--yrs", help=f"start year of derived monthly clim, default={yrS}", type=int)
+parser.add_argument(f"--yre", help=f"end year of derived monthly clim, default={yrE}", type=int)
 args = parser.parse_args()
 
 MM = args.mm if args.mm else None
+regn = args.regn if args.regn else regn
+yrS = args.yrs if args.yrs else yrS
+yrE = args.yre if args.yre else yrE
     
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -82,8 +90,9 @@ hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 
 # monthly snow depth, Antarctica, original grid:
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-pthsnow = os.path.join(pthdata,'snow_nasa')
-flsnow = 'AMSR_Antarctic_hsnow_month_clim_1998_2007.nc'
+pthsnow = os.path.join(pthdata,'snow_nasa','monthly_clim')
+#flsnow = 'AMSR_Antarctic_hsnow_month_clim_1998_2007.nc'
+flsnow = f'SSMI_Antarctic_hsnow_month_clim_{yrS}_{yrE}_316x332.nc'
 dflsnow = os.path.join(pthsnow, flsnow)
 
 print(f"Loading {dflsnow}")
@@ -93,13 +102,12 @@ with xarray.open_dataset(dflsnow) as ds_snow:
   HS = ds_snow['snow_depth'].isel(time=MM-1).data.squeeze()
 
 # Interpolated fields:
-fliceout = f'SSMI_hsnow_interp_mesh025_1080x1440_mnthly_clim_{regn}.nc'
+#fliceout = f'SSMI_hsnow_interp_mesh025_1080x1440_mnthly_clim_{regn}.nc'
+fliceout = f'SSMI_hsnow_mnthclim_{yrS}_{yrE}_mesh025_1440x1080_{regn}.nc'
 dfliceout = os.path.join(pthsnow,fliceout)
 print(f"Reading interpolated hsnow {dfliceout}")
 with xarray.open_dataset(dfliceout) as ds_intrp:
   HSi = ds_intrp['snow_depth'].isel(time=MM-1).data.squeeze()
-
-
 
 clrmp = mclrmps.colormap_temp()
 rmin = 0.
@@ -116,6 +124,7 @@ if regn == 'south':
   yl2 = xl2
 
 
+print('Plotting ...')
 plt.ion()
 
 m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')

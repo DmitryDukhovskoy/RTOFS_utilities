@@ -1115,5 +1115,155 @@ def interp_uvelE_vvelN(uvel, aicen):
 
   return uvelE, vvelN
 
+def ice_enthalpy_BL99(tice, sice, c0=2106., L0=3.34e5, rho_ice=917., Cw=4218.):
+  """
+    Ice enthalpy of salinity S for BL99 (Bitz and Lipscomb, 1999) thermodynamic
+    C.M. Bitz and W.H. Lipscomb. An energy-conserving thermodynamic sea ice model 
+     for climate study. J. Geophys. Res. Oceans, 104(C7):15669–15677, 1999
+
+    In BL99, no brine pocktes are considered
+
+    see: https://cice-consortium-icepack.readthedocs.io/en/icepack1.3.3/science_guide/sg_thermo.html#bitz-and-lipscomb-thermodynamics-ktherm-1
+
+    c0 - specific heat of fresh ice, J/(kg*deg)
+    L0 - latent heat of fusion of fresh ice at 0C (J/kg)
+    rho_ice - sea ice density, kg/m3
+    Cw - specific heat of sea water J/(kg*deg)
+  """
+  mu_ice = 0.054  # liquidus ratio btw frz T and salinity of brine, [deg/ppt]
+  Tm = -mu_ice * sice  # T of ice melt for ice sal = sice
+  qice = -rho_ice*(c0*(Tm - tice) + L0*(1. - Tm/tice) - Cw*Tm)
+
+  return qice
+
+def check_ithkn_cats(hicat, hin_new, ain_new):
+  """
+    Check if new ice thicknesses hin_new are correctly distributed across cats:
+    for i=1,...,ncat:  hicat[i] <= hi[i] < hicat[i+1]
+  """
+  cat_missed = None
+  hcat_new = None
+  if np.all(ain_new == 0):
+    #print('check_ithkn_cats: no ice, ice conc = 0, skipped ...')
+    return cat_missed, hcat_new
+
+  ncat = hicat.shape[0] - 1
+  
+  # Find which bin each value falls into
+  hcat_new = np.digitize(hin_new, hicat).astype(float)  # ice cat for new ice thicknesses
+  if np.any(ain_new == 0): 
+    hcat_new[ain_new == 0] = np.nan
+
+  hcat_indx = np.arange(1,ncat+1)
+  ivals = ~np.isnan(hcat_new)
+  err_indx = hcat_new[ivals] != hcat_indx[ivals]
+  if np.any(err_indx):
+    cat_missed = np.where(ivals)[0][err_indx] + 1
+
+  return cat_missed, hcat_new
+
+def adjust_thkncats_aice(ain_new, vin_new, ain_old, vin_old, \
+                         hicat, dhi_min, bnd_min = 1e-8, puny=1e-12):
+  """
+    Redistribute ice across ice thickness categories
+    preserving aggregated ice conc
+
+    ain_new - new ice conc by cats
+    vin_new - new ice vol per unit cell area m3/m2_cell
+    ai_new  - new aggregated ice conc - has to be preserved
+
+    ain_old - old ice conc by cats
+    vin_old - old ice vol per unt area
+
+    hi_cat - lower bounds of ice thickness cats + the last upper bound
+    dhi_min - min difference between 2 adj ice thkn cats
+
+    bnd_min - this is lower bound for ain_new > bnd_min (~0)  and no upper bound = None
+              to avoid zeros for checking correct thikn intervals
+  """
+  from scipy.optimize import minimize
+  
+
+  # ai_new  - new aggregated ice conc - has to be preserved
+  ai_new = np.sum(ain_new)  
+
+  if ai_new <= puny:
+    return ain_new, vin_new
+
+  ncat = hicat.shape[0] - 1
+  # ice thkn or m3/m2_ice
+  hin_new = np.divide(vin_new, ain_new, out=np.zeros_like(vin_new), where=ain_new != 0) 
+  hin_old = np.divide(vin_old, ain_old, out=np.zeros_like(vin_old), where=ain_old != 0)
+  #hin_fltr = hin_new[hin_new != 0]
+
+  #Check which cat. each value falls into
+  cat_missed, hcat_new = check_ithkn_cats(hicat, hin_new, ain_new)
+
+  if cat_missed is None:
+    # all cats are correct
+    return ain_new, vin_new
+
+  # Need to conserve ai_new - aggregated ice conc
+  # and possibly total ice vol. per m2 grid area
+  vtot_old = np.sum(vin_old)
+  vtot_new = np.sum(vin_new)
+  # assert abs(vtot_old - vtot_new) < 1.
+
+  hice_new = np.sum(vin_new)/ai_new # m3 / m2 - vol of ice per m2 of ice new
+
+  # Solve nonlinear constrained optimization problem
+  # find ain_new and vin_new, keep the solution close to the original ain_new
+  # constrains: 
+  # (1) sum(ain_new) = ai_new
+  # (2) sum(ain_new*hin_new) = vtot_old
+  # (3) for each (i=1,..,ncat): hicat[i] <= hin_new < hicat[i+1]
+  # (4) ain_new > 0
+  #  minimizes sum(ain_new - ain_orig)**2
+
+  # Initial guess:
+  ai0 = ain_new.copy()
+  hi0 = 0.5*(hicat[:-1] + hicat[1:])
+  XX0 = np.concatenate([ai0, hi0])  # first-guess vector of ai and hi
+  
+  # Minimization criterion:
+  def objective(X):
+    ai = X[:ncat]
+    dsqr = np.sum((ai-ai0)**2)
+ 
+    return dsqr
+
+  constraints = [
+    {'type': 'eq', 'fun': lambda X: np.sum(X[:ncat]) - ai_new},  # sum(ai) = atot
+    {'type': 'eq', 'fun': lambda X: np.sum(X[:ncat] * X[ncat:]) - vtot_old}  # sum(ai_new*hi_new) = vitot
+  ]
+
+  # Bounds: see above constraints
+  #bnd_min = 1.e-8   # this is lower bound for ain_new > bnd_min and no upper bound = None
+  hicat[0] = 1.e-3  # to avoid 0 thickness
+  bounds = [(bnd_min, None)]*ncat + [(hicat[i]+puny, hicat[i+1]-puny) for i in range(ncat)]
+
+  res = minimize(objective, XX0, bounds=bounds, constraints=constraints)
+
+  if res.success:
+    ain_new = res.x[:ncat]
+    hin_new = res.x[ncat:]
+    ain_new[hin_new < puny] = 0.
+    vin_new = hin_new * ain_new
+  else:
+    # Need to do something, for now:
+    print("WARNING: Minimization failed, use approximate estimates for aice and hice")
+    print(f"    target tot conc: {ai_new}, ai_new={np.sum(ain_new)}, error={np.sum(ain_new)-ai_new}")
+    print(f"    target tot vol:  {vtot_old}, vtot_new={np.sum(vin_new)}, error={np.sum(vin_new)-vtot_old}")
+    #raise Exception(f"{res}") 
+    ain_new = res.x[:ncat]
+    hin_new = res.x[ncat:]
+    ain_new[hin_new < puny] = 0.
+    vin_new = hin_new * ain_new
+ 
+  return ain_new, vin_new 
+
+ 
+  
+
 
 

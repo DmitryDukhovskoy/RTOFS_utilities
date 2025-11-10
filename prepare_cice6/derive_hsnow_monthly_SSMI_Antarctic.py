@@ -102,8 +102,12 @@ kyrs = 0
 H3D = None
 for YR in range(yrS,yrE+1):
   kyrs += 1
-  if node_nm == 'ppan':
-    pthdata=f'/work/Dmitry.Dukhovskoy/data/snow_nasa/{YR}'
+
+  match node_nm:
+    case 'ppan':
+      pthdata=f'/work/Dmitry.Dukhovskoy/data/snow_nasa/{YR}'
+    case 'gaea' | 'dtn': 
+      pthdata=f'/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/snow_nasa/{YR}'
 
   for MM in range (moS,moE+1):
     print(f'Processing {YR}/{MM}')
@@ -172,9 +176,14 @@ def read_NSIDC(YR,MM,DD,regn,pthnsidc,varnm):
 # https://nsidc.org/data/user-resources/help-center/guide-nsidcs-polar-stereographic-projection
 YR = 2025
 MM = 1
-if node_nm == 'ppan':
-  pthnsidc = f'/work/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{YR}'
-  pthout_snow = '/work/Dmitry.Dukhovskoy/data/snow_nasa/'
+match node_nm:
+  case 'ppan':
+    pthnsidc = f'/work/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{YR}'
+    pthout_snow = '/work/Dmitry.Dukhovskoy/data/snow_nasa/'
+  case 'gaea' | 'dtn':
+    pthnsidc = f'/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{YR}'
+    pthout_snow = '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/snow_nasa/monthly_clim'
+
 Xnsidc = read_NSIDC(YR,MM,1,regn,pthnsidc,'x')
 Ynsidc0 = read_NSIDC(YR,MM,1,regn,pthnsidc,'y')
 # NOAA NSIDC vertical axis is fliped upside down, so need to correct:
@@ -260,7 +269,7 @@ dset_hs['lat'].attrs.update({
 })
 
 dset_hs.attrs.update({
-  "title": f"NASA AMSR snow on ice monthly clim ({yrS}-{yrE})",
+  "title": f"NASA SSM/I-AMSR snow on ice monthly clim ({yrS}-{yrE})",
   "info": "Southern Hemisphere Snow depth files from SSM/I",
   "info2": "https://earth.gsfc.nasa.gov/cryo/data/antarctic-snow-depth-sea-ice",
   "institution": "NOAA NWS NCEP MDC",
@@ -270,7 +279,7 @@ dset_hs.attrs.update({
   "Grid_idm_jdm": f"{idim}x{jdim}"
 })
 
-floutp = f"AMSR_Antarctic_hsnow_month_clim_{yrS}_{yrE}.nc"
+floutp = f"SSMI_Antarctic_hsnow_month_clim_{yrS}_{yrE}_{idim}x{jdim}.nc"
 dflout = os.path.join(pthout_snow,floutp)
 print(f"Saving --->   {dflout}")
 dset_hs.to_netcdf(dflout, format="NETCDF4")

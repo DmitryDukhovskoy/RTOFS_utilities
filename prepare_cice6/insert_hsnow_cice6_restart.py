@@ -55,7 +55,8 @@ import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
 rest_date = 20250103
-rest_hr = 0
+rest_hr   = 0
+hunits    = 'cm'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--rdate", help=f"restart date input file, default={rest_date}", type=int)
@@ -64,8 +65,8 @@ parser.add_argument("--rdate_out", help="output file, restart date if different 
 parser.add_argument("--rhr_out", help="output file, restart hour if date is different from input", type=int)
 args = parser.parse_args()
 
-rest_date = args.rdate if args.rdate else rest_date
-rest_hr   = args.rhr if args.rhr else rest_hr
+rest_date     = args.rdate if args.rdate else rest_date
+rest_hr       = args.rhr if args.rhr else rest_hr
 rest_date_out = args.rdate_out if args.rdate_out else rest_date
 rest_hr_out   = args.rhr_out if args.rhr_out else rest_hr
 
@@ -101,6 +102,16 @@ fyaml = 'paths_ufs.yaml'
 with open(fyaml) as ff:
   pths_ufs = safe_load(ff)
 
+
+def extract_suffix(fname):
+  parts = fname.split('.')
+  # must end with .nc, so suffix is the part before that
+  if len(parts) > 2 and parts[-1] == 'nc':
+    suffix = parts[-2]
+    if not suffix.isdigit():
+      return suffix
+  return None
+
 pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 
@@ -125,16 +136,27 @@ nslyr     = 1   # snow layers
 Tmin      = -100.   # minimum snow T
 
 # Snow depth climatology, Interpolated fields mesh025:
-pthsnow = os.path.join(pthdata,'snow_nasa')
-flhsn = f'SSMI_hsnow_interp_mesh025_1080x1440_mnthly_clim_south.nc'
+pthsnow = os.path.join(pthdata,'snow_nasa','monthly_clim')
+flhsn = 'SSMI_hsnow_mnthclim_1998_2007_mesh025_1440x1080_south.nc'
 dflhsn = os.path.join(pthsnow,flhsn)
 print(f"Reading interpolated hsnow {dflhsn}")
 with xarray.open_dataset(dflhsn) as ds_snow:
   HSi = ds_snow['snow_depth'].isel(time=mmN-1).data.squeeze()
   LON = ds_snow['lon'].data
   LAT = ds_snow['lat'].data
+  units = ds_snow['snow_depth'].attrs.get('units', None)
+  if units is not None:
+    print(f"'snow_depth' units: {units}")
+    hunits = units
+  else:
+    print("No 'units' attribute found for 'snow_depth', use default: {hunits}")
 
-flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{nsecR:06d}.nc"
+units_m = hunits == 'm'
+
+# Restart from a GFS17 rt13  run:
+#flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{nsecR:06d}.nc"
+# Restart with inserted iconc from NSIDC NRT:
+flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{hrR:02d}.iconc.nc"
 dflrst_in = os.path.join(pthrest, flrst_in)
 print(f"Reading restart: {dflrst_in}")
 ds_in = xarray.open_dataset(dflrst_in)
@@ -147,6 +169,7 @@ assert nslyr == 1, f"Code needs to be modified for nslyr>1, nslyr={nslyr}"
 aicen = ds_out['aicen'].data  # partial area by cats
 vsnon = ds_out['vsnon'].data  # snow vol per m2 of ice area
 qsnon = ds_out['qsno001'].data  # snow enthalpy by cats for 1 snow layer
+vicen = ds_out['vicen'].data   # ice vol per unit area of grid cell m3/m2
 ncat, jdim, idim = vsnon.shape
 
 # Aggregated ice partial area:
@@ -175,10 +198,14 @@ for ipp in range(npnts):
 
   # Note hsnow = vsn / aice for aice > 0
   # for cat n: vsn(n) = hsnow(n) * aice(n) 
-  ai  = aice[j0,i0]       # aggreageted ice partial area 
-  ain = aicen[:,j0,i0]    # partial areas by cats
+  ai  = aice[j0,i0]           # aggreageted ice partial area 
+  ain = aicen[:,j0,i0]        # partial areas by cats
+  vin = vicen[:,j0,i0]
   vsn = vsnon[:,j0,i0]        # snow volume per unit grid-cell area m2
-  hsnow = HSi[j0,i0]*0.01     # m of snow over sea ice 
+  if units_m:
+    hsnow = HSi[j0,i0]        # m of snow over sea ice
+  else:
+    hsnow = HSi[j0,i0]*0.01   # m of snow over sea ice 
 
   # Distribute new snow depth evenly by cats in snow vol m3/m2:
   #ain = np.where(ain<1.e-20, 1.e-20, ain)  
@@ -257,8 +284,13 @@ ds_out.attrs.update({
     "history": f"Modified {datetime.now().isoformat()}",
 })
 
-# Save:
-flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{nsecN:06d}.newhsnow.nc"
+# Save:flrst_in
+sfx = extract_suffix(flrst_in)
+if sfx is None:
+  #flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{nsecN:06d}.newhsnow.nc"
+  flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.hsnow.nc"
+else:
+  flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.{sfx}.snow.nc"
 dflrst_out = os.path.join(pthrest,flrst_out)
 print(f"Saving CICE restart --> {dflrst_out}")
 ds_out.to_netcdf(dflrst_out, encoding={var: {'_FillValue': None} for var in ds_out.data_vars}, format='NETCDF3_64BIT')

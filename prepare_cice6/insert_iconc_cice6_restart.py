@@ -46,6 +46,7 @@ import mod_utils_ob as mutob
 import mod_mom6 as mmom6
 import mod_misc1 as mmisc
 import mod_cice6_utils as mc6util
+importlib.reload(mc6util)
 
 rest_date = 20250103
 rest_hr = 0
@@ -233,6 +234,14 @@ def find_adj_ocnpnts(dlti, aice, i0, j0):
 
   return iocn, jocn
 
+# Ice thickness cats
+# for kitd = 1 - linear remapping
+# and kcatbound = 0 , the lower cat. thickness values:
+# 0.00, 0.64, 1.39, 2.47, 4.57
+hicat = np.array([0., 0.64, 1.39, 2.47, 4.57, 50.])
+dhi_min = 0.01  # min diff between cat ice thicknesses from 2 adjacent cats
+hcat_indx = np.arange(1,ncat+1)
+
 # Note qsnon, qice < 0 !
 vsnon_new = vsnon.astype(ds_out['vsnon'].dtype).copy()
 qsnon_new = qsnon.astype(ds_out['qsno001'].dtype).copy()
@@ -250,7 +259,8 @@ Tfrz = -1.86243522  # ocean freez. T
 Tsfc_max = -0.1  # max surf temp
 dvol_sum = 0.
 dlti = 2         # N of +/- i , j indices to search for ice pnts around i0,j0
-hi_min = 0.05    # min ice thkn in each cat where aicen > 0 for noice --> ice case
+vitot_min = 0.05    # min total ice vol m3/m2_grid, when ai_old = 0 --> ai_new > 0
+hitot_min = 0.1    # mean ice thickness over ice area: = sum(hice(n)*aice(n)) / sum(aice(n)) 
 hsnow_min = 0.01   # min snow thickness for noice --> ice case
 print("Ice concentration insertion ...")
 for ipp in range(npnts):
@@ -289,15 +299,21 @@ for ipp in range(npnts):
       wt = ain_old / np.sum(ain_old)
       dlt_ain = dlt_ai * wt
       ain_new = ain_old + dlt_ain
-
+      
+  # Adjust small truncation errors:
+  sum_ain = np.sum(ain_new)
+  if (sum_ain > 1.0) and (sum_ain - 1.0 < 1e-12):
+    ain_new = ain_new / sum_ain - 1.e-12
+  ain_new = np.where(ain_new < puny, 0., ain_new)
+ 
   assert np.sum(ain_new) <= 1., f"Check ain_new: sum>1: {np.sum(ain_new)}"
+  assert np.min(ain_new) >= 0., f"Check ain_new: min val < 0 {np.min(ain_new)}"
 
-  aicen_new[:,j0,i0] = ain_new
 
   # Update ice enthalpy, Tsfcn, and salinity
-  Tsf_mn = None
+  tsf_new = None
   iice = jice = iocn = jocn = None
-  Vice_mn = None
+  vin_new = None
   Vsn_mn  = None
   aice_case = None
   if ai_old <= puny and ai_new > puny:
@@ -309,30 +325,31 @@ for ipp in range(npnts):
     iice, jice = find_adj_icepnts(dlti, aice, i0, j0) 
     if len(iice) == 0:
       # no ice pnt adjacent to j0,i0:
-      Tsf_mn = Tsfcn[:,j0,i0]*0.0 + Tsfc_max
-      Vice_mn = hin_min * ain_old
+      tsf_new = Tsfcn[:,j0,i0]*0.0 + Tsfc_max
+      vin_new = hitot_min * ain_new
     else: 
       # where ice - <= Tmax, where no ice = Tfrz
       Tsf_adj = Tsfcn[:,jice,iice]
-      Tsf_mn  = np.nanmean(Tsf_adj, axis=1)
-      Tsf_mn  = np.where(Tsf_mn > Tsfc_max, Tsfc_max, Tsf_mn)
-      Tsf_mn  = np.where(ain_new < puny, Tfrz, Tsf_mn) 
+      tsf_new  = np.nanmean(Tsf_adj, axis=1)
+      tsf_new  = np.where(tsf_new > Tsfc_max, Tsfc_max, tsf_new)
+      tsf_new  = np.where(ain_new < puny, Tfrz, tsf_new) 
 
       Vice_adj = vicen[:,jice,iice]
-      Vice_mn = np.nanmean(Vice_adj, axis=1)
-      hi_cell = np.max([np.sum(Vice_mn), hi_mn])    # m3/m2_cell or grid-cell mean ice thickness, m
+      vin_new = np.nanmean(Vice_adj, axis=1)
+      vitot_new = np.max([np.sum(vin_new), vitot_min]) # total ice vol/grid area m3/m2 =grid mean ice thkn, m
       wt = ain_new / np.sum(ain_new)
-      Vice_mn = hi_cell * wt
+      vin_new = vitot_new * wt
 
   elif ai_old > puny and ai_new > puny:
     # Case: ice --> updated ice conc
     aice_case = "ice2ice"
-    Tsf_mn = np.where(tsfcn_old > Tsfc_max, Tsfc_max, tsfcn_old)
-    Tsf_mn  = np.where(ain_new < puny, Tfrz, Tsf_mn)
+    tsf_new = np.where(tsfcn_old > Tsfc_max, Tsfc_max, tsfcn_old)
+    tsf_new  = np.where(ain_new < puny, Tfrz, tsf_new)
 
-    hi_cell = np.max([np.sum(vin_old), hi_min])    # m3/m2_cell or grid-cell mean ice thickness, m
-    wt = vin_old / np.sum(vin_old)
-    Vice_mn = hi_cell * wt
+    # Try to preserve mean ice thkn over ice:
+    vitot_old = np.sum(vin_old)                          # m3/m2_cell or mean ice thkn over grid cell
+    hitot_old = vitot_old / ai_old                       # m3/m2_ice, mean ice thkn over ice
+    vin_new   = np.max([hitot_old,hitot_min]) * ain_new  # m3/m2_cell or grid-cell mean ice thickness, m
 
   elif ai_old > puny and ai_new < puny:
     # Case: ice --> no ice
@@ -341,31 +358,50 @@ for ipp in range(npnts):
     iocn, jocn = find_adj_ocnpnts(dlti, aice, i0,j0)
     if len(iocn) == 0:
       # no ocn pnts:
-      Tsf_mn = Tsfcn[:,j0,i0]*0.0 + Tfrz
+      tsf_new = Tsfcn[:,j0,i0]*0.0 + Tfrz
     else:
       Tsf_adj = Tsfcn[:,jocn,iocn]
-      Tsf_mn = np.nanmean(Tsf_adj, axis=1)
-      Tsf_mn = np.where(Tsf_mn > Tsfc_max, Tsfc_max, Tsf_mn)
+      tsf_new = np.nanmean(Tsf_adj, axis=1)
+      tsf_new = np.where(tsf_new > Tsfc_max, Tsfc_max, tsf_new)
           
-    Vice_mn = vin_old*0.0
+    vin_new = vin_old*0.0
 
   elif ai_old < puny and ai_new < puny:
     # Case: no ice --> no ice
     aice_case = "noice2noice"
-    Tsf_mn = Tsfcn[:,j0,i0]
-    Vice_mn = vin_old[:,j0,i0]*0.0
+    tsf_new = Tsfcn[:,j0,i0]
+    vin_new = vin_old*0.0
   
   else:
     raise Exception(f"Unexpected case for ai_old={ai_old} and ai_new={ai_new}")  
 
   # Should not happen but Checking if any NaN occur:
-  if np.isnan(Tsf_mn).any():
-    Tsf_mn = np.where(np.isnan(Tsf_mn), Tsfc_max, Tsf_mn)
-  if np.isnan(Vice_mn).any():
-    Vice_mn = np.where(np.isnan(Vice_mn), 0., Vice_mn)
+  if np.isnan(tsf_new).any():
+    tsf_new = np.where(np.isnan(tsf_new), Tsfc_max, tsf_new)
+  if np.isnan(vin_new).any():
+    vin_new = np.where(np.isnan(vin_new), 0., vin_new)
 
-  Tsfcn_new[:,j0,i0] = Tsf_mn
-  vicen_new[:,j0,i0] = Vice_mn
+  # Check that ice vol is correctly distributed across the ice thickn. cats:
+  # If not - distribute across ice cats conserving aice and vice 
+  # and matching ice cats
+  ain_min = 1.e-8    # lower bound of ain(n) to avoid zeros
+  ain_new, vin_new = mc6util.adjust_thkncats_aice(ain_new, vin_new, ain_old, vin_old, \
+                         hicat, dhi_min,  bnd_min=ain_min)
+  
+  ain_new = np.where(ain_new <= ain_min, 0., ain_new)
+  vin_new = np.where(ain_new <= ain_min, 0., vin_new)
+
+  # Check ice cats:
+  hin_new = np.divide(vin_new, ain_new, out=np.zeros_like(vin_new), where=ain_new != 0)
+  cat_missed, hcat_new = mc6util.check_ithkn_cats(hicat, hin_new, ain_new)
+  if cat_missed is not None:
+    print(f"ipp={ipp} {aice_case} error in ice cats")
+    raise Exception("Check ain_new, hin_new not in ice thkn cats")
+
+
+  Tsfcn_new[:,j0,i0] = tsf_new
+  vicen_new[:,j0,i0] = vin_new
+  aicen_new[:,j0,i0] = ain_new
 
   # Update sice00?, qice00?
   for ilr in range(1, nilrs+1):
@@ -375,14 +411,24 @@ for ipp in range(npnts):
     sice_old = sice[varnum][:,j0,i0]
     sice_new = np.where(sice_old < puny, sice_lr, sice_old)
     sice_new = np.where(ain_new < puny, 0., sice_new)
-    match aice_case:
-      case "noice2ice":
-        A = Stop
 
-#------------
+    sicen_new[varnum][:,j0,i0] = sice_new
+
+    # ice enthalpy, use BL99
+    # keep ice T below freezing T
+    tice_max = sice_new*0 + Tfrz - 0.01
+    qice_lr = mc6util.ice_enthalpy_BL99(tice_max, sice_new)
+    qice_old = qice[varnum][:,j0,i0]
+    qice_new = np.where(ain_old < puny, qice_lr, qice_old)
+    qice_new = np.where(ain_new < puny, 0., qice_new)
+
+    qicen_new[varnum][:,j0,i0] = qice_new
+
+  # Check snow volume, add min vol if none:
+  vsn_new = np.where(vsn_old < hsnow_min, hsnow_min, vsn_old)
+  vsn_new = np.where(ain_new <= puny, 0., vsn_new)
+
   # Update snow enthalpy: J/m3  
-  # see icepack_therm_vertical.F90 in icepack
-  #
   # snow enthalpy should be: qsn_min <= qsn <= qsn_max
   # In theory, qsn_max = -rhos_Lfresh (latent heat of metling at 0C)
   # Make it a little lower to keep snow from melting right away
@@ -390,58 +436,58 @@ for ipp in range(npnts):
   qsn = qsnon[:,j0,i0]        # enthalpy, J/kg < 0
   qsn_min = -rhos * Lfresh + (Tmin + 0.01) * cp_ice * rhos  # enth. of the coldest possible snow
   qsn_max = -rhos * Lfresh - 0.01 * cp_ice * rhos  # a little colder than 0C snow
+  qsn_tsfc = -rhos * Lfresh + tsf_new * cp_ice * rhos # snow enth for surf. T
   qT0 = -Lfresh*rhos      # enth. of pure snow at 0C
 
   # Update new enthalpy of new snow:
   # Clip to min/max enthalpy, set to 0 where no snow:
-  qsn_new = np.clip(qsn, qsn_min, qsn_max)
-  qsn_new = np.where(ain <= puny, 0., qsn_new)      # no ice
+  qsn_new = np.clip(qsn_tsfc, qsn_min, qsn_max)
+  qsn_new = np.where(ain_new <= puny, 0., qsn_new)      # no ice
   qsn_new = np.where(vsn_new <= 0, 0., qsn_new)     # no snow
 
-  vtot_init = np.nansum(vsn)
-  vtot_new  = np.nansum(vsn_new)
+  #vtot_old = np.nansum(vsn_old)
+  #vtot_new  = np.nansum(vsn_new)
   #print(f"tot vsnon change = {vtot_new-vtot_init}") 
 
-  dvol_sum = dvol_sum + (vtot_new-vtot_init)
-  vsnon_new[:,j0,i0] = vsn_new
-  qsnon_new[:,j0,i0] = qsn_new
-
-  diff = np.nansum(vsn_new - vsnon[:, j0, i0])
-  diff2 = np.nansum(vsn_new -vsn)
-  diff3 = np.nansum(vsnon[:,j0,i0] - vsnon_new[:,j0,i0])
-  if diff == 0 and abs(diff2) > 0:
-    print(f"No change at {j0},{i0}, expected diff={diff2}")
-  #else:
-  #  print(f"diff={diff}, diff2={diff2}")  
-
-  #assert abs(diff) > 0, f"no change at {j0},{i0}, expected diff={diff2}"
-
-  if diff3 == 0 and abs(diff2) > 0:
-    print(f"No change in the arrays at {j0},{i0}, expected diff={diff2}")
-
-# Checking:
-print(f"dvol_sum = {dvol_sum}")
-total_vsnon_init = np.nansum(vsnon)
-total_vsnon_new  = np.nansum(vsnon_new)
-print(f"Tot snow volume change (m3/m2): {total_vsnon_new - total_vsnon_init}")
 
 # Update data set:
 #ds_out = ds_out.assign(vsnon=vsnon_new, qsno001=qsnon_new)
-ds_out['vsnon'].values[:] = vsnon_new
+ds_out['vsnon'].values[:]   = vsnon_new
 ds_out['qsno001'].values[:] = qsnon_new
+ds_out['aicen'].values[:]   = aicen_new
+ds_out['vicen'].values[:]   = vicen_new
+ds_out['Tsfcn'].values[:]   = Tsfcn_new
+for ilr in range(1, nilrs+1):
+  varnum = f"{ilr:03d}"
+  ds_out[f"sice{varnum}"].values[:] = sicen_new[f"{varnum}"]
+  ds_out[f"qice{varnum}"].values[:] = qicen_new[f"{varnum}"]
 
 
 # Sanity checking:
-assert "vsnon" in ds_out and "qsno001" in ds_out, "Missing updated snow fields vsnon and qsno001"
 assert ds_out["vsnon"].shape == vsnon_new.shape, "Check shape of vsnon "
 assert ds_out["qsno001"].shape == qsnon_new.shape, "Check shape of qsnon "
+
+# Check hice(n) as it is caclulated in icepack_therm_vertical.F90
+# hice(n) = vice(n) / aice(n) 
+for k in range(1,ncat):
+  aice_n = aicen[k-1,:].squeeze()
+  vice_n = vicen[k-1,:].squeeze()
+  hice_n = np.divide(vice_n, aice_n, out=np.zeros_like(aice), where=aice_n != 0)
+  jmin, imin = np.unravel_index(hice_n.argmin(), hice_n.shape)
+  jmax, imax = np.unravel_index(hice_n.argmax(), hice_n.shape)
+  print(f"Cat {k}, j={jmin}, i={imin}, min hice(n): {np.nanmin(hice_n)}, "+\
+        f"aice(n): {aice_n[jmin,imin]}, vice(n): {vice_n[jmin,imin]}")
+  print(f"         j={jmax}, i={imax}, max hice(n): {np.nanmax(hice_n)}, "+\
+        f"aice(n): {aice_n[jmax,imax]}, vice(n): {vice_n[jmax,imax]}")
+
+
 
 # Attributes:
 from datetime import datetime
 istep1_val = ds_out.attrs.get('istep1', None)
 ds_out.attrs.update({
-    "title": "CICE6 restart with inserted hsnow from SSM/I NASA gridded fields for S. Ocean",
-    "source": "insert_hsnow_cice6_restart.py",
+    "title": f"CICE6 restart with inserted ice concentration from NSIDC NRT {rest_date_out} ",
+    "source": "insert_iconc_cice6_restart.py",
     "contact": "dmitry.dukhovskoy@noaa.gov",
     "istep1": np.int32(istep1_val) if istep1_val is not None else np.int32(0), 
     "myear": np.int32(yrN),

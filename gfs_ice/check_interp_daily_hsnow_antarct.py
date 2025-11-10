@@ -181,7 +181,7 @@ ax21.contour(LAT, lat_cntr, linestyles='solid', colors=[(0.5,0.5,0.5)], linewidt
 ax21.set_xticks([])
 ax21.set_yticks([])
 
-ax21.set_title(f"SSM/I hsnow NASA grid, M={MM}")
+ax21.set_title(f"SSM/I hsnow NASA grid, {MM:02d}/{DD:02d}")
 
 ax2 = plt.axes([0.2, 0.3, 0.6, 0.02])
 if rmin < 0:
