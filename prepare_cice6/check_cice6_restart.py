@@ -46,31 +46,30 @@ importlib.reload(msisrlx)
 rest_date = 20250103
 rest_hr   = 0
 hunits    = 'cm'
+flrst = 'cice_model.res.20250103.00.iconc.snow.nc'
+#flrst = 'cice_model.res.20250103.00.iconc.nc'
+
   
 parser = argparse.ArgumentParser()
-parser.add_argument("--rdate", help=f"restart date input file, default={rest_date}", type=int)
-parser.add_argument("--rhr", help=f"input file, restart hour = 0, ..., 23, default={rest_hr}", type=int)
-parser.add_argument("--rdate_out", help="output file, restart date if different from input", type=int)
-parser.add_argument("--rhr_out", help="output file, restart hour if date is different from input", type=int)
+parser.add_argument("--flrst", help=f"restart file name, default={flrst}", type=str)
 args = parser.parse_args()
 
-rest_date     = args.rdate if args.rdate else rest_date
-rest_hr       = args.rhr if args.rhr else rest_hr
-rest_date_out = args.rdate_out if args.rdate_out else rest_date
-rest_hr_out   = args.rhr_out if args.rhr_out else rest_hr
-
-change_rest_time = (rest_date != rest_date_out) or (rest_hr != rest_hr_out)
+flrst = args.flrst if args.flrst else flrst
+#rest_date     = args.rdate if args.rdate else rest_date
+#rest_hr       = args.rhr if args.rhr else rest_hr
+#rest_date_out = args.rdate_out if args.rdate_out else rest_date
+#rest_hr_out   = args.rhr_out if args.rhr_out else rest_hr
 
 # Get date numbers:
 # Input restart file
-dnmbR = mtime.rdate2datenum(rest_date*100+rest_hr)  # restart day nmb
-yrR,mmR,ddR,hrR = mtime.datevec(dnmbR, round_hrs=True)[:4]
-nsecR = hrR*3600
+#dnmbR = mtime.rdate2datenum(rest_date*100+rest_hr)  # restart day nmb
+#yrR,mmR,ddR,hrR = mtime.datevec(dnmbR, round_hrs=True)[:4]
+#nsecR = hrR*3600
 
 # Dates of the output fields in the new restart:
-dnmbN = mtime.rdate2datenum(rest_date_out*100+rest_hr_out)
-yrN, mmN, ddN, hrN = mtime.datevec(dnmbN, round_hrs=True)[:4]
-nsecN = hrN*3600 
+#dnmbN = mtime.rdate2datenum(rest_date_out*100+rest_hr_out)
+#yrN, mmN, ddN, hrN = mtime.datevec(dnmbN, round_hrs=True)[:4]
+#nsecN = hrN*3600 
 
 syst_info = os.uname()
 machine = syst_info.nodename
@@ -91,9 +90,8 @@ fyaml = 'paths_ufs.yaml'
 with open(fyaml) as ff:
   pths_ufs = safe_load(ff)
 
+#flrst = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc.nc"
 pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
-flrst = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc.nc"
-#flrst = 'cice_model.res.20250103.000000.nc'
 dflrst = os.path.join(pthrest,flrst)
 
 print(f"Reading {dflrst}")
@@ -131,7 +129,8 @@ hice = np.divide(vice, aice, out=np.zeros_like(aice), where=aice != 0)
 
 # Check hice(n) as it is caclulated in icepack_therm_vertical.F90
 # hice(n) = vice(n) / aice(n) 
-for k in range(1,ncat):
+print(' =========  ICE  =========')
+for k in range(1,ncat+1):
   aice_n = aicen[k-1,:].squeeze()
   vice_n = vicen[k-1,:].squeeze()
   hice_n = np.divide(vice_n, aice_n, out=np.zeros_like(aice), where=aice_n != 0)
@@ -141,6 +140,20 @@ for k in range(1,ncat):
         f"aice(n): {aice_n[jmin,imin]}, vice(n): {vice_n[jmin,imin]}")
   print(f"         j={jmax}, i={imax}, max hice(n): {np.nanmax(hice_n)}, "+\
         f"aice(n): {aice_n[jmax,imax]}, vice(n): {vice_n[jmax,imax]}")
+
+
+print(' =========  SNOW =========')
+for k in range(1,ncat+1):
+  aice_n = aicen[k-1,:].squeeze()
+  vsno_n = vsnon[k-1,:].squeeze()
+  hsno_n = np.divide(vsno_n, aice_n, out=np.zeros_like(aice), where=aice_n != 0)
+  jmin, imin = np.unravel_index(hsno_n.argmin(), hsno_n.shape)
+  jmax, imax = np.unravel_index(hsno_n.argmax(), hsno_n.shape)
+  print(f"Cat {k}, j={jmin}, i={imin}, min hsnow(n): {np.nanmin(hsno_n)}, "+\
+        f"aice(n): {aice_n[jmin,imin]}, vsno(n): {vsno_n[jmin,imin]}")
+  print(f"         j={jmax}, i={imax}, max hsnow(n): {np.nanmax(hsno_n)}, "+\
+        f"aice(n): {aice_n[jmax,imax]}, vsno(n): {vsno_n[jmax,imax]}")
+
 
 f_plt = False
 if f_plt:

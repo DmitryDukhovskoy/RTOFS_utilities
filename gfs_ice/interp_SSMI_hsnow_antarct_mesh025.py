@@ -1,1 +1,0 @@
-../prepare_cice6/interp_SSMI_hsnow_antarct_mesh025.py

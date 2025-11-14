@@ -76,6 +76,7 @@ MME   = args.me if args.me else MMS
 DDS   = args.ds if args.ds else DD
 DDE   = args.de if args.de else 16
 ENMBS = args.enmb if args.enmb else None
+plt_init = True  # show RMSE for init state if init. state file exists and saved by CICE6
   
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -126,26 +127,46 @@ if regn == 'south':
   RMsk = np.where(HH>=0, 0, 1)
   RMsk = np.where(hlat > -60., 0, RMsk)
 
+# Create an array of day numbers with 0hr = init cond, 12 hr - daily means
 dnmbS = int(mtime.datenum([YR,MMS,DDS]))
 dnmbE = int(mtime.datenum([YR,MME,DDE]))
+RECS = [dnmbS] + [x + 0.5 for x in range(dnmbS, dnmbE + 1)]
+RECS = np.array(RECS)
+
 nexpts = len(ENMBS)
-nrecs  = dnmbE - dnmbS + 1
+nrecs  = RECS.shape[0]
 RMSE = np.zeros((nrecs,nexpts))
 iens = -1
 for enmb in ENMBS:
   iens += 1
   irec = -1
   pthout_cice = pths_ufs[node_nm]["MOM6"]["pthcice"].format(enmb=enmb)
-  for dnmb in range(dnmbS,dnmbE+1):
-    YR,MM,DD = mtime.datevec(dnmb)[:3] 
-    print(f"Processing {YR}/{MM}/{DD} expt{enmb:02d}...")
-    flcice = f"iceh.{YR}-{MM:02d}-{DD:02d}.nc"
-    dflcice = os.path.join(pthout_cice,flcice)
+
+  for nn in range(nrecs):
+    dnmb = RECS[nn]
+    YR,MM,DD,hr = mtime.datevec(dnmb, round_hrs=True)[:4] 
+
+    if hr == 0:
+      # Initial state
+      nsec0 = 0 
+      flcice = f"iceh_ic.{YR}-{MM:02d}-{DD:02d}-{nsec0:05d}.nc"
+      dflcice = os.path.join(pthout_cice,flcice)
+
+      if not os.path.isfile(dflcice):
+        print(f"Initial state file is missing, proceed without it ...")
+        irec += 1
+        RMSE[irec, iens] = np.nan
+        continue
+    else:
+      print(f"Processing {YR}/{MM}/{DD} expt{enmb:02d}...")
+      flcice = f"iceh.{YR}-{MM:02d}-{DD:02d}.nc"
+      dflcice = os.path.join(pthout_cice,flcice)
+
     print(f"Processing {dflcice}")
     with xarray.open_dataset(dflcice) as dcice:
       AA = dcice['aice_d'].data.squeeze()
 
-    # Interpolated fields:
+    # Interpolated NSIDC obs fields:
     fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}_{regn}.nc'
     dfliceout = os.path.join(pthnsidc,fliceout)
     print(f'Loading interpolated ice conc {dfliceout}')
@@ -174,12 +195,14 @@ CLRS = np.array([[0., 0.2, 0.9],
                  [0., 0.8, 1],
                  [0.9, 0.4, 0],
                  [1., 0., 0],
-                 [0.5, 0.3, 0]])
+                 [0.5, 0.3, 0],
+                 [0.5, 0.5, 0.5],
+                 [0.7, 0.45, 0.9]])
 
 
 print("Plotting ...")
 
-XT = np.arange(1, dnmbE-dnmbS+2)
+XT = RECS - np.floor(RECS[0])
 sttl = f"RMSE btw iconc NSIDC and datmUFS expts, {YR}/{MMS:02d}/{DDS:02d}-{YR}/{MME:02d}/{DDE:02d}"
 
 plt.ion()

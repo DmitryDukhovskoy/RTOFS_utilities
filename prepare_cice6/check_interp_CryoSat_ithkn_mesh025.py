@@ -1,11 +1,11 @@
 """
-  Check Interpolated NSIDC sea ice concentration 
-  to MOM6/CICE6 mesh025 grid
+  Check Interpolated CryoSat ice thickness on mesh025
 
-  gmapi indices: get_gmapi_NSIDC_to_mesh025.py
+  gmapi indices:
+  get_gmapi_CryoSat_to_mesh025.py
 
-  NSIDC fields from 
-  https://noaadata.apps.nsidc.org/NOAA/G02202_V6/north/daily/2025/
+  interpolation:
+  interp_CryoSat_ithkn_antarct_mesh025.py
 
 """
 import os
@@ -52,21 +52,22 @@ import mod_misc1 as mmisc
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
-YR = 2025
-MM = 1 
-DD = 15
+yrS = 2011
+yrE = 2020
+MM  = 2
+regn = 'south'
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--regn", help="hemisphere: north or south", type=str, required=True)
-parser.add_argument("--yr", help=f"year of NSIDC data, default={YR}", type=int)
-parser.add_argument("--mm", help=f"month of NSIDCS data to plot, default={MM}", type=int)
-parser.add_argument("--dd", help="month day to plot, default={DD}", type=int)
+parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
+parser.add_argument("--yrS", help=f"start year of CryoSat clim, default={yrS}", type=int)
+parser.add_argument("--yrE", help=f"end year of CryoSat clim, default={yrE}", type=int)
+parser.add_argument("--mm", help=f"month of CryoSat data to plot", type=int, required=True)
 args = parser.parse_args()
   
-regn = args.regn if args.regn else None
-YR   = args.yr if args.yr else YR
-MM   = args.mm if args.mm else MM
-DD   = args.dd if args.dd else DD
+regn = args.regn if args.regn else regn
+yrS  = args.yrS if args.yrS else yrS
+yrE  = args.yrE if args.yrE else yrE
+MM   = args.mm if args.mm else None
   
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -89,7 +90,7 @@ pthgrid = pths_ufs[node_nm]["MOM6"]["pthgrid"]
 dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
 dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
     
-hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
+#hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 
 with xarray.open_dataset(dftopo_mom) as dstopo:
   HH = dstopo['depth'].data.squeeze()
@@ -98,64 +99,42 @@ HH = np.where(HH < 1.e-20, np.nan, HH)
 HH = -HH
 HH = np.where(np.isnan(HH), 1., HH)
 
-jdm, idm = HH.shape
+jdim, idim = HH.shape
 
-def read_NSIDC(YR,MM,DD,regn,pthnsidc,varnm):
-  if regn == 'south':
-    flnsidc = f"sic_pss25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"  
-  else:
-    flnsidc = f"sic_psn25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"  
-
-  with xarray.open_dataset(os.path.join(pthnsidc,flnsidc)) as ds_nsidc:
-    A = ds_nsidc[varnm].data.squeeze()
-
-  return A
-
-# Get lon/lat for NSIDC data
+# Read CryoSat clim on original grid:
+# Monthly ice thickness, Antarctica, original grid:
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
-Xnsidc = read_NSIDC(YR,MM,1,regn,pthnsidc,'x')
-Ynsidc = read_NSIDC(YR,MM,1,regn,pthnsidc,'y')
+pth0   = os.path.join(pthdata, 'CryoSat2_antarctic_ice_snow_thkn')
+pthice = os.path.join(pth0,'clim')
+fhice  = f'CryoSat_ithkn_mnthly_clim_316x332_{regn}.nc'
+dfhice = os.path.join(pthice, fhice)
 
-XX, YY = np.meshgrid(Xnsidc, Ynsidc, indexing='xy')
-# Determine ellipsoid parameters from NSIDC information
-# Note that Radius of ellipsoid WGS84 is typically referred to major semi-axis (equatorial radius)
-if regn == 'south':
-  slat0 = -70.  # latitude of 0 distortion, standard lat. 
-  lon0  = -90.   # orientation of the 0 longitude wth to X axis on polar grid, not NSIDC is fliped upside down
-  flat_inv = 298.279411123064
-  ax_maj = 6378273.
-  flat = 1./flat_inv  # flattening
-  eccentr = np.sqrt(2*flat - flat**2)
-  R_polar = ax_maj*(1.-flat)   # polar radius or semi-minor axis
+print(f'Reading ice thickn climatology {dfhice}')
+with xarray.open_dataset(dfhice) as ds_hice:
+  LONS = ds_hice['lon'].data
+  LATS = ds_hice['lat'].data
+  AA = ds_hice['ice_thickness'].isel(time=MM-1).squeeze()
 
-
-  LON, LAT = mmisc.convert_polarXY_lonlat(XX,YY, North=False, E=eccentr, RE=ax_maj, SLAT=slat0, LON0_dir=lon0)
-  assert np.max(LAT) < 0., f"For southern hemisphere latitudes should be < 0"
-  LON = -LON   # nor sure why but this makes sign of the longitudes right
+fliceout = f'CryoSat_hice_mnthclim_{yrS}_{yrE}_mesh025_{idim}x{jdim}_{regn}.nc'
+dfliceout = os.path.join(pthice,fliceout)
+print(f'Reading interpolated ice thickness --> {dfliceout}')
+with xarray.open_dataset(dfliceout) as ds_hi:
+  LON = ds_hi['lon'].data
+  LAT = ds_hi['lat'].data
+  AI = ds_hi['ice_thkn'].isel(time=MM-1).squeeze()
 
 
-print(f"Processing {YR}/{MM}/{DD} ...")
-AA = read_NSIDC(YR, MM, DD, regn, pthnsidc, 'cdr_seaice_conc')
 
-# Interpolated fields:
-fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}_{regn}.nc'
-dfliceout = os.path.join(pthnsidc,fliceout)
-print(f'Loading interpolated ice conc {dfliceout}')
-with xarray.open_dataset(dfliceout) as dsint:
-  AI = dsint['ice_conc'].isel(time=DD-1).squeeze()
-
-
-clrmp = mclrmps.colormap_conc()
+clrmp = mclrmps.colormap_ice_thkn()
 rmin = 0.
-rmax = 1.
+rmax = 3.
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
-LON1 = LON.copy()
-LON2 = LON.copy()
+LON1 = LONS.copy()
+LON2 = LONS.copy()
 LON1 = np.where(LON1 < -175, np.nan, LON1)
 LON2 = np.where(LON2 > 172, np.nan, LON2)
-LON3 = np.where(LON < 0, LON+360., LON)
+LON3 = np.where(LONS < 0, LONS+360., LONS)
 LON3 = np.where(LON3 > 350., np.nan, LON3)
 lon_cntr1 = [x for x in range(-180,0,45)]  # grey -180:0
 lon_cntr2 = [x for x in range(45,178,45)]  # blue: 0 to 180 E
@@ -173,17 +152,22 @@ ax1.contour(LON1, lon_cntr1, linestyles='solid', colors=[(0.6,0.6,0.6)], linewid
 ax1.contour(LON2, lon_cntr2, linestyles='solid', colors=[(0.,0.5,0.9)], linewidths=1)
 ax1.contour(LON1,[0], linestyles='solid', colors=[(1,0.,0.)], linewidths=1)
 ax1.contour(LON3,[180], linestyles='solid', colors=[(0.6,0.,0.9)], linewidths=1)
-ax1.contour(LAT, lat_cntr, linestyles='solid', colors=[(0.5,0.5,0.5)], linewidths=1)
+ax1.contour(LATS, lat_cntr, linestyles='solid', colors=[(0.5,0.5,0.5)], linewidths=1)
 ax1.invert_yaxis()
 ax1.axis('scaled')
-ax1.set_title(f'NSIDC iconc {YR}/{MM:02d}/{DD:02d}')
+ax1.set_title(f'CryoSat ice thickn clim, MM={MM:02d}')
 
 
 # Interpolated iconc
+xl1 = -8.e6
+xl2 = -1.2e6           
+yl1 = xl1
+yl2 = xl2 
+
 if regn == 'south':
   m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
 #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
-xh, yh = m(hlon,hlat) # GFS coords
+xh, yh = m(LON,LAT) # GFS coords
 
 ax2 = plt.axes([0.55, 0.3, 0.4, 0.4])
 # draw parallels.
@@ -194,7 +178,12 @@ meridians = np.arange(-360,359.,45.)
 m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
 
 img = ax2.pcolormesh(xh, yh, AI, cmap=clrmp, vmin=rmin, vmax=rmax)
-ax2.set_title('NSIDC iconc interp to mesh025')
+ax2.set_xlim([xl1, xl2])
+ax2.set_ylim([yl1, yl2])
+ax2.invert_yaxis()
+ax2.invert_xaxis()
+
+ax2.set_title(f'CryoSate ithkn interp to mesh025, MM={MM:02d}')
 
 ax3 = fig1.add_axes([0.2, 0.2, 0.6, 0.02])
 clb = plt.colorbar(img, cax=ax3, orientation='horizontal', extend='max')
@@ -204,7 +193,7 @@ ticklabs = clb.ax.get_xticklabels()
 clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
 clb.ax.tick_params(direction='in', length=12)
 
-btx = 'check_interp_NSIDC_mesh025.py'
+btx = 'check_interp_CryoSate_ithkn_mesh025.py'
 bottom_text(btx)
 
 

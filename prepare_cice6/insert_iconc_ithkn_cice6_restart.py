@@ -1,9 +1,15 @@
 """
-  Insert ice concentration (sea ice partial area)
+  Insert ice concentration (sea ice partial area) and 
+  (optionally) ice thickness 
   into CICE6 aice fields 
-  Using NSIDC interpoalted fields
+  Using NSIDC interpoalted fields for iconc
+  and CryoSat for ice thickness
 
-  See python/gfs_ice/interp_NSIDC_iconc_mesh025.py
+  if ice thickness is opted out, this should be idential to
+  insert_iconc_cice6_restart.py
+
+  See python/prepare_cice6/interp_NSIDC_iconc_mesh025.py
+                    interp_CryoSat_ithkn_antarct_mesh025.py
 
 """
 import os
@@ -48,11 +54,42 @@ import mod_misc1 as mmisc
 import mod_cice6_utils as mc6util
 importlib.reload(mc6util)
 
+
+def get_date_filename(file_name, sfx='cice_model.res'):
+  year = month = day = hr = mint = sec = None
+
+  parts = file_name.split('.')
+  # Check if file naming is correct
+  if len(parts) >= 4 and '.'.join(parts[:2]) == sfx:
+    date_str = parts[2]  
+    hour_str = parts[3]  
+    
+    year  = int(date_str[0:4])
+    month = int(date_str[4:6])
+    day   = int(date_str[6:8])
+    if len(hour_str) == 2:
+      hr   = int(hour_str)
+      mint = 0
+      sec  = hr*3600     # total seconds
+    elif len(hour_str) >= 5:
+      sec = int(hour_str)
+      hr  = sec % 3600
+      mint = sec - hr*3600 
+      
+  else:
+    print(f"{file_name} format not recognized")
+
+  return year, month, day, hr, mint
+
 rest_date = 20250103
 rest_hr = 0
 regn = 'south'
+yrR = mmR = ddR = hrR = None
+yrN = mmN = ddN = hrN = None
 
 parser = argparse.ArgumentParser()
+parser.add_argument("--ithkn", type=int, default=1,
+    help="insert ice thickn climatology, 0=no, 1=yes (default 1)")
 parser.add_argument("--rdate", help=f"restart date input file, default={rest_date}", type=int)
 parser.add_argument("--rhr", help=f"input file, restart hour = 0, ..., 23, default={rest_hr}", type=int)
 parser.add_argument("--rdate_out", help="output file, restart date if different from input", type=int)
@@ -62,24 +99,49 @@ parser.add_argument("--flrst_out", help="new rest file, otherwise name construct
 parser.add_argument("--regn", help=f"where icon incerted: south, north, global, default={regn}", type=str)
 args = parser.parse_args()
 
-rest_date = args.rdate if args.rdate else rest_date
-rest_hr   = args.rhr if args.rhr else rest_hr
-rest_date_out = args.rdate_out if args.rdate_out else rest_date
-rest_hr_out   = args.rhr_out if args.rhr_out else rest_hr
+ins_thkn = bool(args.ithkn)
 flrst_in  = args.flrst_in if args.flrst_in else None
 flrst_out = args.flrst_out if args.flrst_out else None
+# if rest_date and rest_date_out are provided
+# Derive dates assuming file nameing is cice_restart.res.YYYYMMDD.XX[XXX]
+if flrst_in is not None:
+  yrR, mmR, ddR, hrR, mintR = get_date_filename(flrst_in)
+  rest_date = int(yrR*1e4 + mmR*100 + ddR)
+  rest_hr = hrR
+else:
+  rest_date = args.rdate if args.rdate else rest_date
+  rest_hr   = args.rhr if args.rhr else rest_hr
+
+if flrst_out is not None:
+  yrN, mmN, ddN, hrN, mintN = get_date_filename(flrst_out)
+  rest_date_out = int(yrN*1e4 + mmN*100 + ddN)
+  rest_hr_out = hrN  
+else:
+  rest_date_out = args.rdate_out if args.rdate_out else rest_date
+  rest_hr_out   = args.rhr_out if args.rhr_out else rest_hr
+
+print(f"Restart date input:  {rest_date}:{rest_hr}")
+print(f"Restart date output: {rest_date_out}:{rest_hr_out}")
+if ins_thkn:
+  print("Insert NSDIC NRT ice concenatraion + CryoSat ice thickness climatology into CICE restart\n")
+else:
+  print("Insert NSDIC NRT ice concenatraion, NO ice thickness\n")
+
+
 
 change_rest_time = (rest_date != rest_date_out) or (rest_hr != rest_hr_out)
 
 # Get date numbers:
 # Input restart file
 dnmbR = mtime.rdate2datenum(rest_date*100+rest_hr)  # restart day nmb
-yrR,mmR,ddR,hrR = mtime.datevec(dnmbR, round_hrs=True)[:4]
+if yrR is None:
+  yrR,mmR,ddR,hrR = mtime.datevec(dnmbR, round_hrs=True)[:4]
 nsecR = hrR*3600
 
 # Dates of the output fields in the new restart:
 dnmbN = mtime.rdate2datenum(rest_date_out*100+rest_hr_out)
-yrN, mmN, ddN, hrN = mtime.datevec(dnmbN, round_hrs=True)[:4]
+if yrN is None:
+  yrN, mmN, ddN, hrN = mtime.datevec(dnmbN, round_hrs=True)[:4]
 nsecN = hrN*3600
  
 syst_info = os.uname()
@@ -124,7 +186,6 @@ hg        = 1.e20    # bad values, land mask, etc.
 nslyr     = 1   # snow layers
 Tmin      = -100.   # minimum snow T
 
-
 # Get MOM6 grid
 pthgrid = pths_ufs[node_nm]["MOM6"]["pthgrid"]
 dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
@@ -157,9 +218,20 @@ with xarray.open_dataset(dfliceout) as dsint:
 
 AICEint = np.where(RMsk == 0, np.nan, AICEint)
 
+# Read ice thickness data:
+if ins_thkn:
+  pthithkn = os.path.join(pthdata,'CryoSat2_antarctic_ice_snow_thkn','clim')
+  flithkn = 'CryoSat_hice_mnthclim_2011_2020_mesh025_1440x1080_south.nc'
+  dflithkn = os.path.join(pthithkn,flithkn)
+  print(f"Reading ice thickn for month {mmN} from {dflithkn}")
+  with xarray.open_dataset(dflithkn) as ds_ithkn:
+    ITHKN = ds_ithkn['ice_thkn'].isel(time=mmN-1).data
+else:
+  ITHKN = np.full_like(HH, np.nan)
 
 if flrst_in is None:
   flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{nsecR:06d}.nc"
+
 dflrst_in = os.path.join(pthrest, flrst_in)
 print(f"Reading restart: {dflrst_in}")
 ds_in = xarray.open_dataset(dflrst_in)
@@ -261,7 +333,7 @@ dvol_sum = 0.
 dlti = 2         # N of +/- i , j indices to search for ice pnts around i0,j0
 vitot_min = 0.05    # min total ice vol m3/m2_grid, when ai_old = 0 --> ai_new > 0
 hitot_min = 0.1    # mean ice thickness over ice area: = sum(hice(n)*aice(n)) / sum(aice(n)) 
-hsnow_min = 0.01   # min snow thickness for noice --> ice case
+hsnow_min = 0.01   # min snow thickness for noice --> ice case, this is m3/m2_ice 
 print("Ice concentration insertion ...")
 for ipp in range(npnts):
   if ipp%10000 == 0:
@@ -277,6 +349,7 @@ for ipp in range(npnts):
   vin_old = vicen[:,j0,i0]    # ice volume per unit grid-cell area m2 
   #hin_old = np.divide(vin_old, ain_old, out=np.zeros_like(vin_old), where=ain_old != 0) # ice thkn or m3/m2_ice
   tsfcn_old = Tsfcn[:,j0,i0]  # surf T
+  #ai_old = np.sum(ain_old)   # aggreageted ice partial area 
 
   # Distribute new iconc proportionally by cats in snow vol m3/m2:
   ai_new = AICEint[j0,i0]
@@ -295,10 +368,8 @@ for ipp in range(npnts):
       ain_new = ain_old * 0.
       ain_new[0] = ai_new
     else:
-      dlt_ai = ai_new - ai_old
-      wt = ain_old / np.sum(ain_old)
-      dlt_ain = dlt_ai * wt
-      ain_new = ain_old + dlt_ain
+      cff = ai_new/ai_old
+      ain_new = ain_old * cff
       
   # Adjust small truncation errors:
   sum_ain = np.sum(ain_new)
@@ -310,11 +381,10 @@ for ipp in range(npnts):
   assert np.min(ain_new) >= 0., f"Check ain_new: min val < 0 {np.min(ain_new)}"
 
 
-  # Update ice enthalpy, Tsfcn, and salinity
+  # Update surface T and ice vol / ice thickness
   tsf_new = None
   iice = jice = iocn = jocn = None
   vin_new = None
-  Vsn_mn  = None
   aice_case = None
   if ai_old <= puny and ai_new > puny:
     # Case: no ice --> ice, created ice in the grid cell
@@ -385,7 +455,22 @@ for ipp in range(npnts):
   # If not - distribute across ice cats conserving aice and vice 
   # and matching ice cats
   ain_min = 1.e-8    # lower bound of ain(n) to avoid zeros
-  ain_new, vin_new = mc6util.adjust_thkncats_aice(ain_new, vin_new, ain_old, vin_old, \
+  vice_clim = 0.     # ice vol / m2_cell from clim (cell mean ice thickn)
+  vice_old = 0.      # ice vol / m2 _cell from old restart
+  if ins_thkn:
+    vice_clim = ITHKN[j0,i0] 
+    if np.isnan(vice_clim):
+      vice_clim = 0.
+
+  vice_old = np.sum(vin_old)
+  vice_new = np.sum(vin_new)
+
+  if vice_clim > 0:
+    vtot_target = vice_clim
+  else:
+    vtot_target = np.max([vice_old, vice_new])
+
+  ain_new, vin_new = mc6util.adjust_thkncats_aice(ain_new, vin_new, vtot_target, \
                          hicat, dhi_min,  bnd_min=ain_min)
   
   ain_new = np.where(ain_new <= ain_min, 0., ain_new)
@@ -424,9 +509,24 @@ for ipp in range(npnts):
 
     qicen_new[varnum][:,j0,i0] = qice_new
 
-  # Check snow volume, add min vol if none:
-  vsn_new = np.where(vsn_old < hsnow_min, hsnow_min, vsn_old)
+  # Check snow volume and ice_mean hsnow, add min snow if needed:
+  vstot_old = np.sum(vsn_old)  # snow vol m3/m2_cell or cell mean snow thickn.
+  if ai_new > puny:
+    hsn_new = vstot_old / ai_new  # mean snow thickn over ice
+    if hsn_new < hsnow_min:
+      hsn_new = hsnow_min
+      vstot_new = hsn_new * ai_new
+    else:
+      vstot_new = vstot_old
+
+    # Distribute evenly across cats:
+    wts = ain_new/ai_new
+    vsn_new = vstot_new * wts
+  else:
+    vsn_new = ain_new * 0.
+
   vsn_new = np.where(ain_new <= puny, 0., vsn_new)
+  vsnon_new[:,j0,i0] = vsn_new
 
   # Update snow enthalpy: J/m3  
   # snow enthalpy should be: qsn_min <= qsn <= qsn_max
@@ -444,6 +544,7 @@ for ipp in range(npnts):
   qsn_new = np.clip(qsn_tsfc, qsn_min, qsn_max)
   qsn_new = np.where(ain_new <= puny, 0., qsn_new)      # no ice
   qsn_new = np.where(vsn_new <= 0, 0., qsn_new)     # no snow
+  qsnon_new[:,j0,i0] = qsn_new
 
   #vtot_old = np.nansum(vsn_old)
   #vtot_new  = np.nansum(vsn_new)
@@ -469,9 +570,10 @@ assert ds_out["qsno001"].shape == qsnon_new.shape, "Check shape of qsnon "
 
 # Check hice(n) as it is caclulated in icepack_therm_vertical.F90
 # hice(n) = vice(n) / aice(n) 
-for k in range(1,ncat):
-  aice_n = aicen[k-1,:].squeeze()
-  vice_n = vicen[k-1,:].squeeze()
+print(' =========  ICE  =========')
+for k in range(1,ncat+1):
+  aice_n = aicen_new[k-1,:].squeeze()
+  vice_n = vicen_new[k-1,:].squeeze()
   hice_n = np.divide(vice_n, aice_n, out=np.zeros_like(aice), where=aice_n != 0)
   jmin, imin = np.unravel_index(hice_n.argmin(), hice_n.shape)
   jmax, imax = np.unravel_index(hice_n.argmax(), hice_n.shape)
@@ -480,6 +582,17 @@ for k in range(1,ncat):
   print(f"         j={jmax}, i={imax}, max hice(n): {np.nanmax(hice_n)}, "+\
         f"aice(n): {aice_n[jmax,imax]}, vice(n): {vice_n[jmax,imax]}")
 
+print(' =========  SNOW =========')
+for k in range(1,ncat+1):
+  aice_n = aicen_new[k-1,:].squeeze()
+  vsno_n = vsnon_new[k-1,:].squeeze()
+  hsno_n = np.divide(vsno_n, aice_n, out=np.zeros_like(aice), where=aice_n != 0)
+  jmin, imin = np.unravel_index(hsno_n.argmin(), hsno_n.shape)
+  jmax, imax = np.unravel_index(hsno_n.argmax(), hsno_n.shape)
+  print(f"Cat {k}, j={jmin}, i={imin}, min hsnow(n): {np.nanmin(hsno_n)}, "+\
+        f"aice(n): {aice_n[jmin,imin]}, vsno(n): {vsno_n[jmin,imin]}")
+  print(f"         j={jmax}, i={imax}, max hsnow(n): {np.nanmax(hsno_n)}, "+\
+        f"aice(n): {aice_n[jmax,imax]}, vsno(n): {vsno_n[jmax,imax]}")
 
 
 # Attributes:
@@ -487,7 +600,7 @@ from datetime import datetime
 istep1_val = ds_out.attrs.get('istep1', None)
 ds_out.attrs.update({
     "title": f"CICE6 restart with inserted ice concentration from NSIDC NRT {rest_date_out} ",
-    "source": "insert_iconc_cice6_restart.py",
+    "source": "insert_iconc_ithkn_cice6_restart.py",
     "contact": "dmitry.dukhovskoy@noaa.gov",
     "istep1": np.int32(istep1_val) if istep1_val is not None else np.int32(0), 
     "myear": np.int32(yrN),
@@ -499,7 +612,11 @@ ds_out.attrs.update({
 
 # Save:
 if flrst_out is None:
-  flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc.nc"
+  if ins_thkn:
+    flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc_thkn.nc"
+  else:
+    flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc.nc"
+
 dflrst_out = os.path.join(pthrest,flrst_out)
 print(f"Saving CICE restart --> {dflrst_out}")
 ds_out.to_netcdf(dflrst_out, encoding={var: {'_FillValue': None} for var in ds_out.data_vars}, format='NETCDF3_64BIT')

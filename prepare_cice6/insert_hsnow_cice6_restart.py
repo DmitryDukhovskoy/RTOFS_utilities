@@ -54,33 +54,90 @@ import mod_misc1 as mmisc
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
+def get_date_filename(file_name, sfx='cice_model.res'):
+  year = month = day = hr = mint = sec = None
+
+  parts = file_name.split('.')
+  # Check if file naming is correct
+  if len(parts) >= 4 and '.'.join(parts[:2]) == sfx:
+    date_str = parts[2]
+    hour_str = parts[3]
+    
+    year  = int(date_str[0:4])
+    month = int(date_str[4:6])
+    day   = int(date_str[6:8])
+    if len(hour_str) == 2:
+      hr   = int(hour_str)
+      mint = 0
+      sec  = hr*3600     # total seconds
+    elif len(hour_str) >= 5:
+      sec = int(hour_str)
+      hr  = sec % 3600
+      mint = sec - hr*3600
+      
+  else:
+    print(f"{file_name} format not recognized")
+
+  return year, month, day, hr, mint
+
+
 rest_date = 20250103
 rest_hr   = 0
 hunits    = 'cm'
+regn = 'south'
+
+yrR = mmR = ddR = hrR = None
+yrN = mmN = ddN = hrN = None
 
 parser = argparse.ArgumentParser()
+parser.add_argument("--ithkn", type=int, default=1,
+    help="insert ice thickn climatology, 0=no, 1=yes (default 1)")
 parser.add_argument("--rdate", help=f"restart date input file, default={rest_date}", type=int)
 parser.add_argument("--rhr", help=f"input file, restart hour = 0, ..., 23, default={rest_hr}", type=int)
 parser.add_argument("--rdate_out", help="output file, restart date if different from input", type=int)
 parser.add_argument("--rhr_out", help="output file, restart hour if date is different from input", type=int)
+parser.add_argument("--flrst_in", help="rest file in, otherwise name constructed from rest_date", type=str)
+parser.add_argument("--flrst_out", help="new rest file, otherwise name constructed from rdate_out", type=str)
+parser.add_argument("--regn", help=f"where icon incerted: south, north, global, default={regn}", type=str)
 args = parser.parse_args()
 
-rest_date     = args.rdate if args.rdate else rest_date
-rest_hr       = args.rhr if args.rhr else rest_hr
-rest_date_out = args.rdate_out if args.rdate_out else rest_date
-rest_hr_out   = args.rhr_out if args.rhr_out else rest_hr
+ins_thkn = bool(args.ithkn)
+flrst_in  = args.flrst_in if args.flrst_in else None
+flrst_out = args.flrst_out if args.flrst_out else None
+# if rest_date and rest_date_out are provided
+# Derive dates assuming file nameing is cice_restart.res.YYYYMMDD.XX[XXX]
+if flrst_in is not None:
+  yrR, mmR, ddR, hrR, mintR = get_date_filename(flrst_in)
+  rest_date = int(yrR*1e4 + mmR*100 + ddR)
+  rest_hr = hrR
+else:
+  rest_date = args.rdate if args.rdate else rest_date
+  rest_hr   = args.rhr if args.rhr else rest_hr
+
+if flrst_out is not None:
+  yrN, mmN, ddN, hrN, mintN = get_date_filename(flrst_out)
+  rest_date_out = int(yrN*1e4 + mmN*100 + ddN)
+  rest_hr_out = hrN  
+else:
+  rest_date_out = args.rdate_out if args.rdate_out else rest_date
+  rest_hr_out   = args.rhr_out if args.rhr_out else rest_hr
+  
+print(f"Restart date input:  {rest_date}:{rest_hr}")
+print(f"Restart date output: {rest_date_out}:{rest_hr_out}")
 
 change_rest_time = (rest_date != rest_date_out) or (rest_hr != rest_hr_out)
 
 # Get date numbers:
 # Input restart file
 dnmbR = mtime.rdate2datenum(rest_date*100+rest_hr)  # restart day nmb
-yrR,mmR,ddR,hrR = mtime.datevec(dnmbR, round_hrs=True)[:4]
+if yrR is None:
+  yrR,mmR,ddR,hrR = mtime.datevec(dnmbR, round_hrs=True)[:4]
 nsecR = hrR*3600
 
 # Dates of the output fields in the new restart:
 dnmbN = mtime.rdate2datenum(rest_date_out*100+rest_hr_out)
-yrN, mmN, ddN, hrN = mtime.datevec(dnmbN, round_hrs=True)[:4]
+if yrN is None:
+  yrN, mmN, ddN, hrN = mtime.datevec(dnmbN, round_hrs=True)[:4]
 nsecN = hrN*3600
  
 syst_info = os.uname()
@@ -156,13 +213,14 @@ units_m = hunits == 'm'
 # Restart from a GFS17 rt13  run:
 #flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{nsecR:06d}.nc"
 # Restart with inserted iconc from NSIDC NRT:
-flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{hrR:02d}.iconc.nc"
+if flrst_in is None:
+  flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{hrR:02d}.iconc.nc"
+
 dflrst_in = os.path.join(pthrest, flrst_in)
 print(f"Reading restart: {dflrst_in}")
 ds_in = xarray.open_dataset(dflrst_in)
 ds_out = ds_in.copy(deep=True)
 ds_in.close()
-
 
 # Insert snow:
 assert nslyr == 1, f"Code needs to be modified for nslyr>1, nslyr={nslyr}"
@@ -196,22 +254,28 @@ for ipp in range(npnts):
   j0 = Jins[ipp]
   i0 = Iins[ipp]
 
-  # Note hsnow = vsn / aice for aice > 0
+  # Note hsn_new = sum(vsn) / aice for aice > 0, m3/m2_ice ==> mean snow thickn over ice 
   # for cat n: vsn(n) = hsnow(n) * aice(n) 
-  ai  = aice[j0,i0]           # aggreageted ice partial area 
+  ai  = aice[j0,i0]           # aggregated ice partial area 
   ain = aicen[:,j0,i0]        # partial areas by cats
   vin = vicen[:,j0,i0]
   vsn = vsnon[:,j0,i0]        # snow volume per unit grid-cell area m2
   if units_m:
-    hsnow = HSi[j0,i0]        # m of snow over sea ice
+    hsn_new = HSi[j0,i0]        # m of snow over sea ice
   else:
-    hsnow = HSi[j0,i0]*0.01   # m of snow over sea ice 
+    hsn_new = HSi[j0,i0]*0.01   # m of snow over sea ice 
 
   # Distribute new snow depth evenly by cats in snow vol m3/m2:
   #ain = np.where(ain<1.e-20, 1.e-20, ain)  
-  vsn_new = hsnow * ain        # m3/m2 per category
-  if hsnow <= hs_min:
+  
+  #vsn_new = hsn_new * ain        # m3/m2 per category
+  vstot_new = hsn_new * ai
+  if hsn_new <= hs_min or ai < puny:
     vsn_new = vsn_new * 0.
+  else:
+    # Distribute evenly across cats:
+    wts = ain/ai
+    vsn_new = vstot_new * wts
 
   # Update snow enthalpy: J/m3  
   # see icepack_therm_vertical.F90 in icepack
@@ -269,6 +333,33 @@ assert "vsnon" in ds_out and "qsno001" in ds_out, "Missing updated snow fields v
 assert ds_out["vsnon"].shape == vsnon_new.shape, "Check shape of vsnon "
 assert ds_out["qsno001"].shape == qsnon_new.shape, "Check shape of qsnon "
 
+# Check hice(n) as it is caclulated in icepack_therm_vertical.F90
+# hice(n) = vice(n) / aice(n) 
+print(' =========  ICE  =========')
+for k in range(1,ncat+1):
+  aice_n = aicen[k-1,:].squeeze()
+  vice_n = vicen[k-1,:].squeeze()
+  hice_n = np.divide(vice_n, aice_n, out=np.zeros_like(aice), where=aice_n != 0)
+  jmin, imin = np.unravel_index(hice_n.argmin(), hice_n.shape)
+  jmax, imax = np.unravel_index(hice_n.argmax(), hice_n.shape)
+  print(f"Cat {k}, j={jmin}, i={imin}, min hice(n): {np.nanmin(hice_n)}, "+\
+        f"aice(n): {aice_n[jmin,imin]}, vice(n): {vice_n[jmin,imin]}")
+  print(f"         j={jmax}, i={imax}, max hice(n): {np.nanmax(hice_n)}, "+\
+        f"aice(n): {aice_n[jmax,imax]}, vice(n): {vice_n[jmax,imax]}")
+
+print(' =========  SNOW =========')
+for k in range(1,ncat+1):
+  aice_n = aicen[k-1,:].squeeze()
+  vsno_n = vsnon_new[k-1,:].squeeze()
+  hsno_n = np.divide(vsno_n, aice_n, out=np.zeros_like(aice), where=aice_n != 0)
+  jmin, imin = np.unravel_index(hsno_n.argmin(), hsno_n.shape)
+  jmax, imax = np.unravel_index(hsno_n.argmax(), hsno_n.shape)
+  print(f"Cat {k}, j={jmin}, i={imin}, min hsnow(n): {np.nanmin(hsno_n)}, "+\
+        f"aice(n): {aice_n[jmin,imin]}, vsno(n): {vsno_n[jmin,imin]}")
+  print(f"         j={jmax}, i={imax}, max hsnow(n): {np.nanmax(hsno_n)}, "+\
+        f"aice(n): {aice_n[jmax,imax]}, vsno(n): {vsno_n[jmax,imax]}")
+
+
 # Attributes:
 from datetime import datetime
 istep1_val = ds_out.attrs.get('istep1', None)
@@ -285,12 +376,14 @@ ds_out.attrs.update({
 })
 
 # Save:flrst_in
-sfx = extract_suffix(flrst_in)
-if sfx is None:
-  #flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{nsecN:06d}.newhsnow.nc"
-  flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.hsnow.nc"
-else:
-  flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.{sfx}.snow.nc"
+# Construct output file name if not provided:
+if flrst_out is None:
+  sfx = extract_suffix(flrst_in)
+  if sfx is None:
+    #flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{nsecN:06d}.newhsnow.nc"
+    flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.snow.nc"
+  else:
+    flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.{sfx}.snow.nc"
 dflrst_out = os.path.join(pthrest,flrst_out)
 print(f"Saving CICE restart --> {dflrst_out}")
 ds_out.to_netcdf(dflrst_out, encoding={var: {'_FillValue': None} for var in ds_out.data_vars}, format='NETCDF3_64BIT')

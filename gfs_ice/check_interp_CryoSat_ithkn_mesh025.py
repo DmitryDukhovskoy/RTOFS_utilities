@@ -1,0 +1,1 @@
+../prepare_cice6/check_interp_CryoSat_ithkn_mesh025.py

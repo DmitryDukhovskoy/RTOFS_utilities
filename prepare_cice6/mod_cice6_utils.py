@@ -1162,7 +1162,7 @@ def check_ithkn_cats(hicat, hin_new, ain_new):
 
   return cat_missed, hcat_new
 
-def adjust_thkncats_aice(ain_new, vin_new, ain_old, vin_old, \
+def adjust_thkncats_aice(ain_new, vin_new, vtot_target, \
                          hicat, dhi_min, bnd_min = 1e-8, puny=1e-12):
   """
     Redistribute ice across ice thickness categories
@@ -1172,8 +1172,9 @@ def adjust_thkncats_aice(ain_new, vin_new, ain_old, vin_old, \
     vin_new - new ice vol per unit cell area m3/m2_cell
     ai_new  - new aggregated ice conc - has to be preserved
 
-    ain_old - old ice conc by cats
-    vin_old - old ice vol per unt area
+    vtot_target - target value of ice vol / m2_cell (cell mean ice thickn) that try to conserve
+      ain_old - old ice conc by cats
+      vin_old - old ice vol per unt area
 
     hi_cat - lower bounds of ice thickness cats + the last upper bound
     dhi_min - min difference between 2 adj ice thkn cats
@@ -1193,7 +1194,7 @@ def adjust_thkncats_aice(ain_new, vin_new, ain_old, vin_old, \
   ncat = hicat.shape[0] - 1
   # ice thkn or m3/m2_ice
   hin_new = np.divide(vin_new, ain_new, out=np.zeros_like(vin_new), where=ain_new != 0) 
-  hin_old = np.divide(vin_old, ain_old, out=np.zeros_like(vin_old), where=ain_old != 0)
+  #hin_old = np.divide(vin_old, ain_old, out=np.zeros_like(vin_old), where=ain_old != 0)
   #hin_fltr = hin_new[hin_new != 0]
 
   #Check which cat. each value falls into
@@ -1205,7 +1206,7 @@ def adjust_thkncats_aice(ain_new, vin_new, ain_old, vin_old, \
 
   # Need to conserve ai_new - aggregated ice conc
   # and possibly total ice vol. per m2 grid area
-  vtot_old = np.sum(vin_old)
+  #vtot_old = np.sum(vin_old)
   vtot_new = np.sum(vin_new)
   # assert abs(vtot_old - vtot_new) < 1.
 
@@ -1234,7 +1235,7 @@ def adjust_thkncats_aice(ain_new, vin_new, ain_old, vin_old, \
 
   constraints = [
     {'type': 'eq', 'fun': lambda X: np.sum(X[:ncat]) - ai_new},  # sum(ai) = atot
-    {'type': 'eq', 'fun': lambda X: np.sum(X[:ncat] * X[ncat:]) - vtot_old}  # sum(ai_new*hi_new) = vitot
+    {'type': 'eq', 'fun': lambda X: np.sum(X[:ncat] * X[ncat:]) - vtot_target}  # sum(ai_new*hi_new) = vitot
   ]
 
   # Bounds: see above constraints
@@ -1250,10 +1251,10 @@ def adjust_thkncats_aice(ain_new, vin_new, ain_old, vin_old, \
     ain_new[hin_new < puny] = 0.
     vin_new = hin_new * ain_new
   else:
-    # Need to do something, for now:
+    # Ususally it is fine, but check what is causing this
     print("WARNING: Minimization failed, use approximate estimates for aice and hice")
     print(f"    target tot conc: {ai_new}, ai_new={np.sum(ain_new)}, error={np.sum(ain_new)-ai_new}")
-    print(f"    target tot vol:  {vtot_old}, vtot_new={np.sum(vin_new)}, error={np.sum(vin_new)-vtot_old}")
+    print(f"    target tot vol:  {vtot_target}, vtot_new={np.sum(vin_new)}, error={np.sum(vin_new)-vtot_target}")
     #raise Exception(f"{res}") 
     ain_new = res.x[:ncat]
     hin_new = res.x[ncat:]
