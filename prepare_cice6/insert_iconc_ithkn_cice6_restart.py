@@ -455,7 +455,7 @@ for ipp in range(npnts):
   # If not - distribute across ice cats conserving aice and vice 
   # and matching ice cats
   ain_min = 1.e-8    # lower bound of ain(n) to avoid zeros
-  vice_clim = 0.     # ice vol / m2_cell from clim (cell mean ice thickn)
+  vice_clim = 0.     # ice vol / m2_cell from clim (CryoSat is cell mean ice thickn)
   vice_old = 0.      # ice vol / m2 _cell from old restart
   if ins_thkn:
     vice_clim = ITHKN[j0,i0] 
@@ -468,6 +468,8 @@ for ipp in range(npnts):
   if vice_clim > 0:
     vtot_target = vice_clim
   else:
+    # Case when ithkn is turned off but also
+    # this ignores hice = 0 in clim fields when ithkn is turned on
     vtot_target = np.max([vice_old, vice_new])
 
   ain_new, vin_new = mc6util.adjust_thkncats_aice(ain_new, vin_new, vtot_target, \

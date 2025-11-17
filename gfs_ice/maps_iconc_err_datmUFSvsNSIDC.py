@@ -245,7 +245,7 @@ clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=1
 clb.ax.tick_params(direction='in', length=12)
 
 ax4 = fig1.add_axes([0.55, 0.05, 0.4, 0.02])
-clb = plt.colorbar(img2, cax=ax4, orientation='horizontal', extend='max')
+clb = plt.colorbar(img2, cax=ax4, orientation='horizontal', extend='both')
 ax4.xaxis.set_ticks(list(np.linspace(dmin,dmax,11)))
 ax4.set_xticklabels(ax4.get_xticks())
 ticklabs = clb.ax.get_xticklabels()

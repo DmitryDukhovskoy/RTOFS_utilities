@@ -203,6 +203,8 @@ CLRS = np.array([[0., 0.2, 0.9],
 print("Plotting ...")
 
 XT = RECS - np.floor(RECS[0])
+xticks = np.arange(np.floor(XT[0]),np.ceil(XT[-1]))
+yticks = np.arange(0.,0.8,0.05)
 sttl = f"RMSE btw iconc NSIDC and datmUFS expts, {YR}/{MMS:02d}/{DDS:02d}-{YR}/{MME:02d}/{DDE:02d}"
 
 plt.ion()
@@ -219,7 +221,11 @@ for iens in range(nexpts):
   ln1, = ax1.plot(XT,rmse0, 'o-', linewidth=2, color=clr0, label=line_lbl)
   LNS.append(ln1)
 
-ax1.set_xticks(XT)
+yl1 = 0
+yl2 = np.nanmax(RMSE) * 1.05  
+ax1.set_yticks(yticks)
+ax1.set_xticks(xticks)
+ax1.set_ylim(yl1, yl2)
 ax1.grid('on')
 ax1.set_xlabel('Forecast days')
 ax1.set_title(sttl)
