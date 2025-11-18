@@ -1263,8 +1263,70 @@ def adjust_thkncats_aice(ain_new, vin_new, vtot_target, \
  
   return ain_new, vin_new 
 
- 
-  
+
+def get_date_filename(file_name, sfx='cice_model.res'): 
+  """
+    Accepted file formats:
+      cice_model.res.YYYYMMDD.HH.nc
+      cice_model.res.YYYYMMDD.SSSSSS.nc   (seconds of day)
+      YYYYMMDD.HH.sfx1.sfx2.nc
+      YYYYMMDD.SSSSSS.sfx.nc
+      For SSSSSS > 86400: use hour * 10000 (e.g., 21:00 -> 210000)
+  """
+
+  year = month = day = hr = mint = sec = None
+  parts = file_name.split('.')
+
+  # Case 1: <sfx>.YYYYMMDD.<time>.nc
+  if len(parts) >= 4 and '.'.join(parts[:2]) == sfx:
+    date_str = parts[2]
+    time_str = parts[3]
+
+  # Case 2: YYYYMMDD.<time>.<sfx>.nc
+  elif len(parts) >= 4:
+    date_str = parts[0]
+    time_str = parts[1]
+    if not (date_str.isdigit() and time_str.isdigit()):
+      print(f"Expected digit YYYYMMDD: {date_str}, {time_str} in {file_name} format not recognized")
+      return None
+  else:
+    print(f"Parts file name = {len(parts)} in {file_name} format not recognized")
+    return None
+
+  # Parse date
+  if len(date_str) == 8 and date_str.isdigit():
+    year = int(date_str[0:4])
+    month = int(date_str[4:6])
+    day = int(date_str[6:8])
+  else:
+    print(f"{file_name}: invalid date format")
+    return None
+
+  # Parse time
+  if not time_str.isdigit():
+    print(f"{file_name}: invalid time format")
+    return None
+
+  time_val = int(time_str)
+
+  # HH format
+  if len(time_str) == 2:
+    hr = time_val
+    mint = 0
+    sec = hr * 3600
+
+  # Seconds-of-day or encoded HH*10000
+  else:
+    if time_val <= 86400:
+      sec = time_val
+      hr = sec // 3600
+      mint = (sec % 3600) // 60
+    else:
+      hr = time_val // 10000
+      sec = hr * 3600
+      mint = 0
+
+  return year, month, day, hr, mint  
 
 
 

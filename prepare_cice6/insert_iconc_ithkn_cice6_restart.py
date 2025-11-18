@@ -55,32 +55,6 @@ import mod_cice6_utils as mc6util
 importlib.reload(mc6util)
 
 
-def get_date_filename(file_name, sfx='cice_model.res'):
-  year = month = day = hr = mint = sec = None
-
-  parts = file_name.split('.')
-  # Check if file naming is correct
-  if len(parts) >= 4 and '.'.join(parts[:2]) == sfx:
-    date_str = parts[2]  
-    hour_str = parts[3]  
-    
-    year  = int(date_str[0:4])
-    month = int(date_str[4:6])
-    day   = int(date_str[6:8])
-    if len(hour_str) == 2:
-      hr   = int(hour_str)
-      mint = 0
-      sec  = hr*3600     # total seconds
-    elif len(hour_str) >= 5:
-      sec = int(hour_str)
-      hr  = sec % 3600
-      mint = sec - hr*3600 
-      
-  else:
-    print(f"{file_name} format not recognized")
-
-  return year, month, day, hr, mint
-
 rest_date = 20250103
 rest_hr = 0
 regn = 'south'
@@ -104,8 +78,9 @@ flrst_in  = args.flrst_in if args.flrst_in else None
 flrst_out = args.flrst_out if args.flrst_out else None
 # if rest_date and rest_date_out are provided
 # Derive dates assuming file nameing is cice_restart.res.YYYYMMDD.XX[XXX]
+# or YYYYMMDD.<time>.---.nc
 if flrst_in is not None:
-  yrR, mmR, ddR, hrR, mintR = get_date_filename(flrst_in)
+  yrR, mmR, ddR, hrR, mintR = mc6util.get_date_filename(flrst_in)
   rest_date = int(yrR*1e4 + mmR*100 + ddR)
   rest_hr = hrR
 else:
@@ -113,7 +88,7 @@ else:
   rest_hr   = args.rhr if args.rhr else rest_hr
 
 if flrst_out is not None:
-  yrN, mmN, ddN, hrN, mintN = get_date_filename(flrst_out)
+  yrN, mmN, ddN, hrN, mintN = mc6util.get_date_filename(flrst_out)
   rest_date_out = int(yrN*1e4 + mmN*100 + ddN)
   rest_hr_out = hrN  
 else:
@@ -126,8 +101,6 @@ if ins_thkn:
   print("Insert NSDIC NRT ice concenatraion + CryoSat ice thickness climatology into CICE restart\n")
 else:
   print("Insert NSDIC NRT ice concenatraion, NO ice thickness\n")
-
-
 
 change_rest_time = (rest_date != rest_date_out) or (rest_hr != rest_hr_out)
 
@@ -163,7 +136,8 @@ fyaml = 'paths_ufs.yaml'
 with open(fyaml) as ff:
   pths_ufs = safe_load(ff)
 
-pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+#pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_da'
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 
 # CICE parameters:
@@ -603,7 +577,6 @@ istep1_val = ds_out.attrs.get('istep1', None)
 ds_out.attrs.update({
     "title": f"CICE6 restart with inserted ice concentration from NSIDC NRT {rest_date_out} ",
     "source": "insert_iconc_ithkn_cice6_restart.py",
-    "contact": "dmitry.dukhovskoy@noaa.gov",
     "istep1": np.int32(istep1_val) if istep1_val is not None else np.int32(0), 
     "myear": np.int32(yrN),
     "mmonth": np.int32(mmN),
@@ -639,8 +612,8 @@ if f_plt:
   #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
   parallels = np.arange(-80,-10,10.)
   meridians = np.arange(-360,359.,45.)
-  xl1 = -8.e6
-  xl2 = -1.2e6
+  xl1 = -9e6
+  xl2 = -0.8e6
   yl1 = xl1
   yl2 = xl2
 

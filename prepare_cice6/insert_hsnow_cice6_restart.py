@@ -52,34 +52,8 @@ import mod_utils_ob as mutob
 import mod_mom6 as mmom6
 import mod_misc1 as mmisc
 import mod_sis2_relax as msisrlx
-importlib.reload(msisrlx)
-
-def get_date_filename(file_name, sfx='cice_model.res'):
-  year = month = day = hr = mint = sec = None
-
-  parts = file_name.split('.')
-  # Check if file naming is correct
-  if len(parts) >= 4 and '.'.join(parts[:2]) == sfx:
-    date_str = parts[2]
-    hour_str = parts[3]
-    
-    year  = int(date_str[0:4])
-    month = int(date_str[4:6])
-    day   = int(date_str[6:8])
-    if len(hour_str) == 2:
-      hr   = int(hour_str)
-      mint = 0
-      sec  = hr*3600     # total seconds
-    elif len(hour_str) >= 5:
-      sec = int(hour_str)
-      hr  = sec % 3600
-      mint = sec - hr*3600
-      
-  else:
-    print(f"{file_name} format not recognized")
-
-  return year, month, day, hr, mint
-
+import mod_cice6_utils as mc6util
+importlib.reload(mc6util)
 
 rest_date = 20250103
 rest_hr   = 0
@@ -107,7 +81,7 @@ flrst_out = args.flrst_out if args.flrst_out else None
 # if rest_date and rest_date_out are provided
 # Derive dates assuming file nameing is cice_restart.res.YYYYMMDD.XX[XXX]
 if flrst_in is not None:
-  yrR, mmR, ddR, hrR, mintR = get_date_filename(flrst_in)
+  yrR, mmR, ddR, hrR, mintR = mc6util.get_date_filename(flrst_in)
   rest_date = int(yrR*1e4 + mmR*100 + ddR)
   rest_hr = hrR
 else:
@@ -115,7 +89,7 @@ else:
   rest_hr   = args.rhr if args.rhr else rest_hr
 
 if flrst_out is not None:
-  yrN, mmN, ddN, hrN, mintN = get_date_filename(flrst_out)
+  yrN, mmN, ddN, hrN, mintN = mc6util.get_date_filename(flrst_out)
   rest_date_out = int(yrN*1e4 + mmN*100 + ddN)
   rest_hr_out = hrN  
 else:
@@ -169,7 +143,8 @@ def extract_suffix(fname):
       return suffix
   return None
 
-pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+#pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_da'
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 
 # CICE parameters:
@@ -366,7 +341,6 @@ istep1_val = ds_out.attrs.get('istep1', None)
 ds_out.attrs.update({
     "title": "CICE6 restart with inserted hsnow from SSM/I NASA gridded fields for S. Ocean",
     "source": "insert_hsnow_cice6_restart.py",
-    "contact": "dmitry.dukhovskoy@noaa.gov",
     "istep1": np.int32(istep1_val) if istep1_val is not None else np.int32(0), 
     "myear": np.int32(yrN),
     "mmonth": np.int32(mmN),

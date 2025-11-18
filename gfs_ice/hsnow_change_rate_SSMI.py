@@ -45,7 +45,6 @@ expt = 'ufs_datm_mx025_v02'
 init_date = 20250103
 init_hr = 0
 regn = 'south'
-fld_avrg = "ice"  # use hsnow over ice area, i.e. hsn = vsn / aice = m3 / m2_ice
 
 # hs_h - grid cell mean (!) snow thickness, m
 # snow_ai - snowfall rate cm/day (in liquid water equivalent !)
@@ -53,24 +52,26 @@ fld_avrg = "ice"  # use hsnow over ice area, i.e. hsn = vsn / aice = m3 / m2_ice
 # snoice_h - snow-ice formation (cm/day)
 # melts_h  - top snow melt (cm/day)
 parser = argparse.ArgumentParser()
-parser.add_argument("--enmb", help="expt nunmber: 1, ...", type=int, required=True)
 parser.add_argument("--init", help=f"init date, default={init_date}", type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
 parser.add_argument("--fday", help=f"forecast day to plot: 1,...,14, =0 - init. cond.", type=int, required=True)
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
 parser.add_argument("--avrg", help=f"plot grid cell or ice area mean: cell or ice, default{fld_avrg}", type=str)
+parser.add_argument(
+    "--enmb",
+    help="List of experiment numbers (e.g., 1 3 9 12)",
+    type=int,
+    nargs="+",             # <-- allows one or more integers and will generate a list
+    required=True
+)
 args = parser.parse_args()
 
-enmb      = args.enmb if args.enmb else None
 init_date = args.init if args.init else init_date
 init_hr   = args.ihr if args.ihr else init_hr
 fday      = args.fday if args.fday is not None else None
 regn      = args.regn if args.regn else regn
 fld_avrg  = args.avrg if args.avrg else fld_avrg
-
-TLON = TLAT = LMSK = None
-
-pthoutp = f"/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/ufs_datm_mx025/expt{enmb:02d}/cice6"
+ENMBS = args.enmb if args.enmb else None
 
 syst_info = os.uname()
 machine = syst_info.nodename
@@ -90,8 +91,6 @@ with open(fyaml) as ff:
 
 
 # Get date:
-plot_init = fday == 0  # initial conditions
-
 dnmbI = mtime.rdate2datenum(init_date*100+init_hr)  # init. day nmb
 if plot_init:
   dnmb0 = dnmbI
@@ -101,6 +100,21 @@ else:
 yr0,mm0,dd0,hr0 = mtime.datevec(dnmb0, round_hrs=True)[:4]
 YR,MM,DD = mtime.datevec(dnmb0)[:3]
 nsec0 = hr0*3600
+
+
+# Read interpolated NASA SSM/I daily clim snow depths:
+pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
+pthsnow = os.path.join(pthdata,'snow_nasa')
+flhsn = f'SSMI_hsnow_interp_mesh025_1080x1440_mnthly_clim_south.nc'
+dflhsn = os.path.join(pthsnow,flhsn)
+print(f"Reading interpolated hsnow {dflhsn}")
+with xarray.open_dataset(dflhsn) as ds_snow:
+  HSi = ds_snow['snow_depth'].isel(time=mm0-1).data.squeeze()
+  LON = ds_snow['lon'].data
+  LAT = ds_snow['lat'].data
+
+
+
 
 if plot_init:
   flinp = f"iceh_ic.{yr0}-{mm0:02d}-{dd0:02d}-{nsec0:05d}.nc"
@@ -123,18 +137,6 @@ if fld_avrg == 'ice':
   # Plot hsnow avrg over ice area:
   A2d = np.divide(A2d, Aice, out=np.zeros_like(A2d), where=Aice > 0)
 A2d[LMSK==0] = np.nan
-
-# Read interpolated snow depths:
-# Snow depth climatology, Interpolated fields mesh025:
-pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-pthsnow = os.path.join(pthdata,'snow_nasa')
-flhsn = f'SSMI_hsnow_interp_mesh025_1080x1440_mnthly_clim_south.nc'
-dflhsn = os.path.join(pthsnow,flhsn)
-print(f"Reading interpolated hsnow {dflhsn}")
-with xarray.open_dataset(dflhsn) as ds_snow:
-  HSi = ds_snow['snow_depth'].isel(time=mm0-1).data.squeeze()
-  LON = ds_snow['lon'].data
-  LAT = ds_snow['lat'].data
 
 dHS = A2d - HSi
 
