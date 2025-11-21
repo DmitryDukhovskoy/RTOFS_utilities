@@ -52,6 +52,7 @@ importlib.reload(msisrlx)
 YR = 2025
 MM = 1 
 DD = 3
+DDE = 16
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help="hemisphere: north or south", type=str, required=True)
@@ -59,7 +60,7 @@ parser.add_argument("--yr", help=f"year of model run, default={YR}", type=int)
 parser.add_argument("--ms", help=f"start month of data to plot, default={MM}", type=int)
 parser.add_argument("--me", help=f"end month of NSIDCS data to plot, default={MM}", type=int)
 parser.add_argument("--ds", help="Start: day in the start month to plot, default={DD}", type=int)
-parser.add_argument("--de", help="End: day in the end month to plot, default={DD}", type=int)
+parser.add_argument("--de", help="End: day in the end month to plot, default={DDE}", type=int)
 parser.add_argument(
     "--enmb",
     help="List of experiment numbers (e.g., 1 3 9 12)",
@@ -74,7 +75,7 @@ YR    = args.yr if args.yr else YR
 MMS   = args.ms if args.ms else MM
 MME   = args.me if args.me else MMS
 DDS   = args.ds if args.ds else DD
-DDE   = args.de if args.de else 16
+DDE   = args.de if args.de else DDE
 ENMBS = args.enmb if args.enmb else None
 plt_init = True  # show RMSE for init state if init. state file exists and saved by CICE6
   
@@ -189,16 +190,8 @@ for enmb in ENMBS:
 
 
 # Line colors:
-CLRS = np.array([[0., 0.2, 0.9],
-                 [0.7, 0., 1],
-                 [0., 0.8, 0.3],
-                 [0., 0.8, 1],
-                 [0.9, 0.4, 0],
-                 [1., 0., 0],
-                 [0.5, 0.3, 0],
-                 [0.5, 0.5, 0.5],
-                 [0.7, 0.45, 0.9]])
-
+import mod_gfs_cice_anls as mgfscice
+CLRS = mgfscice.sens_tests_colors()
 
 print("Plotting ...")
 

@@ -125,14 +125,16 @@ def clrmp_Nvalues(Ncat,Ncmp):
   CMP = create_colormap(CLR, Ncmp)
   return CMP
 
-def create_colormap(CLR, Ncmp, cmp_obj=True):
-# Mix main colors in CLR adding shadings
-# Transitioning from CLR(i) to CLR(i+1)
-# Ncmp - total # of colors in the colormap
-# In most cases Ncmp > length(CLR)
-# otherwsie CLR is returned with no changes
-# cmp_obj - True ==> returns as colormap object
-#           False --> returns as RGB array
+def create_colormap_old(CLR, Ncmp, cmp_obj=True):
+  """
+   Mix main colors in CLR adding shadings
+   Transitioning from CLR(i) to CLR(i+1)
+   Ncmp - total # of colors in the colormap
+   In most cases Ncmp > length(CLR)
+   otherwsie CLR is returned with no changes
+   cmp_obj - True ==> returns as colormap object
+             False --> returns as RGB array
+  """
   from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 
   if isinstance(CLR, list):
@@ -181,6 +183,56 @@ def create_colormap(CLR, Ncmp, cmp_obj=True):
 # breakpoint()
 
   return CMP
+
+
+def create_colormap(CLR, Ncmp, cmp_obj=True, add_alpha=False):
+  """
+    Mix main colors in CLR by linear interpolation to create a smoother colormap.
+    CLR      : array of base RGB colors, shape (n,3) or (n,4), 4th position - alfa, transparency
+    Ncmp     : desired number of colors in final colormap
+    cmp_obj  : True --> return ListedColormap, False --> return RGB array
+    add_alpha: True --> add A to RGB if missing, False --> keep RGB
+  """
+  import numpy as np
+  from matplotlib.colors import ListedColormap
+
+  # Convert to array
+  CLR = np.array(CLR)
+  nClr = CLR.shape[0]
+  nClr, nCh = CLR.shape  # nCh = 3 (RGB) or 4 (RGBA)
+
+  # Ensure RGBA (add alpha if missing)
+  if nCh == 3 and add_alpha:
+    CLR = np.hstack([CLR, np.ones((nClr, 1))])
+    nCh = CLR.shape[1]
+
+  # If fewer requested colors than base colors --> return as-is
+  if Ncmp <= nClr:
+    print('create_colormap:')
+    print(f'Specified N of colors {Ncmp} <= N of Main Colors {nClr}')
+    print(' Colormap not changed')
+    return ListedColormap(CLR) if cmp_obj else CLR
+
+  # Smooth interpolation across the entire color sequence
+  #
+  # Positions of base colors (0..1)
+  base_pos = np.linspace(0, 1, nClr)
+  # Desired positions for output colors
+  new_pos = np.linspace(0, 1, Ncmp)
+
+  # Allocate full colormap
+  newCLR = np.zeros((Ncmp, nCh))
+
+  # Interpolate each channel (R,G,B,A)
+  for k in range(nCh):
+    newCLR[:,k] = np.interp(new_pos, base_pos, CLR[:,k])
+
+  # Return either the colormap object or raw array
+  if cmp_obj:
+    return ListedColormap(newCLR)
+  else:
+    return newCLR
+
 
 def colormap_conc():
   """
@@ -1089,6 +1141,102 @@ def colormap_warm(CLRMP=['summer','Wistia','gist_heat_r'], clrS=[1,1,1], nclrs=5
  
   CMP = ListedColormap(CLR) 
   return CMP
+
+def colormap_albedo(Ncmp=200):
+  """
+    The progression goes from 
+     dark gray/black --> blue-gray --> ice blue --> white
+     which visually matches the concept of increasing albedo
+  """
+  CLR_albedo = np.array([
+      [0.05, 0.05, 0.05],
+      [0.15, 0.20, 0.25],
+      [0.25, 0.35, 0.45],
+      [0.35, 0.50, 0.60],
+      [0.50, 0.65, 0.80],
+      [0.65, 0.78, 0.90],
+      [0.75, 0.85, 0.95],
+      [0.85, 0.90, 0.98],
+      [0.93, 0.96, 1.00],
+      [1.00, 1.00, 1.00],
+  ])
+
+  CMP = create_colormap(CLR_albedo, Ncmp, cmp_obj=True, add_alpha=False)
+
+  return CMP
+
+def colormap_blue_yellow(Ncmp=200):
+  """
+    perceptually uniform and goes from cold (blue) to yellow
+  """
+
+  CLR_thermal = np.array([
+    [0.0,   0.043, 0.208],
+    [0.0,   0.115, 0.303],
+    [0.0,   0.184, 0.395],
+    [0.016, 0.253, 0.482],
+    [0.047, 0.319, 0.565],
+    [0.090, 0.385, 0.645],
+    [0.145, 0.447, 0.720],
+    [0.211, 0.509, 0.791],
+    [0.288, 0.567, 0.857],
+    [0.374, 0.622, 0.917],
+    [0.469, 0.673, 0.969],
+    [0.571, 0.719, 1.000],
+    [0.672, 0.762, 0.973],
+    [0.765, 0.800, 0.934],
+    [0.848, 0.835, 0.889],
+    [0.918, 0.867, 0.839],
+    [0.969, 0.895, 0.785],
+    [0.992, 0.922, 0.723],
+    [0.996, 0.941, 0.654],
+    [1.0,   0.960, 0.580]
+  ])
+
+  CMP = create_colormap(CLR_thermal, Ncmp, cmp_obj=True, add_alpha=False)
+
+  return CMP
+ 
+def colormap_cold_warm(Ncmp=200, ins_white=False):
+  """
+    Colormap for showing temperatures etc.
+    ins_white = True - white in the middle for showing -/+ values
+  """
+  CLR_thermal = np.array([
+  [0.2, 0.0, 0.5],    # dark purple
+  [0.3, 0.0, 0.6],    # purple
+  [0.1, 0.2, 0.7],    # indigo
+  [0.0, 0.3, 0.7],    # blue
+  [0.0, 0.4, 0.8],    # blue-cyan
+  [0.0, 0.5, 0.85],   # cyan-blue
+  [0.0, 0.6, 0.75],   # cyan-teal
+  [0.0, 0.7, 0.6],    # teal-green
+  [0.2, 0.8, 0.5],    # green-teal
+  [0.4, 0.85, 0.3],   # green
+  [0.55, 0.9, 0.1],   # yellow-green
+  [0.7, 0.85, 0.0],   # yellow
+  [0.85, 0.7, 0.0],   # orange-yellow
+  [0.95, 0.5, 0.0],   # orange
+  [0.98, 0.3, 0.0],   # red-orange
+  [1.0, 0.15, 0.0],   # red
+  [0.9, 0.0, 0.0],    # dark red
+  [0.7, 0.0, 0.0]     # very dark red
+  ])
+
+  nclrs, nCh = CLR_thermal.shape
+  if ins_white:
+    ins0 = nclrs // 2
+    if ins0*2 == nclrs:
+      CLR_thermal = np.insert(CLR_thermal, ins0, [1,1,1], axis=0)
+    else:
+      CLR_thermal[ins0,:] = [1,1,1]
+
+  CMP = create_colormap(CLR_thermal, Ncmp, cmp_obj=True, add_alpha=False)
+
+  return CMP
+
+
+ 
 
 
 

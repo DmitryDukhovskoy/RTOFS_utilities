@@ -1115,13 +1115,16 @@ def interp_uvelE_vvelN(uvel, aicen):
 
   return uvelE, vvelN
 
-def ice_enthalpy_BL99(tice, sice, c0=2106., L0=3.34e5, rho_ice=917., Cw=4218.):
+def ice_enthalpy_BL99(tice, sice, c0=2106., L0=3.34e5, rho_ice=917., Cw=4218., clip_tice=True):
   """
     Ice enthalpy of salinity S for BL99 (Bitz and Lipscomb, 1999) thermodynamic
     C.M. Bitz and W.H. Lipscomb. An energy-conserving thermodynamic sea ice model 
      for climate study. J. Geophys. Res. Oceans, 104(C7):15669–15677, 1999
 
     In BL99, no brine pocktes are considered
+    enthalpy = energy to warm ice from temp T to Tm (ice melting T) + 
+               energy to melt ice  + 
+               energy to warm melted water (of S=sice) from Tm to 0C
 
     see: https://cice-consortium-icepack.readthedocs.io/en/icepack1.3.3/science_guide/sg_thermo.html#bitz-and-lipscomb-thermodynamics-ktherm-1
 
@@ -1129,12 +1132,47 @@ def ice_enthalpy_BL99(tice, sice, c0=2106., L0=3.34e5, rho_ice=917., Cw=4218.):
     L0 - latent heat of fusion of fresh ice at 0C (J/kg)
     rho_ice - sea ice density, kg/m3
     Cw - specific heat of sea water J/(kg*deg)
+    clip_tice - the formula works only for tice < Tm (melting point)
+                if True: make tice <= Tm, otherwise - return nan
   """
   mu_ice = 0.054  # liquidus ratio btw frz T and salinity of brine, [deg/ppt]
   Tm = -mu_ice * sice  # T of ice melt for ice sal = sice
+
+  # Formula works only for tice <= Tm
+  if clip_tice:
+    tice = np.minimum(tice, Tm-0.01)
+  else:
+    tice = np.where(tice > Tm, np.nan, tice)
   qice = -rho_ice*(c0*(Tm - tice) + L0*(1. - Tm/tice) - Cw*Tm)
 
   return qice
+
+def ice_enthalpy_to_temp(qice0, sice, c0=2106., L0=3.34e5, rho_ice=917., Cw=4218.):
+  """
+    This is for BL99 thermodynamics
+    solve enthalpy eq. (see ice_enthalpy_BL99) for T
+    it gives quadratic equation
+
+        c0 - specific heat of fresh ice, J/(kg*deg)
+    L0 - latent heat of fusion of fresh ice at 0C (J/kg)
+    rho_ice - sea ice density, kg/m3
+    Cw - specific heat of sea water J/(kg*deg)
+
+  """
+  cp_ice   = c0       # specific heat of fresh ice (J/ kg/K)
+  Lfresh   = L0
+  rhos     = 330.        # density of snow (kg/m3)
+
+  mu_ice = 0.054  # liquidus ratio btw frz T and salinity of brine, [deg/ppt]
+  Tm = -mu_ice * sice  # T of ice melt for ice sal = sice
+
+  aa = c0
+  bb = (Cw - cp_ice)*Tm - qice0/rho_ice - Lfresh
+  cc = Lfresh * Tm
+
+  Tice = (-bb - np.sqrt(bb**2 - 4*aa*cc)) / (2*aa)
+
+  return Tice
 
 def check_ithkn_cats(hicat, hin_new, ain_new):
   """

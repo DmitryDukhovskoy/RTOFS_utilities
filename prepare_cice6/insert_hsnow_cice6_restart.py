@@ -143,8 +143,8 @@ def extract_suffix(fname):
       return suffix
   return None
 
-#pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
-pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_da'
+pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+#pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_da'
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 
 # CICE parameters:
@@ -203,6 +203,9 @@ aicen = ds_out['aicen'].data  # partial area by cats
 vsnon = ds_out['vsnon'].data  # snow vol per m2 of ice area
 qsnon = ds_out['qsno001'].data  # snow enthalpy by cats for 1 snow layer
 vicen = ds_out['vicen'].data   # ice vol per unit area of grid cell m3/m2
+tsfcn = ds_out['Tsfcn'].data   # snow/ice surface T
+qicen1 = ds_out['qice001'].data # ice enthalpy, lr 1 surface
+sicen1 = ds_out['sice001'].data # ice S, layer 1
 ncat, jdim, idim = vsnon.shape
 
 # Aggregated ice partial area:
@@ -220,6 +223,7 @@ print(f"Found {npnts} points for insertion, min/max lat={np.min(Yins):.1f}/{np.m
 # Note qsnon, qice < 0 !
 vsnon_new = vsnon.astype(ds_out['vsnon'].dtype).copy()
 qsnon_new = qsnon.astype(ds_out['qsno001'].dtype).copy()
+qicen1_new = qicen1.astype(ds_out['qice001'].dtype).copy()
 
 dvol_sum = 0.
 print("Snow depth insertion ...")
@@ -258,25 +262,56 @@ for ipp in range(npnts):
   # snow enthalpy should be: qsn_min <= qsn <= qsn_max
   # In theory, qsn_max = -rhos_Lfresh (latent heat of metling at 0C)
   # Make it a little lower to keep snow from melting right away
+  # In general, snow enth. = enth(Tsfcn) if Tsfcn <=0
   #hsn_new = vsn_new / ain
-  qsn = qsnon[:,j0,i0]        # enthalpy, J/kg < 0
+  tsn = tsfcn[:,j0,i0]        # surface temp.
+  qsn = qsnon[:,j0,i0]        # enthalpy, J/m3 < 0
   qsn_min = -rhos * Lfresh + (Tmin + 0.01) * cp_ice * rhos  # enth. of the coldest possible snow
-  qsn_max = -rhos * Lfresh - 0.01 * cp_ice * rhos  # a little colder than 0C snow
+  qsn_max = -rhos * Lfresh - 0.05 * cp_ice * rhos  # a little colder than 0C snow
+  qsn_tsf = -rhos * Lfresh + tsn * cp_ice * rhos  # enth. for surf temp
   qT0 = -Lfresh*rhos      # enth. of pure snow at 0C
 
-  # Update new enthalpy of new snow:
-  # Clip to min/max enthalpy, set to 0 where no snow:
+  # Update enthalpy of snow and enforce physical constraints
+  # Limit qsn to [qsn_min, qsn_max]
   qsn_new = np.clip(qsn, qsn_min, qsn_max)
-  qsn_new = np.where(ain <= puny, 0., qsn_new)      # no ice
-  qsn_new = np.where(vsn_new <= 0, 0., qsn_new)     # no snow
+
+  # It should not exceed enthalpy implied by surface temperature (qsn </= qsn_tsf)
+  # This is true for 1 snow layer
+  qsn_new = np.minimum(qsn_new, qsn_tsf)
+
+  # No ice --> no snow enthalpy
+  qsn_new = np.where(ain <= puny, 0., qsn_new)
+
+  # Zero snow volume --> zero enthalpy
+  qsn_new = np.where(vsn_new <= 0., 0., qsn_new)
+
+  # Update ice enthalpy in the surface layer to prevent rapid snow melt
+  # if qice > qsnow, this is particularly important for 
+  # no snow --> snow cases during summer
+  sin = sicen1[:,j0,i0]
+  qin = qicen1[:,j0,i0] 
+  qin_new = mc6util.ice_enthalpy_BL99(tsn, sin)
+  qin_new = np.minimum(qin_new, qin)
+  # Check ice:
+  #Tice = mc6util.ice_enthalpy_to_temp(qin,sin)
+  Tice_new = mc6util.ice_enthalpy_to_temp(qin_new,sin)
+  mu_ice = 0.054
+  Tice_melt = -mu_ice * sin
+  if np.any(Tice_new >= Tice_melt):
+    print(f"j0={j0}, i0={i0}, ice T exceeds melting T")
+    for kcat in range(len(Tice_new)):
+      print(f"cat={kcat+1}: Tice_new={Tice_new[kcat]:.4f}  Tmelt={Tice_melt[kcat]:.4f}")
+    raise Exception("ERR Updating ice enthalpy layer 1")
 
   vtot_init = np.nansum(vsn)
   vtot_new  = np.nansum(vsn_new)
   #print(f"tot vsnon change = {vtot_new-vtot_init}") 
 
+  # Update:
   dvol_sum = dvol_sum + (vtot_new-vtot_init)
   vsnon_new[:,j0,i0] = vsn_new
   qsnon_new[:,j0,i0] = qsn_new
+  qicen1_new[:,j0,i0] = qin_new
 
   diff = np.nansum(vsn_new - vsnon[:, j0, i0])
   diff2 = np.nansum(vsn_new -vsn)
@@ -291,6 +326,7 @@ for ipp in range(npnts):
   if diff3 == 0 and abs(diff2) > 0:
     print(f"No change in the arrays at {j0},{i0}, expected diff={diff2}")
 
+
 # Checking:
 print(f"dvol_sum = {dvol_sum}")
 total_vsnon_init = np.nansum(vsnon)
@@ -299,9 +335,9 @@ print(f"Tot snow volume change (m3/m2): {total_vsnon_new - total_vsnon_init}")
 
 # Update data set:
 #ds_out = ds_out.assign(vsnon=vsnon_new, qsno001=qsnon_new)
-ds_out['vsnon'].values[:] = vsnon_new
+ds_out['vsnon'].values[:]   = vsnon_new
 ds_out['qsno001'].values[:] = qsnon_new
-
+ds_out['qice001'].values[:] = qicen1_new
 
 # Sanity checking:
 assert "vsnon" in ds_out and "qsno001" in ds_out, "Missing updated snow fields vsnon and qsno001"
