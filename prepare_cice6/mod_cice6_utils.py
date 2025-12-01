@@ -1222,7 +1222,6 @@ def adjust_thkncats_aice(ain_new, vin_new, vtot_target, \
   """
   from scipy.optimize import minimize
   
-
   # ai_new  - new aggregated ice conc - has to be preserved
   ai_new = np.sum(ain_new)  
 
@@ -1366,5 +1365,196 @@ def get_date_filename(file_name, sfx='cice_model.res'):
 
   return year, month, day, hr, mint  
 
+def snow_ice_freeboard(vin, vsn, ain, rho_ice=917., rho_snow=330., rho_ocean=1025.):
+  """
+    Compute height of the snow-ice interface wrt sea level
+    when ice freeboard < 0 - the interface is below the sea level
+
+    ice freeboard = hice - hwater, where hwater is submerged part of snow+ice column
+
+    vin : ice volume (m3/m2 cell area) by cats
+    vsn : snow volume (m3/m2 cell area) by cats
+    ain : ice partial area 
+  """
+  hice  = np.divide(vin, ain, out=np.zeros_like(vin), where=ain != 0) 
+  hsnow = np.divide(vsn, ain, out=np.zeros_like(vsn), where=ain != 0)
+  hwater = 1./rho_ocean * (rho_ice*hice + rho_snow*hsnow)
+  ice_frb = hice - hwater
+
+  return ice_frb
+
+def check_vsnon(vsn_adj, vsn_tot, fstr="(end):"):
+  """
+    Check that total snow volume is conserved in the adjusted vsno(n)
+    Check no negative snow volume 
+  """
+  # Check that total snow is conserved
+  assert abs(np.sum(vsn_adj) - vsn_tot) < 1e-12, \
+  f"{fstr} snow vol not conserved: vsn_adj={np.sum(vsn_adj)} vsn_tot={vsn_tot}"
+
+  # Check not physical values:
+  assert np.all(vsn_adj) >= 0, f"{fstr} negative snow vol: vsn_adj={vsn_adj}"
+
+  return
+
+def check_aicen(ain, ain_tot, fstr="(end):"):
+  """
+    Check that total ice conc is conserved
+    ain = [:] , 1D array of ice conc for n cats
+  """
+  assert abs(np.sum(ain) - ain_tot) < 1e-12, \
+   f"{fstr} ice conc not conserved: sum={np.sum(ain)}, reference val={ain_tot}"
+
+  return
+
+def adjust_snow_freeboard(vin, vsn, ain, hsn_coef=0.999, \
+                         rho_ice=917., rho_snow=330., rho_ocean=1025.):
+  """
+    If snow-ice inetrface is below the sea level
+    adjust snow to bring this interface above the sea level by dlt_frb
+    Adjust snow by redistributing  snow from the cats where
+    snow is below sea levle to the cats where it is above
+
+    hsn_coef - controls how close to 0 the snow-ice interface has to be
+               = 1, the interf = sea level (i.e. 0), note some small negative 
+                    value can result from trunc. error (e.g. -1.e-18)
+               < 1 - the interf will be above the sea level (>0)
+  """
+  ncat = len(vsn)
+  vsn_adj = vsn.copy()
+  vsn_tot = np.sum(vsn)   # conserv tot snow volume
+
+  # Until no excess snow remains:
+  nmax = 1  # > 1- several iterations but may give unrealistic snow redistribution
+  for _ in range(nmax):
+    hice  = np.divide(vin, ain, out=np.zeros_like(vin), where=ain != 0)
+    hsnow = np.divide(vsn, ain, out=np.zeros_like(vsn), where=ain != 0)
+
+    # Physical buoyancy limit 
+    # Need: Snow-ice freeboard >= 0.
+    # Max buoyancy load of snow:
+    hsnow_max = ((rho_ocean * hice) - rho_ice*hice) / rho_snow
+    vsnow_max = hsnow_max * ain    
+    # Excess snow that needs to be redistributed
+    #hsnow_exc = np.maximum(0, hsnow - hsnow_max)  # only for > 0
+    #vsnow_exc = hsnow_exc * ain  # excess snow volume, m3/m2_cell
+    vsnow_exc = np.maximum(0,vsn - vsnow_max) # if <0 - no excess snow
+    total_exc = np.sum(vsnow_exc)  # volume of excess snow to be distributed
+
+    # Done if no excess of snow volume
+    if np.all(vsnow_exc <= 1.e-11):
+      check_vsnon(vsn_adj, vsn_tot, fstr="(A):")
+      return vsn_adj
+
+    # Compute snow-accepting capacity to distribute excess snow
+    hsnow_cap = np.maximum(0, hsnow_max - hsnow) * hsn_coef # to guarantee snow-ice intrf > 0
+    vsnow_cap = hsnow_cap * ain
+    total_cap = np.sum(vsnow_cap)
+
+    # Cannot redistribute if no category accepts snow
+    if total_cap == 0:
+      check_vsnon(vsn_adj, vsn_tot, fstr="(B):")
+      return vsn_adj
+
+    # Cannot redistribute more than total capacity
+    frac_redistr = np.minimum(1.,total_cap / total_exc)
+
+    # Distribute excess snow proportionally to capacity
+    # 0 weight for cats that cannot accept any snow
+    wt = vsnow_cap / total_cap
+
+    # Remove all excess from overloaded categories
+    vsn_adj -= vsnow_exc * frac_redistr
+
+    # Add redistributed snow
+    vsn_adj += total_exc * frac_redistr * wt
+
+  # Final Check:
+  check_vsnon(vsn_adj, vsn_tot)
+
+  return vsn_adj
 
 
+def adjust_ice_freeboard(vin, vsn, ain, hicat, \
+              rho_ice=917., eps_hice=1.e-8, rho_snow=330., rho_ocean=1025.):
+  """
+    For cats where snow-ice interf < 0, adjust
+    ice thickness to bring the interf at the sea level
+    The change should be ~0.3 of snow excess depth
+
+    eps_hice - small delta above 0 sea level to guarantee ice freeboard > 0
+  """
+  puny = 1e-11
+  ncat = len(vsn)
+  vin_adj = vin.copy()   # not conserved
+  vsn_adj = vsn.copy()   # should be conserved
+  ain_adj = ain.copy()   # should be conserved
+  vsn_tot = np.sum(vsn) 
+  ain_tot = np.sum(ain)
+
+  hice  = np.divide(vin, ain, out=np.zeros_like(vin), where=ain != 0)
+  hsnow = np.divide(vsn, ain, out=np.zeros_like(vsn), where=ain != 0)
+
+  # Compute compencating ice volume to adjust the snow-ice interface >= 0:
+  hwater = 1./rho_ocean * (hsnow*rho_snow + hice*rho_ice)   
+  ice_frb = hice-hwater
+
+  if np.all(ice_frb >= 0.):
+    # nothing to correct: 
+    return vin_adj
+
+  hice_adj = hsnow*rho_snow/(rho_ocean-rho_ice)
+  hice_adj = (1. + eps_hice) * np.where(ice_frb < 0., hice_adj, hice)
+  vin_adj  = hice_adj * ain
+
+  check_vsnon(vsn_adj, vsn_tot, fstr="(1):")
+  check_aicen(ain_adj, ain_tot, fstr="(1):")
+  
+  # Check that ice thicknesses do not cross over the ice cats:
+  # see: Check hice[k+1] > hice[k], icepack_therm_itd.F90 ITD thermodyn
+  # Fatal error
+  #dlt_hice = np.diff(hice_adj)
+  #if np.all(dlt_hice >= 0.):
+  #  return vin_adj, ain_adj, vsn_adj
+
+  # Check that ice thicknesses do not cross over the ice cats:
+  # see: Check hice[k+1] > hice[k], icepack_therm_itd.F90 ITD thermodyn
+  # Redistribute ice + snow across cats if needed
+  eps_bin = 1.e-6
+  for k in range(ncat-1):
+    hbin_min = hicat[k]
+    hbin_max = hicat[k+1]
+
+    if ain_adj[k] > puny and hice_adj[k] < hbin_min:
+      # Unlikely situation, just sanity check:
+      hice_adj[k] = hbin_min
+
+    if hice_adj[k] >= hice_adj[k+1] and hice_adj[k+1] > puny:
+      # excess ice thkn:
+      assert hice_adj[k] > hbin_max-eps_bin, f"k={k} expected: hice_adj[k] > hbin_max-eps_bin"
+      hi_exc = hice_adj[k] - (hbin_max - eps_bin)
+      if hice_adj[k+1] < puny:
+        # if the upper cat is empty - simply relocate all ice & snow
+        hice_adj[k+1] = hice_adj[k]
+        ain_adj[k+1]  = ain_adj[k]
+        vsn_adj[k+1]  = vsn_adj[k]
+
+        hice_adj[k] = 0.
+        ain_adj[k]  = 0.
+        van_adj[k]  = 0.
+      else:
+        # move excess ice to the next cat
+        # no need to adjust snow or ice conc
+        hice_adj[k]   -= hi_exc
+        hice_adj[k+1] += hi_exc
+      
+  vin_adj  = hice_adj * ain_adj
+  check_vsnon(vsn_adj, vsn_tot, fstr="(1):")
+  check_aicen(ain_adj, ain_tot, fstr="(1):")
+
+  # readjust snow across cats if needed to
+  # make sure new ice freeboard >= 0
+  vsn_adj = adjust_snow_freeboard(vin_adj, vsn_adj, ain_adj)
+
+  return vin_adj, ain_adj, vsn_adj
+ 

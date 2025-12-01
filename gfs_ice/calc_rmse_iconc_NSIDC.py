@@ -210,7 +210,8 @@ for iens in range(nexpts):
   enmb = ENMBS[iens]
   rmse0 = RMSE[:,iens]
   clr0  = CLRS[iens,:]
-  line_lbl  = f"expt{enmb:02d}"
+  #line_lbl  = f"expt{enmb:02d}"
+  line_lbl = mgfscice.sens_tests_info(enmb)
   ln1, = ax1.plot(XT,rmse0, 'o-', linewidth=2, color=clr0, label=line_lbl)
   LNS.append(ln1)
 

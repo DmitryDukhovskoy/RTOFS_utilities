@@ -1,6 +1,6 @@
 """
   Plot difference of snow depth fields from sensitivity tests with
-  atm.-forced UFS (datm UFS) vs NASA SSM/I monthly clim
+  atm.-forced UFS (datm UFS) vs NASA SSM/I daily clim
   interpolated to mesh025 
 
 """
@@ -128,12 +128,20 @@ A2d[LMSK==0] = np.nan
 # Read interpolated snow depths:
 # Snow depth climatology, Interpolated fields mesh025:
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-pthsnow = os.path.join(pthdata,'snow_nasa')
-flhsn = f'SSMI_hsnow_interp_mesh025_1080x1440_mnthly_clim_south.nc'
+#pthsnow = os.path.join(pthdata,'snow_nasa','monthly_clim')
+#flhsn = 'SSMI_hsnow_mnthclim_1992_2007_mesh025_1440x1080_south.nc'
+pthsnow = os.path.join(pthdata,'snow_nasa','daily_clim')
+flhsn = f"SSMI_hsnow_mesh025_1440x1080_dailyclim_{MM:02d}_south.nc" 
 dflhsn = os.path.join(pthsnow,flhsn)
 print(f"Reading interpolated hsnow {dflhsn}")
 with xarray.open_dataset(dflhsn) as ds_snow:
-  HSi = ds_snow['snow_depth'].isel(time=mm0-1).data.squeeze()
+  units = ds_snow['snow_depth'].attrs.get('units')
+  if units == 'm':
+    cff = 100.
+  else:
+    cff = 1.
+  HSi = cff * ds_snow['snow_depth'].isel(time=dd0-1).data.squeeze()
+  #HSi = cff * ds_snow['snow_depth'].isel(time=mm0-1).data.squeeze()
   LON = ds_snow['lon'].data
   LAT = ds_snow['lat'].data
 
@@ -147,10 +155,10 @@ clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
 
 if fld_avrg == 'cell':
-  sttl = f'diff hsnow m3/m2_cell, datmUFS expt{enmb:02d} vs SSM/I clim  init:{init_date}/{init_hr} fcast:{YR}/{MM:02d}/{DD:02d}'
+  sttl = f'diff hsnow m3/m2_cell, datmUFS expt{enmb:02d} vs SSM/I daily clim\n init:{init_date}/{init_hr} fcast:{YR}/{MM:02d}/{DD:02d}'
   sinfo = 'difference datmUFS-climatology grid cell mean snow thickness, 100*(m3 per m2 od grid cell)\n'
 else:
-  sttl = f'diff hsnow m3/m2_ice, datmUFS expt{enmb} vs SSM/I clim init:{init_date}/{init_hr} fcast:{YR}/{MM:02d}/{DD:02d}'
+  sttl = f'diff hsnow m3/m2_ice, datmUFS expt{enmb} vs SSM/I daily clim\n init:{init_date}/{init_hr} fcast:{YR}/{MM:02d}/{DD:02d}'
   sinfo = 'difference datmUFS-climatology ice area mean snow thickness, 100*(m3 per m2 of ice)\n'
 if plot_init:
   sttl = sttl + ' INIT'
@@ -208,7 +216,7 @@ ax3 = fig1.add_axes([0.02, 0.03, 0.8, 0.06])
 ax3.text(0, 0, sinfo, fontsize=8)
 ax3.axis('off')
 
-btx = 'plot_datmUFS_hsnow_ant.py'
+btx = 'plot_diff_hsnow_datmUFS_ant.py'
 bottom_text(btx, pos=[0.2, 0.01])
 
 

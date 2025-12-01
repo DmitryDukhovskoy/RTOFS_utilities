@@ -46,9 +46,9 @@ importlib.reload(msisrlx)
 rest_date = 20250103
 rest_hr   = 0
 hunits    = 'cm'
-flrst = 'cice_model.res.20250103.00.iconc.snow.nc'
+#flrst = 'cice_model.res.20250103.00.iconc.snow.nc'
 #flrst = 'cice_model.res.20250103.00.iconc.nc'
-
+flrst = 'cice_model.res.20250103.00.iconc_thkn.snow.nc'
   
 parser = argparse.ArgumentParser()
 parser.add_argument("--flrst", help=f"restart file name, default={flrst}", type=str)
@@ -85,6 +85,30 @@ elif 'an' in machine:
   node_nm = "ppan"
 else:
   print("Unknown machine:", machine)
+
+# CICE parameters:
+puny      = 1.e-11
+c0        = 0.0
+c1        = 1.0
+c2        = 2.0
+p5        = 0.5
+Lsub      = 2.835e6    # latent heat sublimation fw (J/kg)
+Lvap      = 2.501e6    # latent heat vaporization fw (J/kg)
+Lfresh    = Lsub - Lvap # latent heat of melting of fresh ice (J/kg)
+cp_ice    = 2106.       # specific heat of fresh ice (J/ kg/K)
+rhos      = 330.        # density of snow (kg/m3)
+hs_min    = 1.e-4       # min snow thickness for computing Tsno (m)
+nsal      = 0.407
+msal      = 0.573
+min_salin = 0.1      # threshold for brine pocket treatment
+saltmax   = 3.2        # max S at ice base
+hg        = 1.e20    # bad values, land mask, etc.
+nslyr     = 1   # snow layers
+Tmin      = -100.   # minimum snow T
+# Check ice_in what ITD is used
+# 0.00, 0.64, 1.39, 2.47, 4.57
+hicat = np.array([0., 0.64, 1.39, 2.47, 4.57, 1000.])
+
 
 fyaml = 'paths_ufs.yaml'
 with open(fyaml) as ff:
@@ -134,24 +158,52 @@ for k in range(1,ncat+1):
   aice_n = aicen[k-1,:].squeeze()
   vice_n = vicen[k-1,:].squeeze()
   hice_n = np.divide(vice_n, aice_n, out=np.zeros_like(aice), where=aice_n != 0)
-  jmin, imin = np.unravel_index(hice_n.argmin(), hice_n.shape)
-  jmax, imax = np.unravel_index(hice_n.argmax(), hice_n.shape)
-  print(f"Cat {k}, j={jmin}, i={imin}, min hice(n): {np.nanmin(hice_n)}, "+\
+  Mvalid = (~np.isnan(hice_n)) & (hice_n > puny)  # valid values
+  hice_min = np.where(Mvalid, hice_n, 1.e20)
+  hice_max = np.where(Mvalid, hice_n, -1.e20)
+
+  jmin, imin = np.unravel_index(hice_min.argmin(), hice_n.shape)
+  jmax, imax = np.unravel_index(hice_max.argmax(), hice_n.shape)
+
+  hbin_min = hicat[k-1]
+  hbin_max = hicat[k]
+  Mcrct  = (hice_n >= hbin_min) & (hice_n < hbin_max) # correct
+  Merr   = (~Mcrct) & (Mvalid)
+  Jerr, Ierr = np.where(Merr)
+
+  # ice thicknesses within the cats cannot cross-over!!!
+  # Check hice[k+1] > hice[k], see icepack_therm_itd.F90 ITD thermodyn 
+  Jdh, Idh = [], []
+  if k > 1:
+    dlt_hice = hice_n - hice_km1
+    dlt_hice = np.where(Mvalid, dlt_hice, np.inf)
+    Merr_dh = (dlt_hice <= 0)
+    Jdh, Idh = np.where(Merr_dh)
+
+  hice_km1 = hice_n.copy()
+
+  print(f"Cat {k}: ")
+  print(f"  j={jmin}, i={imin}, min hice(n): {hice_n[jmin,imin]}, "+\
         f"aice(n): {aice_n[jmin,imin]}, vice(n): {vice_n[jmin,imin]}")
-  print(f"         j={jmax}, i={imax}, max hice(n): {np.nanmax(hice_n)}, "+\
+  print(f"  j={jmax}, i={imax}, max hice(n): {hice_n[jmax,imax]}, "+\
         f"aice(n): {aice_n[jmax,imax]}, vice(n): {vice_n[jmax,imax]}")
+  print(f"  found {len(Jerr)} points violating: {hbin_min:.3f} <= hice < {hbin_max:.3f}")
+  print(f"  found {len(Jdh)} points violating hice[k] > hice[k-1]") 
 
-
-print(' =========  SNOW =========')
+  if k == 2:
+    A = STOP
+ 
+print('\n =========  SNOW =========')
 for k in range(1,ncat+1):
   aice_n = aicen[k-1,:].squeeze()
   vsno_n = vsnon[k-1,:].squeeze()
   hsno_n = np.divide(vsno_n, aice_n, out=np.zeros_like(aice), where=aice_n != 0)
   jmin, imin = np.unravel_index(hsno_n.argmin(), hsno_n.shape)
   jmax, imax = np.unravel_index(hsno_n.argmax(), hsno_n.shape)
-  print(f"Cat {k}, j={jmin}, i={imin}, min hsnow(n): {np.nanmin(hsno_n)}, "+\
+  print(f"Cat {k}: ")
+  print(f"  j={jmin}, i={imin}, min hsnow(n): {np.nanmin(hsno_n)}, "+\
         f"aice(n): {aice_n[jmin,imin]}, vsno(n): {vsno_n[jmin,imin]}")
-  print(f"         j={jmax}, i={imax}, max hsnow(n): {np.nanmax(hsno_n)}, "+\
+  print(f"  j={jmax}, i={imax}, max hsnow(n): {np.nanmax(hsno_n)}, "+\
         f"aice(n): {aice_n[jmax,imax]}, vsno(n): {vsno_n[jmax,imax]}")
 
 

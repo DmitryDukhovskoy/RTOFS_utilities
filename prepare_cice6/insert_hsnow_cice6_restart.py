@@ -44,14 +44,7 @@ sys.path.extend([
 
 from mod_utils_fig import bottom_text
 import mod_time as mtime
-import mod_utils as mutil
-import mod_misc1 as mmisc
-import mod_colormaps as mclrmps
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
-import mod_mom6 as mmom6
-import mod_misc1 as mmisc
-import mod_sis2_relax as msisrlx
+import mod_swstate as msws
 import mod_cice6_utils as mc6util
 importlib.reload(mc6util)
 
@@ -64,8 +57,6 @@ yrR = mmR = ddR = hrR = None
 yrN = mmN = ddN = hrN = None
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--ithkn", type=int, default=1,
-    help="insert ice thickn climatology, 0=no, 1=yes (default 1)")
 parser.add_argument("--rdate", help=f"restart date input file, default={rest_date}", type=int)
 parser.add_argument("--rhr", help=f"input file, restart hour = 0, ..., 23, default={rest_hr}", type=int)
 parser.add_argument("--rdate_out", help="output file, restart date if different from input", type=int)
@@ -75,9 +66,9 @@ parser.add_argument("--flrst_out", help="new rest file, otherwise name construct
 parser.add_argument("--regn", help=f"where icon incerted: south, north, global, default={regn}", type=str)
 args = parser.parse_args()
 
-ins_thkn = bool(args.ithkn)
 flrst_in  = args.flrst_in if args.flrst_in else None
 flrst_out = args.flrst_out if args.flrst_out else None
+
 # if rest_date and rest_date_out are provided
 # Derive dates assuming file nameing is cice_restart.res.YYYYMMDD.XX[XXX]
 if flrst_in is not None:
@@ -166,6 +157,19 @@ saltmax   = 3.2        # max S at ice base
 hg        = 1.e20    # bad values, land mask, etc.
 nslyr     = 1   # snow layers
 Tmin      = -100.   # minimum snow T
+# Check ice_in what ITD is used
+# 0.00, 0.64, 1.39, 2.47, 4.57
+hicat = np.array([0., 0.64, 1.39, 2.47, 4.57, 50.])
+
+# in CICE6, snow surf max T = 0C
+# Set surface snow T < 0 to prevent rapid snow melt during the first time steps
+# This mainly applies for summer months
+# Tsfc = Tsnow in the 1 layer --> change qsnon(1)
+Tsfc_max = -1.0   
+rho_ice  = 917. 
+if regn == 'south':
+  #rho_ocean = msws.sw_dens0(32.,-1.8)  # take lower S to guarantee snow-ice interf above sea level
+  rho_ocean = 1025.
 
 # Snow depth climatology, Interpolated fields mesh025:
 pthsnow = os.path.join(pthdata,'snow_nasa','monthly_clim')
@@ -195,18 +199,23 @@ dflrst_in = os.path.join(pthrest, flrst_in)
 print(f"Reading restart: {dflrst_in}")
 ds_in = xarray.open_dataset(dflrst_in)
 ds_out = ds_in.copy(deep=True)
-ds_in.close()
 
-# Insert snow:
+# Checks:
 assert nslyr == 1, f"Code needs to be modified for nslyr>1, nslyr={nslyr}"
-aicen = ds_out['aicen'].data  # partial area by cats
-vsnon = ds_out['vsnon'].data  # snow vol per m2 of ice area
-qsnon = ds_out['qsno001'].data  # snow enthalpy by cats for 1 snow layer
-vicen = ds_out['vicen'].data   # ice vol per unit area of grid cell m3/m2
-tsfcn = ds_out['Tsfcn'].data   # snow/ice surface T
-qicen1 = ds_out['qice001'].data # ice enthalpy, lr 1 surface
-sicen1 = ds_out['sice001'].data # ice S, layer 1
+assert Tsfc_max <= 0., f"Tsfc_max={Tsfc_max} has to be <=0"
+
+# Input values:
+aicen  = ds_in['aicen'].data  # partial area by cats
+vsnon  = ds_in['vsnon'].data  # snow vol per m2 of ice area
+qsnon  = ds_in['qsno001'].data  # snow enthalpy by cats for 1 snow layer
+vicen  = ds_in['vicen'].data   # ice vol per unit area of grid cell m3/m2
+tsfcn  = ds_in['Tsfcn'].data   # snow/ice surface T
+qicen1 = ds_in['qice001'].data # ice enthalpy, lr 1 surface
+sicen1 = ds_in['sice001'].data # ice S, layer 1
+apndn  = ds_in['apnd'].data    # the fraction of the pond of ice area, for each cat
+hpndn  = ds_in['hpnd'].data    # depth of the ponds in a cell, by cats
 ncat, jdim, idim = vsnon.shape
+ds_in.close()
 
 # Aggregated ice partial area:
 aice = np.sum(aicen, axis=0).squeeze()
@@ -221,9 +230,14 @@ print(f"Found {npnts} points for insertion, min/max lat={np.min(Yins):.1f}/{np.m
        f" lon={np.min(Xins):.1f}/{np.max(Xins):.1f}")
 
 # Note qsnon, qice < 0 !
-vsnon_new = vsnon.astype(ds_out['vsnon'].dtype).copy()
-qsnon_new = qsnon.astype(ds_out['qsno001'].dtype).copy()
+aicen_new  = aicen.astype(ds_out['aicen'].dtype).copy()
+vsnon_new  = vsnon.astype(ds_out['vsnon'].dtype).copy()
+qsnon_new  = qsnon.astype(ds_out['qsno001'].dtype).copy()
 qicen1_new = qicen1.astype(ds_out['qice001'].dtype).copy()
+apndn_new  = apndn.astype(ds_out['apnd'].dtype).copy()
+hpndn_new  = hpndn.astype(ds_out['hpnd'].dtype).copy()
+tsfcn_new  = tsfcn.astype(ds_out['Tsfcn'].dtype).copy()
+vicen_new  = vicen.astype(ds_out['vicen'].dtype).copy()
 
 dvol_sum = 0.
 print("Snow depth insertion ...")
@@ -237,17 +251,22 @@ for ipp in range(npnts):
   # for cat n: vsn(n) = hsnow(n) * aice(n) 
   ai  = aice[j0,i0]           # aggregated ice partial area 
   ain = aicen[:,j0,i0]        # partial areas by cats
-  vin = vicen[:,j0,i0]
+  vin = vicen[:,j0,i0]        # ice volume per unit grid cell area by cats
   vsn = vsnon[:,j0,i0]        # snow volume per unit grid-cell area m2
+  apn = apndn[:,j0,i0]        # pond fractional area of ice (level) area
+  hpn = hpndn[:,j0,i0]        # pond depth
+  tsn = tsfcn[:,j0,i0]        # snow/ice surface T by cats
+
+  # New ice snow thickness over sea ice:
   if units_m:
     hsn_new = HSi[j0,i0]        # m of snow over sea ice
   else:
     hsn_new = HSi[j0,i0]*0.01   # m of snow over sea ice 
 
-  # Distribute new snow depth evenly by cats in snow vol m3/m2:
-  #ain = np.where(ain<1.e-20, 1.e-20, ain)  
+  # ice conc should not change except for a few locaitons to adjust snow load across cats:
+  ain_new = ain.copy()
   
-  #vsn_new = hsn_new * ain        # m3/m2 per category
+  # Distribute new snow depth evenly by cats in snow vol m3/m2:
   vstot_new = hsn_new * ai
   if hsn_new <= hs_min or ai < puny:
     vsn_new = vsn_new * 0.
@@ -264,10 +283,9 @@ for ipp in range(npnts):
   # Make it a little lower to keep snow from melting right away
   # In general, snow enth. = enth(Tsfcn) if Tsfcn <=0
   #hsn_new = vsn_new / ain
-  tsn = tsfcn[:,j0,i0]        # surface temp.
   qsn = qsnon[:,j0,i0]        # enthalpy, J/m3 < 0
   qsn_min = -rhos * Lfresh + (Tmin + 0.01) * cp_ice * rhos  # enth. of the coldest possible snow
-  qsn_max = -rhos * Lfresh - 0.05 * cp_ice * rhos  # a little colder than 0C snow
+  qsn_max = -rhos * Lfresh + Tsfc_max * cp_ice * rhos  # Tsfc_max <= 0
   qsn_tsf = -rhos * Lfresh + tsn * cp_ice * rhos  # enth. for surf temp
   qT0 = -Lfresh*rhos      # enth. of pure snow at 0C
 
@@ -285,17 +303,27 @@ for ipp in range(npnts):
   # Zero snow volume --> zero enthalpy
   qsn_new = np.where(vsn_new <= 0., 0., qsn_new)
 
+  # Tsfcn should match snow enthalpy in layer 1
+  # Update Tsfcn if needed:
+  # for dry snow (T<=0):
+  tsn_new = (qsn_new + rhos*Lfresh) / (cp_ice*rhos)
+  tsn_new = np.where(abs(qsn_new) < puny, 0., tsn_new)
+  for ik in range(ncat):
+    if abs(qsn_new[ik]) < puny:
+      continue
+    assert tsn_new[ik] <= 0., f"check qsn_new={qsn_new[ik]:.4e} --> tsn_new={tsn_new[ik]}"
+
   # Update ice enthalpy in the surface layer to prevent rapid snow melt
   # if qice > qsnow, this is particularly important for 
   # no snow --> snow cases during summer
   sin = sicen1[:,j0,i0]
   qin = qicen1[:,j0,i0] 
-  qin_new = mc6util.ice_enthalpy_BL99(tsn, sin)
+  qin_new = mc6util.ice_enthalpy_BL99(tsn_new, sin)
   qin_new = np.minimum(qin_new, qin)
   # Check ice:
   #Tice = mc6util.ice_enthalpy_to_temp(qin,sin)
   Tice_new = mc6util.ice_enthalpy_to_temp(qin_new,sin)
-  mu_ice = 0.054
+  mu_ice = 0.054  # liquidus ratio btw frz T and salinity of brine, [deg/ppt] BL99
   Tice_melt = -mu_ice * sin
   if np.any(Tice_new >= Tice_melt):
     print(f"j0={j0}, i0={i0}, ice T exceeds melting T")
@@ -307,37 +335,67 @@ for ipp in range(npnts):
   vtot_new  = np.nansum(vsn_new)
   #print(f"tot vsnon change = {vtot_new-vtot_init}") 
 
+  # Pond fractional area and depth
+  # For now, make it 0 to prevent rapid snow melting when apnd >> 0
+  # Note if apnd is changed and > 0, need to adjust hpnd to maintain nonnegative freeboard
+  # see: icepack_meltpond_lvl.F90 as an example
+  apn_new = apn * 0.
+  hpn_new = hpn * 0.
+
+  # Snow-ice interface should be at or above the sea level
+  # if it is below, snow will be melted instantly to bring the interface to sea level
+  # First, if needed - try to redistribute excess snow across ice thikn. cats:
+  vsn_new = mc6util.adjust_snow_freeboard(vin, vsn_new, ain, rho_ice=rho_ice, \
+                            rho_snow=rhos, rho_ocean=rho_ocean)
+
+  # Check if the snow-ice interface in all cats is above the sea level
+  # if not, try to slightly modify ice in the cat where needed
+  # Note this will slightly change ice volume (ice thickness)
+  # skip this step if ice vol has to be preserved
+  ice_frb = mc6util.snow_ice_freeboard(vin, vsn_new, ain, \
+                    rho_ice=rho_ice, rho_snow=rhos, rho_ocean=rho_ocean)  
+  if np.any(ice_frb < 0.):
+    vin_new, ain_new, vsn_new = mc6util.adjust_ice_freeboard(vin, vsn_new, ain, hicat, \
+                    rho_ice=rho_ice, rho_snow=rhos, rho_ocean=rho_ocean) 
+  else:
+    vin_new = vin.copy()
+
   # Update:
   dvol_sum = dvol_sum + (vtot_new-vtot_init)
-  vsnon_new[:,j0,i0] = vsn_new
-  qsnon_new[:,j0,i0] = qsn_new
+  aicen_new[:,j0,i0]  = ain_new
+  vsnon_new[:,j0,i0]  = vsn_new
+  qsnon_new[:,j0,i0]  = qsn_new
   qicen1_new[:,j0,i0] = qin_new
+  apndn_new[:,j0,i0]  = apn_new
+  hpndn_new[:,j0,i0]  = hpn_new
+  tsfcn_new[:,j0,i0]  = tsn_new
+  vicen_new[:,j0,i0]  = vin_new
 
   diff = np.nansum(vsn_new - vsnon[:, j0, i0])
   diff2 = np.nansum(vsn_new -vsn)
   diff3 = np.nansum(vsnon[:,j0,i0] - vsnon_new[:,j0,i0])
   if diff == 0 and abs(diff2) > 0:
     print(f"No change at {j0},{i0}, expected diff={diff2}")
-  #else:
-  #  print(f"diff={diff}, diff2={diff2}")  
-
-  #assert abs(diff) > 0, f"no change at {j0},{i0}, expected diff={diff2}"
 
   if diff3 == 0 and abs(diff2) > 0:
     print(f"No change in the arrays at {j0},{i0}, expected diff={diff2}")
 
-
 # Checking:
-print(f"dvol_sum = {dvol_sum}")
+print(f"Snow vol change: dvol_sum = {dvol_sum}")
 total_vsnon_init = np.nansum(vsnon)
 total_vsnon_new  = np.nansum(vsnon_new)
 print(f"Tot snow volume change (m3/m2): {total_vsnon_new - total_vsnon_init}")
 
 # Update data set:
 #ds_out = ds_out.assign(vsnon=vsnon_new, qsno001=qsnon_new)
+ds_out['aicen'].values[:]   = aicen_new
 ds_out['vsnon'].values[:]   = vsnon_new
 ds_out['qsno001'].values[:] = qsnon_new
 ds_out['qice001'].values[:] = qicen1_new
+ds_out['apnd'].values[:]    = apndn_new
+ds_out['hpnd'].values[:]    = hpndn_new
+ds_out['Tsfcn'].values[:]   = tsfcn_new
+ds_out['vicen'].values[:]   = vicen_new
 
 # Sanity checking:
 assert "vsnon" in ds_out and "qsno001" in ds_out, "Missing updated snow fields vsnon and qsno001"
@@ -355,7 +413,7 @@ for k in range(1,ncat+1):
   jmax, imax = np.unravel_index(hice_n.argmax(), hice_n.shape)
   print(f"Cat {k}, j={jmin}, i={imin}, min hice(n): {np.nanmin(hice_n)}, "+\
         f"aice(n): {aice_n[jmin,imin]}, vice(n): {vice_n[jmin,imin]}")
-  print(f"         j={jmax}, i={imax}, max hice(n): {np.nanmax(hice_n)}, "+\
+  print(f"  j={jmax}, i={imax}, max hice(n): {np.nanmax(hice_n)}, "+\
         f"aice(n): {aice_n[jmax,imax]}, vice(n): {vice_n[jmax,imax]}")
 
 print(' =========  SNOW =========')
@@ -367,9 +425,16 @@ for k in range(1,ncat+1):
   jmax, imax = np.unravel_index(hsno_n.argmax(), hsno_n.shape)
   print(f"Cat {k}, j={jmin}, i={imin}, min hsnow(n): {np.nanmin(hsno_n)}, "+\
         f"aice(n): {aice_n[jmin,imin]}, vsno(n): {vsno_n[jmin,imin]}")
-  print(f"         j={jmax}, i={imax}, max hsnow(n): {np.nanmax(hsno_n)}, "+\
+  print(f"  j={jmax}, i={imax}, max hsnow(n): {np.nanmax(hsno_n)}, "+\
         f"aice(n): {aice_n[jmax,imax]}, vsno(n): {vsno_n[jmax,imax]}")
 
+print(' ======== snow enthalpy =======')
+for k in range(1,ncat+1):
+  qtot_old = np.nansum(qsnon[k-1,:])
+  qtot_new = np.nansum(qsnon_new[k-1,:])
+  print(f"Cat {k}, old snow enth={qtot_old:.4e} new snow enth={qtot_new:.4e}")
+
+print(" ")
 
 # Attributes:
 from datetime import datetime

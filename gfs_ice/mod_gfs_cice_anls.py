@@ -11,19 +11,20 @@ import matplotlib.colors as colors
 def sens_tests_info(enmb):
   """
     Sensitivity experiments with datm UFS 
+    ai - ice conc, hi - ice thickn, hs - snow thickn
   """
   EXPTS = {
     "01" : "control",
     "02" : "3x snowf",
     "03" : "10x snowf",
-    "04" : "hsnow",
-    "05" : "iconc+3x snowf",
-    "06" : "iconc+10x snowf",
-    "07" : "iconc",
-    "08" : "iconc+hsnow",
-    "09" : "iconc+ithkn",
-    "10" : "iconc+ithkn+hsnow",
-    "11" : "conc+thk+hs+qicen"
+    "04" : "hs",
+    "05" : "ai+3x snowf",
+    "06" : "ai+10x snowf",
+    "07" : "ai",
+    "08" : "ai+hs",
+    "09" : "ai+hi",
+    "10" : "ai+hi+hs",
+    "11" : "ai+hi+hs+qice+freeb",
    }
 
   key = f"{enmb:02d}"    
