@@ -27,22 +27,22 @@ importlib.reload(mom6util)
 from mod_utils_fig import bottom_text
 
 
-def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
+def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
                 eps_err=1.e-2, land_mask=False, info_step=10000):
   """
     Interpolate A2d (2D field) from PIOMAS onto MOM6 grid
     IMOM, JMOM - MOM6 indices where fields need to be interpolated
     INDX, JNDX - n x 4 arrays of PIOMAS grid points (gmapi) for bilinear interpolation
     LMsk - land/ocean mask of MOM6 grid
-    LONs, LATs - grid PIOMAS
-    hlon, hlat - grid MOM6
+    LON, LAT - original grid of the data
+    hlon, hlat - grid MOM6 - where data are being interpolated to
     land_mask - False: do not mask land with nans, keep filled with ocean values
   """
   import mod_utils_ob as muob
   import mod_bilinear as mblnr
   importlib.reload(mblnr)
 
-# Find basis functions for a reference rectangle:
+  # Find basis functions for a reference rectangle:
   phi1,phi2,phi3,phi4 = mblnr.basisFn_RectRef()
   phi_basis           = np.array([phi1, phi2, phi3, phi4]).transpose() # basis funs in columns
 
@@ -52,7 +52,7 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
     f"LMsk should be 0 and 1, given: np.min(LMsk) and np.max(LMsk)"
 
   print(f'Interpolating 2D {npnts} pnts ...')
-# Make sure that gmapi is for the right section:
+  # Make sure that gmapi is for the right section:
   assert npnts==len(IMOM), "INDX and IMOM mismatch in length"
 
   Ai = np.zeros((jdm,idm))
@@ -69,21 +69,24 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
       continue
     x0   = hlon[jmom, imom]
     y0   = hlat[jmom, imom]
-    II = np.squeeze(INDX[ikk,:])
-    JJ = np.squeeze(JNDX[ikk,:])
-    ii1, ii2, ii3, ii4 = II
-    jj1, jj2, jj3, jj4 = JJ
+    # Normalize x0
+    x0 = (x0 + 360) % 360
 
-    xx = LONs[JJ,II]
-    yy = LATs[JJ,II]
-
-# Use cartesian coordinates for mapping
+    # Use cartesian coordinates for mapping
     # To avoid the wrapping discontinuity
     #  -180/180 or 360/0 discontinuity 
     # of the box vertix coordinates (e.g, xx = 359, 0.5, 0.5, 359)
     # and x0 coordinate wrt to box vertices e.g. x0 = -0.2, xx=359, 0.5, 0.5, 359
     # shift all coordinates to -180,180 wrt to x0
-    xx = mblnr.shift_longitudes(xx, ref_lon=x0)
+    LON = mblnr.shift_longitudes(LON0, ref_lon=x0)
+
+    II = np.squeeze(INDX[ikk,:])
+    JJ = np.squeeze(JNDX[ikk,:])
+    ii1, ii2, ii3, ii4 = II
+    jj1, jj2, jj3, jj4 = JJ
+
+    xx = LON[JJ,II]
+    yy = LAT[JJ,II]
 
     assert np.max(abs(np.diff(xx))) < 180., \
       f"ikk={ikk} Check lon coordinates, big difference -180/180 or 0/360 discontinuity ?"
@@ -96,12 +99,19 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
       xht = 1.e-3
       yht = 1.e-3
     else:
-      #xref     = x0-0.1
-      #yref     = y0-0.1
-      xref     = np.mean(xx)
-      yref     = np.mean(yy)
-      XV, YV   = mblnr.lonlat2xy_wrtX0(xx, yy, xref, yref)
-      x0c, y0c = mblnr.lonlat2xy_pnt(x0, y0, xref, yref)
+      # This is robust and works near the poles and long discontinuities:
+      # Build transformer for projecting to local tangent plane
+      # for accurate conversion lon/lat --> x,y on Cartesian grid
+      # East-North-Up (ENU)
+      #
+      #xref, yref = mmisc1.polygon_centroid(xx,yy)
+      xref, yref = xx[0], yy[0]  # reference in the 1st grid pnt
+      transf_enu = mblnr.make_lonlat2xy_transformer(xref, yref) # projection centered @(xref,yref)
+      XV, YV     = transf_enu.transform(xx, yy)    # convert 4 vertices
+      x0c, y0c   = transf_enu.transform(x0,y0)     # convert the target pnt
+      #XV, YV   = mblnr.lonlat2xy_enu(xx, yy, xref, yref)
+      #x0c, y0c = mblnr.lonlat2xy_enu(x0,y0, xref, yref)
+
       # For rotated grid boxes, mapping may give singular matrix AA
       # Try to rotate the quadrilateral to orient sides with X and Y axis:
       XVr, YVr, x0r, y0r  = muob.rotate_box(XV, YV, x0c, y0c)
@@ -113,24 +123,6 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
       xht = np.round(xht)
     if abs(yht)-1. < eps_err:
       yht = np.round(yht)
-
-  # Already rotated now, no need in this check
-  # check if xht and yht <= 1
-  # If the grid point inside the box, then mapping is the problem
-  # if not - then these are a few cases near singularities of SPEAR I/J axes
-  # over land where bounding boxes could not be located 
-  # In a few cases, box coordinates may repeat due to SPEAR singular I/J grid
-  # that does not change coordinates for I/J near singular regions (boxes are triangulars)
-  # THis results in singular matrix A for mappring
-  # For very thin  rotated, skewed quadrilaterals mapping does not work well
-  # Try to rotate the quadrilateral
-  #  if abs(xht) > 1 or abs(yht) > 1:
-  #    xht0 = xht
-  #    yht0 = yht
-  #    XVr, YVr, x0r, y0r  = muob.rotate_box(XV, YV, x0c, y0c)
-  #    xht, yht = mblnr.map_x2xhat(XVr, YVr, x0r, y0r)
-#      print(f"ERR: ikk={ikk} Mapping ref box xht={xht0:6.3f} yht={yht0:6.3f}, fixed " +\
-#            f" xht={xht:6.3f}, yht={yht:6.3f}")
 
     if abs(xht) > 1. or abs(yht) > 1.:
 # If nothing works, interpolate into the center

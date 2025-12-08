@@ -59,5 +59,20 @@ def sens_tests_colors():
   ])
   return CLRS
 
+def gfs_retro_runs(run_name, node_nm, model='ice'):
+  """
+    Return list of available retro runs  
+    Saved on current machine
+  """
+  if model == 'ice':
+    if node_nm == 'gaea':
+      match run_name:
+        case "retrov17_01_stream4":
+          RUNS=['2025060406', '2025060412', '2025060418', '2025060500', '2025060506']
+        case "retrov17_01_stream1a":
+          RUNS=['2022090900']
+        case _:
+          print(f"unrecognized {run_name}, {node_nm}, or model={model}")
+          raise Exception("Check inputs for gfs retro experiments")
 
-    
+  return RUNS

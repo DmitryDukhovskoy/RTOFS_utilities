@@ -133,9 +133,18 @@ if regn == 'south':
   LON, LAT = mmisc.convert_polarXY_lonlat(XX,YY, North=False, E=eccentr, RE=ax_maj, SLAT=slat0, LON0_dir=lon0)
   assert np.max(LAT) < 0., f"For southern hemisphere latitudes should be < 0"
   LON = -LON   # nor sure why but this makes sign of the longitudes right
+else:
+  # Get gmapi 4 NSIDC grid points for interpolation
+  pthdump  = os.path.join(pthdata,"gmapi_NSIDC")
+  fgmapi  = f'NSIDC_NRTice_MOM6_gmapi_{idm}x{jdm}_{regn}.nc'
+  dfgmapi = os.path.join(pthdump, fgmapi)
+  print(f'Loading gmapi --> {dfgmapi}')
+  with xarray.open_dataset(dfgmapi) as dgmapi:
+    LON = dgmapi['longit'].data
+    LAT = dgmapi['latit'].data
+ 
 
-
-print(f"Processing {YR}/{MM}/{DD} ...")
+print(f"Processing {YR}/{MM}/{DD} {regn} ...")
 AA = read_NSIDC(YR, MM, DD, regn, pthnsidc, 'cdr_seaice_conc')
 
 # Interpolated fields:
@@ -143,7 +152,7 @@ fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}_{regn}.nc'
 dfliceout = os.path.join(pthnsidc,fliceout)
 print(f'Loading interpolated ice conc {dfliceout}')
 with xarray.open_dataset(dfliceout) as dsint:
-  AI = dsint['ice_conc'].isel(time=DD-1).squeeze()
+  AI = dsint['ice_conc'].isel(time=DD-1).data.squeeze()
 
 
 clrmp = mclrmps.colormap_conc()
@@ -182,6 +191,13 @@ ax1.set_title(f'NSIDC iconc {YR}/{MM:02d}/{DD:02d}')
 # Interpolated iconc
 if regn == 'south':
   m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
+  parallels = np.arange(-80,-10,10.)
+  meridians = np.arange(-360,359.,45.)
+elif regn == 'north':
+  m = Basemap(projection='npstere',boundinglat=50,lon_0=-45,resolution='l')
+  parallels = np.arange(40,89,10.)
+  meridians = np.arange(-360,359.,45.)
+
 #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
 xh, yh = m(hlon,hlat) # GFS coords
 
@@ -207,6 +223,12 @@ clb.ax.tick_params(direction='in', length=12)
 btx = 'check_interp_NSIDC_mesh025.py'
 bottom_text(btx)
 
+
+f_ij = False
+if f_ij:
+  plt.clf()
+  ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
+  img1 = ax1.pcolormesh(AI, cmap=clrmp, vmin=rmin, vmax=rmax)
 
 
 

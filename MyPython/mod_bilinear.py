@@ -341,31 +341,81 @@ def lonlat2xy_wrtX0(XX, YY, x0, y0):
   """
   import mod_misc1 as mmisc1
 
-  xrf = x0
-  if xrf < -180.:
-    xrf = xrf+360.
+  # The method does not work near the poles!!!
+  # Use lonlat2xy_enu instead
+  assert(abs(y0) < 89.95), f"This method does not work near the poles"
+  assert(np.max(abs(YY)) < 89.95), f"This method is not robust near the poles"
+
+  # Normalize reference longitude
+  xrf = ((x0 + 180) % 360) - 180
   yrf = y0
 
-# Define positive east and north vectors
-# originating at the reference point
-  Ev  = mmisc1.construct_vector([x0, y0], [x0+10., y0])
-  Nv  = mmisc1.construct_vector([x0, y0], [x0, y0+10.])
-  XV  = np.zeros((4))
-  YV  = np.zeros((4))
-  for ipp in range(0,4):
-    xx = XX[ipp]
+  # Define positive east and north vectors
+  # originating at the reference point
+  # Construct east/north direction vectors
+  Ev = mmisc1.construct_vector([x0, y0], [x0+10., y0])
+  Nv = mmisc1.construct_vector([x0, y0], [x0, y0+10.])
+  XV = np.zeros(4)
+  YV = np.zeros(4)
+
+  for ipp in range(4):
+    xx = ((XX[ipp] + 180) % 360) - 180  # normalize longitude
     yy = YY[ipp]
-    Av  = mmisc1.construct_vector([x0, y0],[xx, yy])
-    prAE, cosT, tht = mmisc1.vector_projection(Av, Ev)
-    prAN, cosT, tht = mmisc1.vector_projection(Av, Nv) 
-    dlx     = mmisc1.dist_sphcrd(yrf, xrf, yrf, xx)
-    dly     = mmisc1.dist_sphcrd(yrf, xrf, yy, xrf)
-    XV[ipp] = np.sign(prAE)*dlx
-    YV[ipp] = np.sign(prAN)*dly
-  x0c = 0.
-  y0c = 0.
+
+    # Vector from reference to point
+    Av = mmisc1.construct_vector([x0, y0], [xx, yy])
+
+    prAE, *_ = mmisc1.vector_projection(Av, Ev)
+    prAN, *_ = mmisc1.vector_projection(Av, Nv)
+
+    dlx = mmisc1.dist_sphcrd(yrf, xrf, yrf, xx)
+    dly = mmisc1.dist_sphcrd(yrf, xrf, yy, xrf)
+
+    XV[ipp] = np.sign(prAE) * dlx
+    YV[ipp] = np.sign(prAN) * dly
 
   return XV, YV
+
+from pyproj import Transformer
+
+def make_lonlat2xy_transformer(x0, y0):
+  """
+    Local azimuthal equidistant projection centered at reference
+    To convert lon/lat near the poles (or anywhere) into Cartesian distance 
+    use a local tangent-plane coordinate system, also known as:
+    East-North-Up (ENU)
+
+    Create AEQD transformer centered at reference 
+    To use for multiple transformations to spped up the process
+  """
+  from pyproj import Proj, Transformer
+  return Transformer.from_crs(
+    "EPSG:4326",
+    f"+proj=aeqd +lat_0={y0} +lon_0={x0} +datum=WGS84",
+    always_xy=True
+  )
+
+
+def lonlat2xy_enu(XX, YY, x0, y0):
+  """
+    Local azimuthal equidistant projection centered at reference
+    To convert lon/lat near the poles (or anywhere) into Cartesian distance 
+    use a local tangent-plane coordinate system, also known as:
+    East-North-Up (ENU)
+
+    Note: slow, do not use it inside for loops for many points
+    instead: use   make_lonlat2xy_transformer to build the transformer outside the loop
+             then use without rebuilding: xv, yv = transformer.transform(XX, YY)
+  """
+  from pyproj import Proj, Transformer
+
+  proj_local = Proj(proj='aeqd', lat_0=y0, lon_0=x0, datum='WGS84')
+
+  transformer = Transformer.from_proj("epsg:4326", proj_local, always_xy=True)
+
+  x, y = transformer.transform(XX, YY)
+  return x, y
+
 
 def lonlat2xy_pnt(xx, yy, x0, y0):
   """
@@ -374,6 +424,9 @@ def lonlat2xy_pnt(xx, yy, x0, y0):
 
     so that x0,y0 --> 0,0
     and XX, YY ---> +/- distance from 0,0
+
+    Not robust near poles and lonh discontinuities
+    use lolat2xy_enu
   """
   import mod_misc1 as mmisc1
 

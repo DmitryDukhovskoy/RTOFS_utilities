@@ -54,7 +54,7 @@ import mod_utils_ob as mutob
 import mod_mom6 as mmom6
 
 YR = 2025
-MM = 1
+MM = 6
 DD = 15
 
 parser = argparse.ArgumentParser()
@@ -108,6 +108,12 @@ if regn == 'south':
   lon0  = -90.   # orientation of the 0 longitude wth to X axis on polar grid, not NSIDC is fliped upside down
   flat_inv = 298.279411123064
   ax_maj = 6378273.
+elif regn == 'north':
+  flnsidc = f"sic_psn25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"
+  slat0 = 70.  # latitude of 0 distortion, standard lat. 
+  lon0  = -45.   # orientation of the 0 longitude wth to X axis on polar grid, not NSIDC is fliped upside down
+  flat_inv = 298.279411123064
+  ax_maj = 6378273.
   
 
 ds_nsidc = xarray.open_dataset(os.path.join(pthnsidc,flnsidc))
@@ -133,10 +139,13 @@ eccentr = np.sqrt(2*flat - flat**2)
 R_polar = ax_maj*(1.-flat)   # polar radius or semi-minor axis
 
 if regn == 'south':
-  LON, LAT = mmisc.convert_polarXY_lonlat(XX,YY, North=False, E=eccentr, RE=ax_maj, SLAT=slat0, LON0_dir=lon0)
+  LON, LAT = mmisc.convert_polarXY_lonlat(XX,YY, North=False, E=eccentr,\
+                                          RE=ax_maj, SLAT=slat0, LON0_dir=lon0)
   assert np.max(LAT) < 0., f"For southern hemisphere latitudes should be < 0"
   LON = -LON   # nor sure why but this makes sign of the longitudes right
-
+else:
+  LON, LAT = mmisc.convert_polarXY_lonlat(XX,YY, North=True, E=eccentr,\
+                                          RE=ax_maj, SLAT=slat0, LON0_dir=lon0)
 
 import mod_regmom as mrmom
 
@@ -150,11 +159,18 @@ if regn == 'south':
   lat_max = -50.
 else:
   lat_min = 50.
+  lat_max = 90. # override np.max(LAT) for Polar stereogr. projection, the code should work
+                # for correctly finding 4 points around hlat>np.max(LAT) but only
+                # for Polar stereogr. projection by grabbing points over the N. Pole 
 
-row_min = np.min(hlat, axis=1)
-row_max = np.max(hlat, axis=1)
+ignore_north_lim = lat_max >= 90.
+if ignore_north_lim:
+  print(f"WARN: Indices north of northernmost lat={np.max(LAT):.4f} will be searched")
+
+row_min = np.min(hlat, axis=1)  # min lat in each row
+row_max = np.max(hlat, axis=1)  # max lat in each row
 jS = np.argmax(row_min >= lat_min)
-jE = len(row_max) - np.argmax(row_max[::-1] <= lat_max) - 1
+jE = len(row_max) - np.argmax(row_max[::-1] <= lat_max) - 1 # note reverse indexing for [::-1]
 #jE = np.argmin(row_max <= lat_max) - 1
 
 jdm, idm = hlon.shape
@@ -166,7 +182,7 @@ JMOM = []
 for ii in range(idm):
   if ii%50 == 0:
     print(f' icc={icc} {ii/idm*100:.2f}% done ...')
-  for jj in range(jS,jE):
+  for jj in range(jS,jE+1):
     if HH[jj,ii] >= 0:
       continue
     x0 = hlon[jj,ii]
@@ -175,7 +191,7 @@ for ii in range(idm):
       continue
 
     icc += 1
-    ixx, jxx = mrmom.find_gridpnts_box(x0, y0, LON, LAT, dhstep=1.)
+    ixx, jxx = mrmom.find_gridpnts_box(x0, y0, LON, LAT, dhstep=1., ignore_north_lim=ignore_north_lim)
     if len(ixx)==0 or len(jxx)==0:
      continue
     ixx = np.expand_dims(ixx, axis=0)
@@ -194,6 +210,9 @@ for ii in range(idm):
 IMOM = np.array(IMOM)
 JMOM = np.array(JMOM)
 
+# NSIDC coord dimensions:
+jdim, idim = LON.shape
+
 npnts = len(IMOM)
 darr_imom = xarray.DataArray(IMOM, dims=("npoints"),\
                    coords={"npoints": np.arange(npnts)})
@@ -205,18 +224,29 @@ darr_indx = xarray.DataArray(INDX, dims=("npoints","nvert"),\
 darr_jndx = xarray.DataArray(JNDX, dims=("npoints","nvert"),\
                    coords={"npoints": np.arange(npnts),\
                            "nvert": np.arange(4)})
+darr_lon = xarray.DataArray(LON, dims=("jdim","idim"),\
+                  coords={"jdim": np.arange(jdim),\
+                          "idim": np.arange(idim)})
+darr_lat = xarray.DataArray(LAT, dims=("jdim","idim"),\
+                  coords={"jdim": np.arange(jdim),\
+                          "idim": np.arange(idim)})
+
 dset = xarray.Dataset({"mom_indx": darr_imom, \
                        "mom_jndx": darr_jmom, \
                        "gmapi_i": darr_indx,\
-                       "gmapi_j": darr_jndx})
+                       "gmapi_j": darr_jndx,\
+                       "longit":  darr_lon,\
+                       "latit":   darr_lat})
 
 dset['mom_indx'].attrs['long_name'] = 'MOM6 grid I indices corresponding gmapi'
 dset['mom_jndx'].attrs['long_name'] = 'MOM6 grid J indices corresponding gmapi'
 dset['gmapi_i'].attrs['long_name'] = 'I indices NSIDC grid for interpolation'
 dset['gmapi_j'].attrs['long_name'] = 'J indices NSIDC grid for interpolation'
+dset['longit'].attrs['long_name']  = 'Longitudes derived from NSIDC polar grid'
+dset['latit'].attrs['long_name']   = 'Latitudes derived from NSIDC polar grid'
 
 # Global attributes
-dset.attrs['title']       = 'Grid mapping between NSIDC and MOM6 grids'
+dset.attrs['title']       = 'Grid mapping between NSIDC polar sterographic and MOM6 mesh025 grid'
 dset.attrs['institution'] = 'NOAA NWS NCEP MDC'
 dset.attrs['source']      = 'get_gmapi_NSIDC_to_mesh025.py'
 dset.attrs['history']     = 'NSIDC NRT daily ice concentration, polar stereogr converted to geogr. coordinates'
@@ -229,9 +259,6 @@ dfgmapi = os.path.join(pthdump, fgmapi)
 
 print(f'Saving gmapi --> {dfgmapi}')
 dset.to_netcdf(dfgmapi, format='NETCDF4', engine='netcdf4')
-
-
-
 
 f_chck = False
 f_xy = False     # True - plot on X.Y grid. False - plot on index space
@@ -249,7 +276,10 @@ if f_chck:
   LON3 = np.where(LON3 > 350., np.nan, LON3)
   lon_cntr1 = [x for x in range(-170,0,10)]  # grey -180:0
   lon_cntr2 = [x for x in range(10,178,10)]  # blue: 0 to 180 E
-  lat_cntr = [x for x in range(-85,-20,5)]
+  if regn == 'south':
+    lat_cntr = [x for x in range(-85,-20,5)]
+  else:
+    lat_cntr = [x for x in range(50,89,5)]
 
   plt.ion()
   fig1 = plt.figure(1,figsize=(9,8))
@@ -293,8 +323,5 @@ if f_chck:
   ax1.set_title('Derived lon/lat from NSIDC polar sterogr. projection')
   btx = 'get_gmapi_NSIDC_to_mesh025.py'
   bottom_text(btx) 
-
-
-
 
 

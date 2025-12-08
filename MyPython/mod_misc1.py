@@ -50,13 +50,164 @@ def inpolygon_v2(X,Y,Xv,Yv):
 
   return MSK, IP, JP
 
-def inpolygon_1pnt(xq, yq, xv, yv):
+def reorder_polygon(xv, yv):
+  """
+    Order vertices of the polygon so that 
+    they do not zig-zag
+  """
+  cx = np.mean(xv)
+  cy = np.mean(yv)
+  angles = np.arctan2(yv - cy, xv - cx)
+  idx = np.argsort(angles)
+
+  return xv[idx], yv[idx]
+
+def polygon_centroid(XV,YV):
+  """
+    Compute the centroid (Cx, Cy) of a 2D polygon.
+    XV, YV: np array of (x, y) coords, ordered around the polygon.
+  """
+  AA = 0
+  Cx = 0
+  Cy = 0
+  XV = np.asarray(XV).flatten()
+  YV = np.asarray(YV).flatten()
+  nn = len(XV)
+
+  for ii in range(nn):
+    # Compute the signed area
+    # i.e. 1/2 of the sum of cross-products from each vertex
+    # If the vertices are ordered counter-clockwise: A>0,
+    # clockwise: A<0
+    x0, y0 = XV[ii], YV[ii]
+    x1, y1 = XV[(ii+1)%nn], YV[(ii+1)%nn]
+
+    cross = x0*y1 - x1*y0
+    AA += cross
+    Cx += (x0 + x1) * cross
+    Cy += (y0 + y1) * cross
+
+  assert AA != 0, f"ERR: polygon_centroid: area 0 {AA}"
+  AA *= 0.5
+  Cx /= (6 * AA)
+  Cy /= (6 * AA)
+
+  return Cx, Cy
+
+def point_on_segment(xq, yq, x1, y1, x2, y2, eps0=1e-8):
+  """
+    Check if point (xq, yq) lies on segment (x1, y1)-(x2, y2)
+    Rule: point on the segment if:
+    cross product = 0
+    pnt is within the segment bound (dot product > 0 and < segm^2)
+  """
+  # Vectors
+  dx = x2 - x1
+  dy = y2 - y1
+  dxp = xq - x1
+  dyp = yq - y1
+
+  # segm length:
+  seglen = np.sqrt(dx*dx + dy*dy)
+  #print(f"seglen={seglen}")
+  seglen = np.max([seglen, 1e-10])
+
+  # colinearity check (cross product = 0)
+  cross = (dx*dyp - dy*dxp)/seglen  # normalized
+  #print(f"cross={cross:.4e}")
+  if abs(cross) > eps0:
+    return False
+
+  # check projection lies within segment bounds (dot >= 0 and <= |segment|^2)
+  dot = dx*dxp + dy*dyp
+  #print(f"dot = {dot:.4e}, seglen2={seglen**2:.4e}")
+  if dot < 0:
+    return False
+
+  seglen2 = seglen**2
+  if dot > seglen2 + eps0:
+    return False
+
+  return True
+
+def inpolygon_1pnt(xq, yq, XV, YV, eps0=1e-8):
+  """
+    Point-in-polygon test: True if inside OR on edge
+    standard winding number method
+    eps0 - allowed error around 0
+  """
+  XV = np.asarray(XV).flatten()
+  YV = np.asarray(YV).flatten()
+  nn = len(XV)
+
+  # (1) Edge test
+  for ii in range(nn):
+    x1, y1 = XV[ii], YV[ii]
+    x2, y2 = XV[(ii+1)%nn], YV[(ii+1)%nn]
+    if point_on_segment(xq, yq, x1, y1, x2, y2, eps0=eps0):
+      return True
+
+  # (2) Winding number test
+  wnmb = 0
+
+  for ii in range(nn):
+    x1, y1 = XV[ii], YV[ii]
+    x2, y2 = XV[(ii+1)%nn], YV[(ii+1)%nn]
+    
+    # Vector polygon edge, normalized:
+    ax = x2 - x1
+    ay = y2 - y1
+
+    # Vector to the point q:
+    qx = xq - x1
+    qy = yq - y1
+
+    # Cross produc vect_a x vect_q:
+    AxQ = ax*qy - ay*qx
+
+    # Count crossings
+    if y1 <= yq < y2:
+      # upward crossing
+      #print(f"Upward: ii={ii}, AxQ={AxQ:.4e}")
+      if AxQ > 0:
+        wnmb += 1
+    elif y2 <= yq < y1:
+      # downward crossing
+      #print(f"Downward: ii={ii}, AxQ={AxQ:.4e}")
+      if AxQ < 0:
+        wnmb -= 1
+
+    #print(f"wnmb={wnmb}")
+
+  #print(f"Winding number={wnmb}")
+  return wnmb != 0
+
+def polygon_area(X, Y):
+  """
+  Compute signed area of a 2D polygon using the shoelace formula.
+  X, Y : arrays of coordinates ordered around the polygon.
+  Returns signed area (positive for CCW, negative for CW).
+  """
+  X = np.asarray(X).flatten()
+  Y = np.asarray(Y).flatten()
+  n = len(X)
+
+  area = 0.0
+  for i in range(n):
+    x0, y0 = X[i], Y[i]
+    x1, y1 = X[(i+1) % n], Y[(i+1) % n]
+    area += x0 * y1 - x1 * y0
+
+  return 0.5 * area
+
+def inpolygon_1pnt_v0(xq, yq, xv, yv):
   """ 
   Is 1 point(xq,yq) inside a polygon?
   Function similar to matlab inpolygon
   based on a code from internet stackoverflow
   returns True -  indicating if the query points specified by xq and yq 
   are inside or on the edge of the polygon area defined by xv and yv.
+  Not very robust when the point is on the edge, perhaps need to increase radius ?
   """
   from matplotlib import path
 
@@ -320,11 +471,11 @@ def dist_sphcrd(xla1,xlo1,xla2,xlo2, Req=6371.0e3, Rpl=6357.e3):
 #    raise Exception("Either 1st or 2nd lon/lat have to be a single value")
 
   if np.absolute(xla1).max() > 90.0:
-    print("ERR: dist_sphcrd Lat1 > 90")
+    print(f"ERR: dist_sphcrd Lat1 > 90 {xla1}.max()")
     dist = float("nan")
     return dist
   if np.absolute(xla2).max() > 90.0:
-    print("ERR: dist_sphcrd Lat2 > 90")
+    print(f"ERR: dist_sphcrd Lat2 > 90  {xla2}.max()")
     dist = float("nan")
     return dist
 

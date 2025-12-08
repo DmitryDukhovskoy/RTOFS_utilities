@@ -116,12 +116,11 @@ fgmapi  = f'NSIDC_NRTice_MOM6_gmapi_{idm}x{jdm}_{regn}.nc'
 dfgmapi = os.path.join(pthdump, fgmapi)
 print(f'Loading gmapi --> {dfgmapi}')
 
-dgmapi = xarray.open_dataset(dfgmapi)
-IMOM = dgmapi['mom_indx'].data
-JMOM = dgmapi['mom_jndx'].data
-INDX = dgmapi['gmapi_i'].data
-JNDX = dgmapi['gmapi_j'].data
-
+with xarray.open_dataset(dfgmapi) as dgmapi:
+  IMOM = dgmapi['mom_indx'].data
+  JMOM = dgmapi['mom_jndx'].data
+  INDX = dgmapi['gmapi_i'].data
+  JNDX = dgmapi['gmapi_j'].data
 
 def read_NSIDC(YR,MM,DD,regn,pthnsidc,varnm):
   if regn == 'south':
@@ -156,6 +155,10 @@ if regn == 'south':
   assert np.max(LAT) < 0., f"For southern hemisphere latitudes should be < 0"
   LON = -LON   # nor sure why but this makes sign of the longitudes right
 
+elif regn == 'north':
+  with xarray.open_dataset(dfgmapi) as dgmapi: 
+    LON = dgmapi['longit'].data
+    LAT = dgmapi['latit'].data
 
 icc = 0
 ndays = mtime.month_days(MM,YR)
@@ -167,7 +170,6 @@ for mday in range(1,ndays+1):
   CIint = msisrlx.interp2Dfld(AA, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
   CIint = np.where(HH>=0, np.nan, CIint)
   A3d[mday-1,:,:] = CIint
-
 
 darr_cice = xarray.DataArray(A3d, dims=("time","jdim","idim"),\
                    coords={"time": time_days,\

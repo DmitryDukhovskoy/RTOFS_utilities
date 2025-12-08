@@ -1,0 +1,22 @@
+---
+common_paths: &common_paths
+  pthgrid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
+  pthdata: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data'
+  pthcice: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/ufs_datm_mx025/expt{enmb:02d}/cice6'
+  comroot_run:
+    "/gpfs/f6/gfs-cpu/world-shared/role.glopara/RETRO_GFSv17/comroot/{run_name}_stream{stream}/gfs.{init}/{ihr:02d}"
+  comroot:
+    "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RETRO_GFSv17/{run_name}_stream{stream}/gfs.{init}/{ihr:02d}"
+  
+gaea:
+  MOM6:
+    <<: *common_paths
+
+  CICE6:
+    <<: *common_paths
+    pthcice: "{comroot}/model/ice/history"
+
+dtn:
+  MOM6:
+    <<: *common_paths
+
