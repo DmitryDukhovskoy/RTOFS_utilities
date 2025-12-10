@@ -56,17 +56,23 @@ importlib.reload(msisrlx)
 YR = 2025
 MM = 1 
 DD = 15
+tmpf = 1
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help="hemisphere: north or south", type=str, required=True)
 parser.add_argument("--yr", help=f"year of NSIDC data, default={YR}", type=int)
 parser.add_argument("--mm", help=f"month of NSIDCS data to interpolate, default={MM}", type=int)
+parser.add_argument("--tmpf", choices=[0,1], 
+                    help=f"1: Save, start from last processed field, default={tmpf}", type=int)
 args = parser.parse_args()
   
 regn = args.regn if args.regn else None
 YR   = args.yr if args.yr else YR
 MM   = args.mm if args.mm else MM
-  
+tmpf = args.tmpf if args.tmpf is not None else tmpf
+ 
+save_tmp = tmpf == 1
+
 syst_info = os.uname() 
 machine = syst_info.nodename
   
@@ -160,16 +166,36 @@ elif regn == 'north':
     LON = dgmapi['longit'].data
     LAT = dgmapi['latit'].data
 
+# Save temporary fields 
+if save_tmp:
+  tmp_dir = os.path.join(pthdata,'NRT_NOAA_NSIDC_seaconc','tmp')
+  os.makedirs(tmp_dir, exist_ok=True)
+
 icc = 0
 ndays = mtime.month_days(MM,YR)
 A3d = np.zeros((ndays,jdm,idm))
 time_days = np.arange(1,ndays+1)
 for mday in range(1,ndays+1):
   print(f"Processing {YR}/{MM}/{mday} ...")
+
+  if save_tmp:
+    tmp_file = os.path.join(tmp_dir, f"tmp_NSIDCinterp_{YR}{MM:02d}{mday:02d}.nc")
+    # Skip if already processed
+    tmp_file_npy = f"{tmp_file}.npy"
+    if os.path.exists(tmp_file_npy):
+      print(f"Skipping {YR}/{MM}/{mday}: already computed")
+      CIint = np.load(tmp_file_npy)
+      A3d[mday-1,:,:] = CIint
+      continue
+      
+
   AA = read_NSIDC(YR, MM, mday, regn, pthnsidc, 'cdr_seaice_conc')
   CIint = msisrlx.interp2Dfld(AA, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
   CIint = np.where(HH>=0, np.nan, CIint)
   A3d[mday-1,:,:] = CIint
+
+  if save_tmp:
+    np.save(tmp_file, CIint)
 
 darr_cice = xarray.DataArray(A3d, dims=("time","jdim","idim"),\
                    coords={"time": time_days,\

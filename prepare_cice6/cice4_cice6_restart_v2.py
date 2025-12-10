@@ -3,9 +3,11 @@
 # Dmitry Dukhovskoy NOAA NWS EMC
 # March 2023
 #
-# October 2025
+# December 2025
 # Updated: 
-# netCDF processing based on xarray
+#   input key arguments
+#   netCDF processing based on xarray
+#   velocities at E points for C grid
 #
 import os
 import numpy as np
@@ -21,33 +23,32 @@ import time
 from yaml import safe_load
 import argparse
 
-PPTHN = None
-if PPTHN is None:
-  # Try default location of MyPython: ../
-  cwd   = os.getcwd()
-  aa    = cwd.split("/")
-  if 'python' in aa:
-    nii = aa.index('python')
-    PPTHN = '/' + os.path.join(*aa[:nii+1])
+PPTHN = None  # directory with custom modules, full path
+if 'PPTHN' not in locals() or PPTHN is None:
+  # Try default location of directory with python modules MyPython: ../
+  cwd = os.getcwd()    
+  parts = cwd.split(os.sep)
+  if 'python' in parts:
+    idx = parts.index('python')
+    PPTHN = os.sep + os.path.join(*parts[:idx + 1])
   else:
-    raise ValueError(f"'python' not found in current path {aa}")
-subdirs = [
-    'MyPython/ncoda_utils',
-    'MyPython/hycom_utils',
-    'MyPython',
-    'MyPython/mom6_utils',
-]
-for subdir in subdirs:
-    sys.path.append(os.path.join(PPTHN, subdir))
+    raise RuntimeError("Directory 'python' not found in current working directory path.")
+  
+sys.path.extend([
+    os.path.join(PPTHN, 'MyPython', 'hycom_utils'),
+    os.path.join(PPTHN, 'MyPython', 'draw_map'),
+    os.path.join(PPTHN, 'MyPython'),
+    os.path.join(PPTHN, 'MyPython', 'mom6_utils')
+])
 
-import mod_cice6_utils as mc6util
-from mod_utils_fig import bottom_text
+
 import mod_time as mtime
+import mod_cice6_utils as mc6util
 importlib.reload(mc6util)
 
 # Default values:
 fyaml = 'cice4_cice6.yaml'
-rdateT = 2000121600        # restart date and time in template cice6 restart
+rdateT = 2025050800        # restart date and time in template cice6 restart
 rdate4 = 1900010100        # date in CICE4 restart, not really needed
 
 parser = argparse.ArgumentParser()
@@ -61,6 +62,25 @@ fyaml  = args.fyaml if args.fyaml else fyaml
 rdate4 = args.rdate4 if args.rdate4 else 1900010100
 rdate6 = args.rdate6 if args.rdate6 else None
 rdateT = args.rdateT if args.rdateT else rdateT
+
+syst_info = os.uname() 
+machine = syst_info.nodename
+  
+if 'dtn' in machine:
+  print("Running on DTN node:", machine)
+  node_nm = "dtn"
+elif 'gaea' in machine:
+  print("Running on Gaea compute node:", machine)
+  node_nm = "gaea"
+elif 'an' in machine:
+  print("Running on PPAN node:", machine)
+  node_nm = "ppan"
+elif 'ufe' in machine:
+  print("Running on Ursa node:", machine)
+  node_nm = "ursa"
+else:
+  print("Unknown machine:", machine)
+
 
 # CICE4 restart date:
 dnmb4  = mtime.dateint2datenum(rdate4)
@@ -82,9 +102,9 @@ with open(fyaml) as ff:
 cicerst4 = PATHS["rest_names"]["cice4"]["flnm"]
 cicerstT = PATHS["rest_names"]["tmplt"]["flnm"].format(yr=YRtmp, mm=MMtmp, dd=MDtmp, hr=HRtmp)
 cicerst6 = PATHS["rest_names"]["cice6"]["flnm"].format(yr=YRc6, mm=MMc6, dd=MDc6, hr=HRc6)
-pthrst4  = PATHS["cice_paths"]["cice4"]["pth"]
-pthrstT  = PATHS["cice_paths"]["tmplt"]["pth"]
-pthrst6  = PATHS["cice_paths"]["cice6"]["pth"]
+pthrst4  = PATHS["cice_paths"][node_nm]["cice4"]["pth"]
+pthrstT  = PATHS["cice_paths"][node_nm]["tmplt"]["pth"]
+pthrst6  = PATHS["cice_paths"][node_nm]["cice6"]["pth"]
 
 # Restart files with dirs:
 fl_restart4 = os.path.join(pthrst4, cicerst4)
@@ -106,18 +126,18 @@ ice_grid6 = PATHS["cice_params"]["cice6"]["grid"]
 #mdatm.cice6_newfile(fl_restartT, fl_restart6)
 
 # Grid CICE4 - unformatted binary file
-pthgrd4 = PATHS["grid_topo"]["cice4"]["pthgrid"]
-grdfl4  = PATHS["grid_topo"]["cice4"]["filegrid"]
+pthgrd4 = PATHS["grid_topo"][node_nm]["cice4"]["pthgrid"]
+grdfl4  = PATHS["grid_topo"][node_nm]["cice4"]["filegrid"]
 fgrdin4 = os.path.join(pthgrd4, grdfl4)
 
 # CICE6 grid
-pthgrd  = PATHS["grid_topo"]["cice6"]["pthgrid"]
-grdfl   = PATHS["grid_topo"]["cice6"]["filegrid"]
+pthgrd  = PATHS["grid_topo"][node_nm]["cice6"]["pthgrid"]
+grdfl   = PATHS["grid_topo"][node_nm]["cice6"]["filegrid"]
 fgrdin  = os.path.join(pthgrd, grdfl)
 
 # depth:
-pthdpth = PATHS["grid_topo"]["cice6"]["pthtopo"]
-dpthfl  = PATHS["grid_topo"]["cice6"]["filedepth"]
+pthdpth = PATHS["grid_topo"][node_nm]["cice6"]["pthtopo"]
+dpthfl  = PATHS["grid_topo"][node_nm]["cice6"]["filedepth"]
 
 # Check if this is .a, .b or .nc depth file:
 fldptha  = fldpthb = None
@@ -137,12 +157,6 @@ elif dpthfl.endswith('.a'):
   topo_ab = True
 else:
   raise ValueError(f"topo file {dpthfl} not recognized, expected *.a or *.nc")
-
-if topo_nc:
-  Lmsk  = mc6util.read_ncfile(fdpthin,'wet')
-else:
-  _, Lmsk = mc6util.read_topo_ab(pthdpth, ftopo, nx, ny, lmask=True)
-
 
 def read_ncfield(dirflnc, varnc):
   with xarray.open_dataset(dirflnc) as dset:
@@ -251,6 +265,12 @@ ncat   = cice4.ncat
 ntilyr = cice4.ntilyr  # total # of icelrs * cat 
 ntslyr = cice4.ntslyr
 
+if topo_nc:
+  Lmsk  = mc6util.read_ncfile(fdpthin,'wet')
+else:
+  _, Lmsk = mc6util.read_topo_ab(pthdpth, ftopo, nx, ny, lmask=True)
+
+
 aicen = np.zeros((ncat,ny,nx), dtype='float64')
 vicen = np.zeros((ncat,ny,nx), dtype='float64')
 vsnon = np.zeros((ncat,ny,nx), dtype='float64')
@@ -313,7 +333,7 @@ print_minmax('V vel',A)
 uvelE = None
 vvelN = None
 if ice_grid6 == 'C':
-  uvelE = mc6util.interp_uvelE(uvel, aicen) 
+  uvelE, vvelN = mc6util.interp_uvelE_vvelN(uvel, vvel, aicen) 
 
 # Radiation fields
 # 4 radiative categories
@@ -772,28 +792,26 @@ updated_vars = {
 }
 
 print(' \n\n -------------\n Creating CICE6 restart')
-dst = xr.open_dataset(fl_restartT)
+dst = xarray.open_dataset(fl_restartT)
 
 for varname, new_data in updated_vars.items():
-  if varnm in dst:
-    dst[varname] = xr.DataArray(
+  if varname in dst:
+    dst[varname] = xarray.DataArray(
       new_data,
       dims=dst[varname].dims,
       coords=dst[varname].coords
     )
   else:
-    print(f"{varnm} is not in {fl_restartT}")
+    print(f"{varname} is not in {fl_restartT}")
 
 # Add a new variable to restart file:
-def add_newvar(dst, varnm, A3d):
-  new_fld = xr.DataArray(A3d, 
-                        dims=src[varnm].dims, 
-                        coords=src[varnm].coords)
-  dst[varnm] = new_fld
+def add_newvar(dst, varname, A3d):
+  new_fld = xarray.DataArray(A3d, 
+                        dims=dst[varname].dims, 
+                        coords=dst[varname].coords)
+  dst[varname] = new_fld
 
   return dst
-
-!!!TODO: compute uvelE and vvelN
 
 #  4D fields:
 # sice - ice bulk salinity
@@ -806,24 +824,24 @@ def add_newvar(dst, varnm, A3d):
 # Ice salinity by layers - compute S profile using BZ99 formulation:
 for ik in range(1,cice6.nilyr+1): 
   sice_lr = mc6util.sice_lr_cice4(ik, cice6.nilyr, aicen)
-  varnm = f'sice{ik:03d}'
-  print(f'Updating {varnm}')
-  dst = add_newvar(dst, varnm, sice_lr)
+  varname = f'sice{ik:03d}'
+  print(f'Updating {varname}')
+  dst = add_newvar(dst, varname, sice_lr)
 
 # Ice enthalpy by layers:
 for ik in range(1,cice6.nilyr+1): 
   qice_lr = qicen[ik-1,:,:,:]
-  varnm = f'qice{ik:03d}'
-  print(f'Updating {varnm}')
-  dst = add_newvar(dst, varnm, qice_lr)
+  varname = f'qice{ik:03d}'
+  print(f'Updating {varname}')
+  dst = add_newvar(dst, varname, qice_lr)
   #mc6util.modify_fld_nc(fl_restart6,fldout,qice_lr)
 
 # Snow enthalpy by layers
 for ik in range(1,cice6.nslyr+1):
   qsnon_lr = qsnon[ik-1,:,:,:]
-  varnm = f'qsno{ik:03d}'
-  print('Updating {varnm}')
-  dst = add_newvar(dst, varnm, qsnon_lr)
+  varname = f'qsno{ik:03d}'
+  print(f'Updating {varname}')
+  dst = add_newvar(dst, varname, qsnon_lr)
   #mc6util.modify_fld_nc(fl_restart6, fldout, qsnon_lr)
 
 #
@@ -834,18 +852,18 @@ dst.attrs['mmonth'] = np.int32(MMc6)
 dst.attrs['mday']   = np.int32(MDc6)
 dst.attrs['msec']   = np.int32(HRc6*3600)
 dst.attrs['info1']  = f"Restart created from CICE4: {cicerst4}"
-dst.attrs['info2']  = f"code: btx"
+dst.attrs['info2']  = f"code: {btx}"
 
 print(f"Saving cice restart ---> {fl_restart6}")
-ds.to_netcdf(fl_restart6, encoding={var: {'_FillValue': None} for var in dst.data_vars}, \
+dst.to_netcdf(fl_restart6, encoding={var: {'_FillValue': None} for var in dst.data_vars}, \
               format='NETCDF3_64BIT')
 
 dst.close()
-ds6.close()
+#ds6.close()
 
 print(f'Created CICE6 restart: {fl_restart6}\n')
 
 if not os.path.isfile(fl_restart6):
-  raise Exception ('CICE6 restart missing: ' + fl_restart6)
+  raise Exception (f'ERR: CICE6 restart was NOT CREATED: {fl_restart6}')
 
 

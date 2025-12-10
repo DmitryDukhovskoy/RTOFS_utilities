@@ -203,7 +203,10 @@ xh, yh = m(hlon,hlat) # GFS coords
 
 ax2 = plt.axes([0.55, 0.3, 0.4, 0.4])
 # draw parallels.
-parallels = np.arange(-80,-10,10.)
+if regn == 'south':
+  parallels = np.arange(-80,-10,10.)
+else:
+  parallels = np.arange(50,89,10.)
 m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
 # draw meridians
 meridians = np.arange(-360,359.,45.)

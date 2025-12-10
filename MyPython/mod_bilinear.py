@@ -416,6 +416,21 @@ def lonlat2xy_enu(XX, YY, x0, y0):
   x, y = transformer.transform(XX, YY)
   return x, y
 
+def lonlat2xy_fast(xx, yy, lon0, lat0):
+  """
+    Approximate local ENU (meters) for small boxes (~50 km)
+    Very fast alternative to pyproj Transformer for small regions.
+  """
+  R_earth = 6371000.0  # meters
+  # Compute difference in longitude, wrapped to [-180, 180]
+  dlon = (xx - lon0 + 180) % 360 - 180
+  dlat = yy - lat0
+
+  # Convert to local ENU distances
+  x = dlon * np.cos(np.deg2rad(lat0)) * np.pi / 180 * R_earth
+  y = dlat * np.pi / 180 * R_earth
+
+  return x, y
 
 def lonlat2xy_pnt(xx, yy, x0, y0):
   """

@@ -50,7 +50,6 @@ import mod_misc1 as mmisc
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
-expt = 'ufs_datm_mx025_v02'
 init_date = 20250604
 init_hr = 6
 regn = 'south'

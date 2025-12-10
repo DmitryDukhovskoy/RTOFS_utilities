@@ -1025,85 +1025,51 @@ def read_topo_ab(pthtopo, ftopo, IDM, JDM, dpth_neg=True, lmask=False):
   else:
     return HH
 
-def interp_uvelE_vvelN(uvel, aicen):
+def interp_uvelE_vvelN(uvel, vvel, aicen):
   """
     Interpolate Uvel from U point of the B grid point to
     E grid point on C grid
 
-           Vn(i,j)
-    ------|-------+ U(i,j) Uu,Vu (i,j) on the B grid
+   ^  J
+   |
+   |
+           Vn(j,i)
+    ------|-------+ U(j,i) Uu,Vu (j,i) on the B grid
    |              |
    |              |
-   |      *       - Ue(i,j)
-   |    T(i,j)    |
+   |      *       - Ue(j,i)
+   |    T(j,i)    |
    |              |
-    --------------+ U(i,j-1)
+    --------------+ U(j-1,i)   ---> I
 
-   Ue: Interpolate into T(i,j) and T(i+1,j)
-       average
-   Ve: Interpoalte into T(i,j) and T(i,j+1) 
-       average
+    Interpolate U from B-grid U-points to C-grid E-points:
+        Ue(j,i) = 0.5 * (U(j-1,i) + U(j,i))
+    Interpolate V from B-grid V-points to C-grid N-points:
+        Vn(j,i) = 0.5 * (V(j,i-1) + V(j,i))
 
-   Assuming that grid cells are ~rectangular (not accurate for the Arct. Ocean)
    TODO: more accurate bilinear interpolation for not-rectangular grid boxes
   """
-  uvelE = uvel*0.0
-  vvelN = uvel*0.0
+  uvelE = np.zeros_like(uvel)
+  vvelN = np.zeros_like(vvel)
   jdim, idim = uvel.shape
-  ice_indx = np.argwhere(aicen > 1.e-10)
+  aice = np.sum(aicen, axis=0).squeeze()
+  ice_indx = np.argwhere((aice > 1.e-10))
 
   print('Interpolating uvelE and vvelN')
   nindx = ice_indx.shape[0]
   cntr = 0
   for jj, ii in ice_indx:
     cntr += 1
-    if cntr%1000 == 0:
+    if cntr%100000 == 0:
       print(f'   processed {cntr/nindx*100:.1f}% ...')
 
-    # uvelE - interp into T(i,j) and T(i+1,j)
     if jj > 0:
-      if ii == 0:
-        uL1 = uvel[jj,-1]
-        uL2 = uvel[jj,ii]
-        uL3 = uvel[jj-1,ii]
-        ul4 = uvel[jj-1,-1]
-      else:
-        uL1 = uvel[jj,ii-1]
-        uL2 = uvel[jj,ii]
-        uL3 = uvel[jj-1,ii]
-        ul4 = uvel[jj-1,ii-1]
-
-      if ii+1 == idim:
-        uR1 = uvel[jj,ii]
-        uR2 = uvel[jj,-1]
-        uR3 = uvel[jj-1,-1]
-        uR4 = uvel[jj-1,ii]
-      else:
-        uR1 = uvel[jj,ii]
-        uR2 = uvel[jj,ii+1]
-        uR3 = uvel[jj-1,ii+1]
-        uR4 = uvel[jj-1,ii]
-
-      uT_lft = 0.25*(uL1 + uL2 + uL3 + uL4)
-      uT_rht = 0.25*(uR1 + uR2 + uR3 + uR4)
-      uvelE[jj,ii] = 0.5*(uT_lft + uT_rht) 
-
+      uvelE[jj,ii] = 0.5*(uvel[jj-1,ii] + uvel[jj,ii])
     else:
       uvelE[jj,ii] = uvel[jj,ii]
 
-    # vvelN - interp into T(i,j) and T(i,j+1)
     if ii > 0:
-      if jj == 0:
-        vB1 = vB4 = vvel[jj,ii-1]
-        vB2 = vB3 = vvel[jj,ii]
-      else:
-        vB1 = vvel[jj,ii-1]
-        vB2 = vvel[jj,ii]
-        vB3 = vvel[jj-1,ii]
-        vB4 = vvel[jj-1,ii-1] 
-
-    if jj+1 < jdim:
-      vvelN[jj,ii] = 0.5*(vvel[jj,ii] + vvel[jj+1,ii])
+      vvelN[jj,ii] = 0.5*(vvel[jj,ii-1] + vvel[jj,ii])
     else:
       vvelN[jj,ii] = vvel[jj,ii]
 

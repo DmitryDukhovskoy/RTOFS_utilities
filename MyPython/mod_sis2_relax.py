@@ -39,6 +39,7 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
     land_mask - False: do not mask land with nans, keep filled with ocean values
   """
   import mod_utils_ob as muob
+  import time
   import mod_bilinear as mblnr
   importlib.reload(mblnr)
 
@@ -59,9 +60,15 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
   if land_mask:
     Ai = np.where(LMsk==0,np.nan, Ai)
 
+  start_time = time.perf_counter()
+  end_time = start_time
   for ikk in range(npnts):
     if ikk%info_step == 0:
-      print(f'   {ikk/npnts*100.:.2f}% done ...')
+      end_time = time.perf_counter()
+      dlt_time = (end_time - start_time) / 60.
+      print(f'Elapsed time={dlt_time:.4f} min  {ikk/npnts*100.:.2f}% done ...')
+      #start_time = time.perf_counter()
+      
     imom = IMOM[ikk]
     jmom = JMOM[ikk]
     #print(f'ikk={ikk}') 
@@ -82,22 +89,27 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
 
     II = np.squeeze(INDX[ikk,:])
     JJ = np.squeeze(JNDX[ikk,:])
-    ii1, ii2, ii3, ii4 = II
-    jj1, jj2, jj3, jj4 = JJ
+    #ii1, ii2, ii3, ii4 = II
+    #jj1, jj2, jj3, jj4 = JJ
 
     xx = LON[JJ,II]
     yy = LAT[JJ,II]
 
-    assert np.max(abs(np.diff(xx))) < 180., \
-      f"ikk={ikk} Check lon coordinates, big difference -180/180 or 0/360 discontinuity ?"
-    assert np.max(abs(xx-x0)) < 180., \
-      f"ikk={ikk} Check x0 wrt xx coord, big difference -180/180 or 0/360 discontinuity ?"
+    # Make sure the vertices are close enough:
+    if np.max(abs(np.diff(xx))) > 90. or np.max(abs(xx-x0)) > 90.:
+      DD = mmisc1.dist_sphcrd(y0, x0, yy, xx)
+      DE = mmisc1.dist_sphcrd(yy[0], xx[0], yy, xx)
+      cell_diag = np.max(DE)
+      # Sanity check: target pnt should not be farther from any vertex 
+      # than the farthest vertex is from reference vertex
+      assert np.max(DD) <= cell_diag * 1.01, \
+        f"ikk={ikk} Check lat/lon box for x0={x0:.4f}, y0={y0:.4f} \n" \
+        f"(max pnt dist={max_target_dist:.2f} m, max Cell diag={cell_diag:.2f} m)"
 
     f_repeated= muob.check_repeated_vertices(xx,yy)
     if f_repeated:
       print(f"Bad box with coninciding vertices ikk={ikk}, approximate interpolation")
-      xht = 1.e-3
-      yht = 1.e-3
+      xht = yht = 1.e-3
     else:
       # This is robust and works near the poles and long discontinuities:
       # Build transformer for projecting to local tangent plane
@@ -115,29 +127,22 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
       # For rotated grid boxes, mapping may give singular matrix AA
       # Try to rotate the quadrilateral to orient sides with X and Y axis:
       XVr, YVr, x0r, y0r  = muob.rotate_box(XV, YV, x0c, y0c)
-      #xht, yht = mblnr.map_x2xhat(XV, YV, x0c, y0c)   # cartesian coord
-      xht, yht = mblnr.map_x2xhat(XVr, YVr, x0r, y0r)
+      #xht, yht = mblnr.map_x2xhat(XV, YV, x0c, y0c)   
+      xht, yht = mblnr.map_x2xhat(XVr, YVr, x0r, y0r)  # map to reference coordinates
 
     # Fix round off errors for points on the side of the ref. square that are close to +/-1:
-    if abs(xht)-1. < eps_err:
+    if 0 < abs(xht)-1. < eps_err:
       xht = np.round(xht)
-    if abs(yht)-1. < eps_err:
+    if 0 < abs(yht)-1. < eps_err:
       yht = np.round(yht)
-
     if abs(xht) > 1. or abs(yht) > 1.:
-# If nothing works, interpolate into the center
-# these should be very rare for locations on land where I / J axes converge 
+      # If nothing works, interpolate into the center
+      # these should be very rare for locations on land where I / J axes converge 
       print(f"Fixing by rotating ref BOX failed ikk={ikk} " +\
             f"xht={xht:8.5f} yht={yht:8.5f}, approximate xhy, yht as middle pnt")
-      xht = 1.e-3
-      yht = 1.e-3
+      xht = yht = 1.e-3
 
-    aa1 = np.squeeze(A2d[jj1,ii1])
-    aa2 = np.squeeze(A2d[jj2,ii2])
-    aa3 = np.squeeze(A2d[jj3,ii3])
-    aa4 = np.squeeze(A2d[jj4,ii4])
-
-    HT  = np.array([aa1, aa2, aa3, aa4]).transpose()
+    HT = A2d[JJ,II]
     # Typically, land values should be filled
     # in case, they have not:  Get rid off nans
     nnans = len(np.where(np.isnan(HT))[0])
@@ -145,8 +150,7 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
       Ai[jmom,imom] = np.nan
       continue
     else:
-      mnv = np.nanmean(HT)
-      HT = np.where(np.isnan(HT), mnv, HT)
+      HT = np.where(np.isnan(HT), np.nanmean(HT), HT)
 
     hintp  = mblnr.bilin_interp(phi1, phi2, phi3, phi4, xht, yht, HT)
 
@@ -164,7 +168,6 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
 
   return Ai
 
-
 def read_PIOMAS(yr0, mm0, dfpiomas, varnm):
   """
   Derive thikness or conc. fields for yr0, mm0 
@@ -180,7 +183,6 @@ def read_PIOMAS(yr0, mm0, dfpiomas, varnm):
   from the Hadley Center HadISST v2.0 data set are assimilated to constrain the model 
   at the ice-edge. 
 
-  
   """
   import mod_time as mtime
 
