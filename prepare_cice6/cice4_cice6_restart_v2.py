@@ -11,13 +11,9 @@
 #
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 import sys
 import importlib
-import struct
 import datetime
-import matplotlib.colors as colors
-import matplotlib.mlab as mlab
 import xarray
 import time
 from yaml import safe_load
@@ -489,48 +485,7 @@ frzmlt       = np.where(frzmlt > 0.5*spval, 0., frzmlt)
 
 cice6 = mc6util.cice6()
 
-f_chck = False
-if f_chck:
-  ncdata = ncFile(fl_restart6,'r')
-  coszen = ncdata['coszen'][:]
-
-  plt.ion()
-  fig1 = plt.figure(1,figsize=(9,8))
-  plt.clf()
-  ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
-  im1 = ax1.pcolormesh(coszen)
-  ax2 = fig1.add_axes([ax1.get_position().x1+0.02,
-               ax1.get_position().y0,0.02,
-               ax1.get_position().height])
-  clb = plt.colorbar(im1, cax=ax2)
-  im1.set_clim(0,1)
-
-  stl = 'coszen, {0}/{1}/{2} {3}:{4}'.format(YRc6,MMc6,MDc6,HRc6,0)
-  ax1.set_title(stl)
-
 btx = 'cice4_cice6_restart_v2.py'
-
-f_plotPolar = False
-if f_plotPolar:
-  ulati6 = mc6util.read_ncfile(fgrdin, 'ulat')
-  uloni6 = mc6util.read_ncfile(fgrdin, 'ulon')
-  LAT, LON = mc6util.grid_rad2dgr(ulati6, uloni6)
-#  Umsk = mc6util.read_ncfile(fl_restart6,'iceumask')
-#  fldplt = 'fsnow'  # snow fall rate ? kg/m2/sec
-#  fsnow = mc6util.read_ncfile(fl_restart6,'fsnow')
-  fldplt = 'sice001'
-  icat = 5
-  A3 = mc6util.read_ncfile(fl_restart6,fldplt)
-  A2D = A3[icat-1,:,:]
-#  A2D = mc6util.read_ncfile(fl_restart6,fldplt)
-  A2D = np.where(Lmsk==0, np.nan, A2D)
-  rmin = 0.0
-  rmax = 3.
-  stl = 'CICE6, {0}/{1}/{2}, {3}, icat={4} '.format(YRtmp,MMtmp,MDtmp,fldplt,icat)
-  mc6util.plot_polar_2D(LON, LAT, A2D, region='Arctic',  \
-                  rmin=rmin, rmax=rmax, stl=stl)
-  bottom_text(btx)
-
   
 # Edit/ create missing fields:
 # coszen - cosine of solar zenith angle

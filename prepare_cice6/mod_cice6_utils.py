@@ -5,25 +5,13 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
-#import pdb
 import importlib
-#import struct
-import pickle
 from netCDF4 import Dataset as ncFile
 from copy import copy
 import matplotlib.colors as colors
-import matplotlib.mlab as mlab
-from matplotlib.patches import Polygon
 from matplotlib.colors import ListedColormap
 #from mpl_toolkits.basemap import Basemap, shiftgrid
 
-#sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/hycom_utils')
-#sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/draw_map')
-#sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython')
-#import mod_read_hycom
-#importlib.reload(mod_read_hycom)
-#from mod_read_hycom import read_grid_topo, read_hycom, read_topo
-#from mod_read_hycom import zz_zm_fromDP
 from mod_utils_fig import bottom_text
 
 
@@ -751,7 +739,7 @@ def plot_polar_2D(LON, LAT, A2D, region='Arctic', nfg=1, \
   """
   from mpl_toolkits.basemap import Basemap, cm
   import matplotlib.colors as colors
-  import matplotlib.mlab as mlab
+  #import matplotlib.mlab as mlab
   from matplotlib.colors import ListedColormap
 
   LONA = sub_region2D(LON, region=region)
