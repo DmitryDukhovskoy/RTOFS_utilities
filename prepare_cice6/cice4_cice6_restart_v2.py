@@ -45,17 +45,14 @@ importlib.reload(mc6util)
 # Default values:
 fyaml = 'cice4_cice6.yaml'
 rdateT = 2025050800        # restart date and time in template cice6 restart
-rdate4 = 1900010100        # date in CICE4 restart, not really needed
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--fyaml", help=f"yaml file with paths, filenames, params, default={fyaml}", type=str)
-parser.add_argument("--rdate4", help=f"Restart date in CICE4: YYYYMMDDhh, default={rdate4}", type=int)
 parser.add_argument("--rdate6", help="Restart date in CICE6: YYYYMMDDhh", required=True, type=int)
-parser.add_argument("--rdateT", help=f"Restart date in CICE4: YYYYMMDDhh, default={rdateT}", type=int)
+parser.add_argument("--rdateT", help=f"Restart date in template: YYYYMMDDhh, default={rdateT}", type=int)
 args = parser.parse_args()
 
 fyaml  = args.fyaml if args.fyaml else fyaml
-rdate4 = args.rdate4 if args.rdate4 else 1900010100
 rdate6 = args.rdate6 if args.rdate6 else None
 rdateT = args.rdateT if args.rdateT else rdateT
 
@@ -76,12 +73,6 @@ elif 'ufe' in machine:
   node_nm = "ursa"
 else:
   print("Unknown machine:", machine)
-
-
-# CICE4 restart date:
-dnmb4  = mtime.dateint2datenum(rdate4)
-YRc4, MMc4, MDc4, HRc4, _ = mtime.datevec(dnmb4, round_hrs=True)
-#cicerst4 = f"cice.restart.{YRc4}{MMc4:02d}{MDc4:02d}{HRc4:02d}"
 
 # Restart CICE6 template:
 dnmbT = mtime.dateint2datenum(rdateT)
