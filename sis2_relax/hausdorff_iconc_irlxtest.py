@@ -48,18 +48,27 @@ importlib.reload(mutob)
 importlib.reload(msisrlx)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--expt", help="Specify f/cast experiment: 1, 2, ..., default = all", type=int)
 parser.add_argument("--yr", help="year to plot, default 2001 for NEP and 1995 for ARC", type=int)
 parser.add_argument("--regn", help="NEP or ARC", type=str, required=True)
 parser.add_argument("--intrp", help=" =1: interp PIOMAS mnth to daily for better accur., default=1", \
                     type=int)
+parser.add_argument(
+    "--enmb",
+    help="List of experiment numbers (e.g., 1 3 5 32 33)",
+    type=int,
+    nargs="+",             # <-- allows one or more integers and will generate a list
+    required=True
+)
 args = parser.parse_args()
 
 # Test runs were performed for only 1 year
 regn = args.regn if args.regn else None
 YRS = args.yr if args.yr else None
-expt_nmb = args.expt if args.expt else None
 interp = args.intrp if args.intrp else 1
+ENMBS = args.enmb if args.enmb else None
+
+# Number of test runs:
+Nexpts = len(ENMBS)
 
 interp_mnthly = interp > 0  # for more accurate comparison, do time interpolation of PIOMAS 
                       # to get mnthly mean values, similar to how it is done in SIS2
@@ -76,13 +85,13 @@ mstart = 1  # current test runs all started on Jan 1, 2001
 MMS = 1
 MME = 12
 
-if expt_nmb is None:
-  EXPTS=[1,2,3,4,5]
-else:
-  EXPTS=[expt_nmb]
+#if expt_nmb is None:
+#  EXPTS=[1,2,3,4,5]
+#else:
+#  EXPTS=[expt_nmb]
 
 # relax hours:
-RLXH = [0,1,24,120,360]
+#RLXH = [0,1,24,120,360]
 
 
 fyaml = 'paths_seasfcst.yaml'
@@ -154,8 +163,11 @@ def indx2lonlat(CI):
       
   return XC, YC
 
-nexpts = len(EXPTS)
-MHD = np.zeros((12,nexpts))   # months x N expts
+# Ignore values near the Nw and NE bndries:
+lon_offsetW = 164.
+lon_offsetE = 222.
+
+MHD = np.zeros((12,Nexpts))   # months x N expts
 npnts_min = 1  # min # of points in the contour to keep
 TM = []
 Nrec = 0
@@ -169,7 +181,8 @@ for MMA in range(MMS,MME+1):
   imo += 1
 
   iexp = 0
-  for expt_nmb in EXPTS:
+  for kexpt in range(Nexpts):
+    expt_nmb = ENMBS[kexpt]
     if regn == 'NEP':
       pthtest = f'/archive/Dmitry.Dukhovskoy/fre/NEP/test_ice_relax/NEPphys_expt{expt_nmb:02d}/{YRS}-{mstart:02d}'
       pthrlx  = '/work/Dmitry.Dukhovskoy/NEP_input/SIS2_relax'
@@ -188,6 +201,9 @@ for MMA in range(MMS,MME+1):
       CInep = ds['siconc'].isel(time=imo).data.squeeze()
 
     CInep[HH>=-0.1]=np.nan
+    if lon_offsetW is not None and lon_offsetE is not None:
+      CInep = np.where(hlon < lon_offsetW, np.nan, CInep)
+      CInep = np.where(hlon > lon_offsetE, np.nan, CInep)
     CInep = region_lim(CInep, regn)
 
 
@@ -220,6 +236,9 @@ for MMA in range(MMS,MME+1):
         #HIpms,_ = msisrlx.read_relax_piomas(dnmb0, pthrlx, 'ithkn')
 
       CIpms[HH>=-0.1]=np.nan
+      if lon_offsetW is not None and lon_offsetE is not None:
+        CIpms = np.where(hlon < lon_offsetW, np.nan, CIpms)
+        CIpms = np.where(hlon > lon_offsetE, np.nan, CIpms)
       CIpms = region_lim(CIpms, regn)
 
       if regn == 'NEP':
@@ -251,6 +270,16 @@ f_check = False
 if f_check:
   plt.ion()
   fig1 = plt.figure(1,figsize=(9,8))
+  plt.clf()
+  ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
+  ax1.contour(hlon, hlat, HH, [0], colors=[(0,0,0)])
+  ax1.axis('scaled')
+  ax1.set_ylim([50, 80])
+  ax1.set_xlim([157, 235])
+  ax1.plot(XCnep,YCnep,'.')
+  ax1.plot(XCpms,YCpms,'.')
+
+
   plt.clf()
   ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
   img = ax1.pcolormesh(CInep, cmap=clrmp, vmin=rmin, vmax=rmax)
@@ -289,12 +318,14 @@ if f_check:
 
 
 # Plot MHD:
-CLR = [[0.,0.4,0.9],
-         [0.9,0.5,0],
-         [0.,0.9,0.7],
-         [1.,0.9,0],
-         [0.8,0.,0.5],
-         [0.7, 1, 0.2]]
+#CLR = [[0.,0.4,0.9],
+#         [0.9,0.5,0],
+#         [0.,0.9,0.7],
+#         [1.,0.9,0],
+#         [0.8,0.,0.5],
+#         [0.7, 1, 0.2]]
+
+ECOLR = msisrlx.irlx_tests_colors()
 
 TMyr = [x for x in range(1,13)]
 
@@ -303,12 +334,23 @@ fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
 ax1 = plt.axes([0.1, 0.5, 0.8, 0.4])
 hndls = []
-for kk in range(nexpts):
-  expt_nmb = EXPTS[kk]
+lnw0 = 2
+for kk in range(Nexpts):
+  expt_nmb = ENMBS[kk]
   mhd_exp = MHD[:,kk]
-  rlxt = RLXH[kk]
-  clr = CLR[kk]
-  ln1, = ax1.plot(TMyr,mhd_exp, '-', linewidth=2, color=clr, label=f'expt {expt_nmb:02d} {rlxt:03d}hrs')
+  expt_name = msisrlx.irlx_tests_name(expt_nmb, regn)
+
+  if expt_nmb == 1:
+    # Control run
+    marker = 'o'
+    mksz = 4
+  else:
+    marker = None
+    mksz = None
+
+  clr = ECOLR[kk]
+  ln1, = ax1.plot(TMyr, mhd_exp, 
+         linestyle='-', linewidth=lnw0, marker=marker, markersize=mksz, color=clr, label=expt_name)
   hndls.append(ln1)
 
 

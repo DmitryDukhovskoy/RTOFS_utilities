@@ -48,27 +48,35 @@ import mod_utils_ob as mutob
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
+#default values:
+nexp0 = 1
+regn  = 'NEP'
+fday  = 0    # =0 - monthly data, >0 - plot daily, day=fday
+imnth = 1    # =1 interp monthly PIOMAS rlx filds to daily for accuracy
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--yr", help="year to plot, default NEP=2001, ARC=1993", type=int)
-parser.add_argument("--regn", help="Model domain: NEP or ARC, default = NEP", type=str)
+parser.add_argument("--regn", help=f"Model domain: NEP or ARC, default = {regn}", type=str)
 parser.add_argument("--moS", help="month to plot: 1,..., 12 or to start averaging", type=int, required=True)
 parser.add_argument("--moE", help="month to end averaging, default = moS", type=int)
-parser.add_argument("--fday", help=">0: use daily outp day 15, =0: monthly (default)", type=int)
-parser.add_argument("--imnth", help=">0: interp PIOMAS rlx filds to daily for accuracy (default)", \
+parser.add_argument("--fday", help=f">0: use daily outp day=fday, =0: monthly default={fday}", type=int)
+parser.add_argument("--imnth", help=f">0: interp PIOMAS rlx filds to daily for accuracy, default {imnth}", \
                    type=int)
-parser.add_argument("--varnm", help="field to plot: ithkn or iconc", type=str)
-parser.add_argument("--trun", help="1st test run to compare: 2,3,4,5", type=int, required=True)
+parser.add_argument("--varnm", help="field to plot: ithkn or iconc", type=str, required=True)
+parser.add_argument("--nexp0", help=f"reference test nmb, default={nexp0}", type=int)
+parser.add_argument("--nexp", help="test run nmb to compare: 2,3,4,5,32,...", type=int, required=True)
 args = parser.parse_args()
 
 # experiment: year start, month start, ...
 # change dayrun to plot desired date output - # of days since start date
 # in daily-mean output fields: date is in the middle of the averaging period
-varnm  = args.varnm if args.varnm else "iconc"
+varnm  = args.varnm if args.varnm else None
 yr_plt = args.yr if args.yr else None
 moS    = args.moS if args.moS else None
 moE    = args.moE if args.moE else moS
-regn_name = args.regn if args.regn else "NEP"
-expt1  = args.trun if args.trun else None
+regn_name = args.regn if args.regn else regn
+nexpC  = args.nexp if args.nexp is not None else nexp0
+nexpT  = args.nexp if args.nexp is not None else None
 use_mnth = not (args.fday and args.fday > 0)
 intrpm = args.imnth if args.imnth is not None else 1
 intrpm = intrpm if intrpm >= 0 else 1
@@ -92,13 +100,14 @@ if interp_mnthly:
 mstart = 1  # current test runs all started on Jan 1, 2001
 
 # relax hours:
+# assumed experiment numbering is x1 - no relaxation, x2 - 1hr run, x3 - 24hr, etc:
 RLXH = [0,1,24,120,360]
 
 if regn_name == 'NEP':
-  pthtest = f'/archive/Dmitry.Dukhovskoy/fre/NEP/test_ice_relax/NEPphys_expt{expt1:02d}/{yr_plt}-{mstart:02d}'
+  pthtest = f'/archive/Dmitry.Dukhovskoy/fre/NEP/test_ice_relax/NEPphys_expt{nexpC:02d}/{yr_plt}-{mstart:02d}'
   pthrlx  = '/work/Dmitry.Dukhovskoy/NEP_input/SIS2_relax' 
 elif regn_name == 'ARC':
-  pthtest = f'/archive/Dmitry.Dukhovskoy/fre/ARC12/test_ice_relax/ARCphys_expt{expt1:02d}/{yr_plt}-{mstart:02d}'
+  pthtest = f'/archive/Dmitry.Dukhovskoy/fre/ARC12/test_ice_relax/ARCphys_expt{nexpT:02d}/{yr_plt}-{mstart:02d}'
   pthrlx  = '/work/Dmitry.Dukhovskoy/ARC12/irlx'
   
 f_rlxfld2 = True
@@ -107,9 +116,9 @@ flnm_out = 'ice_month.nc'
 prfx = ''
 
 if use_mnth:
-  print(f"Difference {varnm} Test {expt1:02d} using monthly ice_month MM={moS}:{moE}")
+  print(f"Difference {varnm} Test {nexpT:02d} using monthly ice_month MM={moS}:{moE}")
 else:
-  print(f"Difference {varnm} Test {expt1:02d} using day 15 from ice_daily MM={moS}:{moE}")
+  print(f"Difference {varnm} Test {nexpT:02d} using day 15 from ice_daily MM={moS}:{moE}")
 
 
 def read_sis2_testrun(dnmb0, pthtest, prfx, varnm, use_mnth):
@@ -260,6 +269,7 @@ dI = A1-A2
 # Plot ice fields
 #
 # -------------------
+print(" Plotting ...")
 clrmp_dlt = mclrmps.colormap_ssh(cpos='YlOrRd', cneg='PuBu_r')
 clrmp_dlt.set_bad(color=[0.2,0.2,0.2])
 if varnm == 'iconc':
@@ -277,16 +287,13 @@ elif varnm == 'ithkn':
   dmin = -1.5
   dmax = 1.5
 
-if expt1 < 10:
-  rlx_time = RLXH[expt1-1]
-else:
-  rindx = expt1 // 10
-  rlx_time = RLXH[rindx-1]
+rindx = int(nexpT % 10)
+rlx_time = RLXH[rindx-1]
 
 if moE == moS:
-  sttl = f"Rlx={rlx_time} hrs, Diff {varnm} test{expt1:02d}-PIOMAS_rlx avrg: {yr_plt}/{mo_plt:02d}"
+  sttl = f"Rlx={rlx_time} hrs, Diff {varnm} test{nexpT:02d}-PIOMAS_rlx avrg: {yr_plt}/{mo_plt:02d}"
 else:
-  sttl = f"Rlx={rlx_time} hrs, Diff {varnm} test{expt1:02d}-PIOMAS_rlx avrg: {yr_plt} {moS:02d}-{moE:02d}"
+  sttl = f"Rlx={rlx_time} hrs, Diff {varnm} test{nexpT:02d}-PIOMAS_rlx avrg: {yr_plt} {moS:02d}-{moE:02d}"
 
 
 # Stereographic Map projection:

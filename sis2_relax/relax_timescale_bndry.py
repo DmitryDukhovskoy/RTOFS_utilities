@@ -3,10 +3,14 @@
   Time scale can vary spatially allowing different relaxation
   rates for different parts of the domain
 
+  Create relaxation along the boundary only
+
   Relaxation field is created using complex transformation/mapping technique
+
+  Apply fast exp decay over the Bering Sea
+  used in the forecast simulations
  
 """
-import datetime as dt
 import numpy as np
 from pathlib import Path
 import xarray
@@ -34,14 +38,6 @@ import mod_colormaps as mclrmps
 import mod_misc1 as mmisc
 from mod_utils_fig import bottom_text
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--rlxmax", help="Max relaxation time scale, hours", type=int, required=True)
-parser.add_argument("--fsave", help=">0: Save relax field, =0: do not save, default=Save", type=int)
-parser.add_argument("--ptransf", help=">0: Plot domain transformation, =0: do not plot, default=Plot", type=int)
-parser.add_argument("--prlx", help=">0: Plot rlx field, =0: do not plot, default=Plot", type=int)
-args = parser.parse_args()
-
-
 # Select max and min relaxation time scales, hrs
 # max relaxation - strongest, typically along the OBs
 # min relaxation - somewhere in the domain where sea ice presents
@@ -49,37 +45,27 @@ args = parser.parse_args()
 # rx_min, ry_min - approximate # of i, j pnts from the ice OBs
 #                  i.e., from i=imax to Ber. Str. (342-200)
 # relaxation time scales will be going to 0 away from the ice OBs
+parser = argparse.ArgumentParser()
+parser.add_argument("--rlxmax", help="Max relaxation time scale, hours", type=int, required=True)
+parser.add_argument("--fcheck", help="flag > 0 to plot/check created relax field, default: =1", type=int)
+parser.add_argument("--ftr", help="flag > 0 plot transf. steps, default: =0", type=int)
+parser.add_argument("--fsave", help="flag > 0 to save the output, default: =1 - save ON", type=int)
+args = parser.parse_args()
 
 rate_max_hrs = args.rlxmax if args.rlxmax else None
-if args.fsave == 0:
-  f_save = False
-else:
-  f_save = True
+check_rlx    = args.fcheck is None or args.fcheck > 0  # Plot rlx fld: True if missing or fsave > 0
+check_ref_domain = args.ftr is not None and args.ftr > 0  # Plot trasf. steps: True if missing or =0 
+f_save       = args.fsave is None or args.fsave > 0  # True if missing or fsave > 0
 
-if args.ptransf == 0:
-  check_ref_domain = False
-else:
-  check_ref_domain = True
-
-if args.prlx == 0:
-  check_rlx = False
-else:
-  check_rlx = True
-
-
-#rate_max_hrs  = 24.                     # max relaxation time, hrs
+rate_max_min  = rate_max_hrs*60         # -"-  -"- , minutes
 Irate_max_sec = 1./(rate_max_hrs*3600.)  # relaxation rate, s-1
-
-#f_save    = False         # Save netcdf relax file
-#check_rlx = True         # Plot relaxation field
-#check_ref_domain = True  # Plot transformations of the reference domain
 
 rlx_name = 'relax_rate' # name of the variable, should be the same in the SIS_input
 
-btx  = 'relax_timescale.py'
+btx  = 'relax_timescale_bndry.py'
 
 if not f_save:
-  print(f'\nWARNING: relaxation field is not saved, f_save: {f_save}\n')
+  print(f'\n === WARNING: relaxation field is not saved, f_save: {f_save} ===\n')
 
 fyaml = 'pypaths_gfdlpub.yaml'
 with open(fyaml) as ff:
@@ -123,7 +109,7 @@ jdmD = len(Y)
 # Define a reference rectangular domain with relaxation decaying from the left bndry to the right
 # Decrease the width of the region of strong relaxation along the N. bndry going south
 # and increase the width along the E. bndry going south to have >0 relax over Eastern Bering shelf
-irmax = 90    # where to begin exponential decay of the relaxation
+irmax = 10    # where to begin exponential decay of the relaxation
 ieN = 135     # start pnt (in domain D indices) where the width of max rlx starts changing
 isN = 10 
 irmaxN = 1    # width of max rlx at the S. end of N. boundary
@@ -133,7 +119,7 @@ irmaxE = 120
 
 # Adjust exponential decay of the relaxation off the Y=0 axis:
 f_adj = False
-sgmx = idm/4  # controls exponential decay in the Gaussian, decrease the denom. to slow the decay
+sgmx = idm/25.  # controls exponential decay of the Gaussian, decrease the denom. to slow the decay
 RLX = np.zeros((jdmD, idmD))
 for jj in range(jdmD):
   irmax0 = irmax
@@ -152,8 +138,8 @@ for jj in range(jdmD):
 
 # Perform 1st mapping using z**rexp
 # Use the fact that mapped domain is symmetric wrt real axis X
-rdnm = 1.4
-rexp = 1/rdnm
+rdnm = 2.   # controls the bend of the region, higher value - stronger band
+rexp = 1./rdnm
 RMAP1 = np.zeros((jdmD, idmD))*np.nan
 RMAP2 = RMAP1.copy()*np.nan
 jD0 = np.argmin(np.abs(Y))
@@ -214,18 +200,30 @@ isD = idm-idmA
 jsD = jdm-jdmA
 RLXIS = np.zeros((jdm,idm))
 RLXIS[jsD:,isD:] = AA    # relaxation rate, s-1
-# No relaxation in the Gulf of Alaska:
-RLXIS[:575,170:] = 0.0
 
+# Make very weak rlx = 0
+# 3.2e-8 - 1yr rlx time scale
+rlx0 = 1.e-9
+RLXIS = np.where(RLXIS < rlx0, 0., RLXIS)
 
 # Add land mask and southern domains = 0
 lat_cut = 53.
 RLXIS = np.where(HH>=0, 0.0, RLXIS)
 RLXIS = np.where(hlat<lat_cut, 0.0, RLXIS)
 
+# Make 0 relaxation in the SWest Bering Sea:
+RLXIS[:,:108] = 0.0
+
 # No relaxation in the G. Alaska:
+RLXIS[:575,170:] = 0.0
 RLXIS[:574,140:] = 0.0
 RLXIS[:580,90:141] = 0.0
+RLXIS[:600,:86] = 0.0
+RLXIS[:594,:95] = 0.0
+RLXIS[:593,:96] = 0.0
+RLXIS[:592,:102] = 0.0
+RLXIS[:589,:111] = 0.0
+RLXIS[:583,:118] = 0.0
 
 # For checking, relaxation time, hrs:
 RLXHR = RLXIS.copy()
@@ -248,7 +246,10 @@ ds_rlx.attrs["history"] = f"Created {cwd}/{btx}"
 
 if f_save:
   encoding = {rlx_name: {'_FillValue': None}}
-  flout = f'relax_rate_{int(rate_max_hrs):03d}hrs.nc'
+  if rate_max_hrs >= 1:
+    flout = f'relax_rate_{int(rate_max_hrs):03d}hrs_bndry.nc'
+  else:
+    flout = f'relax_rate_{int(rate_max_min):03d}min_bndry.nc' 
   pthsis = gridfls['MOM6_NEP'][run_name]['pthsis']
   dflout = os.path.join(pthsis, flout)
 
@@ -261,10 +262,10 @@ if f_save:
   )
 
 
+plt.ion()
 if check_rlx:
-  plt.ion()
 
-  #clrmp = mclrmps.colormap_temp2()
+  clrmp = mclrmps.colormap_temp2()
   clrmp = mclrmps.colormap_conc() 
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
   cff = 1.e5
@@ -300,10 +301,9 @@ if check_rlx:
 #  img = ax0.pcolormesh(RLXHR, cmap=clrmp)
   tscntrs = np.array([1,2,10,100,1000]) * rate_max_hrs
 
-
   tslabels = tscntrs
-  CS = ax0.contour(xR,yR,RLXHR,tscntrs, linestyles='solid', linewidths=1, colors=[(0., 0., 0.)])
-  ax0.clabel(CS, tslabels,inline=1, fontsize=10)
+  #CS = ax0.contour(xR,yR,RLXHR,tscntrs, linestyles='solid', linewidths=1, colors=[(0., 0., 0.)])
+  #ax0.clabel(CS, tslabels,inline=1, fontsize=10)
 
   ax0.set_title(f'Relaxation rate (s-1), contours: hrs, strongest rlx {rate_max_hrs:.1f} hrs')
 
@@ -356,22 +356,30 @@ if check_ref_domain:
   ax22 = axes_refdom(ax22,X,Y)
   ax22.set_title(f'Mapping 1: f(z)=z^(1/{rdnm})')
 
-  ax23 = plt.axes([0.05, 0.05, 0.4, 0.4])
+  ax23 = plt.axes([0.05, 0.14, 0.4, 0.4])
   ax23.pcolormesh(XR,YR,RMAP2, cmap=clrmp)
   ax23 = axes_refdom(ax23,X,YR)
   ax23.set_title('Mapping2: f(z)=z*exp(tht)')
 
-  ax24 = plt.axes([0.55, 0.05, 0.02, 0.4])
-  clb = plt.colorbar(img, cax=ax24, orientation='vertical', extend='both')
-  #ax22.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
-  #ax22.set_yticklabels(ax22.get_yticks())
-  ticklabs = clb.ax.get_yticklabels()
-  #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
-  #clb.ax.set_yticklabels(["{:.1f}".format(i) for i in clb.get_ticks()], fontsize=10)
-  clb.ax.tick_params(direction='in', length=12)
+  ax24 = plt.axes([0.1, 0.05, 0.8, 0.016])
+  clb = plt.colorbar(img, cax=ax24, orientation='horizontal', extend='max')
+  #ax24.xaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
+  #ax24.set_xticklabels(ax24.get_xticks())
+  #ticklabs = clb.ax.get_xticklabels()
+  #clb.ax.set_xticklabels(ticklabs,fontsize=10)
+  #clb.ax.set_xticklabels(["{:.1f}".format(i) for i in clb.get_ticks()], fontsize=10)
+  clb.ax.tick_params(direction='in', length=10)
   ax24.set_title('Relaxation rate, s-1') 
+
+  ax25 = plt.axes([0.58, 0.2, 0.4, 0.25])
+  ax25.plot(RLXIS[:,-100])
+  mm,nn = RLXIS.shape
+  ax25.set_xlim([mm-40, mm])
+  ax25.grid('on')
+  ax25.set_xlabel('Y axis indices')
+  ax25.set_ylabel('Relaxation rate, s-1')
+  ax25.set_title(f'Strongest rlx {rate_max_hrs:.1f} hrs')
  
-  btx = 'relax_timescale.py'
   bottom_text(btx, pos=[0.2, 0.01])
 
 

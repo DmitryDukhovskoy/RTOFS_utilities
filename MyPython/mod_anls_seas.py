@@ -1712,6 +1712,67 @@ def colormap_params(regn_name, varnm, zz0=-1.):
         tscntrs = [x/10 for x in range(0,50,5)]
         tslabels = [x/10 for x in range(0,50,5)]
 
+    case 'ArcticOcean':
+      if varnm == 'salin' or varnm == 'salt' or varnm == 'so':
+        if zz0 >= -25.:
+          rmin = 28.
+          rmax = 33.
+          tscntrs = [x/10 for x in range(240,354,5)]
+          tslabels = [x/10 for x in range(240,350,10)]
+        elif zz0 < -25. and zz0 >= -100:
+          rmin = 31
+          rmax = 33.5
+          tscntrs = [x/10 for x in range(290,350,5)]
+          tslabels = [x/10 for x in range(290,350,10)]
+        elif zz0 < -100. and zz0 >= -150:
+          rmin = 32.0
+          rmax = 33.5
+          tscntrs = [x/10 for x in range(320,360,2)]
+          tslabels = [x/10 for x in range(320,360,2)]
+        elif zz0 < -150. and zz0 >= -500:
+          rmin = 33.4
+          rmax = 35.0
+          tscntrs = [x/10 for x in range(320,360,2)]
+          tslabels = [x/10 for x in range(320,360,2)]
+        else: 
+          rmin = 33.0
+          rmax = 35.0
+          tscntrs = [x/10 for x in range(320,360,2)]
+          tslabels = [x/10 for x in range(320,360,2)]
+
+      if varnm == 'temp' or varnm == 'potT' or varnm == 'thetao':
+        if zz0 >= -25.:
+          rmin = -1.8
+          rmax = 10.
+          tscntrs = [x for x in range(-2,10,1)]
+          tslabels = [x for x in range(-2,10,1)]
+        elif zz0 < -25. and zz0>= -51.:
+          rmin = -1.8
+          rmax = 4.
+          tscntrs = [x for x in range(-2,20,1)]
+          tslabels = [x for x in range(-2,20,2)]
+        elif zz0 < -51. and zz0 >= -150:
+          rmin = -1.8
+          rmax = 4.
+          tscntrs = [x for x in range(5,24,1)]
+          tslabels = [x for x in range(5,24,1)]
+        elif zz0 < -150. and zz0 >= -250:
+          rmin = -1.8
+          rmax = 3.0
+          tscntrs = [x for x in range(-2,10,1)]
+          tslabels = [x for x in range(-2,10,2)]
+        elif zz0 < -250. and zz0 >= -500:
+          rmin = -1.8
+          rmax = 3.0
+          tscntrs = [x for x in range(10,24,1)]
+          tslabels = [x for x in range(10,24,1)]
+        else: 
+          rmin = -1.8
+          rmax = 3.0
+          tscntrs = [x/10 for x in range(20,140,5)]
+          tslabels = [x/10 for x in range(20,140,20)]
+
+
   return rmin, rmax, tscntrs, tslabels
 
 

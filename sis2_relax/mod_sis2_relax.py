@@ -30,7 +30,7 @@ from mod_utils_fig import bottom_text
 def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LONs, LATs, hlon, hlat, \
                 eps_err=1.e-2, land_mask=False):
   """
-    Interpolate A2d (2D field) from PIOMAS onto MOM6 grid
+    Interpolate A2d (2D field) from a reference grid (e.g. PIOMAS)  onto target (e.g. MOM6) grid
     IMOM, JMOM - MOM6 indices where fields need to be interpolated
     INDX, JNDX - n x 4 arrays of PIOMAS grid points (gmapi) for bilinear interpolation
     LMsk - land/ocean mask of MOM6 grid
@@ -1318,6 +1318,76 @@ def mask_NEP10k_BerArc(HH,hlat):
   AMsk[:,:192] = 0
 
   return BMsk, AMsk
+
+def irlx_tests_info(enmb):
+  """
+    Ice relaxation experiments 
+    short information string
+  """
+  EXPTS = {
+    "01" : "control",
+    "02" : "1hr rlx domain",
+    "03" : "24hr rlx domain",
+    "04" : "120hr rlx domain",
+    "05" : "360hr rlx domain",
+    "32" : "1hr rlx bndry",
+    "33" : "24hr rlx bndry",
+    "34" : "120hr rlx bndry",
+    "35" : "360hr rlx bndry",
+   }
+
+  key = f"{enmb:02d}"
+  sinfo = EXPTS.get(key)
+
+  return sinfo
+
+def irlx_tests_name(enmb, regn):
+  """
+    Ice relaxation experiment names 
+    regn = NEP or ARC
+    assumed experiments numbering is 0[1,2,3,4,5], 1[1,2,3,4,5], ...
+    where 1st is control run with no rlx
+  """
+  RLXH = [0,1,24,120,360]  # rlx hours in expts
+  ihr = int(enmb % 10) - 1
+  rlx_hr = RLXH[ihr]
+  if enmb == 1:
+    expt_name = f"IRLX0_{regn}"  # control
+  elif 1 < enmb < 10:
+    expt_name = f"IRLX{rlx_hr:03d}_{regn}"
+  elif 30 < enmb < 40:
+    expt_name = f"IBND{rlx_hr:03d}_{regn}"
+  else:
+    raise Exception(f"experiment number {enmb} not recognized for irlx runs")
+
+  return expt_name
+
+def irlx_tests_colors():
+  # Line colors:
+  CLRS      = np.array([
+      [0.00, 0.45, 0.70],  # blue
+      [0.90, 0.17, 0.31],  # red
+      [0.10, 0.80, 0.60],  # aqua green
+      [0.90, 0.60, 0.00],  # orange
+      [0.95, 0.90, 0.25],  # yellow
+      [0.55, 0.20, 0.60],  # plum purple
+      [0.80, 0.47, 0.65],  # pink/violet
+      [0.70, 0.30, 0.00],  # brown
+      [0.20, 0.70, 0.30],  # jade green
+      [0.35, 0.70, 0.90],  # light blue
+      [0.00, 0.62, 0.38],  # green
+      [0.55, 0.63, 0.79],  # steel blue
+      [0.40, 0.60, 0.00],  # olive green
+      [0.70, 0.00, 0.30],  # wine red
+      [0.00, 0.55, 0.75],  # teal
+      [0.75, 0.75, 0.75],  # light gray
+      [0.30, 0.30, 0.30],  # dark gray
+      [0.80, 0.55, 0.35],  # tan
+      [0.50, 0.39, 0.64],  # purple
+      [0.25, 0.25, 0.55]   # deep indigo
+  ])
+  return CLRS
+
 
 
 
