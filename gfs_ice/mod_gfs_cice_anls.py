@@ -12,19 +12,24 @@ def sens_tests_info(enmb):
   """
     Sensitivity experiments with datm UFS 
     ai - ice conc, hi - ice thickn, hs - snow thickn
+    qi - ice enthalpy adjusted in 1st layer to match surf T / or snow T 
+    thermo - adjusted ice conudct --> bubbly and dSdt_slow_mode S relax in ice
+    fbrd - adjust snow-ice freeboard to keep snow-ice intrf >= sea level
+    ITDrdg - snow distribution, snow phys on
+    smtrphs - snow metamorphysm is on
   """
   EXPTS = {
     "01" : "control",
-    "02" : "3x snowf",
-    "03" : "10x snowf",
+    "02" : "ai+hi+hs+qi+fbrd+thermo",
+    "03" : "ai+hi+hs+qi+fbrd+thermo+ITDrdg",
     "04" : "hs",
-    "05" : "ai+3x snowf",
-    "06" : "ai+10x snowf",
+    "05" : "ai+hi+hs+qi+fbrd+thermo+ITDrdg+smtrphs",
+    "06" : "  ",
     "07" : "ai",
     "08" : "ai+hs",
     "09" : "ai+hi",
     "10" : "ai+hi+hs",
-    "11" : "ai+hi+hs+qice+freeb",
+    "11" : "ai+hi+hs+qi+fbrd",
    }
 
   key = f"{enmb:02d}"    

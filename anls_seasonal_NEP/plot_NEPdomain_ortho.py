@@ -41,6 +41,22 @@ MOS   = 4
 nens  = 2
 expt  = f'NEPphys_frcst_climOB_{YRS}-{MOS:02d}-e{nens:02d}'
 
+syst_info = os.uname() 
+machine = syst_info.nodename
+  
+if 'dtn' in machine:
+  print("Running on DTN node:", machine)
+  node_nm = "dtn"
+elif 'gaea' in machine:
+  print("Running on Gaea compute node:", machine)
+  node_nm = "gaea" 
+elif 'an' in machine:
+  print("Running on GFDL PPAN compute node:", machine)
+  node_nm = "ppan"  
+else:
+  print("Unknown machine:", machine)
+
+
 fyaml = 'paths_seasfcst.yaml'
 with open(fyaml) as ff:
   pthseas = safe_load(ff)
@@ -57,7 +73,6 @@ fgrid        = gridfls["GOFS3.1"]["93.0"]["fgrid"]
 LONG, LATG, HHG = mhycom.read_grid_topo(pthgrid,ftopo,fgrid)
 
 
-pthfcst    = pthseas['MOM6_NEP']['seasonal_fcst']['pthoutp'].format(runname=expt)
 pthtopo    = gridfls['MOM6_NEP']['seasonal_fcst']['pthgrid']
 fgrid      = gridfls['MOM6_NEP']['seasonal_fcst']['fgrid']
 ftopo_mom  = gridfls["MOM6_NEP"]["seasonal_fcst"]["ftopo"]
@@ -127,7 +142,7 @@ import mod_colormaps as mclrmp
 clrmp_name = 'winter'
 clr_ramp   = [1, 1, 1]   # add white color at the end of the colormap
 clrmp = mclrmp.addendclr_colormap(clrmp_name, clr_ramp, nramp=0.1, ramp_start=False)
-clrmp.set_bad(color=[0.5, 0.5, 0.5])
+clrmp.set_bad(color=[0.0, 0., 0.])
 rmin = -7000.
 rmax = 0.
 

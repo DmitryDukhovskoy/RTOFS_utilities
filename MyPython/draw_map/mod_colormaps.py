@@ -125,66 +125,6 @@ def clrmp_Nvalues(Ncat,Ncmp):
   CMP = create_colormap(CLR, Ncmp)
   return CMP
 
-def create_colormap_old(CLR, Ncmp, cmp_obj=True):
-  """
-   Mix main colors in CLR adding shadings
-   Transitioning from CLR(i) to CLR(i+1)
-   Ncmp - total # of colors in the colormap
-   In most cases Ncmp > length(CLR)
-   otherwsie CLR is returned with no changes
-   cmp_obj - True ==> returns as colormap object
-             False --> returns as RGB array
-  """
-  from matplotlib.colors import ListedColormap, LinearSegmentedColormap
-
-  if isinstance(CLR, list):
-    CLR = np.array(CLR)
-
-  nClr = CLR.shape[0]
-
-# If number of shades is less or eq. the # of Main colors 
-# use the Colors and no shades
-  if Ncmp <= nClr:
-    print('create_colormap:')
-    print('Specified N of colors {0} </= N of Main Colors {1}'.format(Ncmp,nClr))
-    print(' Adjust to Ncmp clrs to {0}'.format(nClr))
-    print(' Colormap not changed')
-    vals = CLR
-    CMP = ListedColormap(vals)
-    return CMP
-
-#
-# Define # of colors for each color shade
-# Then linearly interpolate btw the colors
-  nInt = nClr-1
-  newCLR = np.empty((0,4))
-  for ii in range(nInt):
-    clr1 = CLR[ii,:]
-    clr2 = CLR[ii+1,:]
-# Last interval - no extra shade
-    if ii < nInt-1:
-      nShades = int(np.round(Ncmp/nInt))+1
-    else:
-      nShades = int(np.round(Ncmp/nInt))
-    vals = np.ones((nShades,4))
-    for jj in range(3):
-      vals[:,jj] = np.linspace(clr1[jj],clr2[jj],nShades)
-
-# Delet last row - same as the next color
-    nv = vals.shape[0]
-    if ii < nInt-1:
-      vals = vals[0:nv-1]
-    newCLR = np.append(newCLR,vals, axis=0)
-
-  if cmp_obj:
-    CMP = ListedColormap(newCLR)
-  else:
-    CMP = np.array(newCLR)
-# breakpoint()
-
-  return CMP
-
-
 def create_colormap(CLR, Ncmp, cmp_obj=True, add_alpha=False):
   """
     Mix main colors in CLR by linear interpolation to create a smoother colormap.
@@ -924,6 +864,88 @@ def colormap_salin(nclrs=200, clr_ramp=[1,1,1]):
   newcmp  = ListedColormap(newclrs)
 
   return newcmp
+
+def positive_negative(nclrs=200, cname='tgv', cmp_obj=True, neutr=None):
+  """
+    Several diverging colormaps 
+    for showing positive-negative values
+    neutr    : specifies neutral color other than default
+    
+    Colormaps:
+    tgv      :  teal - grey - violet
+    gwm      : green - white - purple (colorblind safe), similar to tgv
+    bwb      : brown - white - blue
+    gyp      : green - yellow - purple
+    cbo      : cayn - black - orange (maximum contrast)
+    bwo      : navy - white - orange
+    tbbo     : Teal–Blue - Light - Burnt Orange
+
+    cmp_obj  : True --> return ListedColormap, False --> return RGB array    
+  """
+  match cname:
+    case 'tgv':
+      clr_btm = [[  0, 100,  95],
+                 [ 80, 160, 150]]
+      clr_mid =  [230, 230, 230]
+      clr_top = [[150, 110, 170],
+                 [ 90,  60, 120]]
+    case 'gwm':
+      clr_btm = [[  0, 120,  60],
+                 [120, 200, 140]]
+      clr_mid =  [255, 255, 255]
+      clr_top = [[200, 120, 200],
+                 [130,  40, 130]]
+    case 'bwb':
+      clr_btm = [[120,  70,  40],
+                 [200, 150, 110]]
+      clr_mid = [245, 245, 245]
+      clr_top = [[120, 160, 210],
+                   [ 40,  80, 160]]
+    case 'gyp':
+      clr_btm = [[  0, 100,  40],
+                 [120, 180,  90]]
+      clr_mid = [255, 245, 200]
+      clr_top = [[170, 120, 200],
+                 [100,  50, 150]]
+    case 'cbo':
+      clr_btm = [[230, 150,  60],
+                 [180,  80,   0]]
+      clr_mid = [ 30,  30,  30]
+      clr_top = [[  0, 180, 180],
+                 [100, 230, 230]]
+    case 'bwo':
+      clr_btm = [[200,  90,  30],
+                 [240, 180, 120]]
+      clr_mid = [245, 245, 245]
+      clr_top = [[ 80, 120, 190],
+                 [ 20,  40, 120]]
+    case 'tbbo':
+      clr_btm = [[210, 110,  40],
+                 [250, 190, 120]]
+      clr_mid = [250, 250, 250]
+      clr_top = [[ 80, 150, 210],
+                 [  0,  90, 150]]
+    case _:
+      raise ValueError(f"unrecognized colormap option {cname}")
+
+  
+  if neutr is not None:
+    clr_mid = neutr
+
+  n_half = nclrs // 2
+  # Interpolate bottom and top halves
+  clr1 = create_colormap(clr_btm + [clr_mid], n_half + 1, cmp_obj=False)
+  clr2 = create_colormap([clr_mid] + clr_top, n_half + 1, cmp_obj=False)
+
+  # Remove duplicated middle color
+  CLR = np.vstack([clr1[:-1], clr_mid, clr2[1:]])
+  CLR = np.flipud(CLR)
+
+  # Normalize to [0,1]
+  CLR = CLR / 255.0
+
+  return ListedColormap(CLR) if cmp_obj else CLR
+
 
 def colormap_temp(nclrs=200, clr_ramp=[1,1,1], add_btm=True):
   """

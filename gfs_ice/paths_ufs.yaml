@@ -14,6 +14,12 @@ gaea:
     pthrun:  '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS'
     pthrest: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields' 
 
+  "GFS":
+    pthgrid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
+    pthcomroot: '/gpfs/f6/gfs-cpu/world-shared/role.glopara/RETRO_GFSv17/failureinfo/stream4/202507140600_gfs_fcst/comroot'
+    subdir_ice: 'gfs.{YR}{MM:02d}{DD:02d}/{hr:02d}/model/ice/history'
+    subdir_ocean: 'gfs.{YR}{MM:02d}{DD:02d}/{hr:02d}/model/ocean/history'
+
 dtn:
   "MOM6":
     pthgrid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'

@@ -46,7 +46,8 @@ expt = 'ufs_datm_mx025_v02'
 init_date = 20250103
 init_hr = 0
 regn = 'south'
-fld_avrg = "ice"  # use hsnow over ice area, i.e. hsn = vsn / aice = m3 / m2_ice
+fld_avrg = "ice"  # SSM/I hsnow over ice area, i.e. m3 / m2_ice
+fdaily = 1        # compare with daily (1) or monthly (0) SSM/I climatology
 
 # hs_h - grid cell mean (!) snow thickness, m
 # snow_ai - snowfall rate cm/day (in liquid water equivalent !)
@@ -57,7 +58,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--enmb", help="expt nunmber: 1, ...", type=int, required=True)
 parser.add_argument("--init", help=f"init date, default={init_date}", type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
-parser.add_argument("--fday", help=f"forecast day to plot: 1,...,14, =0 - init. cond.", type=int, required=True)
+parser.add_argument("--fdaily", help=f"SSM/I climtology 1= daily, 0=mnth, default={fdaily}", type=int)
+parser.add_argument("--fday", help=f"forecast day to plot: 1,...,14, =0 - init. cond.", 
+                    type=int, required=True)
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
 parser.add_argument("--avrg", help=f"plot grid cell or ice area mean: cell or ice, default{fld_avrg}", type=str)
 args = parser.parse_args()
@@ -68,8 +71,10 @@ init_hr   = args.ihr if args.ihr else init_hr
 fday      = args.fday if args.fday is not None else None
 regn      = args.regn if args.regn else regn
 fld_avrg  = args.avrg if args.avrg else fld_avrg
+fdaily    = args.fdaily if args.fdaily is not None else fdaily
 
 TLON = TLAT = LMSK = None
+ssmi_daily = fdaily == 1   # compare with daily or monthly clim
 
 pthoutp = f"/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/ufs_datm_mx025/expt{enmb:02d}/cice6"
 
@@ -120,6 +125,9 @@ with xarray.open_dataset(dflice) as dcice:
   TLAT = dcice['TLAT'].data
   LMSK = dcice['tmask'].data
 
+# CICE6 hsnow_cell = m3/m2_cell = sum(vsnon(n)*aicen(n))
+# SSM/I hsnow_ssmi = m3/m2_ice, to compare:
+# hsnow_ice = hsnow_cell / aice=sum(aicen(n)) m3/m2_cell * m2_cell/m2_ice = m3/m2_ice
 if fld_avrg == 'ice':
   # Plot hsnow avrg over ice area:
   A2d = np.divide(A2d, Aice, out=np.zeros_like(A2d), where=Aice > 0)
@@ -128,24 +136,42 @@ A2d[LMSK==0] = np.nan
 # Read interpolated snow depths:
 # Snow depth climatology, Interpolated fields mesh025:
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-#pthsnow = os.path.join(pthdata,'snow_nasa','monthly_clim')
-#flhsn = 'SSMI_hsnow_mnthclim_1992_2007_mesh025_1440x1080_south.nc'
-pthsnow = os.path.join(pthdata,'snow_nasa','daily_clim')
-flhsn = f"SSMI_hsnow_mesh025_1440x1080_dailyclim_{MM:02d}_south.nc" 
+
+if ssmi_daily:
+  # Daily climatology:
+  pthsnow = os.path.join(pthdata,'snow_nasa','daily_clim')
+  flhsn = f"SSMI_hsnow_mesh025_1440x1080_dailyclim_{MM:02d}_south.nc" 
+  fld_freq = 'daily'
+else:
+  # For CICE6 restart used monthly hsnow:
+  pthsnow = os.path.join(pthdata,'snow_nasa','monthly_clim')
+  #flhsn = 'SSMI_hsnow_mnthclim_1992_2007_mesh025_1440x1080_south.nc'
+  flhsn = 'SSMI_hsnow_mnthclim_1998_2007_mesh025_1440x1080_south.nc'  # used this for creating restarts
+  fld_freq = 'monthly'
+
 dflhsn = os.path.join(pthsnow,flhsn)
 print(f"Reading interpolated hsnow {dflhsn}")
 with xarray.open_dataset(dflhsn) as ds_snow:
   units = ds_snow['snow_depth'].attrs.get('units')
   if units == 'm':
-    cff = 100.
+    cff = 100.     # m --> cm
   else:
     cff = 1.
-  HSi = cff * ds_snow['snow_depth'].isel(time=dd0-1).data.squeeze()
-  #HSi = cff * ds_snow['snow_depth'].isel(time=mm0-1).data.squeeze()
+  if ssmi_daily:
+    HSi = cff * ds_snow['snow_depth'].isel(time=dd0-1).data.squeeze()
+  else:
+    HSi = cff * ds_snow['snow_depth'].isel(time=mm0-1).data.squeeze()
+
   LON = ds_snow['lon'].data
   LAT = ds_snow['lat'].data
 
+# Note in CICE output snow depth is m3_snow/ m2_cell
+# Data: m3_snow / m2_ice
+#A2d_ice = np.divide(A2d, Aice, out=np.zeros_like(A2d), where=Aice != 0)
 dHS = A2d - HSi
+
+# Mask no ice:
+dHS = np.where(Aice < 1e-11, 0., dHS)
 
 units = 'cm'
 clrmp = mclrmps.colormap_uv()
@@ -155,14 +181,14 @@ clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
 
 if fld_avrg == 'cell':
-  sttl = f'diff hsnow m3/m2_cell, datmUFS expt{enmb:02d} vs SSM/I daily clim\n init:{init_date}/{init_hr} fcast:{YR}/{MM:02d}/{DD:02d}'
+  sttl = f'diff hsnow m3/m2_cell, datmUFS expt{enmb:02d} vs SSM/I {fld_freq} clim\n init:{init_date}/{init_hr} fcast:{YR}/{MM:02d}/{DD:02d}'
   sinfo = 'difference datmUFS-climatology grid cell mean snow thickness, 100*(m3 per m2 od grid cell)\n'
 else:
-  sttl = f'diff hsnow m3/m2_ice, datmUFS expt{enmb} vs SSM/I daily clim\n init:{init_date}/{init_hr} fcast:{YR}/{MM:02d}/{DD:02d}'
+  sttl = f'diff hsnow m3/m2_ice, datmUFS expt{enmb} vs SSM/I {fld_freq} clim\n init:{init_date}/{init_hr} fcast:{YR}/{MM:02d}/{DD:02d}'
   sinfo = 'difference datmUFS-climatology ice area mean snow thickness, 100*(m3 per m2 of ice)\n'
 if plot_init:
   sttl = sttl + ' INIT'
-sinfo = sinfo + pthoutp
+sinfo = sinfo + dflhsn + "\n" +  dflice 
 
 plt.ion()
 
@@ -190,6 +216,7 @@ meridians = np.arange(-360,359.,45.)
 m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
 
 img = ax1.pcolormesh(xh, yh, dHS, cmap=clrmp, vmin=rmin, vmax=rmax, shading='auto')
+ax1.contour(xh, yh, Aice, [0.15], linestyles='solid', colors=[(0.2,0.9,0.2)], linewidths=1)
 
 ax1.set_xlim([xl1, xl2])
 ax1.set_ylim([yl1, yl2])

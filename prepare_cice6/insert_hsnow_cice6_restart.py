@@ -247,8 +247,6 @@ for ipp in range(npnts):
   j0 = Jins[ipp]
   i0 = Iins[ipp]
 
-  # Note hsn_new = sum(vsn) / aice for aice > 0, m3/m2_ice ==> mean snow thickn over ice 
-  # for cat n: vsn(n) = hsnow(n) * aice(n) 
   ai  = aice[j0,i0]           # aggregated ice partial area 
   ain = aicen[:,j0,i0]        # partial areas by cats
   vin = vicen[:,j0,i0]        # ice volume per unit grid cell area by cats
@@ -266,12 +264,14 @@ for ipp in range(npnts):
   # ice conc should not change except for a few locaitons to adjust snow load across cats:
   ain_new = ain.copy()
   
+  # Note hsn_new = sum(vsn) / aice for aice > 0, m3/m2_ice ==> mean snow thickn over ice 
+  # sum(vsn) = vstot_new = HSi[j0,i0] * aice, obs. gridded data assume 100% iconc 
   # Distribute new snow depth evenly by cats in snow vol m3/m2:
   vstot_new = hsn_new * ai
   if hsn_new <= hs_min or ai < puny:
     vsn_new = vsn_new * 0.
   else:
-    # Distribute evenly across cats:
+    # Distribute across cats proportionally to iconc:
     wts = ain/ai
     vsn_new = vstot_new * wts
 
@@ -279,7 +279,7 @@ for ipp in range(npnts):
   # see icepack_therm_vertical.F90 in icepack
   #
   # snow enthalpy should be: qsn_min <= qsn <= qsn_max
-  # In theory, qsn_max = -rhos_Lfresh (latent heat of metling at 0C)
+  # In theory, qsn_max = -rhos*Lfresh (latent heat of metling at 0C)
   # Make it a little lower to keep snow from melting right away
   # In general, snow enth. = enth(Tsfcn) if Tsfcn <=0
   #hsn_new = vsn_new / ain
@@ -402,6 +402,8 @@ assert "vsnon" in ds_out and "qsno001" in ds_out, "Missing updated snow fields v
 assert ds_out["vsnon"].shape == vsnon_new.shape, "Check shape of vsnon "
 assert ds_out["qsno001"].shape == qsnon_new.shape, "Check shape of qsnon "
 
+#A = STOP
+
 # Check hice(n) as it is caclulated in icepack_therm_vertical.F90
 # hice(n) = vice(n) / aice(n) 
 print(' =========  ICE  =========')
@@ -463,6 +465,90 @@ dflrst_out = os.path.join(pthrest,flrst_out)
 print(f"Saving CICE restart --> {dflrst_out}")
 ds_out.to_netcdf(dflrst_out, encoding={var: {'_FillValue': None} for var in ds_out.data_vars}, format='NETCDF3_64BIT')
 ds_out.close()
+
+
+f_chck = False
+if f_chck:
+  plt.ion()
+
+  units = 'm'
+  clrmp = mclrmps.colormap_uv()
+  rmin = -0.5
+  rmax = 0.5
+  clrmp.set_bad(color=[0.2, 0.2, 0.2])
+
+  sttl = 'Restart vsno m3/m2_ice: diff restart vs SSMI' 
+
+  # m3(snow)/m2_ice
+  vsno_ice = np.nansum(vsnon_new, axis=0).squeeze()
+  # Aggregated ice partial area:
+  aice = np.sum(aicen_new, axis=0).squeeze()
+  vsno_cell = np.divide(vsno_ice, aice, out=np.zeros_like(aice), where=aice > 0)
+
+
+  # New ice snow thickness over sea ice:
+  if not units_m:
+    AAi = HSi * 0.01        # m of snow over sea ice
+  else:
+    AAi = HSi.copy()
+
+  dHS = vsno_cell - AAi
+ 
+  # S. Ocean:
+  m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
+  #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
+  #x, y = m(lons, lats) # compute map proj coordinates.
+  xh, yh = m(TLON,TLAT) # CICE6 coordinates
+
+  if regn == 'south':
+    xl1 = -8.e6
+    xl2 = -1.2e6
+    yl1 = xl1
+    yl2 = xl2
+
+  fig1 = plt.figure(1,figsize=(9,9))
+  plt.clf()
+  ax1 = plt.axes([0.08, 0.1, 0.8, 0.8])
+  m.drawcoastlines()
+
+  # draw parallels.
+  parallels = np.arange(-80,-10,10.)
+  m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
+  # draw meridians
+  meridians = np.arange(-360,359.,45.)
+  m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
+
+  img = ax1.pcolormesh(xh, yh, dHS, cmap=clrmp, vmin=rmin, vmax=rmax, shading='auto')
+  ax1.contour(xh, yh, Aice, [0.15], linestyles='solid', colors=[(0.2,0.9,0.2)], linewidths=1)
+
+  ax1.set_xlim([xl1, xl2])
+  ax1.set_ylim([yl1, yl2])
+  ax1.invert_yaxis()
+  ax1.invert_xaxis()
+
+  ax1.set_title(sttl)
+
+  ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,
+                     0.02, ax1.get_position().height])
+  if rmin < 0:
+    clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='both')
+  else:
+    clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='max')
+
+  ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
+  ax2.set_yticklabels(ax2.get_yticks())
+  ticklabs = clb.ax.get_yticklabels()
+  #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
+  clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+  clb.ax.tick_params(direction='in', length=12)
+
+  ax3 = fig1.add_axes([0.02, 0.03, 0.8, 0.06])
+  ax3.text(0, 0, sinfo, fontsize=8)
+  ax3.axis('off')
+
+  btx = 'insert_hsnow_cice6_restart.py'
+  bottom_text(btx, pos=[0.2, 0.01])
+
 
 
 

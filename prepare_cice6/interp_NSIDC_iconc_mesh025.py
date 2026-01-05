@@ -57,6 +57,9 @@ YR = 2025
 MM = 1 
 DD = 15
 tmpf = 1
+ddS = 1    # month day to start processing
+ddE = 31   # end processing
+fsave = 1
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help="hemisphere: north or south", type=str, required=True)
@@ -64,13 +67,21 @@ parser.add_argument("--yr", help=f"year of NSIDC data, default={YR}", type=int)
 parser.add_argument("--mm", help=f"month of NSIDCS data to interpolate, default={MM}", type=int)
 parser.add_argument("--tmpf", choices=[0,1], 
                     help=f"1: Save, start from last processed field, default={tmpf}", type=int)
+parser.add_argument("--fsave", help=f"Save final dataset with all days as netcdf, default={fsave}", 
+                    choices=[0,1], type=int)
+parser.add_argument("--ddS", help=f"Day to start interpolation, default={ddS}", type=int)
+parser.add_argument("--ddE", help=f"Day to end interpolation, default={ddE}", type=int) 
 args = parser.parse_args()
   
 regn = args.regn if args.regn else None
 YR   = args.yr if args.yr else YR
 MM   = args.mm if args.mm else MM
 tmpf = args.tmpf if args.tmpf is not None else tmpf
- 
+fsave = args.fsave if args.fsave is not None else fsave
+ddS = args.ddS if args.ddS is not None else ddS 
+ddE = args.ddE if args.ddE is not None else ddE 
+
+save_nc = fsave == 1
 save_tmp = tmpf == 1
 
 syst_info = os.uname() 
@@ -173,9 +184,13 @@ if save_tmp:
 
 icc = 0
 ndays = mtime.month_days(MM,YR)
+ddE = np.min([ddE, ndays])
 A3d = np.zeros((ndays,jdm,idm))
-time_days = np.arange(1,ndays+1)
-for mday in range(1,ndays+1):
+time_days = np.arange(ddS,ddE+1)
+print(f"Start processing data for time range: {ddS} - {ddE}")
+print(f"Saving netcdf at the end: {save_nc}")
+
+for mday in range(ddS,ddE+1):
   print(f"Processing {YR}/{MM}/{mday} ...")
 
   if save_tmp:
@@ -197,22 +212,26 @@ for mday in range(1,ndays+1):
   if save_tmp:
     np.save(tmp_file, CIint)
 
-darr_cice = xarray.DataArray(A3d, dims=("time","jdim","idim"),\
-                   coords={"time": time_days,\
-                           "jdim": np.arange(jdm),\
-                           "idim": np.arange(idm)})
-dset = xarray.Dataset({"ice_conc": darr_cice})
-dset['ice_conc'].attrs['long_name']='ice partial area'
-# Add global attributes:
-dset.attrs['title']       = 'NRT NSIDC v6 sea ice conc daily interpolated onto mash025 grid'
-dset.attrs['institution'] = 'NOAA NWS NCEP MDC'
-dset.attrs['source']      = 'interp_NSIDC_mesh025.py'
-dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'
-dset.attrs['region']      = regn
-dset.attrs['Grid_idm_jdm'] = f'{idm}x{jdm}'
+if not save_nc:
+  print(f"Final netcdf is not saved, save_nc={save_nc}")
+ 
+else:
+  darr_cice = xarray.DataArray(A3d, dims=("time","jdim","idim"),\
+                     coords={"time": time_days,\
+                             "jdim": np.arange(jdm),\
+                             "idim": np.arange(idm)})
+  dset = xarray.Dataset({"ice_conc": darr_cice})
+  dset['ice_conc'].attrs['long_name']='ice partial area'
+  # Add global attributes:
+  dset.attrs['title']       = 'NRT NSIDC v6 sea ice conc daily interpolated onto mash025 grid'
+  dset.attrs['institution'] = 'NOAA NWS NCEP MDC'
+  dset.attrs['source']      = 'interp_NSIDC_mesh025.py'
+  dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'
+  dset.attrs['region']      = regn
+  dset.attrs['Grid_idm_jdm'] = f'{idm}x{jdm}'
 
-fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}_{regn}.nc'
-dfliceout = os.path.join(pthnsidc,fliceout)
-print(f'Dumping interpolated ice conc --> {dfliceout}')
-dset.to_netcdf(dfliceout, format='NETCDF4', engine='netcdf4')
+  fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}_{regn}.nc'
+  dfliceout = os.path.join(pthnsidc,fliceout)
+  print(f'Dumping interpolated ice conc --> {dfliceout}')
+  dset.to_netcdf(dfliceout, format='NETCDF4', engine='netcdf4')
 

@@ -59,8 +59,8 @@ parser.add_argument("--regn", help="hemisphere: north or south", type=str, requi
 parser.add_argument("--yr", help=f"year of model run, default={YR}", type=int)
 parser.add_argument("--ms", help=f"start month of data to plot, default={MM}", type=int)
 parser.add_argument("--me", help=f"end month of NSIDCS data to plot, default={MM}", type=int)
-parser.add_argument("--ds", help="Start: day in the start month to plot, default={DD}", type=int)
-parser.add_argument("--de", help="End: day in the end month to plot, default={DDE}", type=int)
+parser.add_argument("--ds", help=f"Start: day in the start month to plot, default={DD}", type=int)
+parser.add_argument("--de", help=f"End: day in the end month to plot, default={DDE}", type=int)
 parser.add_argument(
     "--enmb",
     help="List of experiment numbers (e.g., 1 3 9 12)",
@@ -68,6 +68,13 @@ parser.add_argument(
     nargs="+",             # <-- allows one or more integers and will generate a list
     required=True
 )
+parser.add_argument(
+    "--prst", 
+    help=f"List of experiments to show persitance, default=none",
+    type=int,
+    nargs="+"
+)
+
 args = parser.parse_args()
   
 regn  = args.regn if args.regn else None
@@ -77,6 +84,7 @@ MME   = args.me if args.me else MMS
 DDS   = args.ds if args.ds else DD
 DDE   = args.de if args.de else DDE
 ENMBS = args.enmb if args.enmb else None
+PRST  = args.prst if args.prst else []
 plt_init = True  # show RMSE for init state if init. state file exists and saved by CICE6
   
 syst_info = os.uname() 
@@ -111,33 +119,49 @@ HH = np.where(np.isnan(HH), 1., HH)
 
 jdm, idm = HH.shape
 
-def read_NSIDC(YR,MM,DD,regn,pthnsidc,varnm):
-  if regn == 'south':
-    flnsidc = f"sic_pss25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"  
-  else:
-    flnsidc = f"sic_psn25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"  
-
-  with xarray.open_dataset(os.path.join(pthnsidc,flnsidc)) as ds_nsidc:
-    A = ds_nsidc[varnm].data.squeeze()
-
-  return A
 
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
+
+RMsk = np.where(HH>=0, 0, 1)
 if regn == 'south':
-  RMsk = np.where(HH>=0, 0, 1)
   RMsk = np.where(hlat > -60., 0, RMsk)
+else:
+  RMsk = np.where(hlat < 50, 0, RMsk)
+
+def rmse2d(AA,AI):
+  """
+    RMSE of 2d fields
+  """
+  sqerr = (AA-AI)**2
+ # Jice, Iice = np.where(~np.isnan(AA) & ~np.isnan(AI))
+  Jice, Iice = np.where(((AA > 1.e-3) | (AI > 1.e-3)) & ~np.isnan(AA) & ~np.isnan(AI))
+
+  Nice = len(Jice)
+  assert(Nice>0), f"No ice grid found at {YR}/{MM:02d}/{DD:02d}"
+  rmse_mo = np.sqrt(1./float(Nice)*np.sum(sqerr[Jice,Iice]))
+
+  return rmse_mo
+
 
 # Create an array of day numbers with 0hr = init cond, 12 hr - daily means
+# Assumed: runs start at 0 hr, if not - may need to change the logic 
+# for finding the ic fields 
 dnmbS = int(mtime.datenum([YR,MMS,DDS]))
 dnmbE = int(mtime.datenum([YR,MME,DDE]))
 RECS = [dnmbS] + [x + 0.5 for x in range(dnmbS, dnmbE + 1)]
 RECS = np.array(RECS)
 
+nprst  = len(PRST)
 nexpts = len(ENMBS)
 nrecs  = RECS.shape[0]
 RMSE = np.zeros((nrecs,nexpts))
+if nprst > 0:
+  RMSEp = np.zeros((nrecs, nprst))
+Aprst = None
+
 iens = -1
+iprst = -1
 for enmb in ENMBS:
   iens += 1
   irec = -1
@@ -147,14 +171,15 @@ for enmb in ENMBS:
     dnmb = RECS[nn]
     YR,MM,DD,hr = mtime.datevec(dnmb, round_hrs=True)[:4] 
 
+    track_prst = (nprst > 0) and np.isin(enmb, PRST)
     if hr == 0:
       # Initial state
       nsec0 = 0 
       flcice = f"iceh_ic.{YR}-{MM:02d}-{DD:02d}-{nsec0:05d}.nc"
       dflcice = os.path.join(pthout_cice,flcice)
 
-      if not os.path.isfile(dflcice):
-        print(f"Initial state file is missing, proceed without it ...")
+      if not os.path.isfile(dflcice) or not plt_init:
+        print(f"Initial state file is missing or not requested plt_init, proceed without it ...")
         irec += 1
         RMSE[irec, iens] = np.nan
         continue
@@ -176,21 +201,26 @@ for enmb in ENMBS:
 
     AA = np.where(RMsk == 0, np.nan, AA)
     AI = np.where(RMsk == 0, np.nan, AI)
-    sqerr = (AA-AI)**2
-   # Jice, Iice = np.where(~np.isnan(AA) & ~np.isnan(AI))
-    Jice, Iice = np.where(((AA > 1.e-3) | (AI > 1.e-3)) & ~np.isnan(AA) & ~np.isnan(AI))
+    rmse_mo = rmse2d(AA,AI)
 
-    Nice = len(Jice)
-    assert(Nice>0), f"No ice grid found at {YR}/{MM:02d}/{DD:02d}"
-    rmse_mo = np.sqrt(1./float(Nice)*np.sum(sqerr[Jice,Iice]))
-
-    print(f"RMSE={rmse_mo:.2f}")
     irec += 1
+    if track_prst:
+      if Aprst is  None:
+        Aprst = AA.copy()
+        iprst += 1
+      rmse_prst = rmse2d(Aprst, AI)
+      print(f"RMSE={rmse_mo:.3f}  RMSE_prst={rmse_prst:.3f}")
+      RMSEp[irec,iprst] = rmse_prst
+    else:
+      print(f"RMSE={rmse_mo:.3f}")
+
     RMSE[irec,iens] = rmse_mo
 
-
+  Aprst = None
+  
 # Line colors:
 import mod_gfs_cice_anls as mgfscice
+importlib.reload(mgfscice)
 CLRS = mgfscice.sens_tests_colors()
 
 print("Plotting ...")
@@ -198,7 +228,7 @@ print("Plotting ...")
 XT = RECS - np.floor(RECS[0])
 xticks = np.arange(np.floor(XT[0]),np.ceil(XT[-1]))
 yticks = np.arange(0.,0.8,0.05)
-sttl = f"RMSE btw iconc NSIDC and datmUFS expts, {YR}/{MMS:02d}/{DDS:02d}-{YR}/{MME:02d}/{DDE:02d}"
+sttl = f"RMSE btw iconc NSIDC and datmUFS expts, {regn}\n {YR}/{MMS:02d}/{DDS:02d}-{YR}/{MME:02d}/{DDE:02d}"
 
 plt.ion()
 fig1 = plt.figure(1,figsize=(9,9))
@@ -214,6 +244,18 @@ for iens in range(nexpts):
   line_lbl = mgfscice.sens_tests_info(enmb)
   ln1, = ax1.plot(XT,rmse0, 'o-', linewidth=2, color=clr0, label=line_lbl)
   LNS.append(ln1)
+
+if nprst > 0:
+  for iprst in range(nprst):
+    enmb = PRST[iprst]
+    rmse0 = RMSEp[:,iprst]
+    iens = ENMBS.index(enmb)
+    assert iens >= 0, f"Failed to find expt nmb for {enmb}"
+    clr0  = CLRS[iens,:]
+    line_lbl = f"persist expt{enmb:02d}"
+    ln1, = ax1.plot(XT, rmse0, '--', linewidth=2, color=clr0, label=line_lbl)
+    LNS.append(ln1)
+ 
 
 yl1 = 0
 yl2 = np.nanmax(RMSE) * 1.05  

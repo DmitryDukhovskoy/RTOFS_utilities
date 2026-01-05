@@ -71,6 +71,14 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
 
   mm,nn = LAT.shape
 
+  # dhstep should be > max grid spacing in latitudes:
+  dlat_j = np.abs(np.diff(LAT, axis=0))  # north–south
+  dlat_i = np.abs(np.diff(LAT, axis=1))  # east–west
+  max_dlat = max(dlat_j.max(), dlat_i.max())
+  #print(max_dlat)
+
+  assert dhstep > max_dlat, f"increase dhstep={dhstep} to be >= (lat grid dlt={max_dlat:.4f})"
+
   # Normalize x0
   x0 = (x0 + 360) % 360
 
@@ -92,7 +100,7 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   dy = dhstep
   JJ, II = np.where((LAT > y0 - dy) & (LAT < y0 + dy))
 
-  def find_closest_point(y0, x0, LON, LAT, JJ, II):
+  def find_closest_point(y0, x0, LON, LAT, JJ, II, Np=5):
     XX = LON[JJ, II]
     YY = LAT[JJ, II]
     DD = mmisc1.dist_sphcrd(y0, x0, YY, XX)
@@ -103,21 +111,49 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
     ymin = LAT[jmin, imin]
     return jmin, imin, xmin, ymin
 
-  jv1, iv1, xv1, yv1   = find_closest_point(y0, x0, LON, LAT, JJ, II)
-  # Check boundary:
-  if iv1==0 or jv1==0 or iv1==nn-1 or jv1==mm-1:
-    print(f'pnt x0/y0: {x0:.3f}/{y0:.3f} on the boundary: i/j={iv1}/{jv1}, skipping ...')
-    return [],[]
+  def find_n_closest_points(y0, x0, LON, LAT, JJ, II, N=10):
+    """
+      On a curvilinear grid the closest grid vertex may belong to 
+      cells that do not geometrically contain the target point.
+      Try N closest point, if the 1st fails
 
-  # Try a straigh-forward approach first:
+      Better approach - find closest centroid of the grid boxes
+    """
+    XX = LON[JJ, II]
+    YY = LAT[JJ, II]
+
+    DD = mmisc1.dist_sphcrd(y0, x0, YY, XX)
+    idx = np.argsort(DD)[:N]
+
+    return JJ[idx], II[idx], DD[idx]  
+
+
+  # Try finding N closest points and enclosing grid boxes for each of these
+  # until find the right one
+  # But better - find closest grid centroid not vertices
+  JVX, IVX, _ = find_n_closest_points(y0, x0, LON, LAT, JJ, II, N=5)
+  jv1, iv1 = JVX[0], IVX[0]  # keep this in case the find_box approach fails
+  xv1 = LON[jv1,iv1]
+  yv1 = LAT[jv1,iv1]
+
   INp = False
-  if not INp:
-    IV,JV,INp = find_box_include([x0,y0], [iv1,jv1], LON, LAT, eps_tol=1.e-8)
+  for jv, iv in zip(JVX, IVX):
+    # skip boundaries
+    if iv == 0 or jv == 0 or iv == nn-1 or jv == mm-1:
+      print(f'pnt x0/y0: {x0:.3f}/{y0:.3f} near or at the boundary: i/j={iv1}/{jv1}, skipping ...')
+      return [],[]
+
+    if not INp:
+      IV,JV,INp = find_box_include([x0,y0], [iv,jv], LON, LAT, eps_tol=1.e-8)
 
     if INp:
+      #print("Found")
+      #break
       ixx = np.array(IV).astype(int)
       jxx = np.array(JV).astype(int)
       return ixx, jxx
+
+  # If nothing worked, try another approach
 
   # First guess for xv2: 
   # Find where the point lies wrt to the closest pnt:
@@ -218,7 +254,7 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   # In case pnt (x0,y0) lies exectly on the X-axis or Yaxis line between (xv1,yv1) and (xv2,yv2)
   # move it a bit to avoid possible errors in finding the other vertices:
   dxy = 1.e-9
-  dist_pnt = dist_p2sgm(x0,y0,xv1,yv1,xv2,yv1) 
+  dist_pnt = distance_point2segment(x0,y0,xv1,yv1,xv2,yv1) 
   if dist_pnt < dxy:
     x0 = x0 + dxy
     y0 = y0 + dxy 
@@ -604,8 +640,9 @@ def find_box_include(XY0,IJ1,LON,LAT, eps_tol=1.e-8):
 #ax1.plot(IN,JN,'y.')
 #ax1.plot(iv1,jv1,'ro')
 
-def distance_point_segment(px, py, x1, y1, x2, y2):
+def distance_point2segment(px, py, x1, y1, x2, y2):
   """
+  distance_point_segment
   Return the minimum distance from point (px, py)
   to the segment (x1, y1) -> (x2, y2).
   """
@@ -644,7 +681,7 @@ def point_on_edge(x0, y0, XV, YV, tol=1e-9):
     x2, y2 = XV[(k+1)%len(XV)], YV[(k+1)%len(YV)]
 
     # compute distance from point to segment
-    dist = distance_point_segment(x0, y0, x1, y1, x2, y2)
+    dist = distance_point2segment(x0, y0, x1, y1, x2, y2)
     #print(f"Distance pnt to edge: {dist:.4e}")
     if dist < tol:
       return True
