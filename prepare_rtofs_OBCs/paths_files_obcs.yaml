@@ -1,0 +1,12 @@
+---
+"RTOFS":
+  "pthgrid": "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/Maria_Grid"
+  "ftopo"  : "regional.depth"
+  "fgrid"  : "regional.grid" 
+
+"MOM6":
+  "pthgrid": "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/Maria_Grid"
+  "pthobc" : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/Maria_Grid/OBCs" 
+  "ftopo"  : "ocean_topog.nc"
+  "fgrid"  : "ocean_hgrid.nc" 
+

@@ -1,14 +1,14 @@
 """
-  Interpolate snow climatology from EWG snow data
-  to MOM6/CICE6 mesh025 grid
-  2 options: snow depth, liquid water equivalent
+  Interpolate CryoSat snow or ice thickn. monthly fileds 2018-2021
+  winter months only
 
-  gmapi indices: get_gmapi_EWG_snow_Arctic_to_mesh025.py
+  NSIDC data
+  Monthly fields for three Arctic growth seasons (October to April) from 2018 to 2021.
+  Sahra Kacimi and Ron Kwok
 
-  From EWG 
-  https://nsidc.org/data/search#keywords=Arctic+snow+climatology/sortKeys=score,,desc/facetFilters=%257B%257D/pageNumber=1/itemsPerPage=25
+  Data are on polar stereographic coordinates
 
-
+  gmapi indices: get_gmapi_CryoSat_arcticNSIDC_to_mesh025.py
 """
 import os
 import numpy as np
@@ -47,6 +47,7 @@ from mod_utils_fig import bottom_text
 import mod_time as mtime
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
+import mod_regmom as mrmom 
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
@@ -54,13 +55,13 @@ fsave = 1
 regn = 'north'
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--snfld", help=f"snow field to interpolate",
-                    choices=['sndpth','swe'], required=True, type=str)
-parser.add_argument("--fsave", help=f"Save final dataset with all days as netcdf, default={fsave}", 
+parser.add_argument("--field", help=f"Field to interpolate: snow thkciness or ice thickn",
+                    choices=['sndpth','ithkn'], required=True, type=str)
+parser.add_argument("--fsave", help=f"Save interp. monthly fields netcdf, default={fsave}", 
                     choices=[0,1], type=int)
 args = parser.parse_args()
   
-snfld = args.snfld if args.snfld else None
+field_name = args.field if args.field else None
 fsave = args.fsave if args.fsave is not None else fsave
 
 save_nc = fsave == 1
@@ -108,7 +109,7 @@ LMsk = np.where(hlat < 50, 0, LMsk)
 # Get gmapi 4 NSIDC grid points for interpolation
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 pthdump  = os.path.join(pthdata,"gmapi_NSIDC")
-fgmapi  = f'EWG_Atlas_MOM6_gmapi_1440x1080_north.nc'
+fgmapi  = f'CryoSat_NSIDC_MOM6_gmapi_1440x1080_north.nc'
 dfgmapi = os.path.join(pthdump, fgmapi)
 print(f'Loading gmapi --> {dfgmapi}')
 
@@ -122,76 +123,93 @@ with xarray.open_dataset(dfgmapi) as dgmapi:
   LON = dgmapi['longit'].data
   LAT = dgmapi['latit'].data
 
-# Save temporary fields 
-if save_tmp:
-  tmp_dir = os.path.join(pthdata,'NRT_NOAA_NSIDC_seaconc','tmp')
-  os.makedirs(tmp_dir, exist_ok=True)
-
 icc = 0
-A3d = np.zeros((12,jdm,idm))
-print(f"Saving netcdf at the end: {save_nc}")
+A3d = np.zeros((jdm,idm))
+print(f"Saving netcdf: {save_nc}")
 
-for imo in range(1,13):
-  print(f"Processing month {imo} ...")
+# Find N of records in snow/ice file
+# Note only winter months exist
+pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
+pthsnow = os.path.join(pthdata,'CryoSat_arctic_ice_snow_thkn')
+flsnow = 'NSIDC-0773_SD-THK_25km_IS2-CS2_ArcticGrowthSeasons2018-2021_v01.nc'
+dflsnow = os.path.join(pthsnow, flsnow)
 
-  pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-  pthsnow = os.path.join(pthdata,'Warren_snow_clim_EWG_atlas/DATA/GRIDDED_FIELDS/SNOW_DEPTH')
-  if snfld == 'sndpth':
-    flsnow = f'snow_depth.{imo}.1954_1991.dat'
-  elif snfld == 'swe':
-    flsnow = f'swe.{imo}.1954_1991.dat'
+with xarray.open_dataset(dflsnow) as dsn:
+  time = dsn.time
+years = time.dt.year.values
+months = time.dt.month.values
+nrec = len(months)
 
-  dflnm = os.path.join(pthsnow,flsnow)
-  print(f"Reading {dflnm}")
+if field_name == 'sndpth':
+  varnm = 'sd'
+elif field_name == 'ithkn':
+  varnm = 'thk'
 
-  data_hsnow = np.loadtxt(dflnm)
+for irec in range(nrec):
+  YR = years[irec]
+  MM = months[irec]
+  print(f"Processing {YR}/{MM:02d} ...")
 
-  # sanity check
-  assert data_hsnow.size == 23 * 23, f"Check file length expected {23*23} lines"
+  if field_name == 'sndpth':
+    attr_str = 'snow depth'
+    fliceout = f'hsnow_NSIDC_CryoSat_arctic_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}.nc'
+  elif field_name == 'ithkn':
+    attr_str = 'ice thickness'
+    fliceout = f'ithkn_NSIDC_CryoSat_arctic_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}.nc'
 
-  AA = data_hsnow.reshape((23, 23))
-  AA = np.where(AA > 9999., np.nan, AA) * 0.01  # cm --> m  
-  AA[AA < 1.e-8] = 0.   # some negative values ??? 
+  pthnsidc = os.path.join(pthdata,'CryoSat_arctic_ice_snow_thkn/interp_NSIDC_monthly')
+  dfliceout = os.path.join(pthnsidc,fliceout)
+
+  # Skip already saved files:
+  if os.path.isfile(dfliceout): 
+    print(f"File exists: {dfliceout}, skipping ...\n")
+    continue
+
+  cff_m = None
+  with xarray.open_dataset(dflsnow) as dsn:
+    AA = dsn[varnm].isel(time=irec).data.squeeze()
+    units = dsn[varnm].attrs.get('units', None)
+    if units == 'cm':
+      cff_m =0.01      # cm --> m
+    elif units == 'm':
+      cff_m = 1.
+
+  AA = np.where(AA > 9999., np.nan, AA) * cff_m  # cm --> m  
  
   HSint = msisrlx.interp2Dfld(AA, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
-  HSint = np.where(HH>=0, np.nan, HSint)
-  A3d[imo-1,:,:] = HSint
 
-time_months = [x for x in range(1,13)]
-if not save_nc:
-  print(f"Final netcdf is not saved, save_nc={save_nc}")
- 
-else:
+  # Fill the N.Pole hole:
+  HSint = mrmom.fill_npole(HSint, hlon, hlat, HH, Rpole=2.)
+
+  A3d = np.where(HH>=0, np.nan, HSint)
+  A3d = np.expand_dims(A3d, axis=0) 
+
+  time_out = np.array([np.datetime64(f"{YR:04d}-{MM:02d}-01", "ns")])
   darr_cice = xarray.DataArray(A3d, dims=("time","jdim","idim"),\
-                     coords={"time": time_months,\
+                     coords={"time": time_out,\
                              "jdim": np.arange(jdm),\
                              "idim": np.arange(idm)})
-  if snfld == 'sndpth':
+  if field_name == 'sndpth':
     dset = xarray.Dataset({"snow_depth": darr_cice})
-    dset['snow_depth'].attrs['long_name']='snow depth'
+    dset['snow_depth'].attrs['long_name']='snow depth on ice'
     dset['snow_depth'].attrs['units']='m'
-  elif snfld == 'swe':
-    dset = xarray.Dataset({"swe": darr_cice})
-    dset['swe'].attrs['long_name']='snow water equivalent'
-    dset['swe'].attrs['units']='m'
+  elif field_name == 'ithkn':
+    dset = xarray.Dataset({"ice_thkn": darr_cice})
+    dset['ice_thkn'].attrs['long_name']='ice thickness'
+    dset['ice_thkn'].attrs['units']='m'
+
+  dset["time"].attrs = {
+       "long_name": "time"
+  }
 
   # Add global attributes:
-  dset.attrs['title']       = 'hsnow EWG Atlas clim interpolated onto mash025 grid'
+  dset.attrs['title']       = f'Arctic {attr_str} from ICESat-2 and CryoSat-2' 
   dset.attrs['institution'] = 'NOAA NWS NCEP MDC'
-  dset.attrs['source']      = 'interp_EWG_snow_mesh025.py'
+  dset.attrs['source']      = 'interp_CryoSat_arctic_snow_ithkn_mesh025.py'
   dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'
-  dset.attrs['region']      = regn
-  dset.attrs['Grid_idm_jdm'] = f'{idm}x{jdm}'
+  dset.attrs['region']      = 'north'
 
-  if snfld == 'sndpth':
-    fliceout = f'hsnow_EWGatlas_interp_mesh025_{jdm}x{idm}_{regn}.nc'
-  elif snfld == 'swe':
-    fliceout = f'swe_EWGatlas_interp_mesh025_{jdm}x{idm}_{regn}.nc'
-
-
-  pthnsidc = os.path.join(pthdata,'Warren_snow_clim_EWG_atlas/snow_clim_interp')
-  dfliceout = os.path.join(pthnsidc,fliceout)
-  print(f'Dumping interpolated ice conc --> {dfliceout}')
+  print(f'Dumping interpolated {field_name} --> {dfliceout}\n')
   dset.to_netcdf(dfliceout, format='NETCDF4', engine='netcdf4')
 
 

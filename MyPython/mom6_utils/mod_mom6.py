@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import importlib
+import xarray
 from netCDF4 import Dataset as ncFile
 
 def read_mom6grid(fgrid, grdpnt='hgrid', grid='nonsymmetr'):
@@ -136,13 +137,13 @@ def read_mom6angle(fgrid, grdpnt='hgrid', grid='nonsymmetr'):
 
   return  alpha
 
-def read_mom6depth(ftopo, f_negate=True):
+def read_mom6depth(ftopo, varnm='depth', f_negate=True):
   """
     Read MOM6 depths at h-pnts
   """
-  print('Reading MOM6 depths ' + ftopo)
-  nc  = ncFile(ftopo,'r')
-  HH  = nc.variables['depth'][:].data
+  print(f'Reading MOM6 depths {ftopo}')
+  with xarray.open_dataset(ftopo) as dnc:
+    HH = dnc[varnm].data.squeeze()
 
 # Convert depth to negatives:
 # Land > 0

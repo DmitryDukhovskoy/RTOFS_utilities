@@ -137,7 +137,7 @@ JMOM = []
 for ii in range(idm):
   if ii%50 == 0:
     print(f' icc={icc} {ii/idm*100:.2f}% done ...')
-  for jj in range(jS,jE):
+  for jj in range(jS,jE+1):
     if HH[jj,ii] >= 0:
       continue
     x0 = hlon[jj,ii]

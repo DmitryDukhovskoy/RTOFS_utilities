@@ -104,17 +104,21 @@ def find_indx_lonlat(x0, y0, X0, Y0, dlt_err=7000., fatal_err=True):
   Output: ii0, jj0 - indices closest to x0,y0 (lon, lat)
   """
   import mod_misc1 as mmisc
-  if x0 > 180.:
-    x0 = x0-360.
-
+  
   if abs(y0) > 90.:
     raise Exception(f'latitude y0 >/< 90N/S, check y0 is lat: {y0}')
 
-  XX = X0.copy()
+  # Normalize x0 or shift longitudes wrt to x0:
+  #x0 = (x0 + 360) % 360
+  #X0 = (X0 + 360) % 360
+  
+  # Shift longitudes wrt to x0
+  XX = ((X0 - x0 + 180) % 360) - 180 + x0
+  #XX = X0.copy()
   YY = Y0.copy()
 
-  if np.max(XX) > 180.:
-    XX = np.where(XX > 180., XX-360., XX)
+  #if np.max(XX) > 180.:
+  #  XX = np.where(XX > 180., XX-360., XX)
 
   dmm = mmisc.dist_sphcrd(y0,x0,YY,XX)   # distance in meters
   jj0, ii0 = np.unravel_index(np.argmin(dmm), dmm.shape)

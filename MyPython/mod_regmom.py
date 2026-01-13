@@ -55,7 +55,7 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
            try to find points that are north of the northernmost
            grid points of the original grid
            This works for Polar stereogr. projection by grabbing points over the N. Pole 
-           For other projections - this may not work
+           For other projections - this will likely not work
   """
   import mod_misc1 as mmisc1
   import mod_bilinear as mblnr
@@ -91,10 +91,25 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   # Avoid +/- 180 and 0/360 discontinuites by shifting lon grid:
   LON = mblnr.shift_longitudes(LON0, ref_lon=x0)
 
-  # Latitude range check
-  assert np.min(LAT) <= y0
+  # Latitude range check - global min lat
+  assert np.min(LAT) <= y0, f"check lat y0={y0:.4f} < min(LAT) {np.min(LAT):.4f}"
   if not ignore_north_lim:
-    assert np.max(LAT) >= y0
+    assert np.max(LAT) >= y0, f"check lat y0={y0:.4f} > max(LAT) {np.max(LAT):.4f}"
+
+  # Check local min lat:
+  # For curvilinear grids a point can be > global min(LAT) but still outside the domain
+  # where the boundary "curves" when plotted in the lon/lat space
+  dx = 2 * dhstep
+  #xl1 = ((x0 - dx)+360)%360  <--- not needed since LON is already shifted wrt x0
+  #xl2 = ((x0 + dx)+360)%360
+  xl1 = x0 - dx
+  xl2 = x0 + dx
+  JL, IL = np.where( (LON > xl1) & (LON < xl2) )
+  assert JL.size > 0,  f"Local min lat: No pnts found in long: {xl1:.4f}/{xl2:.4f}, pnt x0/y0: {x0:.4f}/{y0:.4f}"
+    
+  if y0 < np.min(LAT[JL,IL]):
+    print(f'pnt x0/y0: {x0:.3f}/{y0:.3f} outside: local min lat={np.min(LAT[JL,IL]):.4f} skipping ...')
+    return [],[]
 
   # Subsample
   dy = dhstep
@@ -140,7 +155,7 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   for jv, iv in zip(JVX, IVX):
     # skip boundaries
     if iv == 0 or jv == 0 or iv == nn-1 or jv == mm-1:
-      print(f'pnt x0/y0: {x0:.3f}/{y0:.3f} near or at the boundary: i/j={iv1}/{jv1}, skipping ...')
+      print(f'pnt x0/y0: {x0:.3f}/{y0:.3f} outside or at the boundary: i/j={iv1}/{jv1}, skipping ...')
       return [],[]
 
     if not INp:
@@ -687,6 +702,154 @@ def point_on_edge(x0, y0, XV, YV, tol=1e-9):
       return True
 
   return False
+
+def fill_npole(A2d, HLON, HLAT, HH, Rpole = 2.):
+  """
+    Fill North Pole hole if needed
+    Rpole - radius of search domain around the North pole to locate NaNs and not nans
+            for interpolation
+  """
+  import mod_utils as mutil
+  import mod_misc1 as mmisc1
+  import mod_bilinear as mblnr
+
+  mm,nn = HLAT.shape
+  Acopy = A2d.copy()
+
+  # N. Pole region:
+  lat_npole = 90. - Rpole
+  if np.max(HLAT) < lat_npole:
+    print(f"fill_npole: NPole region failed for lat_npole={lat_npole:.2f}N,  max HLAT={np.max(HLAT):.2f}")
+    return A2d
+
+  # NPole mask:
+  # = -1 - outside the NPole region
+  # =  1 - valid values
+  # =  0 - land 
+  # =  9 - N Polw hole 
+  npole_dom  = (HLAT >= lat_npole)
+  npole_land = npole_dom & (HH >= 0)
+  npole_hole = npole_dom & (~npole_land) & np.isnan(A2d)
+  npole_data = npole_dom & (~npole_land) & np.isfinite(A2d)
+
+  NPmask = np.full((mm, nn), -1, dtype=np.int8)
+  NPmask[npole_data] = 1
+  NPmask[npole_land] = 0
+  NPmask[npole_hole] = 9  
+
+  JJ, II = np.where( NPmask == 9 )
+  if JJ.size == 0:
+    print("North Pole hole not found, nothing to fix")
+    return A2d
+
+  Xdon = HLON[NPmask == 1]
+  Ydon = HLAT[NPmask == 1]
+  Adata = A2d[NPmask == 1]
+
+  for ipp in range(II.size):
+    ii0 = II[ipp]
+    jj0 = JJ[ipp]
+    x0  = HLON[jj0,ii0]
+    y0  = HLAT[jj0,ii0]
+
+    DIST = mmisc1.dist_sphcrd(y0, x0, Ydon, Xdon)
+    assert np.min(DIST) > 0., "fill_npole: unexpected 0 dist for donor points outside NPole hole"
+
+    WT = 1./(DIST + 1.e-6) # to avoid very small dist near N pole
+    WT = WT/np.sum(WT)
+    assert abs(1.-np.sum(WT)) < 1.e-8, "Check weights WT"
+
+    trgt = np.sum(WT*Adata)
+    assert (trgt >= np.min(Adata)) and (trgt <= np.max(Adata)),\
+    f"Filling npole error: i={ii0} j={jj0} filled={trgt:.4f} min/max ={np.min(Adata):.4f}/{np.max(Adata):.4f}"
+
+    Acopy[jj0,ii0] = trgt
+
+  return Acopy
+
+def extrapolate_to_lat_arctic(A2d, HLON, HLAT, HH, hlat0=65, Rsearch=0.25, fill_land=True, extrp='box'):
+  """
+    Extrapolate and smoothly damp nonzero values to zero within the Arctic region
+    (HLAT >= hlat0) using distance-based weighting (extrp='inv_dist') or
+    box-averaging (extrp='box')
+
+    Zeros north of hlat0 are treated as ramp targets.
+
+    fill_land = True: Also extend values over land to avoid gaps near the coast
+
+    Rsearch - radius (degrees) where values are searched for extrapolation / ramping
+  """
+  import mod_misc1 as mmisc1
+
+  Aex = A2d.copy()
+  Aex[np.isnan(Aex)] = 0.
+  if not fill_land:
+    Aex[HH >= 0] = np.nan
+
+  # Points to be filled:
+  missing_data = (HLAT >= hlat0) & (Aex == 0)
+
+  valid_src = (HLAT >= hlat0) & (Aex >= 0) # allow no-snow values as source pnts 
+  hlat_src = HLAT[valid_src]
+  hlon_src = HLON[valid_src]
+  data_src = Aex[valid_src]
+  #JS,IS = np.where( valid_src )
+
+  JJ, II = np.where( missing_data )
+  if JJ.size == 0:
+    print("No missed data, nothing to fix")
+    return A2d
+
+  Rsearch_m = Rsearch*111e3  
+
+  # Sort points by latitude south->north for smooth ramping
+  # n2s = np.argsort(HLAT[JJ, II])
+
+  print(f"Extrapolating/ramping 2D field in Arctic to {hlat0:.2f}")
+  icc = 0
+  for ipp in range(JJ.size):
+    icc += 1
+    if icc % 5000 == 0:
+      prct = icc / float(JJ.size) * 100.
+      print(f"  {prct:.2f}% done ...")
+
+    ii0 = II[ipp]
+    jj0 = JJ[ipp]
+    x0  = HLON[jj0,ii0]
+    y0  = HLAT[jj0,ii0]
+
+    dlat = Rsearch
+    dlon = Rsearch / max(np.cos(np.deg2rad(y0)), 1e-3)
+    srch_box = (np.abs(hlat_src - y0) <= dlat) & \
+               (np.abs(hlon_src - x0) <= dlon)
+    if not np.any(srch_box):
+      continue
+
+    DD = mmisc1.dist_sphcrd(y0, x0, hlat_src[srch_box], hlon_src[srch_box])
+    valid_data = (DD > 0) & (DD <= Rsearch_m)
+    if not np.any(valid_data):
+      continue
+
+    DIST = DD[valid_data]
+    Adata = data_src[srch_box][valid_data]
+
+    if extrp == 'inv_dist':
+      WT = 1./(DIST + 1.e-6) # to avoid very small dist
+      WT = WT/np.sum(WT)
+      trgt = np.sum(WT * Adata)
+
+    elif extrp == 'box':
+      # box average
+      Adata = data_src[srch_box]
+      trgt = np.nanmean(Adata)
+
+    if trgt < np.min(Adata) - 1e-6 or trgt > np.max(Adata) + 1e-6:
+        print(f"Warning: filled value {trgt:.4f} out of original data range at i={ii0} j={jj0}")
+
+    Aex[jj0,ii0] = trgt
+
+  return Aex
+
  
 def fill_land(aa1,aa2,aa3,aa4,HH,A3d,JJ,II,Jocn,Iocn):
   """
@@ -868,7 +1031,7 @@ def derive_TSprof_WOA23(seas, YR, Xp, Yp, grd=0.25, conv2pot=True):
 
   return Tprf, Sprf, ZZ
 
-def insitu2pot_3D(T3d, S3d, ZZ, LAT, z_ref=0, uref='m'):
+def insitu2pot_3D(T3d, S3d, ZZ, HLAT, z_ref=0, uref='m'):
   """
     Convert in situ T to potential with pressure 
       reference: z_ref either in m (depth) 
@@ -894,7 +1057,7 @@ def insitu2pot_3D(T3d, S3d, ZZ, LAT, z_ref=0, uref='m'):
       prref_db = np.zeros((jdm,idm))
       prref_pa = np.zeros((jdm,idm))
     else:
-      prref_db, prref_pa = msw.sw_press(Zref, LAT)
+      prref_db, prref_pa = msw.sw_press(Zref, HLAT)
   else:
     prref_db = np.zeros((jdm,idm))
     prref_pa = np.zeros((jdm,idm))
@@ -905,19 +1068,19 @@ def insitu2pot_3D(T3d, S3d, ZZ, LAT, z_ref=0, uref='m'):
     temp = T3d[klr,:].squeeze()
     sal  = S3d[klr,:].squeeze()
     z0   = Z3d[klr,:].squeeze()
-    pr_db, pr_pa = msw.sw_press(z0, LAT)
+    pr_db, pr_pa = msw.sw_press(z0, HLAT)
     tp = msw.sw_ptmp(sal, temp, pr_db, prref_db)
     Tpot[klr,:] = tp
 
   return Tpot
 
-def insitu2pot_2D(T2d, S2d, zz0, LAT, z_ref=0, uref='m'):
+def insitu2pot_2D(T2d, S2d, zz0, HLAT, z_ref=0, uref='m'):
   """
     Convert in situ T to potential with pressure 
       reference: z_ref either in m (depth) 
       or dbar (pressure)
     T, S - 2D arrays, lat0 - local latitude 
-    LAT - 2D latitudes
+    HLAT - 2D latitudes
     zz0 - in situ depth, m or dbar
   """
   import mod_swstate as msw
@@ -931,13 +1094,13 @@ def insitu2pot_2D(T2d, S2d, zz0, LAT, z_ref=0, uref='m'):
       prref_db = np.zeros((jdm,idm))
       prref_pa = np.zeros((jdm,idm))
     else:
-      prref_db, prref_pa = msw.sw_press(Zref, LAT)
+      prref_db, prref_pa = msw.sw_press(Zref, HLAT)
   else:
     prref_db = np.zeros((jdm,idm))
     prref_pa = np.zeros((jdm,idm))
  
   Tpot = np.zeros((jdm,idm))
-  pr_db, pr_pa = msw.sw_press(zz0, LAT)
+  pr_db, pr_pa = msw.sw_press(zz0, HLAT)
   Tpot = msw.sw_ptmp(S2d, T2d, pr_db, prref_db)
 
   return Tpot

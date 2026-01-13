@@ -205,7 +205,7 @@ lon0 = 180.
 lat0 = 70.
 res  = 'l'
 m = Basemap(projection='ortho', lon_0=lon0, lat_0=lat0, resolution=res)
-m = Basemap(projection='ortho', lon_0=lon0, lat_0=lat0, resolution=res)
+#m = Basemap(projection='ortho', lon_0=lon0, lat_0=lat0, resolution=res)
 xR, yR = m(lonw,latw)
 
 PMsk = ( (xR > 1e20) | (yR > 1e20) )

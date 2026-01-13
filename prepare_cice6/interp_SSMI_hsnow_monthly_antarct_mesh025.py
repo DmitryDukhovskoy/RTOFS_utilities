@@ -164,8 +164,8 @@ for imonth in range(1,13):
   A3d[imonth-1,:,:] = CIint
 
 A3d = A3d.astype('float32')
-LON = LON.astype('float32')
-LAT = LAT.astype('float32')
+#LON = LON.astype('float32')
+#LAT = LAT.astype('float32')
 JD = np.arange(jdim, dtype='int32')
 ID = np.arange(idim, dtype='int32')
 time_months = np.arange(1,13, dtype='int32')

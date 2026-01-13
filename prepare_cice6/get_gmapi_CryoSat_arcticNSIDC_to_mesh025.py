@@ -1,15 +1,9 @@
 """
-  Gridded estimates of Antarctic sea ice physical properties derived from 
-  CryoSat-2 Baseline-D SAR and SARIn data spanning July 2010 through August 2021. 
-  Data are generated using the CryoSat-2 Waveform-Fitting method for Antarctic sea ice (CS2WFA).
+  NSIDC Arctic snow depth and sea ice thickness from ICESat-2 and CryoSat-2
+  Monthly fields for three Arctic growth seasons (October to April) from 2018 to 2021.
+  Sahra Kacimi and Ron Kwok
 
-  Fons, S., Kurtz, N., & Bagnardi, M. (2022). 
-  Antarctic Sea Ice Thickness Estimates from CryoSat-2: 2010-2021 (0.1.1) [Data set]. 
-  Zenodo. https://doi.org/10.5281/zenodo.7327711
-
-  Grid seems to be similar to 
-  NASA SSMI & AMSR snow thickness on sea ice in Antarctic
-  and to NSIDC (Polar Sterographic)
+  Data are on polar stereographic coordinates
 
   Derive gmapi indices for bi-linear interpolation
 
@@ -54,19 +48,7 @@ import mod_anls_seas as manseas
 import mod_utils_ob as mutob
 import mod_mom6 as mmom6
 
-YR = 2020
-MM = 1
-regn = 'south'
-
-parser = argparse.ArgumentParser()
-parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-parser.add_argument("--yr", help=f"year of CryoSat data, default={YR}", type=int)
-parser.add_argument("--mm", help=f"month of CryoSat data, default={MM}", type=int)
-args = parser.parse_args()
-
-regn = args.regn if args.regn else regn
-YR   = args.yr if args.yr else YR
-MM   = args.mm if args.mm else MM
+regn = 'north'
 
 syst_info = os.uname()
 machine = syst_info.nodename
@@ -101,29 +83,16 @@ HH = np.where(np.isnan(HH), 1., HH)
 # Lon/lats have been derived in the code
 # that computed monthly clim for NASA hsnow
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-pthice  = os.path.join(pthdata, 'CryoSat2_antarctic_ice_snow_thkn')
-flice   = f"CS2WFA_25km_{YR}{MM:02d}.nc"
+pthice  = os.path.join(pthdata, 'CryoSat_arctic_ice_snow_thkn')
+flice   = 'NSIDC-0773_SD-THK_25km_IS2-CS2_ArcticGrowthSeasons2018-2021_v01.nc'
 dflice  = os.path.join(pthice,flice)
 print(f"Loading {dflice}")
-# Note the NetCDF files have subgroups inside
-# Open the subgroup 'sea_ice_thickness' to read ice thikn.
-# other variables are in the root group:
 with xarray.open_dataset(dflice) as dshi:
-  LON = dshi['lon'].data.squeeze()
-  LAT = dshi['lat'].data.squeeze()
+  LON = dshi['longitude'].data.squeeze()
+  LAT = dshi['latitude'].data.squeeze()
 
 LON = np.where(LON > 180., LON-360., LON)
 
-# Similar grid, snow data
-pthsnow = os.path.join(pthdata, 'snow_nasa')
-flhs = 'AMSR_Antarctic_hsnow_month_clim_1998_2007.nc'
-dflhs = os.path.join(pthsnow,flhs)
-print(f"Loading {dflhs}")
-with xarray.open_dataset(dflhs) as dshs:
-  XX = dshs['xpolar'].data.squeeze()
-  YY = dshs['ypolar'].data.squeeze()
-  LONS = dshs['lon'].data.squeeze()
-  LATS = dshs['lat'].data.squeeze()
 
 import mod_regmom as mrmom
 
@@ -131,12 +100,11 @@ import mod_regmom as mrmom
 # MOM6 points should be inside the CryoSat domain 
 # to be able to find 4-vertice of the bounding box for interpolation
 lat_min = np.min(LAT)
+lat_min = max([50.,lat_min])
 lat_max = np.max(LAT)
-
-if regn == 'south':
-  lat_max = min([-50.,lat_max])
-else:
-  lat_min = max([50.,lat_min])
+ignore_north_lim = lat_max >= 90.
+if ignore_north_lim:
+  print(f"WARN: Indices north of northernmost lat={np.max(LAT):.4f} will be searched")
 
 row_min = np.min(hlat, axis=1)
 row_max = np.max(hlat, axis=1)
@@ -156,12 +124,13 @@ for ii in range(idm):
   for jj in range(jS,jE+1):
     if HH[jj,ii] >= 0:
       continue
+    #ii, jj = mutil.find_indx_lonlat(358.047,89.816, hlon,hlat)
     x0 = hlon[jj,ii]
     y0 = hlat[jj,ii]
     if y0 < lat_min or y0 > lat_max:
       continue
 
-    ixx, jxx = mrmom.find_gridpnts_box(x0, y0, LON, LAT, dhstep=1.)
+    ixx, jxx = mrmom.find_gridpnts_box(x0, y0, LON, LAT, dhstep=1., ignore_north_lim=ignore_north_lim)
     if len(ixx)==0 or len(jxx)==0:
      continue
     ixx = np.expand_dims(ixx, axis=0)
@@ -181,6 +150,8 @@ for ii in range(idm):
 IMOM = np.array(IMOM)
 JMOM = np.array(JMOM)
 
+jdim, idim = LON.shape
+
 npnts = len(IMOM)
 darr_imom = xarray.DataArray(IMOM, dims=("npoints"),\
                    coords={"npoints": np.arange(npnts)})
@@ -192,26 +163,37 @@ darr_indx = xarray.DataArray(INDX, dims=("npoints","nvert"),\
 darr_jndx = xarray.DataArray(JNDX, dims=("npoints","nvert"),\
                    coords={"npoints": np.arange(npnts),\
                            "nvert": np.arange(4)})
+darr_lon = xarray.DataArray(LON, dims=("jdim","idim"),\
+                  coords={"jdim": np.arange(jdim),\
+                          "idim": np.arange(idim)})
+darr_lat = xarray.DataArray(LAT, dims=("jdim","idim"),\
+                  coords={"jdim": np.arange(jdim),\
+                          "idim": np.arange(idim)})
+
 dset = xarray.Dataset({"mom_indx": darr_imom, \
                        "mom_jndx": darr_jmom, \
                        "gmapi_i": darr_indx,\
-                       "gmapi_j": darr_jndx})
+                       "gmapi_j": darr_jndx,\
+                       "longit":  darr_lon,\
+                       "latit":   darr_lat})
 
 dset['mom_indx'].attrs['long_name'] = 'MOM6 grid I indices corresponding gmapi'
 dset['mom_jndx'].attrs['long_name'] = 'MOM6 grid J indices corresponding gmapi'
 dset['gmapi_i'].attrs['long_name'] = 'I indices NSIDC grid for interpolation'
 dset['gmapi_j'].attrs['long_name'] = 'J indices NSIDC grid for interpolation'
+dset['longit'].attrs['long_name']  = 'Longitudes NSIDC polar grid'
+dset['latit'].attrs['long_name']   = 'Latitudes NSIDC polar grid'
 
 # Global attributes
-dset.attrs['title']       = 'Grid mapping between Polar sterographic south and MOM6 grids'
+dset.attrs['title']       = 'Grid mapping between Arctic polar sterographic 25km NSIDC and MOM6 mesh025 grids'
 dset.attrs['institution'] = 'NOAA NWS NCEP MDC'
-dset.attrs['source']      = 'get_gmapi_CryoSat_to_mesh025.py'
-dset.attrs['history']     = 'CryoSat snow and ice thickness cell mean, polar stereogr., monthly'
+dset.attrs['source']      = 'get_gmapi_CryoSat_arcticNSIDC_to_mesh025.py'
+dset.attrs['history']     = 'Arctic snow depth and sea ice thickness from ICESat-2 and CryoSat-2, winter months'
 dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'
 dset.attrs['region']      = regn
 
 pthdump = os.path.join(pthdata,'gmapi_NSIDC')
-fgmapi  = f'CryoSat_MOM6_gmapi_{idm}x{jdm}_{regn}.nc'
+fgmapi  = f'CryoSat_NSIDC_MOM6_gmapi_{idm}x{jdm}_{regn}.nc'
 dfgmapi = os.path.join(pthdump, fgmapi)
 
 print(f'Saving gmapi --> {dfgmapi}')
@@ -273,7 +255,7 @@ if f_chck:
   ax1.set_ylabel('j index')
   ax1.set_xlabel('i index')
 
-  ax1.set_title(f'CryoSat ice thickness {YR}/{MM:02d}')
+  ax1.set_title(f'CryoSat ice thickness')
 
   ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,
                      0.02, ax1.get_position().height])
