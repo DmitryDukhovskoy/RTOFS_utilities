@@ -1,5 +1,5 @@
 """
-  Interpolate CryoSat snow or ice thickn. monthly fileds 2018-2021
+  Interpolate CryoSat hsnow or ice thickn. monthly fileds 2018-2021
   winter months only
 
   NSIDC data

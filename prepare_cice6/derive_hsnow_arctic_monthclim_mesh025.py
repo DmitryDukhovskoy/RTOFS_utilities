@@ -103,6 +103,11 @@ HH = np.where(np.isnan(HH), 1., HH)
 jdm, idm = HH.shape
 LMsk = np.where(HH<0, 1, 0)
 
+# For box-averaging:
+jS = np.min(np.where(hlat >= 60)[0])
+jE = jdm
+
+
 A3d = np.zeros((12,jdm,idm))
 for imo in range(1,13):
   print(f"Processing MM={imo:02d} ...")
@@ -172,8 +177,9 @@ for imo in range(1,13):
 
   if xtrp_snow:
     AA[(AA > eps0) & (AA < hsnow_min)] = hsnow_min
-    #AAi = mrmom.extrapolate_to_lat_arctic(AA, hlon, hlat, HH, hlat0=65, Rsearch=0.5, fill_land=False)
-    AA = mrmom.extrapolate_to_lat_arctic(AA, hlon, hlat, HH, hlat0=65, Rsearch=0.25, fill_land=False)
+    AAi = mrmom.extrapolate_to_lat_arctic(AA, hlon, hlat, HH, hlat0=65, Npnts=5, Rsearch=20., fill_land=False)
+    #AA = mrmom.extrapolate_to_lat_arctic(AA, hlon, hlat, HH, hlat0=65, Npnts=5, Rsearch=20., fill_land=False)
+    AAf = mrmom.box_averaging(AAi, HH, box_size = 15, jS=jS, jE=jE, pole_wrap = True)
 
   A3d[imo-1,:,:] = AA
 
@@ -253,7 +259,7 @@ dset_hs.to_netcdf(dfliceout,
 
 f_chck = False
 if f_chck:
-  clrmp = mclrmps.colormap_temp()
+  clrmp = mclrmps.colormap_temp(skip_dark=0.12)
   rmin = 0.
   rmax = 0.4
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
@@ -276,8 +282,9 @@ if f_chck:
   meridians = np.arange(-360,359.,45.)
   m.drawmeridians(meridians,labels=[0,0,0,0])
 
+  img = ax1.pcolormesh(xh,yh,AAf, cmap=clrmp, vmin=rmin, vmax=rmax)
   img = ax1.pcolormesh(xh,yh,AA, cmap=clrmp, vmin=rmin, vmax=rmax)
-  img = ax1.pcolormesh(xh,yh,AAi, cmap=clrmp, vmin=rmin, vmax=rmax)
+  #img = ax1.pcolormesh(xh,yh,AAi, cmap=clrmp, vmin=rmin, vmax=rmax)
 
   ax3 = fig1.add_axes([0.1, 0.08, 0.8, 0.02])
   clb = plt.colorbar(img, cax=ax3, orientation='horizontal', extend='max')

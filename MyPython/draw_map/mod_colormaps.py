@@ -428,11 +428,11 @@ def colormap_temp2(nclrs=200):
   from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 
   CLR = [[242, 186, 238],
-         [184,  48, 173],
-         [100,  91, 207],
-         [ 19,   6, 186],
-         [  0,   0, 190],
-         [  0,   0, 250],
+         [185, 150, 205],
+         [130, 120, 215],
+         [ 80,  90, 200],
+         [ 60, 110, 220],
+         [ 40, 140, 235],
          [  0,  31, 255],
          [  0,  82, 255],
          [  0, 133, 255],
@@ -650,42 +650,52 @@ def smooth_colors(CLR, smoothS=0., nsmooth=1, smooth_wnd=0.1):
 
   return CLR
 
-def colormap_temp(nclrs=200, clr_ramp=[1,1,1], add_btm=True):
+def colormap_temp(nclrs=200, clr_ramp=[1,1,1], add_btm=True, skip_dark=0.12):
   """
     Colormap for temp
     low S value ramp to clr_ramp
+
+    nclrs : Total number of colors in the colormap.
+    clr_ramp :  RGB color at the bottom of the ramp (values 0–1). Default is white [1,1,1].
+    add_btm :   If True, ramp is added at the beginning (low end); if False, at the top (high end).
+    skip_dark_frac :   Fraction of the original 'jet' colormap to skip at the low end to remove very dark blues.
+        Typical value: 0.1–0.15.
+
   """
   from matplotlib import cm
-  from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+  from matplotlib.colors import ListedColormap 
 
-  btm = cm.get_cmap('jet',nclrs)
-  ixtop  = round(nclrs*0.1)-1
-  clrbtm = btm(range(nclrs))
-  chbtm  = np.zeros((ixtop,4))
-  if add_btm == True:
-# Add white at the beginning:
-    cxbtm  = clrbtm[0,:]
-  else:
-# Add white at the top
-    ixtop  = round(nclrs*0.1)-1
-    ixbtm  = nclrs-ixtop-1
-    cxbtm  = clrbtm[ixbtm,:]
 
-  chbtm[:,3] = cxbtm[3]
+  jet = cm.get_cmap('jet')
+  # Skip the darkest part of jet to avoid white -> dark blue jump
+  start_frac = skip_dark
+  clrbtm = jet(np.linspace(start_frac, 1.0, nclrs))
 
-  for ik in range(3):
-    cc0 = clr_ramp[ik]
-    chbtm[:,ik]  = np.linspace(cxbtm[ik],cc0,ixtop)
+  # Size of the ramp section
+  ramp_size = int(round(nclrs * 0.1))  # 10% of colormap by default
 
+  # Ramp colors:
+  ramp = np.zeros((ramp_size, 4))
   if add_btm:
-    chbtm = np.flip(chbtm, axis=0)
-    clrbtm = np.insert(clrbtm,0,chbtm, axis=0)
+    # Add ramp at the beginning
+    start_color = clrbtm[0, :3]  # first color after truncation
   else:
-    clrbtm[ixbtm+1:nclrs,:] = chbtm
+    # Add ramp at the top
+    start_color = clrbtm[-1, :3]  # last color of jet
 
-  newclrs = clrbtm
-  newcmp  = ListedColormap(newclrs)
+  # Interpolate RGB from start_color to base_color
+  for i in range(3):
+    ramp[:, i] = np.linspace(start_color[i], clr_ramp[i], ramp_size)
+  ramp[:, 3] = 1.0  # alpha channel
 
+  # Insert ramp into colormap
+  if add_btm:
+    ramp = np.flipud(ramp)
+    clrbtm = np.vstack((ramp, clrbtm))
+  else:
+    clrbtm = np.vstack((clrbtm, ramp))
+
+  newcmp = ListedColormap(clrbtm)
   return newcmp
 
 def colormap_ssh(cpos='Oranges',cneg='Blues_r',nclrs=100, clr_ramp=[1,1,1]):
@@ -947,7 +957,7 @@ def positive_negative(nclrs=200, cname='tgv', cmp_obj=True, neutr=None):
   return ListedColormap(CLR) if cmp_obj else CLR
 
 
-def colormap_temp(nclrs=200, clr_ramp=[1,1,1], add_btm=True):
+def colormap_temp_old(nclrs=200, clr_ramp=[1,1,1], add_btm=True):
   """
     Colormap for temp
     low S value ramp to clr_ramp

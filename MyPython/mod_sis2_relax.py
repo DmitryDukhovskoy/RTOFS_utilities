@@ -30,7 +30,7 @@ from mod_utils_fig import bottom_text
 def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
                 eps_err=1.e-2, land_mask=False, info_step=10000):
   """
-    Interpolate A2d (2D field) from PIOMAS onto MOM6 grid
+    Interpolate A2d (2D field) from the donor grid (e.g. PIOMAS) onto target (MOM6) grid
     IMOM, JMOM - MOM6 indices where fields need to be interpolated
     INDX, JNDX - n x 4 arrays of PIOMAS grid points (gmapi) for bilinear interpolation
     LMsk - land/ocean mask of MOM6 grid

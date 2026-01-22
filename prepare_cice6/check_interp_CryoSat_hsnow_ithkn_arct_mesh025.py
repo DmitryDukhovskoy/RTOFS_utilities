@@ -48,11 +48,14 @@ MM = 2
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--yr", help=f"year to plot, default={YR}", choices=[2018,2019,2020,2021], type=int)
-parser.add_argument("--mm", help="month to plot, default={MM}", choices=[10,11,12,1,2,3,4], type=int)
+parser.add_argument("--mm", help=f"month to plot, default={MM}", choices=[10,11,12,1,2,3,4], type=int)
+parser.add_argument("--field", help=f"Field to interpolate: snow thkciness or ice thickn",
+                    choices=['sndpth','ithkn'], required=True, type=str)
 args = parser.parse_args()
                              
 MM = args.mm if args.mm else MM
 YR = args.yr if args.yr else YR 
+field_name = args.field if args.field else None
  
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -89,9 +92,16 @@ jdm, idm = HH.shape
 # Interpolated fields:
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 pthifld = os.path.join(pthdata,'CryoSat_arctic_ice_snow_thkn/interp_NSIDC_monthly')
-fliceout = f'hsnow_NSIDC_CryoSat_arctic_interp_mesh025_1080x1440_{YR}{MM:02d}.nc'
-dflsnidc = os.path.join(pthifld,fliceout)
-varnm = 'snow_depth'
+if field_name == 'sndpth':
+  fliceout = f'hsnow_NSIDC_CryoSat_arctic_interp_mesh025_1080x1440_{YR}{MM:02d}.nc'
+  dflsnidc = os.path.join(pthifld,fliceout)
+  varnm = 'snow_depth'
+  varnm0 = 'sd'
+elif field_name == 'ithkn':
+  fliceout = f'ithkn_NSIDC_CryoSat_arctic_interp_mesh025_1080x1440_{YR}{MM:02d}.nc'
+  dflsnidc = os.path.join(pthifld,fliceout)
+  varnm = 'ice_thkn'
+  varnm0 = 'thk'
 
 print(f"Processing {YR}/{MM:02d} {varnm} ...")
 with xarray.open_dataset(dflsnidc) as ds_nsidc:
@@ -109,7 +119,6 @@ with xarray.open_dataset(dflsnow) as dsn:
 years = time.dt.year.values
 months = time.dt.month.values
 nrec = len(months)
-varnm0 = 'sd'
 
 irec = np.where((years == YR) & (months == MM))[0][0]
 cff_m = None
@@ -133,10 +142,14 @@ with xarray.open_dataset(dfgmapi) as dgmapi:
   LON = dgmapi['longit'].data
   LAT = dgmapi['latit'].data
 
-
-clrmp = mclrmps.colormap_temp()
-rmin = 0.
-rmax = 0.4
+if field_name == 'sndpth':
+  clrmp = mclrmps.colormap_temp()
+  rmin = 0.
+  rmax = 0.4
+elif field_name == 'ithkn':
+  clrmp = mclrmps.colormap_ice_thkn()
+  rmin = 0.
+  rmax = 3.
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
 LON1 = LON.copy()
@@ -195,7 +208,7 @@ ticklabs = clb.ax.get_xticklabels()
 clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
 clb.ax.tick_params(direction='in', length=12)
 
-btx = 'check_interp_CryoSat_hsnow_arct_mesh025.py'
+btx = 'check_interp_CryoSat_hsnow_ithkn_arct_mesh025.py'
 bottom_text(btx,pos=[0.02,0.1], fsz=8)
 
 

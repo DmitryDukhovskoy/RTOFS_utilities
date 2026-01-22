@@ -1,7 +1,7 @@
 """
   12 suplots of monthly snow depth clim in Arctic
 
-  Interpolated NSIDC CryoSat snow or ice thickn. monthly fileds 2018-2021
+  Interpolated CryoSat AWI  snow or ice thickn. monthly fileds 
   winter months only
 
   Warren (EWG Atlas) snow depth climatology - for summer months
@@ -52,15 +52,16 @@ importlib.reload(msisrlx)
 regn = 'north'
 ncol = 4
 nrow = 3
+field = 'ithkn'
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--field", help=f"Field to interpolate: snow thkciness or ice thickn",
-                    choices=['sndpth','ithkn'], required=True, type=str)
+parser.add_argument("--field", help=f"Field to interpolate: snow depth or ice thickn",
+                    choices=['sndpth','ithkn'], type=str)
 parser.add_argument("--ncol", help=f"N of columns for subplots, default={ncol}", type=int)
 parser.add_argument("--nrow", help=f"N of rows for subplots, default={nrow}", type=int)
 args = parser.parse_args()
   
-field_name = args.field if args.field else None
+field_name = args.field if args.field else field
 ncol = args.ncol if args.ncol else ncol
 nrow = args.nrow if args.nrow else nrow
 
@@ -102,19 +103,23 @@ HH = np.where(np.isnan(HH), 1., HH)
 jdm, idm = HH.shape
 LMsk = np.where(HH<0, 1, 0)
 
-if field_name == 'sndpth':
-  fliceout = 'CryoSat_EWG_hsnow_mnthclim_mesh025_1440x1080_north.nc'
-  varnm = 'snow_depth'
+if field_name == 'ithkn':
+  fliceout = 'ithkn_CryoSat_arcticAWI_mnthclim_2020-2024.nc'
+  varnm = 'ice_thkn'
 
-pthclim = os.path.join(pthdata,'CryoSat_arctic_ice_snow_thkn/clim')
+
+pthclim = os.path.join(pthdata,'CryoSat_AWI_arctic_ithkn/clim')
 dfliceout = os.path.join(pthclim,fliceout)
 print(f'Processing climatology fields  --> {dfliceout}')
 with xarray.open_dataset(dfliceout) as dsn:
   A3d = dsn[varnm].data
+  mnth_saved = dsn['time'].values
+#  hlon = dsn['lon'].data
+#  hlat = dsn['lat'].data
 
-clrmp = mclrmps.colormap_temp()
+clrmp = mclrmps.colormap_ice_thkn()
 rmin = 0.
-rmax = 0.4
+rmax = 3.
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 clrmp.set_under(color=[1,1,1])
 
@@ -147,6 +152,11 @@ def plot_field(ax1, fig1, m, xR, yR, A2d, clrmp, rmin, rmax, plt_clrb, sttl=[]):
 
   return ax1
 
+# Only plot the months that exist
+nmonths = len(mnth_saved)
+nrow = int(np.ceil(nmonths / ncol))
+
+
 plt.ion()
 fig1 = plt.figure(1,figsize=(12, 9))
 fig1.clf()  # Clear the figure
@@ -162,17 +172,22 @@ fig1.subplots_adjust(
 )
 
 iplt = 0
-for imo in range(12):
-  MM = imo+1
+for MM in mnth_saved:
   print(f"Plotting {MM:02d}")
 
-  A2d = A3d[imo,:].squeeze()
+  irec = np.where(mnth_saved == MM)[0]
+  if irec.size == 0:
+    continue
+
+  A2d = A3d[irec[0],:].squeeze()
+  A2d[HH >= 0] = np.nan   # land
+  A2d[np.isnan(A2d) & (HH < 0)] = -1.  # ocean
 
   irow = iplt // ncol
   icol = iplt % ncol
   iplt += 1
 
-  sttl = f'hsnow clim {MM:02d}'
+  sttl = f'AWI ithkn clim {MM:02d}'
 
   ax1 = axes[irow, icol]
   if iplt == 1:
@@ -181,7 +196,14 @@ for imo in range(12):
     plt_clrb = False
   ax1 = plot_field(ax1, fig1, m, xh, yh, A2d, clrmp,rmin,rmax,plt_clrb,sttl=sttl)
 
-btx = 'plot_CryoSat_EWG_hsnow_arctic_clim_Nsbpts.py'
+
+# Remove unused axes
+for j in range(iplt, nrow * ncol):
+  irow = j // ncol
+  icol = j % ncol
+  fig1.delaxes(axes[irow, icol])
+
+btx = 'plot_CryoSat_AWI_ithkn_arctic_clim_Nsbpts.py'
 bottom_text(btx, pos=[0.05,0.05], fsz=10)
 
 

@@ -74,7 +74,7 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   # dhstep should be > max grid spacing in latitudes:
   dlat_j = np.abs(np.diff(LAT, axis=0))  # north–south
   dlat_i = np.abs(np.diff(LAT, axis=1))  # east–west
-  max_dlat = max(dlat_j.max(), dlat_i.max())
+  max_dlat = max(np.nanmax(dlat_j), np.nanmax(dlat_i))
   #print(max_dlat)
 
   assert dhstep > max_dlat, f"increase dhstep={dhstep} to be >= (lat grid dlt={max_dlat:.4f})"
@@ -92,16 +92,14 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   LON = mblnr.shift_longitudes(LON0, ref_lon=x0)
 
   # Latitude range check - global min lat
-  assert np.min(LAT) <= y0, f"check lat y0={y0:.4f} < min(LAT) {np.min(LAT):.4f}"
+  assert np.nanmin(LAT) <= y0, f"check lat y0={y0:.4f} < min(LAT) {np.nanmin(LAT):.4f}"
   if not ignore_north_lim:
-    assert np.max(LAT) >= y0, f"check lat y0={y0:.4f} > max(LAT) {np.max(LAT):.4f}"
+    assert np.nanmax(LAT) >= y0, f"check lat y0={y0:.4f} > max(LAT) {np.nanmax(LAT):.4f}"
 
   # Check local min lat:
   # For curvilinear grids a point can be > global min(LAT) but still outside the domain
   # where the boundary "curves" when plotted in the lon/lat space
   dx = 2 * dhstep
-  #xl1 = ((x0 - dx)+360)%360  <--- not needed since LON is already shifted wrt x0
-  #xl2 = ((x0 + dx)+360)%360
   xl1 = x0 - dx
   xl2 = x0 + dx
   JL, IL = np.where( (LON > xl1) & (LON < xl2) )
@@ -767,9 +765,10 @@ def fill_npole(A2d, HLON, HLAT, HH, Rpole = 2.):
 
   return Acopy
 
-def extrapolate_to_lat_arctic(A2d, HLON, HLAT, HH, hlat0=65, Rsearch=0.25, fill_land=True, extrp='box'):
+def smooth_edges_arctic(A2d, HLON, HLAT, HH, hlat0=65, Rsearch=0.25, fill_land=True, extrp='box'):
   """
-    Extrapolate and smoothly damp nonzero values to zero within the Arctic region
+    Smooth shapr gradient at the edges of the data field
+    moothly damp nonzero values to zero within the Arctic region
     (HLAT >= hlat0) using distance-based weighting (extrp='inv_dist') or
     box-averaging (extrp='box')
 
@@ -851,6 +850,95 @@ def extrapolate_to_lat_arctic(A2d, HLON, HLAT, HH, hlat0=65, Rsearch=0.25, fill_
   return Aex
 
  
+def extrapolate_to_lat_arctic(A2d, HLON, HLAT, HH, hlat0=65, Npnts=5, Rsearch=20., fill_land=True):
+  """
+    Extrapolate and smoothly damp nonzero values to zero within the Arctic region
+    (HLAT >= hlat0) using distance-based weighting 
+    Values gradually decrease towards the lat=hlat0 from valid data region > hlat0
+
+    Rsearch - to speedup distance computation, find closest points within this R (degrees)
+
+    fill_land = True: Also extend values over land to avoid gaps near the coast
+    Npnts - # of the closest data points to use for averaging
+
+  """
+  import mod_misc1 as mmisc1
+
+  HLON = (HLON + 360.) % 360
+
+  Aex = A2d.copy()
+  Aex[np.isnan(Aex)] = 0.
+  if not fill_land:
+    Aex[HH >= 0] = np.nan
+
+  # Points to be filled:
+  missing_data = (HLAT >= hlat0) & (Aex == 0)
+
+  valid_src = (HLAT >= hlat0) & (Aex > 0) # do not allow no-snow values as source pnts 
+  hlat_src = HLAT[valid_src]
+  hlon_src = HLON[valid_src]
+  data_src = Aex[valid_src]
+  #JS,IS = np.where( valid_src )
+
+  JJ, II = np.where( missing_data )
+  if JJ.size == 0:
+    print("No missed data, nothing to fix")
+    return A2d
+
+  print(f"Extrapolating/ramping 2D field in Arctic to {hlat0:.2f}")
+  icc = 0
+  for ipp in range(JJ.size):
+    icc += 1
+    if icc % 5000 == 0:
+      prct = icc / float(JJ.size) * 100.
+      print(f"  {prct:.2f}% done ...")
+
+    ii0 = II[ipp]
+    jj0 = JJ[ipp]
+    x0  = HLON[jj0,ii0]
+    y0  = HLAT[jj0,ii0]
+
+    dlat = Rsearch
+    dlon = Rsearch / max(np.cos(np.deg2rad(y0)), 1e-3)
+    dlon_raw = np.abs(hlon_src - x0)
+    dlon_wrap = np.minimum(dlon_raw, 360. - dlon_raw)  # wrap around the 0/360 discont
+    srch_box = (np.abs(hlat_src - y0) <= dlat) & (dlon_wrap <= dlon)
+
+    npsrch = np.count_nonzero(srch_box)
+    if npsrch < Npnts:
+      print(f"Not enough data pnts for Rsearch={Rsearch:.1f}, found {npsrch}, i={ii0} j={jj0}")
+      if npsrch < 1:
+        continue
+
+    #DD = mmisc1.dist_sphcrd(y0, x0, hlat_src, hlon_src)
+    DD = mmisc1.dist_sphcrd(y0, x0, hlat_src[srch_box], hlon_src[srch_box])
+
+    # Choose first N smallest distances for averaging:
+    Idist = np.argpartition(DD, Npnts-1)[:Npnts]
+    DIST = DD[Idist] * 1e-3    # m --> km
+    Adata = data_src[srch_box][Idist]
+    dist_avrg = np.mean(DIST)
+    data_avrg = np.mean(Adata) 
+
+    # add closest point on the hlat0 latitude
+    dist2lat0 = mmisc1.dist_sphcrd(y0, x0, hlat0, x0) * 1e-3
+    data_lat0 = 0.
+
+    dist_tg = np.array([dist_avrg, dist2lat0])
+    data_tg = np.array([data_avrg, data_lat0])
+
+    WT = 1./(dist_tg + 1.e-6) # to avoid very small dist
+    WT = WT/np.sum(WT)
+    trgt = np.sum(WT * data_tg)
+
+    if trgt < np.min(data_tg) - 1e-6 or trgt > np.max(data_tg) + 1e-6:
+        print(f"WARN: filled val{trgt:.4f} out of data range: {np.min(data_tg):.4f}/{np.max(data_tg):.4f} i={ii0} j={jj0}")
+
+    Aex[jj0,ii0] = trgt
+
+  return Aex
+
+ 
 def fill_land(aa1,aa2,aa3,aa4,HH,A3d,JJ,II,Jocn,Iocn):
   """
     Fill all nans in 1D arrays - land points
@@ -889,6 +977,128 @@ def fill_land(aa1,aa2,aa3,aa4,HH,A3d,JJ,II,Jocn,Iocn):
  
   return AP[:,0].squeeze(), AP[:,1].squeeze(),\
          AP[:,2].squeeze(), AP[:,3].squeeze() 
+
+def box_averaging(A2d, HH, box_size=3, land_fill=False, \
+                  land_value=0., iS=None, iE=None, jS=None, jE=None, \
+                  pole_wrap = False, LAT=None, LON=None):
+  """
+    equal-weight box averaging
+    for smoothing 2D fields
+    filtering is within A2d[jS:jE+1,iS:iE+1]
+    at the domain boundaries - 1-side averaging if outside data are not available
+
+    if land_fill == True:
+    Land values are set to land_value 
+
+  box_size - Full box size (e.g., 3 x 3)
+
+   pole_wrap: True - special treatment of the grid (Lambert projection)
+                    where the top of the grid is cut across the polar region
+                    neighboring grid pnts are searched over the cut for
+                    smooth averaging over this cut (wrapping values over the cut)
+
+             False - averaging is performed to the jE or last row without 
+                     searching for neighboring points across the polar cut
+                     This is the right option for the not polar grid or 
+                     where there is no wrapping issues (like polar porjections)
+                    
+  """
+  from scipy.ndimage import uniform_filter
+
+  # Make odd:
+  if box_size % 2 == 0: 
+    box_size += 1  
+
+  jdm, idm = HH.shape
+  if iS is None: iS = 0
+  if iE is None: iE = idm - 1
+  if jS is None: jS = 0
+  if jE is None: jE = jdm - 1
+
+  print(f"Box averging: j/i: {jS}:{jE}/{iS}:{iE}")
+
+  # lon / lat required for polar wrapping:
+  if pole_wrap and (LAT is None or LON is None):
+    raise Exception(f"box_averaging: for pole_wrap LON and LAT required")
+
+  # No polar wrapping for non-polar grid
+  if pole_wrap and np.nanmax(LAT[jE, :]) < 89.0:
+    print(f"box_averaging: grid does not reach N Pole {np.max(LAT[jE,:]):.2f},  pole_wrapping disabled\n")
+    pole_wrap = False
+
+  A = A2d.copy()
+  LMsk = HH >= 0
+  if land_fill:
+    A[LMsk] = land_value
+  else:
+    A[LMsk] = np.nan
+
+  # Ignore nans:
+  valid = np.isfinite(A).astype(float)  # valid values
+  A0 = np.nan_to_num(A, nan=0.0)  # replace nans to be used by uniform filter 
+  dx = box_size // 2
+  dy = box_size // 2
+
+  if not pole_wrap:
+    # Get avrg over boxes, ignoring nans, as these = 0, 1/N^2 * sum(A)
+    # Get avrg valid (=1) and nans (=0) over boxes = 1/N^2 * sum([0,1,1,...]), i.e. N valid points/ N^2
+    avrg_A0  = uniform_filter(A0, size=box_size, mode='nearest')
+    avrg_pnts = uniform_filter(valid, size=box_size, mode='nearest')
+
+    # Note N^2 is cancelled for both when avrg_A0/avrg_pnts
+    #, i.e. this is simply sum(values)/N valid pnts
+    AF = np.full_like(avrg_A0, np.nan)
+    np.divide(avrg_A0, avrg_pnts, out=AF, where=avrg_pnts > 0)
+    #AF[avrg_pnts == 0] = np.nan
+
+  else:
+    # Polar wrapping
+    # Lambert-like grid is assumed
+    # where the N Pole is split in 2 halves such that going along a latitude (e.g. 85 N)
+    # one will "jump" from one half of the map to another
+    # Strategy: create ghost cells extending the grid beyond the last row
+    # and populate with the values from the last rows in reversed order
+
+    # Find shift point, wrt left side is symmetrical to the right half
+    lon_top = LON[-1, :].copy()
+    lon_top = np.mod(lon_top, 360.0)
+    dlon = np.mean(np.diff(np.sort(lon_top))) # mean spacing
+    ishift = int(np.round(180.0 / dlon))
+
+    print(f"Checking ishift={ishift}, half i={idm // 2}")
+
+    A_ghost = np.roll(
+              A[-dy:, ::-1],   # flip i, take last dy rows
+              shift=idm//2,      # shift from the middle of i-axis, for Lambert 
+              axis=1
+              )
+
+    valid_ghost = np.roll(
+        valid[-dy:, ::-1],
+        shift=idm//2,
+        axis=1
+        )
+    # Add ghost cells:
+    A0_ext     = np.vstack([A0, A_ghost])
+    valid_ext  = np.vstack([valid, valid_ghost])
+
+    avrg_A0   = uniform_filter(A0_ext, size=box_size, mode='constant', cval=0.0)
+    avrg_pnts = uniform_filter(valid_ext, size=box_size, mode='constant', cval=0.0)
+
+    AF_ext = np.full_like(avrg_A0, np.nan)
+    np.divide(avrg_A0, avrg_pnts, out=AF_ext, where=avrg_pnts > 0)
+
+    # Extract the original domain:
+    AF = AF_ext[:jdm, :]
+
+  # Apply only in requested subdomain 
+  Aout = A2d.copy()
+  Aout[jS:jE+1, iS:iE+1] = AF[jS:jE+1, iS:iE+1]
+
+  if not land_fill:
+    Aout[LMsk] = np.nan
+
+  return Aout
 
 def check_bottom(AA):
   """
