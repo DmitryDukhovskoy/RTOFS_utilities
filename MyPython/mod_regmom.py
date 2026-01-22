@@ -1059,25 +1059,21 @@ def box_averaging(A2d, HH, box_size=3, land_fill=False, \
     # Strategy: create ghost cells extending the grid beyond the last row
     # and populate with the values from the last rows in reversed order
 
-    # Find shift point, wrt left side is symmetrical to the right half
-    lon_top = LON[-1, :].copy()
-    lon_top = np.mod(lon_top, 360.0)
-    dlon = np.mean(np.diff(np.sort(lon_top))) # mean spacing
-    ishift = int(np.round(180.0 / dlon))
+    # Find the shift point  line of the grid: 
+    # where topmost latitude has minimum in a "M" shape 
+    # second deriv > 0 and maximum for this case because
+    # the polar cut creates a sharp change in curvature
+    d2l = np.diff(LAT[-1,:], n=2) 
+    ishift = np.argmax(d2l) + 1
+    if abs(ishift - idm // 2) > 1: 
+      print(f"WARN: Check shift line indx={ishift}, expected:  i={idm // 2} +/- 1") # should be close to idm/2
 
-    print(f"Checking ishift={ishift}, half i={idm // 2}")
+    #A_ghost = np.roll(A0[-dy:, ::-1], shift=idm//2, axis=1)
+    #valid_ghost = np.roll(valid[-dy:, ::-1], shift=idm//2, axis=1)
+    Acup = A0[-dy:, :]
+    A_ghost = np.fliplr(np.flipud(Acup))
+    valid_ghost = np.fliplr(np.flipud(valid[-dy:,:]))
 
-    A_ghost = np.roll(
-              A[-dy:, ::-1],   # flip i, take last dy rows
-              shift=idm//2,      # shift from the middle of i-axis, for Lambert 
-              axis=1
-              )
-
-    valid_ghost = np.roll(
-        valid[-dy:, ::-1],
-        shift=idm//2,
-        axis=1
-        )
     # Add ghost cells:
     A0_ext     = np.vstack([A0, A_ghost])
     valid_ext  = np.vstack([valid, valid_ghost])

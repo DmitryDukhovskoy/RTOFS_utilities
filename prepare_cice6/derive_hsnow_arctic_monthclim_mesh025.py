@@ -103,10 +103,6 @@ HH = np.where(np.isnan(HH), 1., HH)
 jdm, idm = HH.shape
 LMsk = np.where(HH<0, 1, 0)
 
-# For box-averaging:
-jS = np.min(np.where(hlat >= 60)[0])
-jE = jdm
-
 
 A3d = np.zeros((12,jdm,idm))
 for imo in range(1,13):
@@ -176,10 +172,14 @@ for imo in range(1,13):
   AA[HH>=0] = np.nan
 
   if xtrp_snow:
+    # For box-averaging:
+    jS = np.min(np.where(hlat >= 60)[0])
+    jE = jdm-1
     AA[(AA > eps0) & (AA < hsnow_min)] = hsnow_min
     AAi = mrmom.extrapolate_to_lat_arctic(AA, hlon, hlat, HH, hlat0=65, Npnts=5, Rsearch=20., fill_land=False)
     #AA = mrmom.extrapolate_to_lat_arctic(AA, hlon, hlat, HH, hlat0=65, Npnts=5, Rsearch=20., fill_land=False)
-    AAf = mrmom.box_averaging(AAi, HH, box_size = 15, jS=jS, jE=jE, pole_wrap = True)
+    AAf = mrmom.box_averaging(AAi, HH, box_size = 15, jS=jS, jE=jE, pole_wrap = True, LAT=hlat, LON=hlon)
+    AA = AAf.coopy()
 
   A3d[imo-1,:,:] = AA
 
