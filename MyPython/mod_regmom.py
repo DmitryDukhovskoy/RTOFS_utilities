@@ -15,6 +15,8 @@ import matplotlib.mlab as mlab
 from matplotlib.patches import Polygon
 from matplotlib.colors import ListedColormap
 from mod_utils_fig import bottom_text
+import mod_misc1 as mmisc1
+import mod_bilinear as mblnr
 
 def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
                       ignore_north_lim=False, use_close_indx=False):
@@ -57,8 +59,8 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
            This works for Polar stereogr. projection by grabbing points over the N. Pole 
            For other projections - this will likely not work
   """
-  import mod_misc1 as mmisc1
-  import mod_bilinear as mblnr
+  #import mod_misc1 as mmisc1
+  #import mod_bilinear as mblnr
 
 # Need 2D arrays for LON, LAT
 # if 1D array - Mercator grid is assumed
@@ -701,11 +703,17 @@ def point_on_edge(x0, y0, XV, YV, tol=1e-9):
 
   return False
 
-def fill_npole(A2d, HLON, HLAT, HH, Rpole = 2.):
+def fill_npole(A2d, HLON, HLAT, HH, Rpole = 2.5, bad_val = None, npnts_max=10):
   """
     Fill North Pole hole if needed
+    Note: the N. Pole "hole" region should be either NaN or some other "bad value" (e.g. 999)
+    do distinguish it from valid values to be used for filling the gap
+    Using 0's is not recommended unless 0 cannot be a valid value in the field   
+
     Rpole - radius of search domain around the North pole to locate NaNs and not nans
             for interpolation
+    bad_val - provide missing values if other than NaN otherwise N. Pole may not be detected
+    npnts_max - max number of the closest points for averaging
   """
   import mod_utils as mutil
   import mod_misc1 as mmisc1
@@ -714,17 +722,22 @@ def fill_npole(A2d, HLON, HLAT, HH, Rpole = 2.):
   mm,nn = HLAT.shape
   Acopy = A2d.copy()
 
+  print(f'Filling North Pole hole R={Rpole:.2f}')
   # N. Pole region:
   lat_npole = 90. - Rpole
   if np.max(HLAT) < lat_npole:
-    print(f"fill_npole: NPole region failed for lat_npole={lat_npole:.2f}N,  max HLAT={np.max(HLAT):.2f}")
+    print(f"fill_npole: NPole beyond domain lat_npole={lat_npole:.2f}N, max HLAT={np.max(HLAT):.2f}")
     return A2d
+
+  if bad_val is not None:
+    NPmask = (HLAT >= lat_npole) & (A2d == bad_val)
+    A2d[NPmask] = np.nan
 
   # NPole mask:
   # = -1 - outside the NPole region
   # =  1 - valid values
   # =  0 - land 
-  # =  9 - N Polw hole 
+  # =  9 - N Pole hole 
   npole_dom  = (HLAT >= lat_npole)
   npole_land = npole_dom & (HH >= 0)
   npole_hole = npole_dom & (~npole_land) & np.isnan(A2d)
@@ -737,8 +750,8 @@ def fill_npole(A2d, HLON, HLAT, HH, Rpole = 2.):
 
   JJ, II = np.where( NPmask == 9 )
   if JJ.size == 0:
-    print("North Pole hole not found, nothing to fix")
-    return A2d
+    print("North Pole hole not found, nothing to fix, check NPole = NaN or set bad_val")
+    return Acopy
 
   Xdon = HLON[NPmask == 1]
   Ydon = HLAT[NPmask == 1]
@@ -753,11 +766,14 @@ def fill_npole(A2d, HLON, HLAT, HH, Rpole = 2.):
     DIST = mmisc1.dist_sphcrd(y0, x0, Ydon, Xdon)
     assert np.min(DIST) > 0., "fill_npole: unexpected 0 dist for donor points outside NPole hole"
 
-    WT = 1./(DIST + 1.e-6) # to avoid very small dist near N pole
+    # Find N closest points based on DIST:
+    INDX = np.argpartition(DIST, npnts_max)[:npnts_max]
+
+    WT = 1./(DIST[INDX] + 1.e-6) # to avoid very small dist near N pole
     WT = WT/np.sum(WT)
     assert abs(1.-np.sum(WT)) < 1.e-8, "Check weights WT"
 
-    trgt = np.sum(WT*Adata)
+    trgt = np.sum(WT*Adata[INDX])
     assert (trgt >= np.min(Adata)) and (trgt <= np.max(Adata)),\
     f"Filling npole error: i={ii0} j={jj0} filled={trgt:.4f} min/max ={np.min(Adata):.4f}/{np.max(Adata):.4f}"
 
@@ -1015,7 +1031,7 @@ def box_averaging(A2d, HH, box_size=3, land_fill=False, \
   if jS is None: jS = 0
   if jE is None: jE = jdm - 1
 
-  print(f"Box averging: j/i: {jS}:{jE}/{iS}:{iE}")
+  print(f"Box averging: box_size={box_size} subdomain: j/i: {jS}:{jE}/{iS}:{iE}, pole_wrap={pole_wrap}")
 
   # lon / lat required for polar wrapping:
   if pole_wrap and (LAT is None or LON is None):

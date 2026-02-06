@@ -8,7 +8,6 @@ import sys
 import importlib
 import matplotlib
 import xarray
-from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
@@ -34,27 +33,35 @@ sys.path.extend([
 from mod_utils_fig import bottom_text
 import mod_time as mtime
 import mod_utils as mutil
-import mod_misc1 as mmisc
 import mod_colormaps as mclrmps
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
 import mod_mom6 as mmom6
-import mod_misc1 as mmisc
-import mod_sis2_relax as msisrlx
-importlib.reload(msisrlx)
   
 rest_date = 20250103
 rest_hr   = 0
-hunits    = 'cm'
+regn = 'north'
 #flrst = 'cice_model.res.20250103.00.iconc.snow.nc'
 #flrst = 'cice_model.res.20250103.00.iconc.nc'
-flrst = 'cice_model.res.20250103.00.iconc_thkn.snow.nc'
-  
+#flrst = '20250103.030000.cice_model.res.nc'       # original ice restart
+#flrst = 'cice_model.res.20250103.00.iconc_thkn.snow.nc'
+flrst = 'cice_restart.20250103.00.iconc_ithkn.hsnow.snphys.nc' 
+
+# ithkn - mean ice thkn per m2 of grid cell area
+# ithkn_ice - mean ice thkn per m2 of ice area
+# hsnow - mean snow depth per grid cell area
+# hsnow_ice - mean snow depth per ice area 
 parser = argparse.ArgumentParser()
 parser.add_argument("--flrst", help=f"restart file name, default={flrst}", type=str)
+parser.add_argument("--regn", help=f"region to plot, default={regn}", type=str)
+parser.add_argument("--fplt", help="Field to plot", 
+                   choices=['iconc','ithkn','ithkn_ice','hsnow','hsnow_ice','none'], type=str)
 args = parser.parse_args()
 
 flrst = args.flrst if args.flrst else flrst
+regn  = args.regn if args.regn else regn
+fld_plt = args.fplt if args.fplt else None
+if fld_plt == 'none':
+  fld_plt = None
+
 #rest_date     = args.rdate if args.rdate else rest_date
 #rest_hr       = args.rhr if args.rhr else rest_hr
 #rest_date_out = args.rdate_out if args.rdate_out else rest_date
@@ -115,7 +122,10 @@ with open(fyaml) as ff:
   pths_ufs = safe_load(ff)
 
 #flrst = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc.nc"
-pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+#pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+#pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"])
+pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'cice6_global')
+#pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'cice6_north')
 dflrst = os.path.join(pthrest,flrst)
 
 print(f"Reading {dflrst}")
@@ -142,14 +152,23 @@ vicen = ds_rst['vicen'].data
 vsnon = ds_rst['vsnon'].data
 ncat = vsnon.shape[0]
 
-# Total ice vol:
-vice = np.sum(vicen*aicen, axis=0).squeeze()
+# Total ice vol per grid cell area, m3_ice / m2_cell:
+vice = np.sum(vicen, axis=0).squeeze()
 
 # Aggreg iconc:
 aice = np.sum(aicen, axis=0).squeeze()
 
-# mean ice thickness over ice area:
-hice = np.divide(vice, aice, out=np.zeros_like(aice), where=aice != 0)
+# grid-cell mean ice thickness:
+hice_cell = vice.copy()
+
+# ice thickness over ice only, m3_ice / m2_ice:
+hice_ice = np.divide(vice, aice, out=np.zeros_like(aice), where=aice != 0)
+
+# grid-cell snow depth:
+hsnow_cell = np.sum(vsnon, axis=0)
+
+# mean snow depth over ice area:
+hsnow_ice = np.divide(hsnow_cell, aice, out=np.zeros_like(aice), where=aice != 0)
 
 # Check hice(n) as it is caclulated in icepack_therm_vertical.F90
 # hice(n) = vice(n) / aice(n) 
@@ -190,8 +209,6 @@ for k in range(1,ncat+1):
   print(f"  found {len(Jerr)} points violating: {hbin_min:.3f} <= hice < {hbin_max:.3f}")
   print(f"  found {len(Jdh)} points violating hice[k] > hice[k-1]") 
 
-  if k == 2:
-    A = STOP
  
 print('\n =========  SNOW =========')
 for k in range(1,ncat+1):
@@ -206,53 +223,91 @@ for k in range(1,ncat+1):
   print(f"  j={jmax}, i={imax}, max hsnow(n): {np.nanmax(hsno_n)}, "+\
         f"aice(n): {aice_n[jmax,imax]}, vsno(n): {vsno_n[jmax,imax]}")
 
+print('\n =========  ICE CONCENTRATION =========')
+jmax, imax = np.unravel_index(aice.argmax(), aice.shape)
+print(f"Max ice conc: {aice[jmax,imax]}, j={jmax}, i={imax}")
+for k in range(1,ncat+1):
+  print(f"Cat {k}: ")
+  aice_n = aicen[k-1,:].squeeze()
+  print(f"  j={jmax}, i={imax}, aicen(n): aice(n): {aice_n[jmax,imax]}")
 
-f_plt = False
+f_plt = fld_plt is not None
+
 if f_plt:
-  clrmp = mclrmps.colormap_conc()
-  rmin = 0.
-  rmax = 5.
+  j0 = i0 = None
+
+  print(" Plotting ...")
+  if fld_plt == 'iconc':
+    clrmp = mclrmps.colormap_conc()
+    rmin = 0.
+    rmax = 1.
+    A2d = aice.copy()
+
+  if fld_plt == 'ithkn':
+    clrmp = mclrmps.colormap_ice_thkn()
+    rmin = 0.
+    rmax = 3.
+    A2d = hice_cell.copy()
+
+  if fld_plt == 'ithkn_ice':
+    clrmp = mclrmps.colormap_ice_thkn()
+    rmin = 0.
+    rmax = 3.
+    A2d = hice_ice.copy()
+
+  if fld_plt == 'hsnow':
+    clrmp = mclrmps.colormap_temp()
+    rmin = 0.
+    rmax = 0.4
+    clrmp.set_under(color=[1,1,1])
+    A2d = hsnow_tot.copy()
+    
+  if fld_plt == 'hsnow_ice':
+    clrmp = mclrmps.colormap_temp()
+    rmin = 0.
+    rmax = 0.4
+    clrmp.set_under(color=[1,1,1])
+    A2d = hsnow_tot.copy()
+    
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
+
   hlon = LON
   hlat = LAT
 
   if regn == 'south':
-    m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
-  #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
-  parallels = np.arange(-80,-10,10.)
-  meridians = np.arange(-360,359.,45.)
-  xl1 = -8.e6
-  xl2 = -1.2e6
-  yl1 = xl1
-  yl2 = xl2
+    m = Basemap(projection='spstere',boundinglat=-55,lon_0=180,resolution='l')
+    parallels = np.arange(-80,-10,10.)
+    meridians = np.arange(-360,359.,45.)
+  elif regn == 'north':
+    m = Basemap(projection='npstere',boundinglat=60,lon_0=-10,resolution='l')
+    parallels = np.arange(50, 90, 5)
+    meridians = np.arange(-360, 359., 45.)
 
   xh, yh = m(hlon,hlat) # GFS coords
 
   plt.ion()
   fig1 = plt.figure(1, figsize=(8,8))
   plt.clf()
-  ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
+  ax1 = plt.axes([0.1, 0.13, 0.8, 0.8])
 
-  m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-  m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
-  img1 = ax1.pcolormesh(xh,yh,aice, cmap=clrmp, vmin=rmin, vmax=rmax)
+  m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
+  m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
+  img1 = ax1.pcolormesh(xh, yh, A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
 
   ax1.contour(xh,yh,HH,[0], linestyles='solid', colors=[(0.,0.,0.)], linewidths=1)
 
-  ax1.set_xlim([xl1, xl2])
-  ax1.set_ylim([yl1, yl2])
-  ax1.invert_yaxis()
-  ax1.invert_xaxis()
+  ax1.set_title(f'{flrst}, {fld_plt}\n {pthrest}')
 
   # Plot pnt:
-  x0 = hlon[j0,i0]
-  y0 = hlat[j0,i0]
-  xh0 = xh[j0,i0]
-  yh0 = yh[j0,i0]
-  ax1.plot(xh0,yh0,'o')
+  if j0 is not None:
+    x0 = hlon[j0,i0]
+    y0 = hlat[j0,i0]
+    xh0 = xh[j0,i0]
+    yh0 = yh[j0,i0]
+    ax1.plot(xh0,yh0,'o')
 
   # Colorbars
-  ax3 = fig1.add_axes([0.2, 0.05, 0.6, 0.02])
+  ax3 = fig1.add_axes([0.2, 0.1, 0.6, 0.02])
   clb = plt.colorbar(img1, cax=ax3, orientation='horizontal', extend='max')
   ax3.xaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
   ax3.set_xticklabels(ax3.get_xticks())
@@ -260,7 +315,8 @@ if f_plt:
   clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
   clb.ax.tick_params(direction='in', length=12)
 
-
+  btx = 'check_cice6_restart.py'
+  bottom_text(btx, pos = [0.02,0.02])
 
 
 

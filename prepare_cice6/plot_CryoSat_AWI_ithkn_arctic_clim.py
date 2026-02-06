@@ -1,5 +1,5 @@
 """
-  9 suplots of winter monthly snow depth clim in Arctic
+  plot 1 month of  winter monthly snow depth clim in Arctic
 
   Interpolated CryoSat AWI  snow or ice thickn. monthly fileds 
   winter months only
@@ -51,20 +51,17 @@ import mod_mom6 as mmom6
 import mod_cice6_utils as mc6util
 
 regn = 'north'
-ncol = 4
-nrow = 3
 field = 'ithkn'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--field", help=f"Field to interpolate: snow depth or ice thickn",
                     choices=['sndpth','ithkn'], type=str)
-parser.add_argument("--ncol", help=f"N of columns for subplots, default={ncol}", type=int)
-parser.add_argument("--nrow", help=f"N of rows for subplots, default={nrow}", type=int)
+parser.add_argument("--mm", help=f"Winter month to plot", choices=[1,2,3,4,10,11,12],
+                   required=True, type=int)
 args = parser.parse_args()
   
 field_name = args.field if args.field else field
-ncol = args.ncol if args.ncol else ncol
-nrow = args.nrow if args.nrow else nrow
+MM = args.mm if args.mm else None
 
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -114,8 +111,11 @@ print(f'Processing climatology fields  --> {dfliceout}')
 with xarray.open_dataset(dfliceout) as dsn:
   A3d = dsn[varnm].data
   mnth_saved = dsn['time'].values
-#  hlon = dsn['lon'].data
-#  hlat = dsn['lat'].data
+  irec = np.where(mnth_saved == MM)[0]
+
+  A2d = A3d[irec[0],:].squeeze()
+  A2d[HH >= 0] = np.nan   # land
+  A2d[np.isnan(A2d) & (HH < 0)] = -1.  # ocean
 
 clrmp = mclrmps.colormap_ice_thkn()
 rmin = 0.
@@ -124,86 +124,39 @@ clrmp.set_bad(color=[0.2, 0.2, 0.2])
 clrmp.set_under(color=[1,1,1])
 
 from mpl_toolkits.basemap import Basemap, cm
-m = Basemap(projection='npstere', boundinglat=60, lon_0=-45,resolution='l')
+#m = Basemap(projection='npstere', boundinglat=60, lon_0=-45,resolution='l')
+m = Basemap(projection='npstere',boundinglat=60,lon_0=-10,resolution='l')
 xh, yh = m(hlon,hlat) # GFS coords
 
-def plot_field(ax1, fig1, m, xR, yR, A2d, clrmp, rmin, rmax, plt_clrb, sttl=[]):
-  fig1.sca(ax1)
-  m.drawcoastlines()
-  parallels = np.arange(40,89,10.)
-  meridians = np.arange(-360,359.,45.)
-
-  img = ax1.pcolormesh(xR, yR, A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
-  m.drawparallels(parallels,labels=[0,0,0,0])
-  m.drawmeridians(meridians,labels=[0,0,0,0])
-  ax1.set_title(sttl)
-
-  # extend: min, max, both
-  if plt_clrb:
-    ax2 = fig1.add_axes([0.9,0.1,0.013,0.8])
-    clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='both')
-
-    ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
-    ax2.set_yticklabels(ax2.get_yticks())
-    ticklabs = clb.ax.get_yticklabels()
-    #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
-    clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
-    clb.ax.tick_params(direction='in', length=12)
-
-  return ax1
-
-# Only plot the months that exist
-nmonths = len(mnth_saved)
-nrow = int(np.ceil(nmonths / ncol))
-
-
 plt.ion()
-fig1 = plt.figure(1,figsize=(12, 9))
+fig1 = plt.figure(1,figsize=(9, 9))
 fig1.clf()  # Clear the figure
-axes = fig1.subplots(nrows=nrow, ncols=ncol)
 
-fig1.subplots_adjust(
-    left=0.05,
-    right=0.85,  # More right-side room
-    top=0.95,
-    bottom=0.1,
-    wspace=0.05,
-    hspace=0.1
-)
+ax1 = plt.axes([0.05, 0.1, 0.8, 0.8])
 
-iplt = 0
-for MM in mnth_saved:
-  print(f"Plotting {MM:02d}")
+m.drawcoastlines()
+parallels = np.arange(40,89,10.)
+meridians = np.arange(-360,359.,45.)
 
-  irec = np.where(mnth_saved == MM)[0]
-  if irec.size == 0:
-    continue
+img = ax1.pcolormesh(xh, yh, A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
+m.drawparallels(parallels,labels=[0,0,0,0])
+m.drawmeridians(meridians,labels=[0,0,0,0])
 
-  A2d = A3d[irec[0],:].squeeze()
-  A2d[HH >= 0] = np.nan   # land
-  A2d[np.isnan(A2d) & (HH < 0)] = -1.  # ocean
+sttl = f"{field_name} AWI monthly clim MM={MM:02d}"
+ax1.set_title(sttl)
 
-  irow = iplt // ncol
-  icol = iplt % ncol
-  iplt += 1
+ax2 = fig1.add_axes([0.9,0.1,0.015,0.8])
+clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='both')
 
-  sttl = f'AWI ithkn clim {MM:02d}'
-
-  ax1 = axes[irow, icol]
-  if iplt == 1:
-    plt_clrb = True
-  else:
-    plt_clrb = False
-  ax1 = plot_field(ax1, fig1, m, xh, yh, A2d, clrmp,rmin,rmax,plt_clrb,sttl=sttl)
+ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
+ax2.set_yticklabels(ax2.get_yticks())
+ticklabs = clb.ax.get_yticklabels()
+#  clb.ax.set_yticklabels(ticklabs,fontsize=10)
+clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+clb.ax.tick_params(direction='in', length=10)
 
 
-# Remove unused axes
-for j in range(iplt, nrow * ncol):
-  irow = j // ncol
-  icol = j % ncol
-  fig1.delaxes(axes[irow, icol])
-
-btx = 'plot_CryoSat_AWI_ithkn_arctic_clim_Nsbpts.py'
+btx = 'plot_CryoSat_AWI_ithkn_arctic_clim.py'
 bottom_text(btx, pos=[0.05,0.05], fsz=10)
 
 

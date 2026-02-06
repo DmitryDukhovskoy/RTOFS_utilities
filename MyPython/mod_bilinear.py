@@ -318,6 +318,10 @@ def shift_longitudes(lons, ref_lon=360):
   The function shifts all longitudes so that they are around and close to the reference 
   longitue (ref_lon = x0).
   Default: normalize to [0, 360)
+  For interpolation to avoid discontinuities near 0/360 or -180/180
+  e.g. ref_lon = 185 and lons are [-180,180] --> the range
+       does not include the ref_lon, after shifting the range will be [0,360] 
+       to include the ref_lon
   """
   lons = np.array(lons, dtype=float)
   if ref_lon == 360:

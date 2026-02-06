@@ -177,7 +177,7 @@ for imo in range(12):
       np.save(tmp_file, A2d)
 
 
-fliceout = f"{field_name}_CryoSat_arcticNSIDC_EASE100_mnthclim.nc"
+fliceout = f"{field_name}_CryoSat_arcticNSIDC_EASE100_mnthclim_{jdm}x{idm}.nc"
 pthnsidc = os.path.join(pthdata,'CryoSat_NSIDC_arctic_ithkn','clim')
 dfliceout = os.path.join(pthnsidc,fliceout)
    
@@ -229,7 +229,8 @@ if f_chck:
   m.drawmeridians(np.arange(-180, 180, 45), labels=[0,0,0,1])
   m.drawcoastlines()
 
-  AP = HSint.copy()
+  #AP = HSint.copy()
+  AP = A3d[MM-1,:,:].squeeze()
   AP[HH >= 0] = np.nan   # land
   AP[np.isnan(AP) & (HH < 0)] = -1.  # ocean
   img = m.pcolormesh(xh,yh, AP, cmap=clrmp, vmin=rmin, vmax=rmax)

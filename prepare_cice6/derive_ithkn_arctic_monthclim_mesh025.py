@@ -1,11 +1,9 @@
 """
-  Derive monthly clim of snow depth or ice thickn in the Arctic region
-  using: 
-  Interpolated NSIDC CryoSat snow or ice thickn. monthly fileds 2018-2021
-  winter months only
-
-  Warren (EWG Atlas) snow depth climatology - for summer months
-
+  Derive monthly clim of ice thickn in the Arctic region
+  combining
+  CryoSat AWI monthly fields for winter months
+  and NSIDC on EASE100 grid monthly fields for summer
+  
   Both data sets have been interpolated onto 025 mesh
 
 """
@@ -16,11 +14,9 @@ import sys
 import importlib
 import matplotlib  
 import xarray
-from copy import copy
 import matplotlib.colors as colors 
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
-import pandas as pd
 import argparse
                    
 # Append custom module paths
@@ -46,24 +42,12 @@ from mod_utils_fig import bottom_text
 import mod_time as mtime
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
-import mod_sis2_relax as msisrlx
+import mod_cice6_utils as mc6util
 import mod_regmom as mrmom
 importlib.reload(mrmom)
 
 regn = 'north'
-xtrp = 1   # extrapolate gaps in snow fields extending to coast or lat_xmin
-lat_xmin = 65. # extend snow to this lat for ease of snow reconstruction in the IC files
-
-parser = argparse.ArgumentParser()
-parser.add_argument("--field", help=f"Field to interpolate: snow thkciness or ice thickn",
-                    choices=['sndpth','ithkn'], required=True, type=str)
-parser.add_argument("--xtrp", help=f"extrapolate snow fields to coast/min lat, default={xtrp}", 
-                   choices=[0,1], type=int)
-args = parser.parse_args()
-  
-field_name = args.field if args.field else None
-xtrp_snow = xtrp == 1
-
+box_fltr = True
 
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -109,84 +93,44 @@ for imo in range(1,13):
   print(f"Processing MM={imo:02d} ...")
   MM = imo
  
-  if MM >= 10:
-    yrS = 2018
-    yrE = 2020
-  else:
-    yrS = 2019
-    yrE = 2021
-
   if MM >=10 or MM <= 4:
-    use_nsidc = True
+    use_awi = True
   else:
-    use_nsidc = False
+    use_awi = False
 
-  # Average monthly NSIDC fields:
-  if use_nsidc:
-    AA = None
-    icc = 0
-    for YR in range(yrS,yrE+1):
-
-      # NSIDC snow/ice fields on mesh025:
-      pthifld = os.path.join(pthdata,'CryoSat_arctic_ice_snow_thkn/interp_NSIDC_monthly')
-      if field_name == 'sndpth':
-        varnm = 'snow_depth'
-        fliceout = f'hsnow_NSIDC_CryoSat_arctic_interp_mesh025_1080x1440_{YR}{MM:02d}.nc'
-      elif field_name == 'ithkn':
-        varnm = 'ice_thkn'
-        fliceout = f'ithkn_NSIDC_CryoSat_arctic_interp_mesh025_1080x1440_{YR}{MM:02d}.nc'
-  
-      dflnsidc = os.path.join(pthifld,fliceout)
-
-      with xarray.open_dataset(dflnsidc) as dsn:
-        A2d = dsn[varnm].data.squeeze()
-
-      if AA is None:
-        AA = A2d.copy()
-      else:
-        AA += A2d
-      icc += 1
-
-    AA = AA / float(icc)
-
+  varnm = 'ice_thkn'
+  if use_awi:
+    pthinp, flinp = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, "ithkn_AWI")
   else:
-    if field_name == 'sndpth':
-      varnm = 'snow_depth'
-      flewg = 'hsnow_EWGatlas_interp_mesh025_1080x1440_north.nc'
-    elif field_name == 'ithkn':
-      varnm = None 
-      fliceout = None  # not ready yet
+    pthinp, flinp = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, "ithkn_NSIDC")
 
-    pthewg = os.path.join(pthdata,'Warren_snow_clim_EWG_atlas/snow_clim_interp')
-    dflewg = os.path.join(pthewg, flewg)
+  dflclim_inp = os.path.join(pthinp, flinp)
 
-    with xarray.open_dataset(dflewg) as dsn:
-      AA = dsn[varnm].isel(time=imo-1).data.squeeze()
+  with xarray.open_dataset(dflclim_inp) as dsn:
+    Time = dsn['time'].values
+    irec = np.where(Time == MM)[0]
+    assert irec.size > 0, f"Couldnot find month {MM} in data set"
+    A2d = dsn[varnm].isel(time=irec).data.squeeze()
 
   # Cleanup missing data --> 0
   eps0 = 1.e-8
-  hsnow_min = 0.01
+  AA = A2d.copy()
   AA[AA <= eps0] = 0.
-  mask_missed = (HH<0) & np.isnan(AA)
-  AA[mask_missed] = 0.
-  AA[HH>=0] = np.nan
+  AA[np.isnan(AA)] = 0.
+  AA[HH >= 0] = np.nan
 
-  if xtrp_snow:
-    # For box-averaging:
-    jS = np.min(np.where(hlat >= 60)[0])
+  if box_fltr:
+    jS = np.min(np.where(hlat >= 50)[0])
     jE = jdm-1
-    AA[(AA > eps0) & (AA < hsnow_min)] = hsnow_min
-    AAi = mrmom.extrapolate_to_lat_arctic(AA, hlon, hlat, HH, hlat0=65, Npnts=5, Rsearch=20., fill_land=False)
     nfltr = 1
     bx_sz = 27
     if imo >= 5 and imo <= 9:
-      nfltr = 3
+      nfltr = 2
       bx_sz = 51
-    AAf = AAi.copy()
+    AAf = AA.copy()
     for ifltr in range(nfltr):
       AAf = mrmom.box_averaging(AAf, HH, box_size = bx_sz, jS=jS, jE=jE, pole_wrap = True, LAT=hlat, LON=hlon)
     AA = AAf.copy()
-
   A3d[imo-1,:,:] = AA
 
 
@@ -209,28 +153,15 @@ darr_lat = xarray.DataArray(hlat, dims=("jdim","idim"),
                  coords={"jdim": JD,\
                          "idim": ID,})
 
-if field_name == 'sndpth':
-  dset_hs = xarray.Dataset({
-    "snow_depth": darr_hs,
-    "lon": darr_lon,
-    "lat": darr_lat,
-  })
-  dset_hs['snow_depth'].attrs.update({
-    "long_name": "snow depth on ice",
-    "units": "m",
-  })
-  attr_str = 'Snow depth'
-elif field_name == 'ithkn':
-  dset_hs = xarray.Dataset({
+dset_hs = xarray.Dataset({
     "ithkn": darr_hs,
     "lon": darr_lon,
     "lat": darr_lat,
   })
-  dset_hs['ithkn'].attrs.update({
-    "long_name": "ice thickness, cell mean",
-    "units": "m",
-  })
-  attr_str = 'Ice thickness'
+dset_hs['ithkn'].attrs.update({
+  "long_name": "ice thickness, cell mean",
+  "units": "m",
+})
 
 dset_hs['time'].attrs.update({
   "long_name": "months"
@@ -245,16 +176,15 @@ dset_hs['lat'].attrs.update({
 })
 
 dset_hs.attrs.update({
-    "title": f"{attr_str} climatology from CryoSat and EWG Atlas interpolated onto mesh025 grid",
+    "title": f"Ice thickness climatology from CryoSat AWI (winter) and NSIDC EASE100 (summer) interpolated onto mesh025 grid",
     "institution": "NOAA NWS NCEP MDC",
-    "source": "derive_hsnow_arctic_monthclim_mesh025.py",
+    "source": "derive_ithkn_arctic_monthclim_mesh025.py",
     "region": regn,
 })
 
-if field_name == 'sndpth':
-  fliceout = f'CryoSat_EWG_hsnow_mnthclim_mesh025_{idm}x{jdm}_{regn}.nc'
-elif field_name == 'ithkn':
-  fliceout = f'CryoSat_EWG_ithkn_mnthclim_mesh025_{idm}x{jdm}_{regn}.nc'
+
+pthclim, fliceout = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, 'ithkn_AWI')
+#fliceout = f'CryoSat_AWI_NSIDC_ithkn_mnthclim_mesh025_{jdm}x{idm}_{regn}.nc'
 
 pthclim = os.path.join(pthdata,'CryoSat_arctic_ice_snow_thkn/clim')
 dfliceout = os.path.join(pthclim,fliceout)
@@ -267,7 +197,7 @@ f_chck = False
 if f_chck:
   clrmp = mclrmps.colormap_temp(skip_dark=0.12)
   rmin = 0.
-  rmax = 0.4
+  rmax = 4.
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
   m = Basemap(projection='npstere',boundinglat=60,lon_0=-45,resolution='l')

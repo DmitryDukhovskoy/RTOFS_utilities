@@ -269,7 +269,7 @@ for ipp in range(npnts):
   # Distribute new snow depth evenly by cats in snow vol m3/m2:
   vstot_new = hsn_new * ai
   if hsn_new <= hs_min or ai < puny:
-    vsn_new = vsn_new * 0.
+    vsn_new = np.zeros_like(ain)
   else:
     # Distribute across cats proportionally to iconc:
     wts = ain/ai

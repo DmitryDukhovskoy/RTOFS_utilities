@@ -2,6 +2,10 @@
   Interpolate CryoSat hsnow or ice thickn. monthly fileds 
   winter months only
 
+  When averaging, 0-thickness is ignored, i.e. only hice > 0 is considered for 
+  computing the multi-year mean to track mean ice thickness in the grid cell 
+  only when it presents there
+
   AWI L4 gridded 25 km 
   Arctic snow depth, density, and sea ice thickness, freeboard etc 
    from CryoSat-2
@@ -53,7 +57,7 @@ import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
 regn = 'north'
-YRS = 2020
+YRS = 2015
 YRE = 2024
 field_name = 'ithkn' 
 avrg = 1  # 1 - derive climatology and interp, 0 - interpolate monthly data by years and save
@@ -231,6 +235,7 @@ for imo in range(12):
 
   nyrs = 0
   Asum = np.full_like(LON, 0.)
+  count_ice = np.full_like(LON,0).astype(int)
   for YR in range(YRS,YRE+1):
     print(f"Processing {YR}/{MM:02d}")
     flice   = f"{fname0}-{YR}{MM:02d}-{fsfx}.nc"
@@ -249,6 +254,7 @@ for imo in range(12):
         raise Exception(f"Unrecognized units {units}")
   
     AA = np.where(AA > 1.e30, np.nan, AA) * cff_m  # cm --> m  
+    BDmask = np.isnan(AA)  # keep nan mask
     nyrs += 1
  
     if not mnthly_clim:  
@@ -259,7 +265,7 @@ for imo in range(12):
       A2d = np.where(HH>=0, np.nan, HSint)
       A2d = np.expand_dims(A2d, axis=0) 
 
-      fliceout = f"{field_name}_CryoSat_arcticAWI_{YR}{MM:02d}.nc"
+      fliceout = f"{field_name}_CryoSat_arcticAWI_{YR}{MM:02d}_{jdm}x{idm}.nc"
       pthnsidc = os.path.join(pthdata,'CryoSat_AWI_arctic_ithkn','interp_monthly')
       dfliceout = os.path.join(pthnsidc,fliceout)
       time_out = np.array([np.datetime64(f"{YR:04d}-{MM:02d}-01", "ns")])
@@ -268,13 +274,20 @@ for imo in range(12):
 
     else:
       #AA[HH >= 0] = np.nan
-      Asum += AA
+      #Asum += AA  # simple averaging will mix no ice and ice in the grid cell, not good
+      ice_grid = np.isfinite(AA) & (AA > 0.0)
+      Asum[ice_grid] += AA[ice_grid]
+      count_ice[ice_grid] += 1
 
   if mnthly_clim:
-    Asum /= nyrs
+    #Asum /= nyrs
+    Asum = np.divide(Asum, count_ice, out=np.zeros_like(Asum), where = count_ice > 0)
+    # Mask Land and N. Pole hole:
+    Asum[BDmask] = np.nan
+
     HSint = msisrlx.interp2Dfld(Asum, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
     # Fill the N.Pole hole:
-    HSint = mrmom.fill_npole(HSint, hlon, hlat, HH, Rpole=2.)
+    HSint = mrmom.fill_npole(HSint, hlon, hlat, HH, Rpole=2.5)
     A2d = np.where(HH>=0, np.nan, HSint)
     A2d = np.expand_dims(A2d, axis=0)
 
@@ -285,7 +298,7 @@ for imo in range(12):
       np.save(tmp_file, A2d)
 
 if mnthly_clim:
-  fliceout = f"{field_name}_CryoSat_arcticAWI_mnthclim_{YRS}-{YRE}.nc"  
+  fliceout = f"{field_name}_CryoSat_arcticAWI_mnthclim_{YRS}-{YRE}_{jdm}x{idm}.nc"  
   pthnsidc = os.path.join(pthdata,'CryoSat_AWI_arctic_ithkn','clim')
   dfliceout = os.path.join(pthnsidc,fliceout)
   time_out = np.array(mnth_keep)
@@ -303,6 +316,10 @@ if f_chck:
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
   clrmp.set_under(color=[1,1,1]) 
 
+  AP = HSint.copy()
+  AP[HH >= 0] = np.nan   # land
+  AP[np.isnan(AP) & (HH < 0)] = -1.  # ocean
+
   plt.ion()
   fig1 = plt.figure(1,figsize=(9,9))
   plt.clf()
@@ -310,14 +327,12 @@ if f_chck:
       
   m = Basemap(projection='npstere',boundinglat=60,lon_0=-10,resolution='l', ax=ax1)
   xh, yh = m(hlon, hlat)
+  xL, yL = m(LON, LAT)
 
   m.drawparallels(np.arange(60, 90, 5), labels=[1,0,0,0])
   m.drawmeridians(np.arange(-180, 180, 45), labels=[0,0,0,1])
   m.drawcoastlines()
 
-  AP = HSint.copy()
-  AP[HH >= 0] = np.nan   # land
-  AP[np.isnan(AP) & (HH < 0)] = -1.  # ocean
   img = m.pcolormesh(xh,yh, AP, cmap=clrmp, vmin=rmin, vmax=rmax)
   ax1.set_title(f"{varnm}, CryoSat AWI, {YR}/{MM:02d}")
 

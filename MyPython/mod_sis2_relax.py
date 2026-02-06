@@ -47,7 +47,7 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
   phi1,phi2,phi3,phi4 = mblnr.basisFn_RectRef()
   phi_basis           = np.array([phi1, phi2, phi3, phi4]).transpose() # basis funs in columns
 
-  npnts = len(INDX)
+  npnts = len(IMOM)
   jdm, idm = LMsk.shape
   assert np.max(LMsk) == 1 and np.min(LMsk) == 0,\
     f"LMsk should be 0 and 1, given: np.min(LMsk) and np.max(LMsk)"
@@ -85,14 +85,13 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
     # of the box vertix coordinates (e.g, xx = 359, 0.5, 0.5, 359)
     # and x0 coordinate wrt to box vertices e.g. x0 = -0.2, xx=359, 0.5, 0.5, 359
     # shift all coordinates to -180,180 wrt to x0
-    LON = mblnr.shift_longitudes(LON0, ref_lon=x0)
-
+    #LON = mblnr.shift_longitudes(LON0, ref_lon=x0) # <-- can be slow for large LON
+                                                 # instead: shift 4 longitudes xx
     II = np.squeeze(INDX[ikk,:])
     JJ = np.squeeze(JNDX[ikk,:])
-    #ii1, ii2, ii3, ii4 = II
-    #jj1, jj2, jj3, jj4 = JJ
 
-    xx = LON[JJ,II]
+    xx0 = LON0[JJ,II]
+    xx = mblnr.shift_longitudes(xx0, ref_lon=x0)
     yy = LAT[JJ,II]
 
     # Make sure the vertices are close enough:

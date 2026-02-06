@@ -1251,70 +1251,85 @@ def adjust_thkncats_aice(ain_new, vin_new, vtot_target, \
     hin_new = res.x[ncat:]
     ain_new[hin_new < puny] = 0.
     vin_new = hin_new * ain_new
- 
+
+  # eliminate truncation errors:
+  exc_ai = np.sum(ain_new) - 1.
+  eps_err = puny
+  #print(f"exc_ai = {exc_ai}")
+  if exc_ai > eps_err:
+    icen_mask = ain_new > bnd_min
+    nice = np.count_nonzero(icen_mask)
+    ain_new [icen_mask] = ain_new[icen_mask] - exc_ai / nice
+    if nice > 0:
+      correction = exc_ai / nice
+      ain_new[icen_mask] = np.maximum(ain_new[icen_mask] - correction, 0.0)
+
+  #print(f"After correction: {np.sum(ain_new) - 1.}")
   return ain_new, vin_new 
 
 
-def get_date_filename(file_name, sfx='cice_model.res'): 
+def get_date_filename(file_name, nnumb_date=8): 
   """
     Accepted file formats:
+
+      any # of letters before or after date.time - separated by '.'
+      date is in the format YYYYMMDD - length = 8 or nnumb_date >= 8
+      to handle this format: YYYYMMDD00[..]
+    
+      time is either HH or SSSSSS - optional, can be missed
+      e.g. xxxx_xxx.yyy.20191202.00.bbb_rrr.ss.nc  <-- date and time are returned
+           xxxx_xxx.yyy.20191202.bbb_rrr.ss.nc    <-- date is returned, time not
+           xxxx_xxx.yyy.2019120200.bbb_rrr.ss.nc  <-- date is returned, time not
+
+
       cice_model.res.YYYYMMDD.HH.nc
       cice_model.res.YYYYMMDD.SSSSSS.nc   (seconds of day)
+       
       YYYYMMDD.HH.sfx1.sfx2.nc
       YYYYMMDD.SSSSSS.sfx.nc
       For SSSSSS > 86400: use hour * 10000 (e.g., 21:00 -> 210000)
   """
-
+  assert nnumb_date >= 8
   year = month = day = hr = mint = sec = None
   parts = file_name.split('.')
+  len_name = len(parts)
 
-  # Case 1: <sfx>.YYYYMMDD.<time>.nc
-  if len(parts) >= 4 and '.'.join(parts[:2]) == sfx:
-    date_str = parts[2]
-    time_str = parts[3]
+  # Find date part:
+  idate = itime = None
+  for ik in range(len_name):
+    if parts[ik].isdigit() and len(parts[ik]) >= nnumb_date:
+      idate = ik
+      itime = ik + 1 if ik + 1 < len(parts) else None
+      break
 
-  # Case 2: YYYYMMDD.<time>.<sfx>.nc
-  elif len(parts) >= 4:
-    date_str = parts[0]
-    time_str = parts[1]
-    if not (date_str.isdigit() and time_str.isdigit()):
-      print(f"Expected digit YYYYMMDD: {date_str}, {time_str} in {file_name} format not recognized")
-      return None
-  else:
-    print(f"Parts file name = {len(parts)} in {file_name} format not recognized")
-    return None
+  if idate is None:
+    raise ValueError(f"Could not identify date and time in {file_name}")
+
+  date_str = parts[idate][:8]
 
   # Parse date
-  if len(date_str) == 8 and date_str.isdigit():
-    year = int(date_str[0:4])
-    month = int(date_str[4:6])
-    day = int(date_str[6:8])
-  else:
-    print(f"{file_name}: invalid date format")
-    return None
+  year  = int(date_str[0:4])
+  month = int(date_str[4:6])
+  day   = int(date_str[6:8])
+  hr = mint = 0
 
-  # Parse time
-  if not time_str.isdigit():
-    print(f"{file_name}: invalid time format")
-    return None
+  if itime is None or not parts[itime].isdigit():
+    return year, month, day, hr, mint
 
+  time_str = parts[itime]
   time_val = int(time_str)
 
-  # HH format
   if len(time_str) == 2:
+    # HH format
     hr = time_val
     mint = 0
-    sec = hr * 3600
-
-  # Seconds-of-day or encoded HH*10000
   else:
+    # Seconds-of-day or encoded HH*10000
     if time_val <= 86400:
-      sec = time_val
-      hr = sec // 3600
-      mint = (sec % 3600) // 60
+      hr = time_val // 3600
+      mint = (time_val % 3600) // 60
     else:
       hr = time_val // 10000
-      sec = hr * 3600
       mint = 0
 
   return year, month, day, hr, mint  
@@ -1511,4 +1526,90 @@ def adjust_ice_freeboard(vin, vsn, ain, hicat, \
   vsn_adj = adjust_snow_freeboard(vin_adj, vsn_adj, ain_adj)
 
   return vin_adj, ain_adj, vsn_adj
- 
+
+def pathfname_icesnow_mesh025(fyaml, node_nm, fld_name, YR=None, MM=None, DD=None, HR=None, regn=None):
+  """
+    Get paths and filenames of interpolated ice and snow fields 
+    on mesh025
+    snow and ice thickness are climatologies
+    ice concentration - near-real time
+    fyaml - yaml file with directories for different machines
+  """
+  from yaml import safe_load
+
+  jdm = 1080
+  idm = 1440
+  YR = 9999 if YR is None else YR
+  MM = 0 if MM is None else MM
+  DD = 0 if DD is None else DD
+  HR = 0 if HR is None else HR
+
+  nsec = HR*3600
+
+  with open(fyaml) as ff:
+    pths_ufs = safe_load(ff)
+
+  pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
+
+  match fld_name:
+    case "iconc_NSIDC":
+     pthfld = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")    
+     file_name = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}_{regn}.nc' 
+    
+    case "ithkn_clim":
+      if regn == 'south':
+        pthfld = os.path.join(pthdata,'CryoSat2_antarctic_ice_snow_thkn','clim')
+        file_name = 'CryoSat_hice_mnthclim_2011_2020_mesh025_1440x1080_south.nc'
+      elif regn == 'north':
+        pthfld = os.path.join(pthdata,'CryoSat_arctic_ice_snow_thkn','clim')
+        file_name = 'ithkn_CryoSat_arcticAWI_mnthclim_2015-2024_1080x1440.nc'  # Combined AWI and EASE100
+      else:
+        raise Exception(f"Need to specify region: north or south")
+
+    case "ithkn_AWI":
+      pthfld = os.path.join(pthdata,'CryoSat_AWI_arctic_ithkn','clim')
+      #file_name = f'ithkn_CryoSat_arcticAWI_mnthclim_2020-2024_{jdm}x{idm}.nc'
+      file_name = f'ithkn_CryoSat_arcticAWI_mnthclim_2015-2024_{jdm}x{idm}.nc'
+
+    case "ithkn_NSIDC":
+      pthfld = os.path.join(pthdata,'CryoSat_NSIDC_arctic_ithkn','clim')
+      file_name = f'ithkn_CryoSat_arcticNSIDC_EASE100_mnthclim_{jdm}x{idm}.nc'
+
+    case "ICESat2_orig":
+      if YR is None:
+        raise ValueError("Specify year: 2019–2021")
+      if MM is None:
+        raise ValueError("Specify MM: 5, 6, 7, 8")
+
+      if YR == 2021 and MM == 8:
+        raise Exception("No data for 2021/08")
+      # Original ICESat2 ithkn and hsnow data, Arctic , summer 2019-2021
+      pthfld = os.path.join(pthdata, 'ICESat2_arctic_summer_ithkn_hsnow')
+      file_name = f"IS2SIT_SUMMER_01_{YR}{MM:02d}_006_001.nc" 
+
+    case "ICESat2_mnth_interp":
+      if YR is None:
+        raise ValueError("Specify year: 2019–2021")
+      if MM is None:
+        raise ValueError("Specify MM: 5, 6, 7, 8")
+
+      pthfld = os.path.join(pthdata, 'ICESat2_arctic_summer_ithkn_hsnow','interp_mesh025')
+      file_name = "ICESat2_arctic_summer_"
+
+    case "hsnow_clim_antarct":
+      pthfld = os.path.join(pthdata, 'snow_nasa','monthly_clim')
+      file_name = "SSMI_hsnow_mnthclim_1992_2007_mesh025_1440x1080_south.nc"
+
+    case "hsnow_clim_arct":
+      pthfld = os.path.join(pthdata, 'CryoSat_arctic_ice_snow_thkn','clim')
+      file_name = "CryoSat_EWG_hsnow_mnthclim_mesh025_1440x1080_north.nc"
+
+    case "irest_new":
+      # Default path and file name for new restart files
+      pthfld = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+      file_name = f"cice_model.res.{YR}{MM:02d}{DD:02d}.{nsec:06d}.nc" 
+
+    case _:
+      raise ValueError(f"Unknown fld_name: {fld_name}")
+
+  return pthfld, file_name

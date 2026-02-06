@@ -48,8 +48,8 @@ import mod_misc1 as mmisc
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
-YR  = 2021
-MM  = 10
+YR  = 2025
+MM  = 1
 regn = 'north'
 field_name = 'ithkn'
 

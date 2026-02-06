@@ -45,7 +45,6 @@ sys.path.extend([
 from mod_utils_fig import bottom_text
 import mod_time as mtime
 import mod_utils as mutil
-import mod_misc1 as mmisc
 import mod_colormaps as mclrmps
 import mod_anls_seas as manseas
 import mod_utils_ob as mutob
@@ -54,6 +53,16 @@ import mod_misc1 as mmisc
 import mod_cice6_utils as mc6util
 importlib.reload(mc6util)
 
+def find_varnm(dflithkn, var_opt):
+  with xarray.open_dataset(dflithkn) as ds_ithkn:
+    for varnm in var_opt:
+      if varnm in ds_ithkn.data_vars:
+        #print(f"Using variable {varnm}")
+        return varnm
+        
+  raise KeyError("No ice thickness variable name found, check file")
+    
+  return
 
 rest_date = 20250103
 rest_hr = 0
@@ -63,19 +72,23 @@ yrN = mmN = ddN = hrN = None
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--ithkn", type=int, default=1,
-    help="insert ice thickn climatology, 0=no, 1=yes (default 1)")
+    help="insert ice thickn climatology, 0=no, 1=yes (default 1)", choices=[0,1])
 parser.add_argument("--rdate", help=f"restart date input file, default={rest_date}", type=int)
 parser.add_argument("--rhr", help=f"input file, restart hour = 0, ..., 23, default={rest_hr}", type=int)
 parser.add_argument("--rdate_out", help="output file, restart date if different from input", type=int)
 parser.add_argument("--rhr_out", help="output file, restart hour if date is different from input", type=int)
+parser.add_argument("--pth_in", help="input restart directory with original file, default=None", type=str)
 parser.add_argument("--flrst_in", help="rest file in, otherwise name constructed from rest_date", type=str)
+parser.add_argument("--pth_out", help="output restart directory where new file be dumped, default=None", type=str)
 parser.add_argument("--flrst_out", help="new rest file, otherwise name constructed from rdate_out", type=str)
-parser.add_argument("--regn", help=f"where icon incerted: south, north, global, default={regn}", type=str)
+parser.add_argument("--regn", help=f"where icon incerted", 
+                    choices=['north','south'], type=str)
 args = parser.parse_args()
 
 ins_thkn = bool(args.ithkn)
-flrst_in  = args.flrst_in if args.flrst_in else None
+flrst_in  = args.flrst_in  if args.flrst_in  else None
 flrst_out = args.flrst_out if args.flrst_out else None
+regn      = args.regn if args.regn else regn
 # if rest_date and rest_date_out are provided
 # Derive dates assuming file nameing is cice_restart.res.YYYYMMDD.XX[XXX]
 # or YYYYMMDD.<time>.---.nc
@@ -94,6 +107,9 @@ if flrst_out is not None:
 else:
   rest_date_out = args.rdate_out if args.rdate_out else rest_date
   rest_hr_out   = args.rhr_out if args.rhr_out else rest_hr
+
+pth_in = args.pth_in if args.pth_in else None
+pth_out = args.pth_out if args.pth_out else None
 
 print(f"Restart date input:  {rest_date}:{rest_hr}")
 print(f"Restart date output: {rest_date_out}:{rest_hr_out}")
@@ -136,8 +152,18 @@ fyaml = 'paths_ufs.yaml'
 with open(fyaml) as ff:
   pths_ufs = safe_load(ff)
 
-#pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
-pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_da'
+if pth_in is None:
+  pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+else:
+  pthrest = pth_in
+#pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_da'
+
+# Output dir for new restart:
+if pth_out is None:
+  pthrest_out = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+else:
+  pthrest_out = pth_out
+
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 
 # CICE parameters:
@@ -177,29 +203,40 @@ LON, LAT = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 
 # Interpolated NSIDC ice conc:
 pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{yrN}")
+RMsk = np.where(HH>=0, 0, 1)
 if regn == 'south':
-  RMsk = np.where(HH>=0, 0, 1)
-  RMsk = np.where(LAT > -60., 0, RMsk)
+  RMsk[LAT > -60.] = 0
+elif regn == 'north':
+  RMsk[LAT < 50.] = 0
+else:
+  raise Exception(f"Unrecognized region {regn}")
 
 print(f"old restart: {yrR}/{mmR:02d}/{ddR:02d}:{hrR:02d}")
 print(f"new restart: {yrN}/{mmN:02d}/{ddN:02d}:{hrN:02d}")
 
-fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{yrN}{mmN:02d}_{regn}.nc'
-dfliceout = os.path.join(pthnsidc,fliceout)
-print(f'Loading interpolated ice conc {dfliceout}')
-with xarray.open_dataset(dfliceout) as dsint:
+#fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{yrN}{mmN:02d}_{regn}.nc'
+pthnsidc, fliconc = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, "iconc_NSIDC", \
+                                                      YR=yrN, MM=mmN, regn=regn)
+dfliconc = os.path.join(pthnsidc,fliconc)
+print(f'Loading interpolated ice conc {dfliconc}')
+with xarray.open_dataset(dfliconc) as dsint:
   AICEint = dsint['ice_conc'].isel(time=ddN-1).squeeze()
 
 AICEint = np.where(RMsk == 0, np.nan, AICEint)
 
 # Read ice thickness data:
 if ins_thkn:
-  pthithkn = os.path.join(pthdata,'CryoSat2_antarctic_ice_snow_thkn','clim')
-  flithkn = 'CryoSat_hice_mnthclim_2011_2020_mesh025_1440x1080_south.nc'
+  var_opt = ['ice_thkn', 'ithkn', 'hi', 'ice_thickness']
+  pthithkn, flithkn = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, 'ithkn_clim', regn=regn)
   dflithkn = os.path.join(pthithkn,flithkn)
-  print(f"Reading ice thickn for month {mmN} from {dflithkn}")
+  
+  #pthithkn = os.path.join(pthdata,'CryoSat2_antarctic_ice_snow_thkn','clim')
+  #flithkn = 'CryoSat_hice_mnthclim_2011_2020_mesh025_1440x1080_south.nc'
+  #dflithkn = os.path.join(pthithkn,flithkn)
+  ithkn_varnm = find_varnm(dflithkn, var_opt)
+  print(f"Reading ice thickn varnm='{ithkn_varnm}' for month {mmN} from {dflithkn}")
   with xarray.open_dataset(dflithkn) as ds_ithkn:
-    ITHKN = ds_ithkn['ice_thkn'].isel(time=mmN-1).data
+    ITHKN = ds_ithkn[ithkn_varnm].isel(time=mmN-1).data
 else:
   ITHKN = np.full_like(HH, np.nan)
 
@@ -239,8 +276,16 @@ Xins = LON[Jins,Iins]
 Yins = LAT[Jins,Iins]
 npnts = len(Jins)
 
-print(f"Found {npnts} points for insertion, min/max lat={np.min(Yins):.1f}/{np.max(Yins):.1f}"
+npnts_ithkn = 0
+if ins_thkn:
+  mask_ithkn = (RMsk > 0) & np.isfinite(ITHKN)
+  npnts_ithkn = np.count_nonzero(mask_ithkn)
+
+print(f"iconc insertion: {npnts} pnts, min/max lat={np.min(Yins):.1f}/{np.max(Yins):.1f}"
        f" lon={np.min(Xins):.1f}/{np.max(Xins):.1f}")
+if ins_thkn:
+  print(f"ithkn insertion: {npnts_ithkn} pnts ")
+
 
 def find_adj_icepnts(dlti, aice, i0, j0):
   jdm, idm = aice.shape
@@ -319,8 +364,8 @@ for ipp in range(npnts):
   # for cat n: vsn(n) = hsnow(n) * aice(n) 
   ai_old  = aice[j0,i0]       # aggreageted ice partial area 
   ain_old = aicen[:,j0,i0]    # partial areas by cats
-  vsn_old = vsnon[:,j0,i0]    # snow volume per unit grid-cell area m2
-  vin_old = vicen[:,j0,i0]    # ice volume per unit grid-cell area m2 
+  vsn_old = vsnon[:,j0,i0]    # snow volume per unit grid-cell area m2 in cats
+  vin_old = vicen[:,j0,i0]    # ice volume per unit grid-cell area m2 in cats
   #hin_old = np.divide(vin_old, ain_old, out=np.zeros_like(vin_old), where=ain_old != 0) # ice thkn or m3/m2_ice
   tsfcn_old = Tsfcn[:,j0,i0]  # surf T
   #ai_old = np.sum(ain_old)   # aggreageted ice partial area 
@@ -388,7 +433,7 @@ for ipp in range(npnts):
     # Case: ice --> updated ice conc
     aice_case = "ice2ice"
     tsf_new = np.where(tsfcn_old > Tsfc_max, Tsfc_max, tsfcn_old)
-    tsf_new  = np.where(ain_new < puny, Tfrz, tsf_new)
+    tsf_new  = np.where(ain_new < puny, Tfrz, tsf_new)           # ocean freezing T where no ice
 
     # Try to preserve mean ice thkn over ice:
     vitot_old = np.sum(vin_old)                          # m3/m2_cell or mean ice thkn over grid cell
@@ -439,11 +484,11 @@ for ipp in range(npnts):
   vice_old = np.sum(vin_old)
   vice_new = np.sum(vin_new)
 
-  if vice_clim > 0:
+  if vice_clim > vitot_min:
     vtot_target = vice_clim
   else:
     # Case when ithkn is turned off but also
-    # this ignores hice = 0 in clim fields when ithkn is turned on
+    # this ignores hice = 0 or thin ice in clim fields when ithkn is turned on
     vtot_target = np.max([vice_old, vice_new])
 
   ain_new, vin_new = mc6util.adjust_thkncats_aice(ain_new, vin_new, vtot_target, \
@@ -451,6 +496,8 @@ for ipp in range(npnts):
   
   ain_new = np.where(ain_new <= ain_min, 0., ain_new)
   vin_new = np.where(ain_new <= ain_min, 0., vin_new)
+
+  assert np.sum(ain_new) < (1.+1e-12), f"Ice conc > 1 {np.sum(ain_new)} j={j0} i={i0}"
 
   # Check ice cats:
   hin_new = np.divide(vin_new, ain_new, out=np.zeros_like(vin_new), where=ain_new != 0)
@@ -588,11 +635,11 @@ ds_out.attrs.update({
 # Save:
 if flrst_out is None:
   if ins_thkn:
-    flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc_thkn.nc"
+    flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc_ithkn.nc"
   else:
     flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc.nc"
 
-dflrst_out = os.path.join(pthrest,flrst_out)
+dflrst_out = os.path.join(pthrest_out,flrst_out)
 print(f"Saving CICE restart --> {dflrst_out}")
 ds_out.to_netcdf(dflrst_out, encoding={var: {'_FillValue': None} for var in ds_out.data_vars}, format='NETCDF3_64BIT')
 ds_out.close()
@@ -650,13 +697,6 @@ if f_plt:
   ticklabs = clb.ax.get_xticklabels()
   clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
   clb.ax.tick_params(direction='in', length=12)
-
-
-
-
-
-
-
 
 
 

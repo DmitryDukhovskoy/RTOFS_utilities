@@ -1,12 +1,11 @@
 """
-  12 suplots of monthly snow depth clim in Arctic
+  12 suplots of monthly ice thickness clim in Arctic
 
-  Interpolated NSIDC CryoSat snow monthly fileds 2018-2021
-  winter months only
-
-  Warren (EWG Atlas) snow depth climatology - for summer months
+  Combined: winter months CryoSat AWI (2014-2024)
+            summer NSIDC EASE100 
 
   Both data sets have been interpolated onto 025 mesh
+  see: derive_ithkn_arctic_monthclim_mesh025.py
 
 """
 import os
@@ -16,11 +15,8 @@ import sys
 import importlib
 import matplotlib  
 import xarray
-from copy import copy
-import matplotlib.colors as colors 
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
-import pandas as pd
 import argparse
                    
 # Append custom module paths
@@ -43,24 +39,21 @@ sys.path.extend([
 
 
 from mod_utils_fig import bottom_text
-import mod_time as mtime
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
-import mod_sis2_relax as msisrlx
-importlib.reload(msisrlx)
+import mod_cice6_utils as mc6util
+importlib.reload(mc6util)
 
 regn = 'north'
 ncol = 4
 nrow = 3
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--field", help=f"Field to interpolate: snow thkciness or ice thickn",
-                    choices=['sndpth','ithkn'], required=True, type=str)
 parser.add_argument("--ncol", help=f"N of columns for subplots, default={ncol}", type=int)
 parser.add_argument("--nrow", help=f"N of rows for subplots, default={nrow}", type=int)
 args = parser.parse_args()
   
-field_name = args.field if args.field else None
+field_name = 'ithkn'
 ncol = args.ncol if args.ncol else ncol
 nrow = args.nrow if args.nrow else nrow
 
@@ -102,24 +95,26 @@ HH = np.where(np.isnan(HH), 1., HH)
 jdm, idm = HH.shape
 LMsk = np.where(HH<0, 1, 0)
 
-if field_name == 'sndpth':
-  fliceout = 'CryoSat_EWG_hsnow_mnthclim_mesh025_1440x1080_north.nc'
-  varnm = 'snow_depth'
+varnm = 'ithkn'
+#pthclim = os.path.join(pthdata,'CryoSat_arctic_ice_snow_thkn/clim')
+pthclim, fliceout = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, 'ithkn_clim', regn='north')
 
-pthclim = os.path.join(pthdata,'CryoSat_arctic_ice_snow_thkn/clim')
 dfliceout = os.path.join(pthclim,fliceout)
 print(f'Processing climatology fields  --> {dfliceout}')
 with xarray.open_dataset(dfliceout) as dsn:
   A3d = dsn[varnm].data
 
-clrmp = mclrmps.colormap_temp()
+clrmp = mclrmps.colormap_ice_thkn()
 rmin = 0.
-rmax = 0.4
+rmax = 4.
+clrmp.set_bad(color=[0.2, 0.2, 0.2])
+clrmp.set_under(color=[1,1,1])
+
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 clrmp.set_under(color=[1,1,1])
 
 from mpl_toolkits.basemap import Basemap, cm
-m = Basemap(projection='npstere', boundinglat=60, lon_0=-45,resolution='l')
+m = Basemap(projection='npstere', boundinglat=60, lon_0=-10,resolution='l')
 xh, yh = m(hlon,hlat) # GFS coords
 
 def plot_field(ax1, fig1, m, xR, yR, A2d, clrmp, rmin, rmax, plt_clrb, sttl=[]):
@@ -172,7 +167,7 @@ for imo in range(12):
   icol = iplt % ncol
   iplt += 1
 
-  sttl = f'hsnow clim {MM:02d}'
+  sttl = f'ithkn clim (AWI+NSIDC) {MM:02d}'
 
   ax1 = axes[irow, icol]
   if iplt == 1:
@@ -181,7 +176,7 @@ for imo in range(12):
     plt_clrb = False
   ax1 = plot_field(ax1, fig1, m, xh, yh, A2d, clrmp,rmin,rmax,plt_clrb,sttl=sttl)
 
-btx = 'plot_CryoSat_EWG_hsnow_arctic_clim_Nsbpts.py'
+btx = 'plot_CryoSat_combined_ithkn_arctic_clim_Nsbpts.py'
 bottom_text(btx, pos=[0.05,0.05], fsz=10)
 
 
