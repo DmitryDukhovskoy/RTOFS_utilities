@@ -17,23 +17,44 @@ def sens_tests_info(enmb):
     fbrd - adjust snow-ice freeboard to keep snow-ice intrf >= sea level
     ITDrdg - snow distribution, snow phys on
     smtrphs - snow metamorphysm is on
+
+    experiments < 20 - corrections implemented in the S. Ocean only
+    epxeriments >= 20 are with both N. and S. poles corrected fields (regn="global") 
+                      Note that similar runs in old experiments may not be identical due 
+                      improvements implemented at a later stage, e.g. inserted snow in old case
+                      will be different to the new simulation because added freeboard and ice 
+                      enthalpy adjustments
+
+  hsU - designates updated hsnow insertion code (see extp 11: ice freeboard + enthalpy)
+  hsU = hs+qi+fbrd  - updated hsnow code
+  hs0 - original code without ice enth. and ice freeboard correction
+
   """
   EXPTS = {
     "01" : "control",
-    "02" : "ai+hi+hs+qi+fbrd+thermo",
-    "03" : "ai+hi+hs+qi+fbrd+thermo+ITDrdg",
-    "04" : "hs",
-    "05" : "ai+hi+hs+qi+fbrd+thermo+ITDrdg+smtrphs",
-    "06" : "  ",
+    "02" : "ai+hi+hs0+qi+fbrd+thermo",
+    "03" : "ai+hi+hs0+qi+fbrd+thermo+ITDrdg",
+    "04" : "hs0",
+    "05" : "ai+hi+hsU+thermo+ITDrdg+snphys",
+    "06" : "EMPTY",
     "07" : "ai",
-    "08" : "ai+hs",
+    "08" : "ai+hs0",
     "09" : "ai+hi",
-    "10" : "ai+hi+hs",
-    "11" : "ai+hi+hs+qi+fbrd",
+    "10" : "ai+hi+hs0",
+    "11" : "ai+hi+hsU",                  # ai+hs+(hs+qi+fbrd)
+    "20" : "ai",                         # global: N. and S. poles
+    "21" : "hsU",                        # global
+    "22" : "ai+hsU",
+    "23" : "ai+hi",
+    "24" : "ai+hi+hsU",
+    "25" : "ai+hi+hsU+thermo+ITDrdg+snphys",
    }
 
   key = f"{enmb:02d}"    
-  sinfo = EXPTS.get(key) 
+  if key in EXPTS:
+    sinfo = EXPTS.get(key) 
+  else:
+    raise Exception(f"key is not found for {enmb}, add experiment ...")
 
   return sinfo
 

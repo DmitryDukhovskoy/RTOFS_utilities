@@ -168,26 +168,29 @@ def insert_hsnow(regn_wrk, ds_out, fyaml, node_nm, dnmbR, dnmbN, pthrest, flrst_
       print("No 'units' attribute found for 'snow_depth', use default: {hunits}")
 
   units_m = hunits == 'm'
-
-  dflrst_in = os.path.join(pthrest, flrst_in)
-  print(f"Reading restart: {dflrst_in}")
-  ds_in = xarray.open_dataset(dflrst_in)
-  ds_out = ds_in.copy(deep=True)
-  ds_in.close()
-
+  print(f"snow depth units = {hunits}")
+  print(f"units_m={units_m}")
+ 
+  if ds_out is None: 
+    dflrst_in = os.path.join(pthrest, flrst_in)
+    print(f"Reading restart: {dflrst_in}")
+    ds_in = xarray.open_dataset(dflrst_in)
+    ds_out = ds_in.copy(deep=True)
+    ds_in.close()
+  else:
+    print(f"Input restart is skipped, continue with existing ds_out")
 
   # Input values:
-  aicen  = ds_in['aicen'].data  # partial area by cats
-  vsnon  = ds_in['vsnon'].data  # snow vol per m2 of ice area
-  qsnon  = ds_in['qsno001'].data  # snow enthalpy by cats for 1 snow layer
-  vicen  = ds_in['vicen'].data   # ice vol per unit area of grid cell m3/m2
-  tsfcn  = ds_in['Tsfcn'].data   # snow/ice surface T
-  qicen1 = ds_in['qice001'].data # ice enthalpy, lr 1 surface
-  sicen1 = ds_in['sice001'].data # ice S, layer 1
-  apndn  = ds_in['apnd'].data    # the fraction of the pond of ice area, for each cat
-  hpndn  = ds_in['hpnd'].data    # depth of the ponds in a cell, by cats
+  aicen  = ds_out['aicen'].data  # partial area by cats
+  vsnon  = ds_out['vsnon'].data  # snow vol per m2 of ice area
+  qsnon  = ds_out['qsno001'].data  # snow enthalpy by cats for 1 snow layer
+  vicen  = ds_out['vicen'].data   # ice vol per unit area of grid cell m3/m2
+  tsfcn  = ds_out['Tsfcn'].data   # snow/ice surface T
+  qicen1 = ds_out['qice001'].data # ice enthalpy, lr 1 surface
+  sicen1 = ds_out['sice001'].data # ice S, layer 1
+  apndn  = ds_out['apnd'].data    # the fraction of the pond of ice area, for each cat
+  hpndn  = ds_out['hpnd'].data    # depth of the ponds in a cell, by cats
   ncat, jdim, idim = vsnon.shape
-  ds_in.close()
 
   # Aggregated ice partial area:
   aice = np.sum(aicen, axis=0).squeeze()
@@ -232,6 +235,11 @@ def insert_hsnow(regn_wrk, ds_out, fyaml, node_nm, dnmbR, dnmbN, pthrest, flrst_
       hsn_new = HSi[j0,i0]        # m of snow over sea ice
     else:
       hsn_new = HSi[j0,i0]*0.01   # m of snow over sea ice 
+
+    #check_pnt =  LAT[j0,i0] > 70 and ai > 1
+    #if check_pnt:
+    #  print(f"checking: lon={LON[j0,i0]:.2f}, lat={LAT[j0,i0]:.2f}")
+    #  print(f"i0={i0} j0={j0}, ai={ai:.3f}, hsn_new={hsn_new:.5f}, HSi={HSi[j0,i0]:.5f}")    
 
     # ice conc should not change except for a few locaitons to adjust snow load across cats:
     ain_new = ain.copy()
@@ -331,6 +339,10 @@ def insert_hsnow(regn_wrk, ds_out, fyaml, node_nm, dnmbR, dnmbN, pthrest, flrst_
                       rho_ice=rho_ice, rho_snow=rhos, rho_ocean=rho_ocean) 
     else:
       vin_new = vin.copy()
+
+    #if check_pnt:
+    #  print(f"Check: vsn_new={vsn_new}")
+    #  print(f"       sum vsn_new = {np.sum(vsn_new)}")
 
     # Update:
     dvol_sum = dvol_sum + (vtot_new-vtot_init)
@@ -470,6 +482,15 @@ def main():
   else:
     print(f"  hsnow Processing region: {regn}")
     ds_out = insert_hsnow(regn, ds_out, fyaml, node_nm, dnmbR, dnmbN, pth_in, flrst_in)
+
+  # Debug:
+  #check_pnt = False
+  #if check_pnt:
+  #  j0 = 895
+  #  i0 = 1110
+  #  vsnon = ds_out['vsnon'].data 
+  #  hsnow_cell = np.sum(vsnon, axis=0)
+  #  print(f"hsnow={hsnow_cell[j0,i0]:.5f}")
 
   # Attributes:
   from datetime import datetime

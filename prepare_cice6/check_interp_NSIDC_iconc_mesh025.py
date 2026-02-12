@@ -194,9 +194,9 @@ if regn == 'south':
   parallels = np.arange(-80,-10,10.)
   meridians = np.arange(-360,359.,45.)
 elif regn == 'north':
-  m = Basemap(projection='npstere',boundinglat=50,lon_0=-45,resolution='l')
-  parallels = np.arange(40,89,10.)
-  meridians = np.arange(-360,359.,45.)
+  m = Basemap(projection='npstere', boundinglat=50, lon_0=-45, resolution='l')
+  parallels = np.arange(40, 89, 10.)
+  meridians = np.arange(-360, 359., 45.)
 
 #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
 xh, yh = m(hlon,hlat) # GFS coords

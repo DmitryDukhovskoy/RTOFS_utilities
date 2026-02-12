@@ -188,6 +188,9 @@ with xarray.open_dataset(dflhsn) as ds_snow:
     print("No 'units' attribute found for 'snow_depth', use default: {hunits}")
 
 units_m = hunits == 'm'
+#print(f"snow depth units = {hunits}")
+#print(f"units_m={units_m}")
+#A = STOP
 
 # Restart from a GFS17 rt13  run:
 #flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{nsecR:06d}.nc"

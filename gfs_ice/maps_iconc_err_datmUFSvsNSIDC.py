@@ -136,9 +136,11 @@ Ynsidc = read_NSIDC(yr0,mm0,1,regn,pthnsidc,'y')
 XX, YY = np.meshgrid(Xnsidc, Ynsidc, indexing='xy')
 # Determine ellipsoid parameters from NSIDC information
 # Note that Radius of ellipsoid WGS84 is typically referred to major semi-axis (equatorial radius)
-if regn == 'south':
-  RMsk = np.where(HH>=0, 0, 1)
-  RMsk = np.where(hlat > -60., 0, RMsk)
+RMsk = np.where(HH>=0, 0, 1)
+#if regn == 'south':
+#  RMsk = np.where(hlat > -60., 0, RMsk)
+#elif regn == 'north':
+#  RMsk = np.where(hlat < 50, 0, RMsk)
 
 if plot_init:
   flinp = f"iceh_ic.{yr0}-{mm0:02d}-{dd0:02d}-{nsec0:05d}.nc"
@@ -180,59 +182,42 @@ clrmp_dlt.set_bad(color=[0.2, 0.2, 0.2])
 
 if regn == 'south':
   m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
-#lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
-parallels = np.arange(-80,-10,10.)
-meridians = np.arange(-360,359.,45.)
-xl1 = -8.e6
-xl2 = -1.2e6
-yl1 = xl1
-yl2 = xl2 
+  parallels = np.arange(-80,-10,10.)
+  meridians = np.arange(-360,359.,45.)
+elif regn == 'north':
+  m = Basemap(projection='npstere', boundinglat=50, lon_0=-45, resolution='l')
+  parallels = np.arange(40, 89, 10.)
+  meridians = np.arange(-360, 359., 45.)
 
 xh, yh = m(hlon,hlat) # GFS coords
 fig1 = plt.figure(1,figsize=(9,9))
 plt.clf()
 ax1 = plt.axes([0.05, 0.55, 0.4, 0.4])
-m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
+m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
+m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 img1 = ax1.pcolormesh(xh,yh,AA, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,sqerr, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,np.abs(AA-AI), cmap=clrmp, vmin=rmin, vmax=rmax)
 ax1.set_title(f'UFS expt{enmb:02d} iconc {YR}/{MM:02d}/{DD:02d}')
-ax1.set_xlim([xl1, xl2]) 
-ax1.set_ylim([yl1, yl2]) 
-ax1.invert_yaxis()
-ax1.invert_xaxis()
 
 # Interpolated iconc
 ax2 = plt.axes([0.55, 0.55, 0.4, 0.4])
-m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
+m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
+m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 img2 = ax2.pcolormesh(xh, yh, AI, cmap=clrmp, vmin=rmin, vmax=rmax)
 ax2.set_title('NSIDC iconc interp to mesh025')
-ax2.set_xlim([xl1, xl2])      
-ax2.set_ylim([yl1, yl2])      
-ax2.invert_yaxis()
-ax2.invert_xaxis()
 
 ax21 = plt.axes([0.05, 0.1, 0.4, 0.4])
-m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
+m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
+m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 ax21.pcolormesh(xh,yh,np.abs(AA-AI), cmap=clrmp, vmin=rmin, vmax=rmax)
 ax21.set_title(f'|err| iconc UFS vs  NSIDC {YR}/{MM:02d}/{DD:02d}')
-ax21.set_xlim([xl1, xl2])      
-ax21.set_ylim([yl1, yl2])      
-ax21.invert_yaxis()
-ax21.invert_xaxis()
 
 ax22 = plt.axes([0.55, 0.1, 0.4, 0.4])
-m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
+m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
+m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 img2 = ax22.pcolormesh(xh,yh,(AA-AI), cmap=clrmp_dlt, vmin=dmin, vmax=dmax)
 ax22.set_title(f'diff iconc UFS vs NSIDC {YR}/{MM:02d}/{DD:02d}')
-ax22.set_xlim([xl1, xl2])      
-ax22.set_ylim([yl1, yl2])      
-ax22.invert_yaxis()
-ax22.invert_xaxis()
 
 
 # Colorbars

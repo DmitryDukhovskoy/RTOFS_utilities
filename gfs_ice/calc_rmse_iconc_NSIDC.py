@@ -4,6 +4,15 @@
   NSIDC fields from 
   https://noaadata.apps.nsidc.org/NOAA/G02202_V6/north/daily/2025/
 
+  example:
+  plot control run and "global" expt with inserted snow, show Arctic ocean (north)
+  show persistence scores for both control and expt 21 initial states:
+  run calc_rmse_iconc_NSIDC.py --regn north --enmb 1 21 --prst 1 21
+  
+  Show stat for twn expts (ai+hs+hsU) with old and new ("global") versions of the
+  insertion codes for S. Ocean and control + persistence
+  run calc_rmse_iconc_NSIDC.py --regn south --enmb 1 24 11 --prst 1 24    
+
 """
 import os
 import numpy as np
@@ -126,7 +135,7 @@ pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
 RMsk = np.where(HH>=0, 0, 1)
 if regn == 'south':
   RMsk = np.where(hlat > -60., 0, RMsk)
-else:
+elif regn == 'north':
   RMsk = np.where(hlat < 50, 0, RMsk)
 
 def rmse2d(AA,AI):
@@ -228,7 +237,8 @@ print("Plotting ...")
 XT = RECS - np.floor(RECS[0])
 xticks = np.arange(np.floor(XT[0]),np.ceil(XT[-1]))
 yticks = np.arange(0.,0.8,0.05)
-sttl = f"RMSE btw iconc NSIDC and datmUFS expts, {regn}\n {YR}/{MMS:02d}/{DDS:02d}-{YR}/{MME:02d}/{DDE:02d}"
+sttl = f"RMSE btw iconc NSIDC and datmUFS expts, {regn}\n"
+sttl = sttl + f"{YR}/{MMS:02d}/{DDS:02d}-{YR}/{MME:02d}/{DDE:02d}"
 
 plt.ion()
 fig1 = plt.figure(1,figsize=(9,9))
@@ -258,7 +268,12 @@ if nprst > 0:
  
 
 yl1 = 0
-yl2 = np.nanmax(RMSE) * 1.05  
+yl2 = np.nanmax(RMSE) * 1.05 
+
+if nprst > 0:
+  ylP = np.nanmax(RMSEp) * 1.05
+  yl2 = np.max([yl2, ylP])
+ 
 ax1.set_yticks(yticks)
 ax1.set_xticks(xticks)
 ax1.set_ylim(yl1, yl2)

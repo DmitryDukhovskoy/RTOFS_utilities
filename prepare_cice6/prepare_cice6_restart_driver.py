@@ -1,6 +1,17 @@
 """
   Driver to prepare CICE6 restart for specified
   setup of initial conditions
+
+  Can use any restart adding missing fields to it, e.g.:
+run prepare_cice6_restart_driver.py --iconc 0 --ithkn 0 --hsnow 1 --snitd 0 --regn global --rdate_in 20250103 --pth_in {pthrst_in} --flrst_in cice_restart.20250103.00.iconc_ithkn.nc
+
+will grab ice restart from flrst_in (with already inserted iconc and ithkn) and will add
+hsnow on top of this
+
+similarly can create from original restart (default name) creating iconc+ithkn then hsnow:
+run prepare_cice6_restart_driver.py --iconc 1 --ithkn 1 --hsnow 1 --snitd 0 --regn global --rdate_in 20250103 --pth_in {pthrst_in} 
+
+
 """
 import os
 import numpy as np
@@ -47,6 +58,8 @@ parser.add_argument("--rdate_in", help=f"restart date input file, default={rest_
 parser.add_argument("--rhr_in", help=f"input restart hour = 0, ..., 23, default={rest_hr}", type=int)
 parser.add_argument("--rdate_out", help=f"output restart date if different from {rest_date}", type=int)
 parser.add_argument("--rhr_out", help=f"output restart hour if date is different from {rest_hr}", type=int)
+parser.add_argument("--pth_in", help="input restart directory with original file", type=str)
+parser.add_argument("--pth_out", help="output restart directory where new file be dumped", type=str)
 parser.add_argument("--flrst_in", help=f"rest file in, otherwise name constructed from {rest_date}", type=str)
 parser.add_argument("--flrst_out", help=f"new rest file, otherwise name constr. from rdate_out", type=str)
 parser.add_argument("--iconc", type=int, 
@@ -74,6 +87,8 @@ iconc     = args.iconc     if args.iconc     is not None else iconc
 ithkn     = args.ithkn     if args.ithkn     is not None else ithkn
 hsnow     = args.hsnow     if args.hsnow     is not None else hsnow
 snitd     = args.snitd     if args.snitd     is not None else snitd
+pth_in    = args.pth_in    if args.pth_in    else None
+pth_out   = args.pth_out   if args.pth_out   else None
 #snphys    = args.snphys    if args.snphys    is not None else snphys
 
 syst_info = os.uname()
@@ -97,22 +112,42 @@ with open(fyaml) as ff:
 
 # Input restart:
 # Where original CICE6 restart file is located:
-pthrst_in = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+if pth_in is None:
+  pthrst_in = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+else:
+  pthrst_in = pth_in
+
 if flrst_in is None:
   dnmbR = mtime.rdate2datenum(rdate_in*100 + rhr_in)
   yrR, mmR, ddR, hrR = mtime.datevec(dnmbR, round_hrs=True)[:4]
   nsecR = hrR*3600
-  flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{nsecR:06d}.nc"
+  flrst_in_start = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{nsecR:06d}.nc"
+else:
+  flrst_in_start  = flrst_in
 
 # Output restart:
-pthrst_out = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],f'cice6_{regn}')
+if pth_out is None:
+  pthrst_out = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],f'cice6_{regn}')
+else:
+  pthrst_out = pth_out
+
 os.makedirs(pthrst_out, exist_ok=True)
 
-flrst_in_start  = flrst_in
 flrst_out_start = flrst_out
 
 # Temporary file names passed along the processes
-fltmp_base = f'cice_restart.{rdate_out}.{rhr_out:02d}'
+# construct from restart input if provided otherwise use template file name
+if flrst_in is not None:
+  fltmp_base = os.path.splitext(flrst_in_start)[0]
+else: 
+  fltmp_base = f'cice_restart.{rdate_out}.{rhr_out:02d}'
+
+print(f"Restart input  directory:\n  {pthrst_in}")
+print(f"Restart input  file:\n  {flrst_in_start}")
+print(f"Restart output directory:\n  {pthrst_out}")
+print(f"Restart output file (if None, will be constructed using {fltmp_base}):\n  {flrst_out_start}")
+print(" ==== START INSERTION ====\n\n")
+
 
 # Insert ice concentration and ice thickness if defined:
 if ithkn == 1 or iconc == 1:

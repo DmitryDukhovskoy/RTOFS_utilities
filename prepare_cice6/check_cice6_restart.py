@@ -260,14 +260,14 @@ if f_plt:
     rmin = 0.
     rmax = 0.4
     clrmp.set_under(color=[1,1,1])
-    A2d = hsnow_tot.copy()
+    A2d = hsnow_cell.copy()
     
   if fld_plt == 'hsnow_ice':
     clrmp = mclrmps.colormap_temp()
     rmin = 0.
     rmax = 0.4
     clrmp.set_under(color=[1,1,1])
-    A2d = hsnow_tot.copy()
+    A2d = hsnow_ice.copy()
     
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
 

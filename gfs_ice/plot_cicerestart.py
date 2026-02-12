@@ -8,7 +8,6 @@ import sys
 import importlib
 import matplotlib
 import xarray
-from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
@@ -33,14 +32,8 @@ sys.path.extend([
 
 from mod_utils_fig import bottom_text
 import mod_time as mtime
-import mod_utils as mutil
-import mod_misc1 as mmisc
 import mod_colormaps as mclrmps
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
 import mod_mom6 as mmom6
-import mod_misc1 as mmisc
-import mod_sis2_relax as msisrlx
 import mod_cice6_utils as mc6util
 importlib.reload(mc6util)
 
@@ -191,14 +184,10 @@ clrmp.set_bad(color=[0.2, 0.2, 0.2])
 sttl = f"{varnc} cat={icat}:  CICE6 restart {flrst_in}"
 
 if regn == 'south':
-  m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
+  m = Basemap(projection='spstere',boundinglat=-55,lon_0=180,resolution='l')
 #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
 parallels = np.arange(-80,-10,10.)
 meridians = np.arange(-360,359.,45.)
-xl1 = -8.5e6
-xl2 = -0.9e6
-yl1 = xl1
-yl2 = xl2
 
 xh, yh = m(hlon,hlat)
 
@@ -215,10 +204,6 @@ ax1.contour(xh, yh, aice, [0.15], linestyles='solid', colors=[(0.4,0.4,0.4)], li
 ax1.contour(xh, yh, HH, [0.], linestyles='solid', colors=[(0.,0.,0.)], linewidths=1)
 
 ax1.set_title(sttl)
-ax1.set_xlim([xl1, xl2])
-ax1.set_ylim([yl1, yl2])
-ax1.invert_yaxis()
-ax1.invert_xaxis()
 
 
 # Colorbars
