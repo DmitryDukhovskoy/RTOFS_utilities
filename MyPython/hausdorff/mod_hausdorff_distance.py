@@ -15,9 +15,9 @@
   by being much less sensitive to outlier points.  The function
   is defined by
  
-  d_MH(P,Q) = max{1/|P|\sum_{p\in P}d(p,Q),1/|Q|\sum_{q\in Q}d(q,P)}
+  d_MH(P,Q) = max{1/|P|sum_{p_in P}d(p,Q),1/|Q|sum_{q_in Q}d(q,P)}
  
-  where d(p,Q) = min_{q\in Q}d(p,q), and similarly for d(P,q).
+  where d(p,Q) = min_{q_in Q}d(p,q), and similarly for d(P,q).
  
   The function is not a true topological metric since it fails the triangle
   inquality requirement.  In practice, this does not appear to be a
@@ -77,11 +77,11 @@ def modifHD(P,Q,geo2cart=False):
     kQ = Q.shape[1]
 
   if not kQ == kP:
-    raise Exception("Space dimensions P and Q should match {0} {1}".format(kP,kQ))
+    raise Exception(f"Space dimensions P and Q should match {kP} {kQ}")
 
   if geo2cart and not kP == 2:
-    raise Exception("For geogr. coordinates space dim should be 2, k={0}".\
-                    format(kP))
+    raise Exception(f"For geogr. coordinates space dim should be 2, k={kP}")
+
   print('Computing MHD P={0}x{1}, Q={2}x{3}'.format(nP,kP,nQ,kQ))
 
 # Check coordinates:

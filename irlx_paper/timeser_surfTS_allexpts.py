@@ -2,20 +2,16 @@
   Show timeseries of monthly surface T/S
   from irlx experiments 
   to check for the drifts due to relaxation
+
+  NOAA NWS EMC Dmitry Dukhovskoy
 """
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
-import importlib
-import matplotlib
 import xarray
-import pickle
-from copy import copy
-import matplotlib.colors as colors
 from yaml import safe_load
 import argparse
-import pickle
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
@@ -29,26 +25,14 @@ sys.path.append(PPTHN + '/MyPython')
 sys.path.append(PPTHN + '/MyPython/mom6_utils')
 sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/hausdorff')
 
-from mod_utils_fig import bottom_text
-import mod_plot_xsections as mxsct
 import mod_time as mtime
-import mod_utils as mutil
-import mod_misc1 as mmisc
-#import mod_valid_utils as mvutil
-import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
 import mod_sis2_relax as msisrlx
-import mod_rtofs as mrtofs
-import mod_hausdorff_distance as mmhd
-importlib.reload(mutob)
-importlib.reload(msisrlx)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--yr", help="year to plot, default 2001 for NEP and 1995 for ARC", type=int)
 parser.add_argument("--regn", 
-                   help="subregion to analyze: NEP10k Arctic, NEP10k Bering Sea,  ARC10k", \
+                   help="subregion to analyze: NEP10k Arctic, NEP10k Bering Sea,  ARC10k", 
                    choices=['NEPA','NEPB','ARC'],
                      type=str, required=True)
 parser.add_argument("--varnm", help="temp or salin", type=str, required=True)
@@ -226,13 +210,6 @@ for jday in DAYS_OCN:
     iexp += 1
     
 
-#CLR = [[0.,0.4,0.9],
-#         [0.9,0.5,0],
-#         [0.,0.9,0.7],
-#         [1.,0.9,0],
-#         [0.8,0.,0.5],
-#         [0.7, 1, 0.2]]
-
 ECOLR = msisrlx.irlx_tests_colors()
 
 
@@ -285,9 +262,6 @@ ax1.set_title(sttl)
 ax2 = plt.axes([0.7, 0.25, 0.25, 0.18])
 ax2.legend(handles=hndls, loc='upper right')
 ax2.axis('off')
-
-btx = 'timeser_surfTS_allexpts.py'
-bottom_text(btx, pos=[0.05,0.35])
 
 
 

@@ -1,23 +1,21 @@
 """
   Calculate modif. hausdorff distance statistics
+  following Dukhovskoy et al., 2015
   for irlx expmt. vs PIOMAS
 
   ice edge contour
 
+  NOAA NWS EMC Dmitry Dukhovskoy
 """
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
-import importlib
 import matplotlib
 import xarray
-import pickle
-from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 import argparse
-import pickle
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
@@ -31,21 +29,12 @@ sys.path.append(PPTHN + '/MyPython')
 sys.path.append(PPTHN + '/MyPython/mom6_utils')
 sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/hausdorff')
 
-from mod_utils_fig import bottom_text
-import mod_plot_xsections as mxsct
 import mod_time as mtime
-import mod_utils as mutil
-import mod_misc1 as mmisc
-#import mod_valid_utils as mvutil
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
 import mod_sis2_relax as msisrlx
 import mod_rtofs as mrtofs
 import mod_hausdorff_distance as mmhd
-importlib.reload(mutob)
-importlib.reload(msisrlx)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--yr", help="year to plot, default 2001 for NEP and 1995 for ARC", type=int)
@@ -368,8 +357,6 @@ ax2 = plt.axes([0.7, 0.25, 0.25, 0.18])
 ax2.legend(handles=hndls, loc='upper right')
 ax2.axis('off')
 
-btx = 'hausdorff_iconc_irlxtest.py'
-bottom_text(btx, pos=[0.05,0.35])
 
 
 

@@ -127,10 +127,11 @@ import mod_colormaps as mclrmp
 clrmp_name = 'winter'
 clr_ramp   = [1, 1, 1]   # add white color at the end of the colormap
 clrmp = mclrmp.addendclr_colormap(clrmp_name, clr_ramp, nramp=0.1, ramp_start=False)
-clrmp.set_bad(color=[0.5, 0.5, 0.5])
+clrmp.set_bad(color=[0., 0., 0.])
 rmin = -7000.
 rmax = 0.
 
+print("Plotting ...")
 plt.ion()
 
 fig1 = plt.figure(1,figsize=(9,8))
@@ -139,8 +140,9 @@ ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
 m.drawcoastlines()
 im1 = m.pcolormesh(xR, yR, AA, cmap=clrmp, vmin=rmin, vmax=rmax)
 
-m.drawparallels(np.arange(-90.,120.,10.))
-m.drawmeridians(np.arange(-180.,180.,10.))
+m.drawparallels(np.arange(-90.,120.,10.), color=(0.7, 0.7, 0.7))
+m.drawmeridians(np.arange(-180.,180.,10.), color=(0.7, 0.7, 0.7),)
+
 
 m.plot(xBND, yBND, 'r.')
 

@@ -240,10 +240,14 @@ def read_PIOMASv21(yr0, mm0, dfpiomas, varnm):
 
   return A2d
 
-def read_relax_piomas(dnmb0, pthsis, varnm):
+def read_relax_piomas(dnmb0, pthsis, varnm, dfpiomas=None):
   """
    Read PIOMAS target relaxation fields from PIOMASv2.1
-   The fields are on NEP10k grid
+   The fields are on NEP10k grid or ARC10k
+
+   default - NEP10k
+   provide dir + filename for PIOMAS on ARC10k in dfpiomas
+   to read PIOMAS for ARC10k
   """
   import mod_time as mtime
   import mod_misc1 as mmisc
@@ -255,10 +259,15 @@ def read_relax_piomas(dnmb0, pthsis, varnm):
   varconc = 'area'
 
   # Read saved relax. fields:
-  YR1 = YR0
-  YR2 = YR0+1
-  flout = f'PIOMASv21_ithkn_iconc_{YR1}_{YR2}_monthly.nc'
-  diclim = os.path.join(pthsis, flout)
+  if dfpiomas is None:
+    YR1 = YR0
+    YR2 = YR0+1
+    flout = f'PIOMASv21_ithkn_iconc_{YR1}_{YR2}_monthly.nc'
+    diclim = os.path.join(pthsis, flout)
+  else:
+    diclim = dfpiomas
+    flout = os.path.basename(dfpiomas)
+
   print(f'Reading relax fields from {diclim}')
   ds_rlx = xarray.open_dataset(diclim)
   Time = ds_rlx['time'].data

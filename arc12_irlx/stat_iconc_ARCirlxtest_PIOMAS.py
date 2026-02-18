@@ -40,11 +40,23 @@ importlib.reload(msisrlx)
 parser = argparse.ArgumentParser()
 parser.add_argument("--yr", help="year to plot, default 2001", type=int)
 parser.add_argument("--intrp", help=">1: interp PIOMAS mnth to daily for better accur., default=0", type=int)
+parser.add_argument(
+    "--enmb",
+    help="List of experiment numbers (e.g., 1 3 5 32 33)",
+    type=int,
+    nargs="+",             # <-- allows one or more integers and will generate a list
+    required=True
+)
 args = parser.parse_args()
 
 # Test runs were performed for only 1 year
 YRS = args.yr if args.yr else 1995
 interp = args.intrp if args.intrp else 0  
+ENMBS = args.enmb if args.enmb else None
+
+# Number of test runs:
+Nexpts = len(ENMBS)
+
 interp_mnthly = interp > 0  # for more accurate comparison, do time interpolation of PIOMAS 
                       # to get mnthly mean values, similar to how it is done in SIS2
                       # when deriving iconc ithkn for day=d0 from PIOMAS target fields
@@ -84,8 +96,8 @@ JA,IA = np.where(LMsk == 1)
 Aarc = Acell[JA,IA]
 
 #EXPTS = [1,2,3,4,5,21]   # 21 - 1hr rlx, no ridging
-EXPTS = [1,2,3,4,5]
-Nexpts = len(EXPTS)
+#EXPTS = [1,2,3,4,5]
+#Nexpts = len(EXPTS)
 RMSE_Arc_ai = np.zeros((12,Nexpts))
 RMSE_Arc_hi = np.zeros((12,Nexpts))
 BIAS_Arc_ai = np.zeros((12,Nexpts))
@@ -96,9 +108,9 @@ IAREA_pms = np.zeros((12))
 IVOL_pms  = np.zeros((12))
 TM = []
 
-kexpt = -1
-for expt_nmb in EXPTS:
-  kexpt += 1
+for kexpt in range(Nexpts):
+  expt_nmb = ENMBS[kexpt]
+
   pthtest = f'/archive/Dmitry.Dukhovskoy/fre/ARC12/test_ice_relax/ARCphys_expt{expt_nmb:02d}/{YRS}-01'
 
   YR = YRS
@@ -121,8 +133,8 @@ for expt_nmb in EXPTS:
       CIpms = msisrlx.mnthly_PIOMAS_linear_daily(dfpiomas,dnmb0,'iconc')
       HIpms = msisrlx.mnthly_PIOMAS_linear_daily(dfpiomas,dnmb0,'ithkn')
     else:
-      CIpms,_ = msisrlx.read_relax_piomas(dnmb0, pthrlx, 'iconc') 
-      HIpms,_ = msisrlx.read_relax_piomas(dnmb0, pthrlx, 'ithkn') 
+      CIpms,_ = msisrlx.read_relax_piomas(dnmb0, pthrlx, 'iconc', dfpiomas=dfpiomas) 
+      HIpms,_ = msisrlx.read_relax_piomas(dnmb0, pthrlx, 'ithkn', dfpiomas=dfpiomas) 
 
     if lat_rlx > 1.e-16:
       CIarc[hlat<lat_rlx] = np.nan
@@ -185,156 +197,137 @@ TM = np.array(TM)
 DV = mtime.datevec1D(TM, fHR=False)
 DV = np.array(DV).transpose()
 
-ECOLR = [[0.,0.4,0.9],
-         [0.9,0.5,0],
-         [0.,0.9,0.7],
-         [1.,0.9,0],
-         [0.8,0.,0.5],
-         [0.7, 1, 0.2]]
+#ECOLR = [[0.,0.4,0.9],
+#         [0.9,0.5,0],
+#         [0.,0.9,0.7],
+#         [1.,0.9,0],
+#         [0.8,0.,0.5],
+#         [0.7, 1, 0.2]]
+#
+ECOLR = msisrlx.irlx_tests_colors()
 
 pms_clr = [0,0.,0.4]
 
 
 plt.ion()
-def plot_ice_stat(fgnmb, iarea_nep, iarea_pms, ivol_nep, ivol_pms, 
-                  rmse_ai, rmse_hi, bias_ai, bias_hi, regn):
+
+def plot_ax0(ax0, time_m, data0, data_pms, sttl, lcntrl):
+  lnw0 = 2
+  for ik in range(Nexpts):
+    clr1 = ECOLR[ik]
+    if ENMBS[ik] == 1 and lcntrl:
+      lnw = lnw0
+      lstl = '-'
+      marker='o'
+      mksz=4
+    else:
+      lnw = lnw0
+      lstl = '-'
+      marker=None
+      mksz=None
+    ax0.plot(time_m, data0[:,ik],
+             linestyle=lstl, linewidth=lnw, marker=marker, markersize=mksz, color=clr1)
+
+  if data_pms is not None:
+    ax0.plot(time_m, data_pms, linestyle='-', linewidth=lnw0, color=pms_clr)
+
+  ax0.set_xticks(time_m)
+  ax0.grid('on')
+  ax0.set_xlim([time_m[0]-0.25, time_m[-1]+0.25])
+  ax0.set_title(sttl)
+
+  return ax0
+
+def plot_ice_stat(fgnmb, iarea_nep, iarea_pms, ivol_nep, ivol_pms,
+                  rmse_ai, rmse_hi, bias_ai, bias_hi, subregn, lcntrl=False):
+  """
+    lcntrl - show control run with a special line
+  """
 
   time_m = np.arange(1,13)
 
   fig1 = plt.figure(fgnmb,figsize=(9,8))
   plt.clf()
+
   # Ice area:
   ax1 = plt.axes([0.06, 0.72, 0.4, 0.25])
-  for ik in range(Nexpts):
-    clr1 = ECOLR[ik]
-    ax1.plot(time_m,iarea_nep[:,ik], '-', linewidth=2, color=clr1)
-  ax1.plot(time_m,iarea_pms, '-', linewidth=2, color=pms_clr)
-
-  ax1.set_xticks(time_m)
-  ax1.grid('on')
-  ax1.set_xlim([0.5,12.5])
-  sttl = f'IceArea x10^6 km2, {regn}, irlx tests'
-  ax1.set_title(sttl)
+  lnw0 = 2
+  sttl = f'IceArea x10^3 km2, {subregn}, irlx tests'
+  ax1 = plot_ax0(ax1, time_m, iarea_nep, iarea_pms, sttl, lcntrl)
 
   # Ice volume:
   ax2 = plt.axes([0.53, 0.72, 0.4, 0.25])
-  for ik in range(Nexpts):
-    clr1 = ECOLR[ik]
-    ax2.plot(time_m,ivol_nep[:,ik], '-', linewidth=2, color=clr1)
-  ax2.plot(time_m,ivol_pms, '-', linewidth=2, color=pms_clr)
-
-  ax2.set_xticks(time_m)
-  ax2.grid('on')
-  ax2.set_xlim([0.5,12.5])
-  sttl2 = f'IceVol x10^3 km3, {regn}'
-  ax2.set_title(sttl2)
+  sttl2 = f'IceVol km3, {subregn}'
+  ax2 = plot_ax0(ax2, time_m, ivol_nep, ivol_pms, sttl2, lcntrl)
 
   # Rmse ice conc
   ax3 = plt.axes([0.06, 0.41, 0.4, 0.25])
-  for ik in range(Nexpts):
-    clr1 = ECOLR[ik]
-    ax3.plot(time_m, rmse_ai[:,ik], '-', linewidth=2, color=clr1)
-
-  ax3.set_xticks(time_m)
-  ax3.grid('on')
-  ax3.set_xlim([0.5,12.5])
-  sttl3 = f'RMSE_ai, {regn}'
-  ax3.set_title(sttl3)
+  sttl3 = f'RMSE_ai, {subregn}'
+  ax3 = plot_ax0(ax3, time_m, rmse_ai, None, sttl3, lcntrl)
 
   # Rmse ice thkn
   ax4 = plt.axes([0.53, 0.41, 0.4, 0.25])
-  for ik in range(Nexpts):
-    clr1 = ECOLR[ik]
-    ax4.plot(time_m, rmse_hi[:,ik], '-', linewidth=2, color=clr1)
-
-  ax4.set_xticks(time_m)
-  ax4.grid('on')
-  ax4.set_xlim([0.5,12.5])
-  sttl4 = f'RMSE_hi (m), {regn}'
-  ax4.set_title(sttl4)
+  sttl4 = f'RMSE_hi (m), {subregn}'
+  ax4 = plot_ax0(ax4, time_m, rmse_hi, None, sttl4, lcntrl)
 
   # Bias iconc
   ax5 = plt.axes([0.06, 0.1, 0.4, 0.25])
-  for ik in range(Nexpts):
-    clr1 = ECOLR[ik]
-    ax5.plot(time_m, bias_ai[:,ik], '-', linewidth=2, color=clr1)
+  sttl5 = f'bias_ai (m), {subregn}'
+  ax5 = plot_ax0(ax5, time_m, bias_ai, None, sttl5, lcntrl)
 
-  ylm = np.max(abs(bias_ai))
-  if 0.01 <= ylm < 1:
-    ylm = np.ceil(ylm/0.1)*0.1
-  elif 0.001 <= ylm < 0.1:
-    ylm = np.ceil(ylm/0.01)*0.01
-  elif 1<= ylm < 100:
-    ylm = np.ceil(ylm)
-
-  ax5.set_xticks(time_m)
-  ax5.grid('on')
-  ax5.set_xlim([0.5,12.5])
-  ax5.set_ylim([-ylm,ylm])
-  sttl5 = f'bias_ai (m), {regn}'
-  ax5.set_title(sttl5)
- 
   # Bias ice thickness    
   ax6 = plt.axes([0.53, 0.1, 0.4, 0.25])
-  for ik in range(Nexpts):
-    clr1 = ECOLR[ik]
-    ax6.plot(time_m, bias_hi[:,ik], '-', linewidth=2, color=clr1)
-
-  ylm = np.max(abs(bias_hi))
-  if 0.01 <= ylm < 1:
-    ylm = np.ceil(ylm/0.1)*0.1
-  elif 0.001 <= ylm < 0.1:
-    ylm = np.ceil(ylm/0.01)*0.01
-  elif 1<= ylm < 100:
-    ylm = np.ceil(ylm)
-    
-  ax6.set_xticks(time_m)
-  ax6.grid('on')
-  ax6.set_xlim([0.5,12.5])
-  ax6.set_ylim([-ylm,ylm])
-  sttl6 = f'bias_hi (m), {regn}'
-  ax6.set_title(sttl6)
+  sttl6 = f'bias_hi (m), {subregn}'
+  ax6 = plot_ax0(ax6, time_m, bias_hi, None, sttl6, lcntrl)
 
   # Legend:
-  ax7 = plt.axes([0.6,0.01,0.39,0.08])
-  x0 = 0.
-  y0 = 0.35
+  ax7 = plt.axes([0.05,0.02,0.8,0.08])
+  x0 = 0.02
+  y0 = 0.32
   dy = 0.1
-  xl = 0.12
-  nlns = 3
+  xl = 0.03
+  nlns = 2
+  dx = 0.15
   for ik in range(Nexpts):
     clr1 = ECOLR[ik]
-    expt_nmb = ik+1
-    if expt_nmb <= nlns:
-      xS = x0
+    if ENMBS[ik] == 1 and lcntrl:
+      lnw = lnw0
+      lstl = '-'
+      marker='o'
+      mksz=4
     else:
-      xS = x0 + 0.5
-      yS = y0 - dy*(ik-3)
-      
+      lnw = lnw0
+      lstl = '-'
+      marker=None
+      mksz=None
+
+    expt_nmb = ENMBS[ik]
+    icol = ik // 2
+    xS = x0 + icol*dx
     yS = y0 - dy*(ik%nlns)
-    xE = xS+xl
-    xT = xE+0.1*xl
-    ax7.plot([xS,xE],[yS, yS],'-', linewidth=2, color=clr1)
-    ax7.text(xT,yS,f'expt{expt_nmb:02d}', va='center')
+    xE = xS + xl
+    xT = xE + 0.2*xl
+    expt_name = msisrlx.irlx_tests_name(expt_nmb, regn)
+    ax7.plot([xS,xE],[yS, yS],
+             linestyle=lstl, linewidth=lnw, marker=marker, markersize=mksz, color=clr1)
+    ax7.text(xT,yS,expt_name, va='center')
   ik += 1
+  icol = ik // 2
+  xS = x0 + icol*dx
+  xE = xS + xl
+  xT = xE + 0.2*xl
   yS = y0 - dy*(ik%nlns)
-  ax7.plot([xS,xE],[yS, yS],'-', linewidth=2, color=pms_clr)
+  ax7.plot([xS,xE],[yS, yS],'-', linewidth=lnw0, color=pms_clr)
   ax7.text(xT,yS,f'PIOMAS',va='center')
-  ax7.set_xlim([0,0.8])
-  ax7.set_ylim([0.12,0.5])
+  ax7.set_xlim([0.,0.8])
+  ax7.set_ylim([0.15,0.5])
   ax7.axis('off')
- 
+
   btx = 'stat_iconc_ARCirlxtest_PIOMAS.py'
   bottom_text(btx, pos=[0.02,0.01])
 
   return fig1, ax1, ax2, ax3, ax4, ax5, ax6, ax7
 
-# plt.figure(fig1)
-
-clr_ber = [0,0.4,0.8]
-clr2_ber = [0.7,0.8,1]
-clr_arc = [0.,0.7,0.2]
-clr2_arc = [0.7,1,0.9]
 time_mnth = np.arange(1,13)
 
 f_debug = False
@@ -354,13 +347,14 @@ fgnmb=1
 time_yrs = DV[:,0]+(DV[:,1]-1)/12
 
 if lat_rlx > 1.e-16:
-  regn_name = f'ARC {lat_rlx:.1f}N'
+  regn_name = f'ARC rlx{lat_rlx:.1f}N'
 else:
-  regn_name = 'ARC0.08'
+  regn_name = 'ARC10k norlx'
 
 fig1,ax11,ax12,ax13,ax14,ax15, ax16, ax17 = plot_ice_stat(1, IAREA_arc, IAREA_pms, \
                                     IVOL_arc, IVOL_pms, \
-                                    RMSE_Arc_ai, RMSE_Arc_hi, BIAS_Arc_ai, BIAS_Arc_hi, regn_name)
+                                    RMSE_Arc_ai, RMSE_Arc_hi, BIAS_Arc_ai, 
+                                    BIAS_Arc_hi, regn_name, lcntrl=True)
 
   
 

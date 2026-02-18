@@ -17,9 +17,7 @@ import matplotlib.mlab as mlab
 #import torch
 import sys
 import pdb
-import netCDF4
 import importlib
-from netCDF4 import Dataset as ncFile
 import timeit
 import pickle
 import yaml
@@ -50,7 +48,8 @@ if grd==0.25:
 woa='woa23'
 seas=15    # season: 1-12 monthly, 13-winter (Jan-Mar), 14-spring (Apr-Jun), ...
 
-f_showregn = 'NEP' # show region
+f_showregn = 'NEP' # show NEP10k domain and NEP region
+f_showregn = 'ARCTIC' # Arctic region 
 
 pthout = '/work/Dmitry.Dukhovskoy/data/Rossby_WOA/'
 fout1  = pthout + f'Rrossby_num_WOA23_season{seas:02d}.pkl'
@@ -131,22 +130,39 @@ latw = np.append(latw, 89.99)
 
 lonw, latw = np.meshgrid(lonw, latw)
 
+xl1 = xl2 = yl1 = yl2 = None
+if f_showregn == 'NEP':
+  lon0 = 220.
+  lat0 = 60.
+  rmin = 0.
+  rmax = 100.
+elif f_showregn == 'ARCTIC':
+  lon0 = -40.
+  lat0 = 80.
 
-lon0 = 220.
-lat0 = 60.
+  xl1 = 3.e6
+  xl2 = 10.e6
+  yl1 = xl1
+  yl2 = xl2
+
+  rmin = 0.
+  rmax = 30.  
+  #m = Basemap(width=6600*1.e3,height=7400*1.e3, resolution='l',\
+  #          projection='stere', lat_ts=60, lat_0=lat0, lon_0=lon0)
+
+
 res  = 'l'
 m = Basemap(projection='ortho', lon_0=lon0, lat_0=lat0, resolution=res)
 xR, yR = m(lonw,latw)
 
 PMsk = ( (xR > 1e20) | (yR > 1e20) )
-data = RsbNum.copy()
-data = np.insert(data, 0, data[:,-1], axis=1)
-data = np.insert(data, -1, data[-1,:], axis=0)
-data[PMsk] = np.nan
+#data = RsbNum.copy()
+#data = np.insert(data, 0, data[:,-1], axis=1)
+#data = np.insert(data, -1, data[-1,:], axis=0)
+#data[PMsk] = np.nan
 xR[PMsk]   = 1.e30
 yR[PMsk]   = 1.e30
-
-data = data[0:ny, 0:nx]
+#data = data[0:ny, 0:nx]
 
 xBND = []
 yBND = []
@@ -154,8 +170,8 @@ if f_showregn == 'NEP':
   xBND, yBND = m(IBND, JBND)
 
 ctitle = f'1st Barocl Rossby Radius (km), WOA23, {cseas}'
-rmin = 0.
-rmax = 100.
+
+print('Plotting ...')
 
 plt.ion()
 cmpS = mcmp.colormap_conc() 
@@ -173,6 +189,10 @@ m.drawmeridians(np.arange(-180.,180.,10.))
 
 if len(xBND) > 0:
   m.plot(xBND, yBND, 'r.')
+
+if xl1 is not None and yl1 is not None:
+  ax1.set_xlim([xl1,xl2])
+  ax1.set_ylim([yl1,yl2])
 
 ax1.set_title(ctitle)
 

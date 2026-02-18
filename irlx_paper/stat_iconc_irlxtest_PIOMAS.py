@@ -6,10 +6,8 @@
 """
 import datetime as dt
 import numpy as np
-from pathlib import Path
 import xarray
 import os
-import importlib
 import sys
 import matplotlib.pyplot as plt
 from yaml import safe_load
@@ -27,13 +25,8 @@ sys.path.append(PPTHN + '/MyPython')
 sys.path.append(PPTHN + '/MyPython/mom6_utils')
 import mod_time as mtime
 import mod_mom6 as mmom6
-import mod_utils as mutil
 import mod_colormaps as mclrmps
-import mod_misc1 as mmisc
-from mod_utils_fig import bottom_text
-import mod_anls_seas as manseas
 import mod_sis2_relax as msisrlx
-importlib.reload(msisrlx)
 
 yr_run = 2001
 regn = 'NEP'
@@ -409,9 +402,6 @@ def plot_ice_stat(fgnmb, iarea_nep, iarea_pms, ivol_nep, ivol_pms,
   ax7.set_ylim([0.15,0.5])
   ax7.axis('off')
  
-  btx = 'stat_iconc_irlxtest_PIOMAS.py'
-  bottom_text(btx, pos=[0.02,0.01])
-
   return fig1, ax1, ax2, ax3, ax4, ax5, ax6, ax7
 
 # plt.figure(fig1)
@@ -468,10 +458,6 @@ if plt_rgn:
 
   sttl = 'Ber and Arc regions for stat anls'
   ax31.set_title(sttl)
-
-  btx = 'stat_iconc_irlxtest_PIOMAS.py'
-  bottom_text(btx, pos=[0.1,0.08])
- 
 
 
 # Estimate S change due to ice vol change:
