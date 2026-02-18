@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 from yaml import safe_load
 import argparse
 
-PPTHN = '/home/Dmitry.Dukhovskoy/python'
+PPTHN = '/Users/ddmitry/python'
 if len(PPTHN) == 0:
   cwd   = os.getcwd()
   aa    = cwd.split("/")
