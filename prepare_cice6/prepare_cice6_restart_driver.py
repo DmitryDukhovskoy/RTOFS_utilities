@@ -42,7 +42,8 @@ import mod_misc1 as mmisc
 import mod_cice6_utils as mc6util
 import mod_time as mtime
 
-rest_date = 20250103
+#rest_date = 20250103
+rest_date = 20250704
 rest_hr   = 0
 rhr_out   = rest_hr
 flrst_in  = None

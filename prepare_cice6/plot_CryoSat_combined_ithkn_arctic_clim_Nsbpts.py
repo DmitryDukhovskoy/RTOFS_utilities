@@ -106,7 +106,7 @@ with xarray.open_dataset(dfliceout) as dsn:
 
 clrmp = mclrmps.colormap_ice_thkn()
 rmin = 0.
-rmax = 4.
+rmax = 3.
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 clrmp.set_under(color=[1,1,1])
 

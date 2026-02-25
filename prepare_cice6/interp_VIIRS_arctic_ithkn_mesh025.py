@@ -261,8 +261,8 @@ if f_chck:
   xh, yh = m(hlon, hlat)
   #xL, yL = m(LON, LAT)
 
-  m.drawparallels(np.arange(60, 90, 5), labels=[1,0,0,0])
-  m.drawmeridians(np.arange(-180, 180, 45), labels=[0,0,0,1])
+  m.drawparallels(np.arange(60, 90, 5), labels=[0,0,0,0])
+  m.drawmeridians(np.arange(-180, 180, 45), labels=[0,0,0,0])
   m.drawcoastlines()
 
   img = m.pcolormesh(xh,yh, AP, cmap=clrmp, vmin=rmin, vmax=rmax)

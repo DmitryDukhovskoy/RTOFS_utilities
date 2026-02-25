@@ -141,6 +141,6 @@ ticklabs = clb.ax.get_xticklabels()
 clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
 clb.ax.tick_params(direction='in', length=12)
 
-btx = 'plot_interp_NSIDC_mesh025.py'
+btx = 'plot_interp_NSIDC_iconc_mesh025.py'
 bottom_text(btx)
 

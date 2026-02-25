@@ -5,7 +5,6 @@
 """
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 import sys
 import importlib
 import datetime
@@ -26,30 +25,26 @@ sys.path.append(PPTHN + '/MyPython')
 sys.path.append(PPTHN + '/MyPython/mom6_utils')
 
 import mod_time as mtime
-import mod_utils as mutil
-import mod_read_hycom as mhycom
-import mod_mom6 as mom6util
-import mod_regmom as mrgm
 
 # Default values:
 momhr = 21  # Input MOM restart, hour
 icehr = 3   # Input CICE restart, hour
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--rdate", help="Created restart date YYYYMMDD", required=True, type=int)
-parser.add_argument("--rhr", help="Created restart hour =0,..,24, default=0", type=int)
+parser.add_argument("--rdate", help="Created/new restart date YYYYMMDD", required=True, type=int)
+parser.add_argument("--rhr", help="Created/new restart hour =0,..,24", required=True, type=int)
 parser.add_argument("--momdate", help="Input MOM restart date YYYYMMDD, if None - no MOM restart will be done", type=int)
 parser.add_argument("--momhr", help=f"Input MOM restart hour, default={momhr}", type=int)
 parser.add_argument("--icedate", help="Input CICE restart date YYYYMMDD, if None - non CICE restart will be done", type=int)
 parser.add_argument("--icehr", help=f"Input CICE restart hour, default={icehr}", type=int)
 args = parser.parse_args()
 
-rdate   = args.rdate if args.rdate else None
-rhr     = args.rhr if args.rhr is not None else None
+rdate   = args.rdate   if args.rdate else None
+rhr     = args.rhr     if args.rhr is not None else None
 momdate = args.momdate if args.momdate else None
-momhr   = args.momhr if args.momhr is not None else momhr
+momhr   = args.momhr   if args.momhr is not None else momhr
 icedate = args.icedate if args.icedate else None
-icehr   = args.icehr if args.icehr is not None else icehr
+icehr   = args.icehr   if args.icehr is not None else icehr
 
 pthrst  = Path('/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields')
 pthrnew = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields/new'

@@ -3,6 +3,13 @@
   from AWI CryoSat gridded fields
   winter months only
 
+  AWI L4 gridded 25 km 
+  Arctic snow depth, density, and sea ice thickness, freeboard etc 
+   from CryoSat-2
+  https://data.seaiceportal.de/relaunch/thickness.php?lang=en
+
+  Data are on polar stereographic coordinates
+
 """
 import os
 import numpy as np

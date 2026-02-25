@@ -1,8 +1,7 @@
 """
-  RMSE of ice conc. btw datm UFS experiments and NSIDC NRT fields
+  RMSE of ice conc. btw datm UFS experiments and ice thickness fields
+  Not all years / months of satellite products are available for ithkn!
 
-  NSIDC fields from 
-  https://noaadata.apps.nsidc.org/NOAA/G02202_V6/north/daily/2025/
 
   example:
   plot control run and "global" expt with inserted snow, show Arctic ocean (north)
@@ -58,9 +57,10 @@ import mod_misc1 as mmisc
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
+# Forecast init date and end of f/cast day DDE
 YR = 2025
 MM = 1 
-DD = 3
+DD = 3  
 DDE = 16
 
 parser = argparse.ArgumentParser()
@@ -129,9 +129,6 @@ HH = np.where(np.isnan(HH), 1., HH)
 jdm, idm = HH.shape
 
 
-pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
-
 RMsk = np.where(HH>=0, 0, 1)
 if regn == 'south':
   RMsk = np.where(hlat > -60., 0, RMsk)
@@ -160,6 +157,21 @@ dnmbS = int(mtime.datenum([YR,MMS,DDS]))
 dnmbE = int(mtime.datenum([YR,MME,DDE]))
 RECS = [dnmbS] + [x + 0.5 for x in range(dnmbS, dnmbE + 1)]
 RECS = np.array(RECS)
+
+pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
+if regn == 'north':
+  if dnmbS >= mtime.datenum([2015,1,1]) and dnmbE <= mtime.datenum([2025,11,30]):
+    if MM <= 4 or MM >= 10:
+      # Use AWI CryoSat2 
+      pthithk = os.path.join(pthdata, 'CryoSat_AWI_arctic_ithkn','interp_monthly')
+
+  elif dnmbS >= mtime.datenum([2018,10,1]) and dnmbE <= mtime.datenum([2021,4,30]):
+    # CryoSat NSIDC
+    pthithk = os.path.join(pthdata, 'CryoSat_arctic_ice_snow_thkn','interp_NSIDC_monthly') 
+    dataset = 'CryoSat_NSIDC'
+    
+ 
+
 
 nprst  = len(PRST)
 nexpts = len(ENMBS)

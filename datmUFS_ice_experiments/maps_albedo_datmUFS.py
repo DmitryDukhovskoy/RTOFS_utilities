@@ -141,15 +141,17 @@ with xarray.open_dataset(dflice) as dcice:
   aice = dcice['aice_d'].data.squeeze()
   AA = dcice['albsni_d'].data.squeeze()    # snow/ice broad band albedo
 
-AA = np.where(RMsk == 0, np.nan, AA)
+AA = 0.01 * np.where(RMsk == 0, np.nan, AA)  # % --> fraction
 
 
 plt.ion()
 
 #clrmp = mclrmps.colormap_conc()
-clrmp = mclrmps.colormap_albedo()
+#clrmp = mclrmps.colormap_albedo()
+clrmp = mclrmps.colormap_ice_thkn()
 rmin = 0.
-rmax = 100.
+rmax = 1.
+
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
 if regn == 'south':

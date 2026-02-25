@@ -1,0 +1,1 @@
+../prepare_cice6/get_gmapi_gfs16_reggrid_to_mesh025.py

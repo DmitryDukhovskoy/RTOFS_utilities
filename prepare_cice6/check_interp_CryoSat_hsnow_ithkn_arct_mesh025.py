@@ -179,7 +179,7 @@ ax1.invert_yaxis()
 ax1.axis('scaled')
 ax1.set_title(f'NSIDC CryoSat: {varnm} {YR}/{MM:02d}, m')
 
-m = Basemap(projection='npstere',boundinglat=50,lon_0=-45,resolution='l')
+m = Basemap(projection='npstere',boundinglat=50,lon_0=-10,resolution='l')
 parallels = np.arange(40,89,10.)
 meridians = np.arange(-360,359.,45.)
 

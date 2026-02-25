@@ -141,9 +141,15 @@ with xarray.open_dataset(dfgmapi) as dgmapi:
 
 def read_NSIDC(YR,MM,DD,regn,pthnsidc,varnm):
   if regn == 'south':
-    flnsidc = f"sic_pss25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"  
+    if YR >= 2025:
+      flnsidc = f"sic_pss25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"  
+    else:
+      flnsidc = f"sic_pss25_{YR}{MM:02d}{DD:02d}_F17_v06r00.nc"  
   else:
-    flnsidc = f"sic_psn25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"  
+    if YR >= 2025:
+      flnsidc = f"sic_psn25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"  
+    else:
+      flnsidc = f"sic_psn25_{YR}{MM:02d}{DD:02d}_F17_v06r00.nc"  
 
   with xarray.open_dataset(os.path.join(pthnsidc,flnsidc)) as ds_nsidc:
     A = ds_nsidc[varnm].data.squeeze()
@@ -194,12 +200,12 @@ for mday in range(ddS,ddE+1):
   print(f"Processing {YR}/{MM}/{mday} ...")
 
   if save_tmp:
-    tmp_file = os.path.join(tmp_dir, f"tmp_NSIDCinterp_{YR}{MM:02d}{mday:02d}.nc")
+    tmp_file = os.path.join(tmp_dir, f"tmp_NSIDCinterp_{YR}{MM:02d}{mday:02d}_{regn}.npy")
     # Skip if already processed
-    tmp_file_npy = f"{tmp_file}.npy"
-    if os.path.exists(tmp_file_npy):
-      print(f"Skipping {YR}/{MM}/{mday}: already computed")
-      CIint = np.load(tmp_file_npy)
+    #tmp_file_npy = f"{tmp_file}.npy"
+    if os.path.exists(tmp_file):
+      print(f"Skipping {YR}/{MM}/{mday}: already computed <--- {tmp_file}")
+      CIint = np.load(tmp_file)
       A3d[mday-1,:,:] = CIint
       continue
       
@@ -210,6 +216,7 @@ for mday in range(ddS,ddE+1):
   A3d[mday-1,:,:] = CIint
 
   if save_tmp:
+    print(f"Saving tmp file --> {tmp_file}")
     np.save(tmp_file, CIint)
 
 if not save_nc:
@@ -223,7 +230,7 @@ else:
   dset = xarray.Dataset({"ice_conc": darr_cice})
   dset['ice_conc'].attrs['long_name']='ice partial area'
   # Add global attributes:
-  dset.attrs['title']       = 'NRT NSIDC v6 sea ice conc daily interpolated onto mash025 grid'
+  dset.attrs['title']       = 'NRT NSIDC v6 sea ice conc daily interpolated onto mesh025 grid'
   dset.attrs['institution'] = 'NOAA NWS NCEP MDC'
   dset.attrs['source']      = 'interp_NSIDC_mesh025.py'
   dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'

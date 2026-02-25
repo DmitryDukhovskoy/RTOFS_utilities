@@ -58,7 +58,7 @@ importlib.reload(msisrlx)
 
 regn = 'north'
 YRS = 2015
-YRE = 2024
+YRE = 2025
 field_name = 'ithkn' 
 avrg = 1  # 1 - derive climatology and interp, 0 - interpolate monthly data by years and save
 tmpf = 1  # for climatology, save temporary monthly and start from last saved
@@ -77,7 +77,7 @@ args = parser.parse_args()
 field_name = args.field if args.field else field_name
 YRS = args.yrs if args.yrs else YRS
 YRE = args.yre if args.yre else YRE
-avrg = args.avrg if args.avrg else avrg
+avrg = args.avrg if args.avrg is not None else avrg
 tmpf = args.tmpf if args.tmpf is not None else tmpf
 
 mnthly_clim = avrg == 1  # True - produce monthly climatologies by averaging over years YRS-YRE and intrp

@@ -155,8 +155,8 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   for jv, iv in zip(JVX, IVX):
     # skip boundaries
     if iv == 0 or jv == 0 or iv == nn-1 or jv == mm-1:
-      print(f'pnt x0/y0: {x0:.3f}/{y0:.3f} outside or at the boundary: i/j={iv1}/{jv1}, skipping ...')
-      return [],[]
+      print(f'WARN: pnt x0/y0: {x0:.3f}/{y0:.3f} outside or near the boundary: i/j={iv1}/{jv1}, skipping ...')
+      return [],[] # <--- the point is skipped, not ideal when at ~90N, modify LAT by adding extra row at 89.999
 
     if not INp:
       IV,JV,INp = find_box_include([x0,y0], [iv,jv], LON, LAT, eps_tol=1.e-8)

@@ -93,6 +93,8 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
     xx0 = LON0[JJ,II]
     xx = mblnr.shift_longitudes(xx0, ref_lon=x0)
     yy = LAT[JJ,II]
+    # Avoid N. Pole - errors in spehrical distance calculation
+    yy[yy > 89.999] = 89.999
 
     # Make sure the vertices are close enough:
     if np.max(abs(np.diff(xx))) > 90. or np.max(abs(xx-x0)) > 90.:
@@ -137,8 +139,8 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
     if abs(xht) > 1. or abs(yht) > 1.:
       # If nothing works, interpolate into the center
       # these should be very rare for locations on land where I / J axes converge 
-      print(f"Fixing by rotating ref BOX failed ikk={ikk} " +\
-            f"xht={xht:8.5f} yht={yht:8.5f}, approximate xhy, yht as middle pnt")
+      print(f"Fixing by rotating ref BOX failed ikk={ikk} x0={x0:.2f} y0={y0:.2f} " +\
+            f"xht={xht:8.5f} yht={yht:8.5f}, use xhy, yht as middle pnt")
       xht = yht = 1.e-3
 
     HT = A2d[JJ,II]
