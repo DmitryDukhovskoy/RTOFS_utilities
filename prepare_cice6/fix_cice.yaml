@@ -1,0 +1,23 @@
+# Example configuration for fix_cice_restart.py
+# This file specifies the CICE6 restart file to process and thickness limits
+# Thickness limits are optional, can be specified via CLI during code call:
+# python fix_cice6restart.py --himax 15 --hifix 0.5 --hsmax 0.5 --hsfix 0.1 etc.
+#
+
+# Path to the input CICE restart file - required
+rest_path: "/scratch3/NCEPDEV/da/Anna.Shlyaeva/retro_ice_investigation/enkfgdas.{init_date}/{HH:02d}/mem{NR:03d}/analysis/ice"
+
+# Path for the output fixed restart file - required, keep empty if out_path = rest_path
+# New file names is prefix "fix_" is added to the old restart file name 
+out_path: "/scratch3/NCEPDEV/stmp/Dmitry.Dukhovskoy/cice6_restart_fixed/enkfgdas.{init_date}/{HH:02d}/mem{NR:03d}"
+
+# Maximum allowed ice thickness (m3 / m2_ice)  --use_yaml as CLI to use these values
+# Points with mean ice thickness over ice area exceeding this will be zeroed
+max_hice: 10.0
+fix_hice: 1.
+
+# Maximum allowed snow thickness (m3 / m2_ice) --use_yaml as CLI to use these values
+# Points with mean snow thickness over ice area exceeding this will be zeroed
+max_hsnow: 1.0
+fix_hsnow: 0.1
+
