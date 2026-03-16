@@ -88,7 +88,9 @@ fyaml = 'paths_ufs.yaml'
 with open(fyaml) as ff:
   pths_ufs = safe_load(ff)
     
-pthfld, flname = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, 'ICESat2_orig', YR=YR, MM=MM)
+#pthfld, flname = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, 'ICESat2_orig', YR=YR, MM=MM)
+pthfld = os.path.join(pthdata, 'ICESat2_arctic_summer_ithkn_hsnow')
+flname = f"IS2SIT_SUMMER_01_{YR}{MM:02d}_006_001.nc"
 dflname = os.path.join(pthfld, flname)
 
 # There are many versions of ice thickness estimates in the file

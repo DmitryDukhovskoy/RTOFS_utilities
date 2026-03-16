@@ -13,13 +13,6 @@ Use NSIDC Polar Stereogr Proj:
 semi_major_axis: 6378137.0
 inverse_flattening: 298.257223563
 
-  Due to very large VIIRS grid, recommended to run several serial jobs saving temporary files with
-  gmapi indices, using get_gmapi_subVIIRS_arctic_to_mesh025.py  e.g.
-  run get_gmapi_subVIIRS_arctic_to_mesh025.py --iS0 0 --iE0 200
-  run get_gmapi_subVIIRS_arctic_to_mesh025.py --iS0 201 --iE0 400
-  ...
-  
-  then use this script to combine all saved pieces and creating the final netcdf
 
   get_gmapi_VIIRS_arctic_to_mesh025.py
 

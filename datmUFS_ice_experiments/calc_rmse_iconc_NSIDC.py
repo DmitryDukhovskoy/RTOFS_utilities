@@ -227,7 +227,7 @@ print("Plotting ...")
 
 XT = RECS - np.floor(RECS[0])
 xticks = np.arange(np.floor(XT[0]),np.ceil(XT[-1]))
-yticks = np.arange(0.,0.8,0.05)
+yticks = np.arange(0.,1.,0.05)
 sttl = f"RMSE btw iconc NSIDC and datmUFS expts, {regn}\n"
 sttl = sttl + f"{YR}/{MMS:02d}/{DDS:02d}-{YR}/{MME:02d}/{DDE:02d}"
 

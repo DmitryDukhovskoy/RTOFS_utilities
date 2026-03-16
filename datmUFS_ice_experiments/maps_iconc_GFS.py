@@ -46,30 +46,47 @@ import mod_misc1 as mmisc
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
-expt = 'gfs_fcast'  # gfs - current f/cast in yaml
+#expt = 'gfs_fcast'  # gfs - current f/cast in yaml, for GFS output directories
+expt = 'gfs_else'  # gfs - other experiments
 init_date = 20250714
-init_hr = 6    # nominal hr, actual: -6 hrs for IAU, and -3 FHROT (f/cast hr rotation)
+init_hr = 0    # nominal hr, actual: -6 hrs for IAU, and -3 FHROT (f/cast hr rotation)
 regn = 'south'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
 parser.add_argument("--init", help=f"init date, default={init_date}", type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
-parser.add_argument("--fhr", help=f"forecast hour to plot: 6, 12, ...,390, =0 - init. cond.", type=int, required=True)
-parser.add_argument("--enmb", help="experiment number: 1, 2, ...", type=int)
+parser.add_argument("--fhr", help=f"forecast hour to plot: 6, 12, ...,390, =0 - init. cond.", type=int)
+#parser.add_argument("--fday", help=f"forecast day to plot (override fhr): 1, 2, ...", type=int)
+parser.add_argument("--enmb", help="experiment number: 0, 1, 2, ...", type=int)
 args = parser.parse_args()
   
 enmb      = args.enmb if args.enmb else None
 init_date = args.init if args.init else init_date
 init_hr   = args.ihr if args.ihr else init_hr
 fhr       = args.fhr if args.fhr is not None else None
+#fday      = args.fday if args.fday is not None else None
 regn      = args.regn if args.regn else regn
 
 dnmbI = mtime.rdate2datenum(init_date*100+init_hr)  # init. day nmb
 YRI,MMI,DDI,hrI = mtime.datevec(dnmbI, round_hrs=True)[:4]
 
+#if fday is None and fhr is None:
+#  raise RuntimeError("Either fhr or fday have to be provided")
+
+#if fday is None:
+#  fday = fhr // 24 + 1
+#else:
+#  # fday overrides fhr if provided both
+#  # mid-day assumed
+#  fhr = (fday-1) * 24
+#  if fhr == 0:
+#    fhr = 24     # avoid init fields
+
+
 dnmb0 = dnmbI + fhr/24
 yr0,mm0,dd0,hr0 = mtime.datevec(dnmb0, round_hrs=True)[:4]
+nsec0 = int(hr0 * 3600)
 YR,MM,DD = mtime.datevec(dnmb0)[:3]
   
 syst_info = os.uname() 
@@ -160,8 +177,8 @@ xh, yh = m(hlon,hlat) # GFS coords
 fig1 = plt.figure(1,figsize=(9,9))
 plt.clf()
 ax1 = plt.axes([0.08, 0.13, 0.83, 0.83])
-m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
+m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
+m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 img1 = ax1.pcolormesh(xh,yh,AA, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,sqerr, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,np.abs(AA-AI), cmap=clrmp, vmin=rmin, vmax=rmax)

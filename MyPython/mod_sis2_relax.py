@@ -635,11 +635,13 @@ def redistribute_hice(hice, cice, ICAT=[], eps0=1.e-6, ck_min=1.e-3, verbose=Fal
     chcat = ccat*hcat
     # Limit max hcat  aand adjust ccat allowing to be not exact?
 
+    print(f"Not enough ice")
     return hcat, ccat
 
-# Find ice cat. where grid cell mean hice falls in:
+  # Find primary ice cat. where grid cell mean hice falls in:
   icat = 1e3
   hcat_k = hice/cice     # ice thickness in a category: m3/m2 --> m
+  #print(f'hcat_k={hcat_k:.2f}')
   for kk in range(ncat):
     hbnd = ICAT[kk]
     if kk < ncat-1:

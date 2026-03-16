@@ -1,6 +1,6 @@
 """
   Interpolate CryoSat hsnow or ice thickn. monthly fileds 
-  winter months only
+  summer 05-08 months only
 
   When averaging, 0-thickness is ignored, i.e. only hice > 0 is considered for 
   computing the multi-year mean to track mean ice thickness in the grid cell 
@@ -192,7 +192,7 @@ def write_nc(A2d, time_out, field_name, dfliceout, varnm):
 
   # Add global attributes:
   dset.attrs['title']       = f'{varnm} on mesh025 grid from monthly gridded summer Arctic sea ice thickness from ICESat-2, v2' 
-  dset.attrs['institution'] = 'NOAA NWS NCEP MDC'
+  dset.attrs['institution'] = 'NOAA NWS NCEP EMC'
   dset.attrs['source']      = 'interp_ICESat2_icesnow_summer_arctic_mesh025.py'
   dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'
   dset.attrs['region']      = 'north'
@@ -210,7 +210,8 @@ for YR in range(YRS,YRE+1):
       continue
 
     # Output file name:
-    pthintrp, _  = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, 'ICESat2_mnth_interp')
+    #pthintrp, _  = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, 'ICESat2_mnth_interp')
+    pthintrp = os.path.join(pthdata,'ICESat2_arctic_summer_ithkn_hsnow','interp_mesh025')
     fliceout = f"{field_name}_ICESat2_arctic_{YR}{MM:02d}_{jdm}x{idm}.nc"
     dfliceout = os.path.join(pthintrp, fliceout)
     if os.path.isfile(dfliceout):

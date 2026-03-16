@@ -115,6 +115,7 @@ clrmp.set_under(color=[1,1,1])
 
 from mpl_toolkits.basemap import Basemap, cm
 m = Basemap(projection='npstere', boundinglat=60, lon_0=-10,resolution='l')
+#m = Basemap(projection='npstere', boundinglat=53, lon_0=-10,resolution='l')
 xh, yh = m(hlon,hlat) # GFS coords
 
 def plot_field(ax1, fig1, m, xR, yR, A2d, clrmp, rmin, rmax, plt_clrb, sttl=[]):

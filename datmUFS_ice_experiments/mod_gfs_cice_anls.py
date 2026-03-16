@@ -18,6 +18,9 @@ def sens_tests_info(enmb):
     ITDrdg - snow distribution, snow phys on
     smtrphs - snow metamorphysm is on
 
+    experiments 0 - 25 - January 2025, 14-day f/casts initialized from GDAS analysis
+                         for GFSv17 f/casts
+
     experiments < 20 - corrections implemented in the S. Ocean only
     epxeriments >= 20 are with both N. and S. poles corrected fields (regn="global") 
                       Note that similar runs in old experiments may not be identical due 
@@ -25,13 +28,15 @@ def sens_tests_info(enmb):
                       will be different to the new simulation because added freeboard and ice 
                       enthalpy adjustments
 
+  experiments 30-35 - July 2025, 28 days forecasts
+
   hsU - designates updated hsnow insertion code (see extp 11: ice freeboard + enthalpy)
   hsU = hs+qi+fbrd  - updated hsnow code
   hs0 - original code without ice enth. and ice freeboard correction
 
   """
   EXPTS = {
-    "01" : "control",
+    "01" : "control",                         # control January 2025  
     "02" : "ai+hi+hs0+qi+fbrd+thermo",
     "03" : "ai+hi+hs0+qi+fbrd+thermo+ITDrdg",
     "04" : "hs0",
@@ -48,6 +53,9 @@ def sens_tests_info(enmb):
     "23" : "ai+hi",
     "24" : "ai+hi+hsU",
     "25" : "ai+hi+hsU+thermo+ITDrdg+snphys",
+    "30" : "control",                         # control July 2025
+    "70" : "orig anls",                       # GFSv17 CICE with corrected high ice thickness and snow thickness
+    "71" : "fixed hice hsnow",                # GFSv17 cice analysis with high ice thickness, snow thickn
    }
 
   key = f"{enmb:02d}"    

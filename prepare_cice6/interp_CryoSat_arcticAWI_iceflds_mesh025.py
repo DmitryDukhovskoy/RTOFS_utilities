@@ -204,7 +204,7 @@ def write_nc(A3d, time_out, field_name, dfliceout, attr_str ):
 
   # Add global attributes:
   dset.attrs['title']       = f'Arctic {attr_str} from CryoSat2 AWI L4 product' 
-  dset.attrs['institution'] = 'NOAA NWS NCEP MDC'
+  dset.attrs['institution'] = 'NOAA NWS NCEP EMC'
   dset.attrs['source']      = 'interp_CryoSat_arcticAWI_iceflds_mesh025.py'
   dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'
   dset.attrs['region']      = 'north'

@@ -46,9 +46,11 @@ import mod_misc1 as mmisc
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
-expt = 'gfs_fcast'  # gfs - current f/cast in yaml
+#expt = 'gfs_fcast'  # gfs - current f/cast in yaml
+expt = 'datm_UFS'
 init_date = 20250714
 init_hr = 6    # nominal hr, actual: -6 hrs for IAU, and -3 FHROT (f/cast hr rotation)
+nsec0 = 0
 regn = 'south'
 
 parser = argparse.ArgumentParser()
@@ -145,35 +147,34 @@ rmin = 0.
 rmax = 3.
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
+# Find high ice thickness:
+JJ, II = np.where(AA > 10.)
 
 if regn == 'south':
-  m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
+  m = Basemap(projection='spstere',boundinglat=-55,lon_0=180,resolution='l')
 #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
 parallels = np.arange(-80,-10,10.)
 meridians = np.arange(-360,359.,45.)
-xl1 = -8.6e6
-xl2 = -0.8e6
-yl1 = xl1
-yl2 = xl2 
 
 xh, yh = m(hlon,hlat) # GFS coords
 fig1 = plt.figure(1,figsize=(9,9))
 plt.clf()
-ax1 = plt.axes([0.08, 0.13, 0.83, 0.83])
-m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
+ax1 = plt.axes([0.08, 0.12, 0.83, 0.83])
+m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
+m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 img1 = ax1.pcolormesh(xh,yh,AA, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,sqerr, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,np.abs(AA-AI), cmap=clrmp, vmin=rmin, vmax=rmax)
-ax1.set_title(f'{expt} init {init_date}/{init_hr:02d}, ithkn, fcast {fhr}hr  {YR}/{MM:02d}/{DD:02d} {hr0:02d}')
-ax1.set_xlim([xl1, xl2]) 
-ax1.set_ylim([yl1, yl2]) 
-ax1.invert_yaxis()
-ax1.invert_xaxis()
+hmax = np.nanmax(AA)
+ax1.set_title(f'{expt} init {init_date}/{init_hr:02d}, ithkn, fcast {fhr}hr  max h={hmax:.2f}\n{YR}/{MM:02d}/{DD:02d} {hr0:02d}')
 
+plt_hmax = True
+if plt_hmax and len(JJ)>0:
+  ax1.plot(xh[JJ,II], yh[JJ,II], 'ro')
+  
 
 # Colorbars
-ax2 = fig1.add_axes([0.15, 0.1, 0.7, 0.02])
+ax2 = fig1.add_axes([0.15, 0.09, 0.7, 0.02])
 clb = plt.colorbar(img1, cax=ax2, orientation='horizontal', extend='max')
 ax2.xaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
 ax2.set_xticklabels(ax2.get_xticks())
