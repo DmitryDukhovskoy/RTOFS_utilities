@@ -99,7 +99,16 @@ def check_print(aice, aicen_new, vicen_new, vsnon_new, qsnon, qsnon_new, ncat):
 
   return
 
-def insert_hsnow(regn_wrk, ds_out, fyaml, node_nm, dnmbR, dnmbN, pthrest, flrst_in):
+def insert_hsnow(regn_wrk, ds_out, config_rest, dnmbR, dnmbN, pthrest, flrst_in):
+  """
+    regn_wrk    - region name in this loop: north, south 
+    ds_out      - xarray data_set: empty or not if cycled over 2 regions
+    config_rest - YAML object with local directories, files, restart fields, etc.
+    dnmbR       - input restart date datenumb format
+    dnmbN       - output restart date datenumb format
+    pthrest     - restart directory
+    flrst_in    - input restart file to be modified    
+  """
   # CICE parameters:
   puny      = 1.e-11
   c0        = 0.0
@@ -150,11 +159,15 @@ def insert_hsnow(regn_wrk, ds_out, fyaml, node_nm, dnmbR, dnmbN, pthrest, flrst_
   # Snow depth climatology, Interpolated fields mesh025:
   varnm = 'snow_depth'
   if regn_wrk == 'south':
-    pthsnow, flhsn = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, "hsnow_clim_antarct")
+    pthsnow = config_rest["target_paths"]["hsnow_south"]["path"]
+    flhsn   = config_rest["target_paths"]["hsnow_south"]["file"]
   elif regn_wrk == 'north':
-    pthsnow, flhsn = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, "hsnow_clim_arct")
+    #pthsnow, flhsn = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, "hsnow_clim_arct")
+    pthsnow = config_rest["target_paths"]["hsnow_north"]["path"]
+    flhsn   = config_rest["target_paths"]["hsnow_north"]["file"]
 
   dflhsn = os.path.join(pthsnow,flhsn)
+
   print(f"Reading interpolated hsnow {dflhsn}")
   with xarray.open_dataset(dflhsn) as ds_snow:
     HSi = ds_snow[varnm].isel(time=mmN-1).data.squeeze()
@@ -392,10 +405,8 @@ def insert_hsnow(regn_wrk, ds_out, fyaml, node_nm, dnmbR, dnmbN, pthrest, flrst_
 
 
 def main():
-  rest_date = 20250103
   rest_hr   = 0
   hunits    = 'cm'
-  regn = 'south'
 
   yrR = mmR = ddR = hrR = None
   yrN = mmN = ddN = hrN = None
@@ -403,40 +414,28 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("--rdate", help=f"restart date input file", required=True, type=int)
   parser.add_argument("--rhr", help=f"input file, restart hour = 0, ..., 23, default={rest_hr}", type=int)
-  parser.add_argument("--rdate_out", help="output file, restart date if different from input", type=int)
-  parser.add_argument("--rhr_out", help="output file, restart hour if date is different from input", type=int)
+  parser.add_argument("--rdate_out", help="output file, restart date", required=True, type=int)
+  parser.add_argument("--rhr_out", help="output file, restart hour", required=True, type=int)
   parser.add_argument("--pth_in", help="input restart directory with original file", type=str, required=True)
-  parser.add_argument("--flrst_in", help="rest file in, otherwise name constructed from rest_date", type=str, required=True)
+  parser.add_argument("--flrst_in", help="rest file in", required=True, type=str)
   parser.add_argument("--pth_out", help="output restart directory where new file be dumped", type=str, required=True)
-  parser.add_argument("--flrst_out", help="new rest file, otherwise name constructed from rdate_out", type=str)
+  parser.add_argument("--flrst_out", help="new rest file", required=True, type=str)
   parser.add_argument("--regn", help=f"where hsnow inserted", type=str, required=True, 
                        choices=['north','south','global'])
+  parser.add_argument("--fyaml", help="YAML with paths for input/output directories filenames, dates",
+                      type=str, required=True)
   args = parser.parse_args()
 
-  flrst_in  = args.flrst_in  if args.flrst_in  else None
-  flrst_out = args.flrst_out if args.flrst_out else None
-  regn      = args.regn      if args.regn      else regn
-  # if rest_date and rest_date_out are provided
-  # Derive dates assuming file nameing includes date in the form YYYYMMD[XX...].[XX[XXXX]] <-- time optional 
-  # Somewhere in the file name 
-  if flrst_in is not None:
-    yrR, mmR, ddR, hrR, mintR = mc6util.get_date_filename(flrst_in)
-    rest_date = int(yrR*1e4 + mmR*100 + ddR)
-    rest_hr = hrR
-  else:
-    rest_date = args.rdate if args.rdate else rest_date
-    rest_hr   = args.rhr if args.rhr else rest_hr
-
-  if flrst_out is not None:
-    yrN, mmN, ddN, hrN, mintN = mc6util.get_date_filename(flrst_out)
-    rest_date_out = int(yrN*1e4 + mmN*100 + ddN)
-    rest_hr_out = hrN  
-  else:
-    rest_date_out = args.rdate_out if args.rdate_out else rest_date
-    rest_hr_out   = args.rhr_out if args.rhr_out else rest_hr
-
-  pth_in  = args.pth_in  if args.pth_in  else None
-  pth_out = args.pth_out if args.pth_out else None
+  flrst_in      = args.flrst_in 
+  flrst_out     = args.flrst_out
+  regn          = args.regn   
+  rest_date     = args.rdate
+  rest_hr       = args.rhr 
+  rest_date_out = args.rdate_out 
+  rest_hr_out   = args.rhr_out 
+  pth_in        = args.pth_in
+  pth_out       = args.pth_out
+  fyaml         = args.fyaml
     
   print(f"Restart date input:  {rest_date}:{rest_hr}")
   print(f"Restart date output: {rest_date_out}:{rest_hr_out}")
@@ -454,34 +453,23 @@ def main():
     yrN, mmN, ddN, hrN = mtime.datevec(dnmbN, round_hrs=True)[:4]
   nsecN = hrN*3600
    
-  syst_info = os.uname()
-  machine = syst_info.nodename
-      
-  if 'dtn' in machine:
-    print("Running on DTN node:", machine)
-    node_nm = "dtn"
-  elif 'gaea' in machine:
-    print("Running on Gaea compute node:", machine)
-    node_nm = "gaea"
-  elif 'an' in machine:
-    print("Running on PPAN node:", machine)  
-    node_nm = "ppan"
-  else:
-    print("Unknown machine:", machine)
-
-  fyaml = 'paths_ufs.yaml'
   with open(fyaml) as ff:
-    pths_ufs = safe_load(ff)
+    config_rest = safe_load(ff)
+
+  # Get MOM6 grid
+  #pthgrid    = config_rest["grid_topo"]["pthgrid"]
+  #dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
+  #dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
 
   # Insert hsnow for regions
   ds_out = None
   if regn == 'global':
     for regn_tmp in (['north','south']):
       print(f"  hsnow Processing region: {regn_tmp}")
-      ds_out = insert_hsnow(regn_tmp, ds_out, fyaml, node_nm, dnmbR, dnmbN, pth_in, flrst_in)
+      ds_out = insert_hsnow(regn_tmp, ds_out, config_rest, dnmbR, dnmbN, pth_in, flrst_in)
   else:
     print(f"  hsnow Processing region: {regn}")
-    ds_out = insert_hsnow(regn, ds_out, fyaml, node_nm, dnmbR, dnmbN, pth_in, flrst_in)
+    ds_out = insert_hsnow(regn, ds_out, config_rest, dnmbR, dnmbN, pth_in, flrst_in)
 
   # Debug:
   #check_pnt = False
@@ -517,89 +505,6 @@ def main():
   print(f"Saving CICE restart --> {dflrst_out}")
   ds_out.to_netcdf(dflrst_out, encoding={var: {'_FillValue': None} for var in ds_out.data_vars}, format='NETCDF3_64BIT')
   ds_out.close()
-
-
-  f_chck = False
-  if f_chck:
-    plt.ion()
-
-    units = 'm'
-    clrmp = mclrmps.colormap_uv()
-    rmin = -0.5
-    rmax = 0.5
-    clrmp.set_bad(color=[0.2, 0.2, 0.2])
-
-    sttl = 'Restart vsno m3/m2_ice: diff restart vs SSMI' 
-
-    # m3(snow)/m2_ice
-    vsno_ice = np.nansum(vsnon_new, axis=0).squeeze()
-    # Aggregated ice partial area:
-    aice = np.sum(aicen_new, axis=0).squeeze()
-    vsno_cell = np.divide(vsno_ice, aice, out=np.zeros_like(aice), where=aice > 0)
-
-
-    # New ice snow thickness over sea ice:
-    if not units_m:
-      AAi = HSi * 0.01        # m of snow over sea ice
-    else:
-      AAi = HSi.copy()
-
-    dHS = vsno_cell - AAi
-   
-    # S. Ocean:
-    m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
-    #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
-    #x, y = m(lons, lats) # compute map proj coordinates.
-    xh, yh = m(TLON,TLAT) # CICE6 coordinates
-
-    if regn == 'south':
-      xl1 = -8.e6
-      xl2 = -1.2e6
-      yl1 = xl1
-      yl2 = xl2
-
-    fig1 = plt.figure(1,figsize=(9,9))
-    plt.clf()
-    ax1 = plt.axes([0.08, 0.1, 0.8, 0.8])
-    m.drawcoastlines()
-
-    # draw parallels.
-    parallels = np.arange(-80,-10,10.)
-    m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-    # draw meridians
-    meridians = np.arange(-360,359.,45.)
-    m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
-
-    img = ax1.pcolormesh(xh, yh, dHS, cmap=clrmp, vmin=rmin, vmax=rmax, shading='auto')
-    ax1.contour(xh, yh, Aice, [0.15], linestyles='solid', colors=[(0.2,0.9,0.2)], linewidths=1)
-
-    ax1.set_xlim([xl1, xl2])
-    ax1.set_ylim([yl1, yl2])
-    ax1.invert_yaxis()
-    ax1.invert_xaxis()
-
-    ax1.set_title(sttl)
-
-    ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,
-                       0.02, ax1.get_position().height])
-    if rmin < 0:
-      clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='both')
-    else:
-      clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='max')
-
-    ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
-    ax2.set_yticklabels(ax2.get_yticks())
-    ticklabs = clb.ax.get_yticklabels()
-    #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
-    clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
-    clb.ax.tick_params(direction='in', length=12)
-
-    ax3 = fig1.add_axes([0.02, 0.03, 0.8, 0.06])
-    ax3.text(0, 0, sinfo, fontsize=8)
-    ax3.axis('off')
-
-    btx = 'insert_hsnow_cice6_restart.py'
-    bottom_text(btx, pos=[0.2, 0.01])
 
 if __name__ == "__main__":
   main()

@@ -1,3 +1,7 @@
+Not finished - abandoned due to low quality of VIIRS ice thickness data
+in summer
+see   interp_VIIRS_arctic_ithkn_mesh025
+
 """
   Derive monthly clim  VIIRS ice thickness on mesh025
   To fill gaps in summer months
@@ -97,12 +101,13 @@ LMsk = np.where(HH<0, 1, 0)
 
 
 pthviirs = '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/VIIRS_ithkn_highres/interp_daily'
+DAYS_LIST = []
 for YR in range(YRS,YRE+1):
   ndays = mtime.month_days(MM, YR)
   for DD in range(1,ndays+1):
-    dnmb = mtime.datenum(YR,MM,DD)
+    dnmb = mtime.datenum([YR,MM,DD])
     flviirs = f"ithkn_VIIRS_arctic_{YR}{MM:02d}{DD:02d}_1080x1440.nc"
-
+    DAYS_LIST.append(dnmb)
 
 
 # Mask out not needed latitudes:
@@ -128,6 +133,8 @@ with xarray.open_dataset(dfgmapi) as dgmapi:
 
 for dnmb in DAYS_LIST:
   YR, MM, DD = mtime.datevec(dnmb)[:3] 
+  _, jday = mtime.dnmb2jday(dnmb)
+  jday = int(jday)
   print(f"Interpolating VIIRS daily ithkn {YR}/{MM}/{DD}")
   A3d = np.zeros((jdm,idm))
 

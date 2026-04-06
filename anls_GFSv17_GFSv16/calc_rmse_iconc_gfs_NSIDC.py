@@ -48,12 +48,13 @@ fld_name = 'iconc'
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help="hemisphere to analyze", type=str, 
                     choices=['north','south'], required=True)
-parser.add_argument("--init", help=f"init date, default={init_date}", type=int)
+parser.add_argument("--init", help=f"init date", choices=[20251231, 20240715], required=True, type=int)
 parser.add_argument("--fdays", help=f"N of f/cast days, default={fdays}", type=int)
 parser.add_argument(
     "--prst", 
     help=f"Show persitance using GFSv16 or GFSv17 IC, 0=no, 1=yes",
     type=int,
+    required=True,
     choices=[0,1]
 ) 
 args = parser.parse_args()
@@ -202,7 +203,12 @@ sttl = f"RMSE iconc NRT NSIDC and GFSv16, GFSv17 {init_date}, {regn}\n"
 clr16 = [0., 0.6, 1]
 clr17 = [0.9, 0.3, 0]
 yl1 = 0
-yl2 = max([np.max(RMSE16), np.max(RMSE17), np.max(RMSEp17)]) * 1.1
+if track_prst:
+  yl2 = max([np.max(RMSE16), np.max(RMSE17), np.max(RMSEp17)]) * 1.3
+else:
+  yl2 = max([np.max(RMSE16), np.max(RMSE17)]) * 1.3
+
+#yl2 = np.max([yl2,0.5])
 
 
 plt.ion()

@@ -48,29 +48,45 @@ importlib.reload(msisrlx)
 
 #expt = 'gfs_fcast'  # gfs - current f/cast in yaml
 expt = 'datm_UFS'
-init_date = 20250714
-init_hr = 6    # nominal hr, actual: -6 hrs for IAU, and -3 FHROT (f/cast hr rotation)
+init_hr = 0    # nominal hr, actual: -6 hrs for IAU, and -3 FHROT (f/cast hr rotation)
 nsec0 = 0
 regn = 'south'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-parser.add_argument("--init", help=f"init date, default={init_date}", type=int)
+#parser.add_argument("--init", help=f"init date", choices=[20250714, 20250103], required=True, type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
-parser.add_argument("--fhr", help=f"forecast hour to plot: 6, 12, ...,390, =0 - init. cond.", type=int, required=True)
+#parser.add_argument("--fhr", help=f"forecast hour to plot: 6, 12, ...,390, =0 - init. cond.", type=int, required=True)
+parser.add_argument("--fday", help=f"forecast day to plot: 0, 1, 2, ... , =0 - init. cond.", type=int, required=True)
 parser.add_argument("--enmb", help="experiment number: 1, 2, ...", type=int)
 args = parser.parse_args()
   
 enmb      = args.enmb if args.enmb else None
-init_date = args.init if args.init else init_date
-init_hr   = args.ihr if args.ihr else init_hr
-fhr       = args.fhr if args.fhr is not None else None
+#init_date = args.init if args.init else init_date
+#init_hr   = args.ihr if args.ihr else init_hr
+#fhr       = args.fhr if args.fhr is not None else None
+fday      = args.fday
 regn      = args.regn if args.regn else regn
+fhr   = fday * 24.
+
+if enmb < 30:
+  init_date = 20250103
+else:
+  init_date = 20250704
+
+
+# Get date:
+plot_init = fday == 0  # initial conditions
 
 dnmbI = mtime.rdate2datenum(init_date*100+init_hr)  # init. day nmb
 YRI,MMI,DDI,hrI = mtime.datevec(dnmbI, round_hrs=True)[:4]
 
-dnmb0 = dnmbI + fhr/24
+if plot_init:
+  dnmb0 = dnmbI
+else:
+  dnmb0 = dnmbI + fday-1                              # day to plot
+
+
 yr0,mm0,dd0,hr0 = mtime.datevec(dnmb0, round_hrs=True)[:4]
 YR,MM,DD = mtime.datevec(dnmb0)[:3]
   
@@ -113,9 +129,6 @@ HH = -HH
 HH = np.where(np.isnan(HH), 1., HH)
 
 jdm, idm = HH.shape
-
-# Get date:
-plot_init = fhr == 0  # initial conditions
 
 
 if expt == 'gfs_fcast':
@@ -166,9 +179,9 @@ img1 = ax1.pcolormesh(xh,yh,AA, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,sqerr, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,np.abs(AA-AI), cmap=clrmp, vmin=rmin, vmax=rmax)
 hmax = np.nanmax(AA)
-ax1.set_title(f'{expt} init {init_date}/{init_hr:02d}, ithkn, fcast {fhr}hr  max h={hmax:.2f}\n{YR}/{MM:02d}/{DD:02d} {hr0:02d}')
+ax1.set_title(f'{expt}-{enmb:02d} init {init_date}/{init_hr:02d}, ithkn, fcast day: {fday}  max h={hmax:.2f}\n{YR}/{MM:02d}/{DD:02d}')
 
-plt_hmax = True
+plt_hmax = False
 if plt_hmax and len(JJ)>0:
   ax1.plot(xh[JJ,II], yh[JJ,II], 'ro')
   
@@ -179,7 +192,7 @@ clb = plt.colorbar(img1, cax=ax2, orientation='horizontal', extend='max')
 ax2.xaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
 ax2.set_xticklabels(ax2.get_xticks())
 ticklabs = clb.ax.get_xticklabels()
-clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=12)
 clb.ax.tick_params(direction='in', length=12)
 
 

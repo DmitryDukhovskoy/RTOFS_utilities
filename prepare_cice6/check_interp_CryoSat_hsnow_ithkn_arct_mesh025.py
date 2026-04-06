@@ -179,7 +179,7 @@ ax1.invert_yaxis()
 ax1.axis('scaled')
 ax1.set_title(f'NSIDC CryoSat: {varnm} {YR}/{MM:02d}, m')
 
-m = Basemap(projection='npstere',boundinglat=50,lon_0=-10,resolution='l')
+m = Basemap(projection='npstere',boundinglat=55,lon_0=-10,resolution='l')
 parallels = np.arange(40,89,10.)
 meridians = np.arange(-360,359.,45.)
 
@@ -192,13 +192,13 @@ if regn == 'south':
   parallels = np.arange(-80,-10,10.)
 else:
   parallels = np.arange(50,89,10.)
-m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
+m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
 # draw meridians
 meridians = np.arange(-360,359.,45.)
-m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
+m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 
 img = ax2.pcolormesh(xh, yh, AI, cmap=clrmp, vmin=rmin, vmax=rmax)
-ax2.set_title(f'NSIDC CryoSat {varnm}  {YR}/{MM:02d} interp to mesh025')
+ax2.set_title(f'NSIDC CryoSat {varnm}  {YR}/{MM:02d}\ninterp to mesh025')
 
 ax3 = fig1.add_axes([0.2, 0.2, 0.6, 0.02])
 clb = plt.colorbar(img, cax=ax3, orientation='horizontal', extend='max')

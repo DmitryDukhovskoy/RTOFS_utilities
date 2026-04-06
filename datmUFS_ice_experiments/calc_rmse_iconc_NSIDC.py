@@ -226,7 +226,7 @@ CLRS = mgfscice.sens_tests_colors()
 print("Plotting ...")
 
 XT = RECS - np.floor(RECS[0])
-xticks = np.arange(np.floor(XT[0]),np.ceil(XT[-1]))
+xticks = np.arange(np.floor(XT[0]),np.ceil(XT[-1]+1))
 yticks = np.arange(0.,1.,0.05)
 sttl = f"RMSE btw iconc NSIDC and datmUFS expts, {regn}\n"
 sttl = sttl + f"{YR}/{MMS:02d}/{DDS:02d}-{YR}/{MME:02d}/{DDE:02d}"
@@ -269,6 +269,7 @@ if nprst > 0:
 ax1.set_yticks(yticks)
 ax1.set_xticks(xticks)
 ax1.set_ylim(yl1, yl2)
+ax1.set_xlim(0,xticks[-1])
 ax1.grid('on')
 ax1.set_xlabel('Forecast days')
 ax1.set_title(sttl)

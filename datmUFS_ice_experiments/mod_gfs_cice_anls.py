@@ -33,6 +33,7 @@ def sens_tests_info(enmb):
   hsU - designates updated hsnow insertion code (see extp 11: ice freeboard + enthalpy)
   hsU = hs+qi+fbrd  - updated hsnow code
   hs0 - original code without ice enth. and ice freeboard correction
+  SNPHYS = thermo+ITDrdg+snphys 
 
   """
   EXPTS = {
@@ -52,10 +53,13 @@ def sens_tests_info(enmb):
     "22" : "ai+hsU",
     "23" : "ai+hi",
     "24" : "ai+hi+hsU",
-    "25" : "ai+hi+hsU+thermo+ITDrdg+snphys",
-    "30" : "control",                         # control July 2025
-    "70" : "orig anls",                       # GFSv17 CICE with corrected high ice thickness and snow thickness
-    "71" : "fixed hice hsnow",                # GFSv17 cice analysis with high ice thickness, snow thickn
+    "25" : "ai+hi+hsU+SNPHYS",
+    "30" : "control",                    # control July 2025
+    "31" : "ai",                         # July, iconc 
+    "32" : "ai+hi",
+    "33" : "ai+hsU",
+    "34" : "ai+hsU+hi",
+    "35" : "ai+hi+hsU+SNPHYS",
    }
 
   key = f"{enmb:02d}"    

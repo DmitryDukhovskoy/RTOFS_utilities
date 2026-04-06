@@ -1,6 +1,5 @@
 """
-  Plot ice concentration maps for Arctic / S. Ocean
-
+  Plot snow depth for Arctic / S. Ocean
 """
 import os
 import numpy as np
@@ -46,29 +45,43 @@ import mod_misc1 as mmisc
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
-expt = 'gfs_fcast'  # gfs - current f/cast in yaml
-init_date = 20250714
-init_hr = 6    # nominal hr, actual: -6 hrs for IAU, and -3 FHROT (f/cast hr rotation)
+#expt = 'gfs_fcast'  # gfs - current f/cast in yaml
+expt = 'datm_UFS'
+init_hr = 0    # nominal hr, actual: -6 hrs for IAU, and -3 FHROT (f/cast hr rotation)
+nsec0 = 0
 regn = 'south'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-parser.add_argument("--init", help=f"init date, default={init_date}", type=int)
+#parser.add_argument("--init", help=f"init date", choices=[20250714, 20250103], required=True, type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
-parser.add_argument("--fhr", help=f"forecast hour to plot: 6, 12, ...,390, =0 - init. cond.", type=int, required=True)
+#parser.add_argument("--fhr", help=f"forecast hour to plot: 6, 12, ...,390, =0 - init. cond.", type=int, required=True)
+parser.add_argument("--fday", help=f"forecast day to plot: 0, 1, 2, ... , =0 - init. cond.", type=int, required=True)
 parser.add_argument("--enmb", help="experiment number: 1, 2, ...", type=int)
 args = parser.parse_args()
   
-enmb      = args.enmb if args.enmb else None
-init_date = args.init if args.init else init_date
-init_hr   = args.ihr if args.ihr else init_hr
-fhr       = args.fhr if args.fhr is not None else None
-regn      = args.regn if args.regn else regn
+enmb = args.enmb if args.enmb else None
+fday = args.fday
+regn = args.regn if args.regn else regn
+fhr  = fday * 24.
+
+if enmb < 30:
+  init_date = 20250103
+else:
+  init_date = 20250704
+
+# Get date:
+plot_init = fday == 0  # initial conditions
 
 dnmbI = mtime.rdate2datenum(init_date*100+init_hr)  # init. day nmb
 YRI,MMI,DDI,hrI = mtime.datevec(dnmbI, round_hrs=True)[:4]
 
-dnmb0 = dnmbI + fhr/24
+if plot_init:
+  dnmb0 = dnmbI
+else:
+  dnmb0 = dnmbI + fday-1                              # day to plot
+
+
 yr0,mm0,dd0,hr0 = mtime.datevec(dnmb0, round_hrs=True)[:4]
 YR,MM,DD = mtime.datevec(dnmb0)[:3]
   
@@ -112,77 +125,69 @@ HH = np.where(np.isnan(HH), 1., HH)
 
 jdm, idm = HH.shape
 
-# Get date:
-plot_init = fhr == 0  # initial conditions
-
 
 if expt == 'gfs_fcast':
   if plot_init:
     flinp = "gfs.t06z.ic.nc"
   else:
     flinp = f"gfs.t06z.6hr_avg.f{fhr:03d}.nc"
-  varnm = 'Tsfc_h'
+  varnm = 'hs_d'
 else:
   if plot_init:
     flinp = f"iceh_ic.{yr0}-{mm0:02d}-{dd0:02d}-{nsec0:05d}.nc"
   else:
     flinp = f"iceh.{yr0}-{mm0:02d}-{dd0:02d}.nc"
-  varnm = 'Tsfc_d'
+  varnm = 'hs_d'
 
 dflice = os.path.join(pthoutp,flinp)
 
 print(f"Processing {YR}/{MM}/{DD} {hr0:02d}:00, {expt} init {YRI}/{MMI:02d}/{DDI:02d} {hrI:02d}:00\n{dflice}")
 with xarray.open_dataset(dflice) as dcice:
   AA = dcice[varnm].data.squeeze()
-  IConc = dcice['aice_h'].data.squeeze()
 
-# Mask land and no ice regions
 AA = np.where(HH >= 0, np.nan, AA)
-AA[IConc <= 1.e-8] = 100.
 
 plt.ion()
 
 
-clrmp = mclrmps.colormap_cold_warm(ins_white=False)
-rmin = -30.
-rmax = 10.
+clrmp = mclrmps.colormap_temp()
+rmin = 0.
+rmax = 0.4
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
-clrmp.set_over(color=[1,1,1])
+
+# Find high snow depth:
+JJ, II = np.where(AA > 1.)
 
 if regn == 'south':
-  m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
+  m = Basemap(projection='spstere',boundinglat=-55,lon_0=180,resolution='l')
 #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
 parallels = np.arange(-80,-10,10.)
 meridians = np.arange(-360,359.,45.)
-xl1 = -8.6e6
-xl2 = -0.8e6
-yl1 = xl1
-yl2 = xl2 
 
 xh, yh = m(hlon,hlat) # GFS coords
 fig1 = plt.figure(1,figsize=(9,9))
 plt.clf()
-ax1 = plt.axes([0.08, 0.13, 0.83, 0.83])
+ax1 = plt.axes([0.08, 0.12, 0.83, 0.83])
 m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
 m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 img1 = ax1.pcolormesh(xh,yh,AA, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,sqerr, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,np.abs(AA-AI), cmap=clrmp, vmin=rmin, vmax=rmax)
-Tmin = np.nanmin(AA[hlat<-45])
-ax1.set_title(f'{expt} init {init_date}/{init_hr:02d}, ithkn, fcast {fhr}hr  {YR}/{MM:02d}/{DD:02d} {hr0:02d}')
-ax1.set_xlim([xl1, xl2]) 
-ax1.set_ylim([yl1, yl2]) 
-ax1.invert_yaxis()
-ax1.invert_xaxis()
+hmax = np.nanmax(AA)
+ax1.set_title(f'{expt}-{enmb:02d} init {init_date}/{init_hr:02d}, hsnow, fcast day: {fday}  max h={hmax:.2f}\n{YR}/{MM:02d}/{DD:02d}')
 
+plt_hmax = False
+if plt_hmax and len(JJ)>0:
+  ax1.plot(xh[JJ,II], yh[JJ,II], 'ro')
+  
 
 # Colorbars
-ax2 = fig1.add_axes([0.15, 0.1, 0.7, 0.02])
-clb = plt.colorbar(img1, cax=ax2, orientation='horizontal', extend='both')
+ax2 = fig1.add_axes([0.15, 0.09, 0.7, 0.02])
+clb = plt.colorbar(img1, cax=ax2, orientation='horizontal', extend='max')
 ax2.xaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
 ax2.set_xticklabels(ax2.get_xticks())
 ticklabs = clb.ax.get_xticklabels()
-clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=12)
 clb.ax.tick_params(direction='in', length=12)
 
 
@@ -193,7 +198,7 @@ ax3.text(0, 0, sinfo, fontsize=8)
 ax3.axis('off')
 
 
-btx = 'maps_surfaceT_GFS.py'
+btx = 'maps_hsnow_GFS.py'
 bottom_text(btx, pos=[0.1,0.01], fsz=8)
 
 

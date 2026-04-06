@@ -22,7 +22,6 @@ import sys
 import importlib
 import matplotlib
 import xarray
-from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
@@ -47,12 +46,8 @@ sys.path.extend([
 
 from mod_utils_fig import bottom_text
 import mod_time as mtime
-import mod_utils as mutil
 import mod_colormaps as mclrmps
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
 import mod_mom6 as mmom6
-import mod_misc1 as mmisc
 import mod_cice6_utils as mc6util
 importlib.reload(mc6util)
 
@@ -135,8 +130,20 @@ def find_varnm(dflithkn, var_opt):
 
   return
 
-def insert_iconc_ithkn(regn_wrk, ds_out, fyaml, node_nm, HH, LAT, LON, dnmbR, dnmbN,\
+def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN,\
                        ins_thkn, pthrest, flrst_in):
+  """
+    regn_wrk - region name in this loop: north, south 
+    ds_out   - xarray data_set: empty or not if cycled over 2 regions
+    config_rest - YAML object with local directories, files, restart fields, etc.
+    HH          - topo array
+    LAT, LON    - long/ latit arrays
+    dnmbR       - input restart date datenumb format
+    dnmbN       - output restart date datenumb format
+    ins_thkn    - flag: insert thickness  or not with iconc 
+    flrst_in    - input restart file to be modified
+  """  
+ 
   # CICE parameters:
   puny      = 1.e-11
   c0        = 0.0
@@ -172,31 +179,39 @@ def insert_iconc_ithkn(regn_wrk, ds_out, fyaml, node_nm, HH, LAT, LON, dnmbR, dn
   elif regn_wrk == 'north':
     RMsk[LAT < 50.] = 0  
 
-  pthnsidc, fliconc = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, "iconc_NSIDC", \
-                                                        YR=yrN, MM=mmN, regn=regn_wrk)
-  dfliconc = os.path.join(pthnsidc,fliconc)
-  print(f'Loading interpolated ice conc {dfliconc}')
+  pthiconc = config_rest["target_paths"]["ice_conc"]["path"].format(YR=yrN)
+  fliconc  = config_rest["target_paths"]["ice_conc"]["file"].format(YR=yrN, MM=mmN, regn=regn_wrk)
+  dfliconc = os.path.join(pthiconc, fliconc)
+  print(f'Loading target ice conc {dfliconc}')
   with xarray.open_dataset(dfliconc) as dsint:
     AICEint = dsint['ice_conc'].isel(time=ddN-1).squeeze()
 
   AICEint = np.where(RMsk == 0, np.nan, AICEint)
 
-
-  # Read ice thickness data:
+  # Read ice thickness data if thickness is inserted:
   if ins_thkn:
-    var_opt = ['ice_thkn', 'ithkn', 'hi', 'ice_thickness']
-    pthithkn, flithkn = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, 'ithkn_clim', regn=regn_wrk)
+    if regn_wrk == 'south':
+      pthithkn = config_rest["target_paths"]["ithkn_south"]["path"]
+      flithkn  = config_rest["target_paths"]["ithkn_south"]["file"]
+    elif regn_wrk == 'north':
+      pthithkn = config_rest["target_paths"]["ithkn_north"]["path"]
+      flithkn  = config_rest["target_paths"]["ithkn_north"]["file"]
+
     dflithkn = os.path.join(pthithkn,flithkn)
 
+    var_opt = ['ice_thkn', 'ithkn', 'hi', 'ice_thickness']
     ithkn_varnm = find_varnm(dflithkn, var_opt)
     print(f"Reading ice thickn varnm='{ithkn_varnm}' for month {mmN} from {dflithkn}")
     with xarray.open_dataset(dflithkn) as ds_ithkn:
       ITHKN = ds_ithkn[ithkn_varnm].isel(time=mmN-1).data
+
   else:
+    # No ice thickness insertion
     ITHKN = np.full_like(HH, np.nan)
 
   if flrst_in is None:
-    flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{nsecR:06d}.nc"
+    #flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{nsecR:06d}.nc"
+    raise RuntimeError("insert_iconc_ithkn: input restart filename is missing ...")
 
   if ds_out is None:
     dflrst_in = os.path.join(pthrest, flrst_in)
@@ -512,7 +527,7 @@ def insert_iconc_ithkn(regn_wrk, ds_out, fyaml, node_nm, HH, LAT, LON, dnmbR, dn
 
 
 def main():
-  rest_date = 20250103
+  rest_date = None
   rest_hr = 0
   yrR = mmR = ddR = hrR = None
   yrN = mmN = ddN = hrN = None
@@ -522,47 +537,35 @@ def main():
       help="insert ice thickn climatology, 0=no, 1=yes (default 1)", choices=[0,1])
   parser.add_argument("--rdate", help=f"restart date input file", required=True, type=int)
   parser.add_argument("--rhr", help=f"input file, restart hour = 0, ..., 23, default={rest_hr}", type=int)
-  parser.add_argument("--rdate_out", help="output file, restart date if different from input", type=int)
-  parser.add_argument("--rhr_out", help="output file, restart hour if date is different from input", type=int)
-  parser.add_argument("--pth_in", help="input restart directory with original file, default=None", type=str)
+  parser.add_argument("--rdate_out", help="output file, restart date", required=True, type=int)
+  parser.add_argument("--rhr_out", help="output file, restart hour", required=True, type=int)
+  parser.add_argument("--pth_in", help="input restart directory with original file", required=True, type=str)
   parser.add_argument("--flrst_in", help="rest file in", required=True, type=str)
-  parser.add_argument("--pth_out", help="output restart directory where new file be dumped, default=None", type=str)
-  parser.add_argument("--flrst_out", help="new rest file, otherwise name constructed from rdate_out", type=str)
-  parser.add_argument("--regn", help=f"where icon incerted", 
+  parser.add_argument("--pth_out", help="output restart directory where new file be dumped", required=True, type=str)
+  parser.add_argument("--flrst_out", help="new rest file", required=True, type=str)
+  parser.add_argument("--regn", help=f"where iconc incerted", 
                       choices=['north','south','global'], 
                       required=True, type=str)
+  parser.add_argument("--fyaml", help="YAML with paths for input/output directories filenames, dates",
+                      type=str, required=True)
   args = parser.parse_args()
 
-  ins_thkn = bool(args.ithkn)
-  flrst_in  = args.flrst_in  if args.flrst_in  else None
-  flrst_out = args.flrst_out if args.flrst_out else None
-  regn      = args.regn if args.regn else regn
-  # if rest_date and rest_date_out are provided
-  # Derive dates assuming file nameing is cice_restart.res.YYYYMMDD.XX[XXX]
-  # or YYYYMMDD.<time>.---.nc
-  if flrst_in is not None:
-    yrR, mmR, ddR, hrR, mintR = mc6util.get_date_filename(flrst_in)
-    rest_date = int(yrR*1e4 + mmR*100 + ddR)
-    rest_hr = hrR
-  else:
-    rest_date = args.rdate if args.rdate else rest_date
-    rest_hr   = args.rhr if args.rhr else rest_hr
-
-  if flrst_out is not None:
-    yrN, mmN, ddN, hrN, mintN = mc6util.get_date_filename(flrst_out)
-    rest_date_out = int(yrN*1e4 + mmN*100 + ddN)
-    rest_hr_out = hrN  
-  else:
-    rest_date_out = args.rdate_out if args.rdate_out else rest_date
-    rest_hr_out   = args.rhr_out if args.rhr_out else rest_hr
-
-  pth_in = args.pth_in if args.pth_in else None
-  pth_out = args.pth_out if args.pth_out else None
+  ins_thkn      = bool(args.ithkn)
+  flrst_in      = args.flrst_in  
+  flrst_out     = args.flrst_out 
+  regn          = args.regn      
+  rest_date     = args.rdate   
+  rest_hr       = args.rhr       if args.rhr is not None else rest_hr
+  rest_date_out = args.rdate_out 
+  rest_hr_out   = args.rhr_out
+  pth_in        = args.pth_in 
+  pth_out       = args.pth_out
+  fyaml         = args.fyaml  
 
   print(f"Restart date input:  {rest_date}:{rest_hr}")
   print(f"Restart date output: {rest_date_out}:{rest_hr_out}")
   if ins_thkn:
-    print("Insert NSDIC NRT ice concenatraion + CryoSat ice thickness climatology into CICE restart\n")
+    print("Insert NSDIC NRT ice concenatraion + ice thickness climatology into CICE restart\n")
   else:
     print("Insert NSDIC NRT ice concenatraion, NO ice thickness\n")
 
@@ -581,42 +584,22 @@ def main():
     yrN, mmN, ddN, hrN = mtime.datevec(dnmbN, round_hrs=True)[:4]
   nsecN = hrN*3600
    
-  syst_info = os.uname()
-  machine = syst_info.nodename
-      
-  if 'dtn' in machine:
-    print("Running on DTN node:", machine)
-    node_nm = "dtn"
-  elif 'gaea' in machine:
-    print("Running on Gaea compute node:", machine)
-    node_nm = "gaea"
-  elif 'an' in machine:
-    print("Running on PPAN node:", machine)  
-    node_nm = "ppan"
-  else:
-    print("Unknown machine:", machine)
-
-  fyaml = 'paths_ufs.yaml'
-  with open(fyaml) as ff:
-    pths_ufs = safe_load(ff)
-
   if pth_in is None:
-    pthrest, _ = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, "irest_new")
+    raise RuntimeError("restart input path not provided")
   else:
     pthrest = pth_in
-  #pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_da'
 
   # Output dir for new restart:
   if pth_out is None:
-    #pthrest_out, _ = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, "irest_new")
-    pthrst_out = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],f'cice6_{regn}')
+    raise RuntimeError("restart output path not provided")
   else:
     pthrest_out = pth_out
 
-  pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
+  with open(fyaml) as ff:
+    config_rest = safe_load(ff)
 
   # Get MOM6 grid
-  pthgrid = pths_ufs[node_nm]["MOM6"]["pthgrid"]
+  pthgrid    = config_rest["grid_topo"]["pthgrid"]
   dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
   dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
 
@@ -637,18 +620,23 @@ def main():
   if regn == 'global':
     for regn_tmp in (['north','south']):
       print(f"  Processing region: {regn_tmp}")
-      ds_out = insert_iconc_ithkn(regn_tmp, ds_out, fyaml, node_nm, HH, LAT, LON, dnmbR, dnmbN,\
+      ds_out = insert_iconc_ithkn(regn_tmp, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN,\
                        ins_thkn, pthrest, flrst_in)
   else:
     print(f"  Processing region: {regn}")
-    ds_out = insert_iconc_ithkn(regn, ds_out, fyaml, node_nm, HH, LAT, LON, dnmbR, dnmbN,\
+    ds_out = insert_iconc_ithkn(regn, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN,\
                        ins_thkn, pthrest, flrst_in)
 
   # Attributes:
+  if ins_thkn:
+    title_str = f"CICE6 restart with inserted ice concentration from NSIDC NRT {rest_date_out} and ice thickness clim"
+  else:
+    title_str = f"CICE6 restart with inserted ice concentration from NSIDC NRT {rest_date_out} "
+
   from datetime import datetime
   istep1_val = ds_out.attrs.get('istep1', None)
   ds_out.attrs.update({
-      "title": f"CICE6 restart with inserted ice concentration from NSIDC NRT {rest_date_out} ",
+      "title": title_str,
       "source": "insert_iconc_ithkn_cice6rest_global.py",
       "istep1": np.int32(istep1_val) if istep1_val is not None else np.int32(0), 
       "myear": np.int32(yrN),
@@ -671,59 +659,6 @@ def main():
   ds_out.to_netcdf(dflrst_out, encoding={var: {'_FillValue': None} for var in ds_out.data_vars}, format='NETCDF3_64BIT')
   ds_out.close()
 
-
-  f_plt = False
-  if f_plt:
-    clrmp = mclrmps.colormap_conc()
-    rmin = 0.
-    rmax = 1.
-    clrmp.set_bad(color=[0.2, 0.2, 0.2])
-    hlon = LON
-    hlat = LAT   
-   
-    if regn == 'south':
-      m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
-    #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
-    parallels = np.arange(-80,-10,10.)
-    meridians = np.arange(-360,359.,45.)
-    xl1 = -9e6
-    xl2 = -0.8e6
-    yl1 = xl1
-    yl2 = xl2
-
-    xh, yh = m(hlon,hlat) # GFS coords
-
-    plt.ion()
-    fig1 = plt.figure(1, figsize=(8,8))
-    plt.clf()
-    ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
-
-    m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-    m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
-    img1 = ax1.pcolormesh(xh,yh,aice, cmap=clrmp, vmin=rmin, vmax=rmax)
-
-    ax1.contour(xh,yh,HH,[0], linestyles='solid', colors=[(0.,0.,0.)], linewidths=1)
-
-    ax1.set_xlim([xl1, xl2])
-    ax1.set_ylim([yl1, yl2])
-    ax1.invert_yaxis()
-    ax1.invert_xaxis()
-
-    # Plot pnt:
-    x0 = hlon[j0,i0]
-    y0 = hlat[j0,i0]
-    xh0 = xh[j0,i0]
-    yh0 = yh[j0,i0]
-    ax1.plot(xh0,yh0,'o')
-
-    # Colorbars
-    ax3 = fig1.add_axes([0.2, 0.05, 0.6, 0.02])
-    clb = plt.colorbar(img1, cax=ax3, orientation='horizontal', extend='max')
-    ax3.xaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
-    ax3.set_xticklabels(ax3.get_xticks())
-    ticklabs = clb.ax.get_xticklabels()
-    clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
-    clb.ax.tick_params(direction='in', length=12)
 
 if __name__ == "__main__":
   main()

@@ -9,9 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import importlib
-import matplotlib
 import xarray
-from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
@@ -70,7 +68,7 @@ with open(fyaml) as ff:
   pths_ufs = safe_load(ff)
 
 pthdata   = pths_ufs[node_nm]["MOM6"]["pthdata"]
-pthice    = os.path.join(pthdata, 'AVHRR_albedo_ithkn','tmp')
+pthice    = os.path.join(pthdata, 'AVHRR_albedo_ithkn','clim')
 fliceout  = f'AVHRR_{fld_name}_mnthclim_{YRS}-{YRE}_1440x1080_{regn}.nc'
 dfliceout = os.path.join(pthice,fliceout)
 

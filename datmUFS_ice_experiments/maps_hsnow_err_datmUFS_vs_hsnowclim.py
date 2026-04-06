@@ -1,9 +1,9 @@
 """
-  Error and dfference maps of ice conc
-  derived from datmUFS and NSIDC NRT 
-
-  NSIDC fields from 
-  https://noaadata.apps.nsidc.org/NOAA/G02202_V6/north/daily/2025/
+  Error and dfference maps of snow depth
+  derived from datmUFS and monthly clim fields
+  used for IC 
+  use --fday 0 to plot initial fields read by CICE
+  to check created IC
 
 """
 import os
@@ -13,7 +13,6 @@ import sys
 import importlib
 import matplotlib  
 import xarray
-from copy import copy
 import matplotlib.colors as colors 
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
@@ -40,15 +39,8 @@ sys.path.extend([
 
 from mod_utils_fig import bottom_text
 import mod_time as mtime
-import mod_utils as mutil
-import mod_misc1 as mmisc
 import mod_colormaps as mclrmps
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
 import mod_mom6 as mmom6
-import mod_misc1 as mmisc
-import mod_sis2_relax as msisrlx
-importlib.reload(msisrlx)
 
 expt = 'ufs_datm_mx025_v02'
 #init_date = 20250103
@@ -63,10 +55,10 @@ parser.add_argument("--fday", help=f"forecast day to plot: 1,...,14, =0 - init. 
 parser.add_argument("--enmb", help="experiment number: 1, 2, ...", type=int, required=True)
 args = parser.parse_args()
   
-enmb      = args.enmb if args.enmb else None
-init_date = args.init if args.init else init_date
+enmb      = args.enmb 
+init_date = args.init
 init_hr   = args.ihr if args.ihr else init_hr
-fday      = args.fday if args.fday is not None else None
+fday      = args.fday 
 regn      = args.regn if args.regn else regn
   
 syst_info = os.uname() 
@@ -99,18 +91,57 @@ HH = np.where(HH < 1.e-20, np.nan, HH)
 HH = -HH
 HH = np.where(np.isnan(HH), 1., HH)
 
-jdm, idm = HH.shape
+jdim, idim = HH.shape
 
-def read_NSIDC(YR,MM,DD,regn,pthnsidc,varnm):
+def read_CryoSat(YR,MM,DD,regn,pthnsidc,varnm):
   if regn == 'south':
     flnsidc = f"sic_pss25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"  
-  else:
+  elif regn == 'north':
     flnsidc = f"sic_psn25_{YR}{MM:02d}{DD:02d}_am2_v06r00.nc"  
 
   with xarray.open_dataset(os.path.join(pthnsidc,flnsidc)) as ds_nsidc:
     A = ds_nsidc[varnm].data.squeeze()
 
   return A
+
+def find_varnm(dflhsnow, var_opt):
+  with xarray.open_dataset(dflhsnow) as ds_hsnow:
+    for varnm in var_opt:
+      if varnm in ds_hsnow.data_vars:
+        #print(f"Using variable {varnm}")
+        return varnm 
+        
+  raise KeyError("No ice thickness variable name found, check file")
+  
+  return
+
+def ice_clim_files(enmb, regn, pths_ufs):
+  pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
+
+  # For expt < 30 different clim were probably used
+  fyaml_rest = 'cice6rest_files.yaml'
+  with open(fyaml_rest) as fy:
+    pths_clim = safe_load(fy)
+
+
+  pthsnow = pths_clim["target_paths"][f"hsnow_{regn}"]["path"]
+  fhsnow = pths_clim["target_paths"][f"hsnow_{regn}"]["file"]
+
+  
+  var_opt = ['hs', 'hsn', 'hsnow', 'snow_depth']
+  varnm = find_varnm(os.path.join(pthsnow, fhsnow), var_opt)
+
+  #else:
+  #  if regn == 'south':
+  #    pthsnow = os.path.join(pthdata,'CryoSat2_antarctic_ice_snow_thkn','clim')
+  #    fhsnow  = f'CryoSat_hsnow_mnthclim_2011_2020_mesh025_1440x1080_{regn}.nc'
+  #    varnm = 'ice_thkn'
+  #  elif regn == 'north':
+  #    pthsnow = os.path.join(pthdata,'CryoSat_arctic_ice_snow_thkn','clim')
+  #    fhsnow = f'hsnow_CryoSat_arcticAWI_mnthclim_2015-2024_1080x1440.nc'
+  #    varnm = 'hsnow'
+
+  return pthsnow, fhsnow, varnm
 
 # Get date:
 plot_init = fday == 0  # initial conditions
@@ -126,21 +157,24 @@ YR,MM,DD = mtime.datevec(dnmb0)[:3]
 nsec0 = hr0*3600
 
 
-# Get lon/lat for NSIDC data
-pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{yr0}")
-Xnsidc = read_NSIDC(yr0,mm0,1,regn,pthnsidc,'x')
-Ynsidc = read_NSIDC(yr0,mm0,1,regn,pthnsidc,'y')
+# Get hsnow monthly clim interpolated to mesh025
+pthsnow, fhsnow, varnm = ice_clim_files(enmb, regn, pths_ufs)
 
+dfhsnow = os.path.join(pthsnow, fhsnow)
 
-XX, YY = np.meshgrid(Xnsidc, Ynsidc, indexing='xy')
-# Determine ellipsoid parameters from NSIDC information
-# Note that Radius of ellipsoid WGS84 is typically referred to major semi-axis (equatorial radius)
+print(f'Reading ice thickn climatology {dfhsnow}')
+with xarray.open_dataset(dfhsnow) as ds_hsnow:
+  AI = ds_hsnow[varnm].isel(time=MM-1).squeeze()
+  units = ds_hsnow[varnm].attrs.get("units", None)
+  if units == 'cm':
+    AI = AI * 0.01   # cm --> m
+
+AI = np.where(np.isnan(AI), 0., AI)
+AI = np.where(HH>=0, np.nan, AI)
+
 RMsk = np.where(HH>=0, 0, 1)
 #if regn == 'south':
-#  RMsk = np.where(hlat > -60., 0, RMsk)
-#elif regn == 'north':
-#  RMsk = np.where(hlat < 50, 0, RMsk)
+# RMsk = np.where(hlat > -60., 0, RMsk)
 
 if plot_init:
   flinp = f"iceh_ic.{yr0}-{mm0:02d}-{dd0:02d}-{nsec0:05d}.nc"
@@ -152,42 +186,45 @@ dflice = os.path.join(pthoutp,flinp)
 
 print(f"Processing {YR}/{MM}/{DD} expt{enmb:02d} {dflice}...")
 with xarray.open_dataset(dflice) as dcice:
-  AA = dcice['aice_d'].data.squeeze()
+  AICE = dcice['aice_d'].data.squeeze()
+  AA = dcice['hs_d'].data.squeeze()    # grid cell mean ice thickness
 
-# Interpolated fields:
-fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}_{regn}.nc'
-dfliceout = os.path.join(pthnsidc,fliceout)
-print(f'Loading interpolated ice conc {dfliceout}')
-with xarray.open_dataset(dfliceout) as dsint:
-  AI = dsint['ice_conc'].isel(time=DD-1).squeeze()
 
 AA = np.where(RMsk == 0, np.nan, AA)
 AI = np.where(RMsk == 0, np.nan, AI)
-sqerr = (AA-AI)**2
-abserr = np.abs(AA-AI)
-diff  = (AA-AI)
+
+# Ignore open ocean grid points, only where sea ice is present in the f/cast:
+IMask = AICE>0.001    # boolean mask
+sqerr = (AA - AI)**2 * IMask
+abserr = np.abs(AA - AI) * IMask
+diff  = (AA - AI) * IMask
 
 plt.ion()
 
 
-clrmp = mclrmps.colormap_conc()
+#clrmp = mclrmps.colormap_conc()
+#clrmp = mclrmps.colormap_ice_thkn()
+#rmin = 0.
+#rmax = 3.
+clrmp = mclrmps.colormap_temp()
 rmin = 0.
-rmax = 1.
+rmax = 0.4
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
 clrmp_dlt = mclrmps.colormap_uv()
-dmin = -1
-dmax = 1
+dmin = -0.4
+dmax = 0.4
 clrmp_dlt.set_bad(color=[0.2, 0.2, 0.2])
 
 if regn == 'south':
-  m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
+  m = Basemap(projection='spstere',boundinglat=-55,lon_0=180,resolution='l')
   parallels = np.arange(-80,-10,10.)
   meridians = np.arange(-360,359.,45.)
 elif regn == 'north':
-  m = Basemap(projection='npstere', boundinglat=50, lon_0=-10, resolution='l')
-  parallels = np.arange(40, 89, 10.)
-  meridians = np.arange(-360, 359., 45.)
+  m = Basemap(projection='npstere',boundinglat=50,lon_0=-10,resolution='l')
+  parallels = np.arange(40,89,10.)
+  meridians = np.arange(-360,359.,45.)
+
 
 xh, yh = m(hlon,hlat) # GFS coords
 fig1 = plt.figure(1,figsize=(9,9))
@@ -198,26 +235,26 @@ m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 img1 = ax1.pcolormesh(xh,yh,AA, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,sqerr, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,np.abs(AA-AI), cmap=clrmp, vmin=rmin, vmax=rmax)
-ax1.set_title(f'UFS expt{enmb:02d} iconc {YR}/{MM:02d}/{DD:02d}')
+ax1.set_title(f'UFS expt{enmb:02d} hsnow {YR}/{MM:02d}/{DD:02d}')
 
-# Interpolated iconc
+# Interpolated hsnow
 ax2 = plt.axes([0.55, 0.55, 0.4, 0.4])
 m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
 m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 img2 = ax2.pcolormesh(xh, yh, AI, cmap=clrmp, vmin=rmin, vmax=rmax)
-ax2.set_title('NSIDC iconc interp to mesh025')
+ax2.set_title('CryoSat hsnow interp to mesh025')
 
 ax21 = plt.axes([0.05, 0.1, 0.4, 0.4])
 m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
 m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
-ax21.pcolormesh(xh,yh,np.abs(AA-AI), cmap=clrmp, vmin=rmin, vmax=rmax)
-ax21.set_title(f'|err| iconc UFS vs  NSIDC {YR}/{MM:02d}/{DD:02d}')
+ax21.pcolormesh(xh, yh, abserr, cmap=clrmp, vmin=rmin, vmax=rmax)
+ax21.set_title(f'|err| hsnow UFS vs  CryoSat {YR}/{MM:02d}/{DD:02d}')
 
 ax22 = plt.axes([0.55, 0.1, 0.4, 0.4])
 m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
 m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
-img2 = ax22.pcolormesh(xh,yh,(AA-AI), cmap=clrmp_dlt, vmin=dmin, vmax=dmax)
-ax22.set_title(f'diff iconc UFS vs NSIDC {YR}/{MM:02d}/{DD:02d}')
+img2 = ax22.pcolormesh(xh, yh, diff, cmap=clrmp_dlt, vmin=dmin, vmax=dmax)
+ax22.set_title(f'diff hsnow UFS vs CryoSat {YR}/{MM:02d}/{DD:02d}')
 
 
 # Colorbars
@@ -234,10 +271,10 @@ clb = plt.colorbar(img2, cax=ax4, orientation='horizontal', extend='both')
 ax4.xaxis.set_ticks(list(np.linspace(dmin,dmax,11)))
 ax4.set_xticklabels(ax4.get_xticks())
 ticklabs = clb.ax.get_xticklabels()
-clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+clb.ax.set_xticklabels(["{:.1f}".format(i) for i in clb.get_ticks()], fontsize=10)
 clb.ax.tick_params(direction='in', length=12)
 
-btx = 'maps_iconc_err_datmUFSvsNSIDC.py'
+btx = 'maps_hsnow_err_datmUFS_vs_hsnowclim.py'
 bottom_text(btx, pos=[0.1,0.01])
 
 

@@ -72,9 +72,18 @@ field_name = 'ithkn'
 parser = argparse.ArgumentParser()
 parser.add_argument("--field", help=f"Field to interpolate, default={field_name}",
                     choices=['hsnow','rhosn','ithkn','iconc'], type=str)
+parser.add_argument("--snmodel", help=f"Snow model used to estimate hsnow",
+                    choices=['sm_e5','sm_m2','w99r'], type=str, default='sm_e5')
+parser.add_argument("--yrs", help="start year: 2019 - 2021, default=2019", default=2019, type=int)
+parser.add_argument("--yre", help="end year: 2019 - 2021, default=2019", default=2021, type=int)
 args = parser.parse_args()
   
 field_name = args.field if args.field else field_name
+snow_model = args.snmodel
+YRS        = args.yrs 
+YRE        = args.yre
+
+print(f"\nInterpolating {field_name} snow model={snow_model} time={YRS}-{YRE}\n")
 
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -139,31 +148,54 @@ with xarray.open_dataset(dfgmapi) as dgmapi:
 
 
 # Original data:
-# There are many versions of ice thickness and snow depth estimates in the file
+# There are 3 versions of ice thickness and snow depth estimates in the file
+# that differ in snow model used to estimate snow load
+#
 # ice_thickness_sm_e5_int: Monthly mean gridded and smoothed/interpolated sea ice thickness 
 #                          calculated using redistributed SnowModel-LG snow loading 
 #                          with ERA5 forcing (Liston et al., 2021, 10.5067/27A0P5M6LZBI, SM) 
 #                          and fixed ice density (916 kg/m3)
 #
 # snow_depth_sm_e5_int:   Monthly mean gridded and smoothed/interpolated redistributed 
-#                         SnowModel-LG with ERA5 forcing snow depths
+#                         SnowModel-LG with ERA5 forcing snow depths interpolated / smoothed
 #
 # snow_density_sm_e5:     Monthly mean gridded SnowModel-LG with ERA5 forcing (Liston et al., 2021, 
 #                         snow density. Data currently available up to July 2021 on the NSIDC
 #
+# snow_depth_w99r_int:    Interpolated / smoothed Warren clim. 
+#                         Warren, S. G., Rigor, I. G., Untersteiner, N., Radionov, V. F., Bryazgin, N. N., 
+#                         Aleksandrov, Y. I., and Colony, R, (1999). Snow Depth on Arctic Sea Ice, 
+#                         Journal of Climate, 12, 1814–1829,
+#                         Tilling, R. L., A. Ridout, and A. Shepherd, (2017). Estimating Arctic sea ice 
+#                         thickness and volume using CryoSat-2 radar altimeter data, 
+#                         Advances in Space Research, 0273-1177
+#
+# snow_depth_sm_m2_int:   Monthly mean gridded SnowModel-LG with MERRA-2 forcing 
+#                         Liston et al., 2021, 10.5067/27A0P5M6LZBI, SM
+#
 
 if field_name == 'ithkn':
-  varnm = 'ice_thickness_sm_e5_int'
+  varnm = f'ice_thickness_{snow_model}_int'
+  str_long = 'ice thickness'
 elif field_name == 'hsnow':
-  varnm = 'snow_depth_sm_e5_int'
+  varnm = f'snow_depth_{snow_model}_int'
+  str_long = 'snow depth'
 elif field_name == 'rhosn':
-  varnm = 'snow_density_sm_e5'
+  varnm = f'snow_density_{snow_model}'
 elif field_name == 'iconc':
   varnm = 'sea_ice_conc'
 else:
   raise Exception(f"Unrecognized variable {field_name}")
 
-def write_nc(A2d, time_out, field_name, dfliceout, varnm):
+def write_nc(A2d, time_out, field_name, dfliceout, varnm, snow_model):
+  match snow_model:
+    case "sm_e5":
+      model_str = "Snow model SnowModel-LG with ERA5 forcing, Liston et al., 2021"
+    case "sm_m2":
+      model_str = "Snow model SnowModel-LG with MERRA-2 forcing, Liston et al., 2021"
+    case "w99r":
+      model_str = "Snow depth from Warren et al. (1999) snow depth climatology"
+  
   # Dump netcdf:
   darr_cice = xarray.DataArray(A2d, dims=("time","jdim","idim"),\
                      coords={"time": time_out,\
@@ -191,8 +223,8 @@ def write_nc(A2d, time_out, field_name, dfliceout, varnm):
   }
 
   # Add global attributes:
-  dset.attrs['title']       = f'{varnm} on mesh025 grid from monthly gridded summer Arctic sea ice thickness from ICESat-2, v2' 
-  dset.attrs['institution'] = 'NOAA NWS NCEP EMC'
+  dset.attrs['title']       = f'{varnm} on mesh025 grid from monthly gridded summer Arctic sea {str_long} from ICESat-2, v.2' 
+  dset.attrs['institution'] = 'NOAA NWS MDC'
   dset.attrs['source']      = 'interp_ICESat2_icesnow_summer_arctic_mesh025.py'
   dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'
   dset.attrs['region']      = 'north'
@@ -213,6 +245,10 @@ for YR in range(YRS,YRE+1):
     #pthintrp, _  = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, 'ICESat2_mnth_interp')
     pthintrp = os.path.join(pthdata,'ICESat2_arctic_summer_ithkn_hsnow','interp_mesh025')
     fliceout = f"{field_name}_ICESat2_arctic_{YR}{MM:02d}_{jdm}x{idm}.nc"
+    if field_name == "hsnow":
+      # Different snow models for snow depths:
+      fliceout = f"{field_name}_{snow_model}_ICESat2_arctic_{YR}{MM:02d}_{jdm}x{idm}.nc"
+
     dfliceout = os.path.join(pthintrp, fliceout)
     if os.path.isfile(dfliceout):
       print(f"  ===> Already created {fliceout}, skipping ...")
@@ -229,6 +265,8 @@ for YR in range(YRS,YRE+1):
     if units == 'cm' or units == 'centimeters':
       cff2m = 100.
     elif units == 'm' or units == 'meters':
+      cff2m = 1.
+    elif units is None:
       cff2m = 1.
 
     AA = np.where(A2d > 1.e30, np.nan, A2d) * cff2m  # cm --> m if needed 
@@ -247,7 +285,7 @@ for YR in range(YRS,YRE+1):
 
     time_out = np.array([np.datetime64(f"{YR:04d}-{MM:02d}-15", "ns")])
     A2d = np.expand_dims(A2d, axis=0) 
-    write_nc(A2d, time_out, field_name, dfliceout, varnm)
+    write_nc(A2d, time_out, field_name, dfliceout, varnm, snow_model)
 
   
 f_chck = False

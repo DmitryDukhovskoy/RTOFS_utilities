@@ -38,20 +38,20 @@ import mod_time as mtime
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
 
-init_date = 20251231
+init_date = 20251231  # 20240715 or 20251231
 init_hr = 0
 regn = 'south'
 fday = 16
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-parser.add_argument("--init", help=f"init date, default {init_date}", type=int)
+parser.add_argument("--init", help=f"init date", choices=[20240715,20251231], required=True, type=int)
 parser.add_argument("--ihr", help=f"init hour, default {init_hr}", type=int)
 parser.add_argument("--fday", help=f"f/cast day to plot: 1-16, default={fday}", type=int)
 parser.add_argument("--gfs", help=f"GFS version to plot", choices=[16,17], required=True, type=int)
 args = parser.parse_args()
 
-regn      = args.regn if args.regn else None
+regn      = args.regn if args.regn else regn
 init_date = args.init if args.init else init_date
 init_hr   = args.ihr if args.ihr else init_hr
 fday      = args.fday if args.fday is not None else fday
@@ -171,7 +171,7 @@ ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
 ax2.set_yticklabels(ax2.get_yticks())
 ticklabs = clb.ax.get_yticklabels()
 #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
-clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=14)
 clb.ax.tick_params(direction='in', length=12)
 
 ax3 = fig1.add_axes([0.02, 0.03, 0.8, 0.06])

@@ -72,9 +72,12 @@ fld_name = 'ithkn'
 parser = argparse.ArgumentParser()
 parser.add_argument("--field", help=f"Field to interpolate, default={fld_name}",
                     choices=['hsnow','ithkn'], type=str)
+parser.add_argument("--snmodel", help=f"Snow model used to estimate hsnow",
+                    choices=['sm_e5','sm_m2','w99r'], type=str, default='sm_e5')
 args = parser.parse_args()
   
 fld_name = args.field if args.field else fld_name
+snow_model = args.snmodel
 
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -105,6 +108,15 @@ dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
 hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 jdim, idim = hlon.shape
 
+# Snow model used to estimate snow load:
+match snow_model:
+  case "sm_e5":
+    model_str = "Snow model SnowModel-LG with ERA5 forcing, Liston et al., 2021"
+  case "sm_m2":
+    model_str = "Snow model SnowModel-LG with MERRA-2 forcing, Liston et al., 2021"
+  case "w99r":
+    model_str = "Snow depth from Warren et al. (1999) snow depth climatology"
+
 
 if fld_name == 'ithkn':
   varnm = 'ice_thkn'
@@ -122,11 +134,14 @@ for MM in range(5,9):
   for YR in range(YRS,YRE+1):
     print(f"Processing {YR}/{MM}")
     if YR == 2021 and MM > 7:
-      print(f"Last record: 2021/07 skipping ...")
+      print(f"Last record: 2021/07 skipping {MM} ...")
       continue
 
     pthintrp = os.path.join(pthdata,'ICESat2_arctic_summer_ithkn_hsnow','interp_mesh025')
     fliceout = f"{fld_name}_ICESat2_arctic_{YR}{MM:02d}_{jdim}x{idim}.nc"
+    if fld_name == "hsnow":
+      # Different snow models for snow depths:
+      fliceout = f"{fld_name}_{snow_model}_ICESat2_arctic_{YR}{MM:02d}_{jdim}x{idim}.nc"
     dflice = os.path.join(pthintrp, fliceout)
 
     print(f"Reading {dflice}")
@@ -140,6 +155,8 @@ for MM in range(5,9):
       A2d = A2d * 0.01   # cm ---> m
 
     # Count & average only non-zero thicknesses
+    # Due to varying ice coverage areas, no ice = 0 thickness or 0 hsnow
+    # whereas in other years these values > 0
     # Do not count 0 thickn. this will bias ice thickness 
     ice_grid = np.isfinite(A2d) & (A2d > 0.0)
     ASUM[ice_grid] += A2d[ice_grid]
@@ -162,10 +179,12 @@ if fld_name == 'hsnow':
   dset = xarray.Dataset({"snow_depth": darr_cice})
   dset['snow_depth'].attrs['long_name'] = 'snow depth on ice'
   dset['snow_depth'].attrs['units'] = 'm'
+  dset['snow_depth'].attrs['info'] = model_str
 elif fld_name == 'ithkn':
   dset = xarray.Dataset({"ice_thkn": darr_cice})
   dset['ice_thkn'].attrs['long_name'] = 'ice thickness'
   dset['ice_thkn'].attrs['units'] = 'm'
+  dset['ice_thkn'].attrs['info'] = model_str
 
 dset["time"].attrs = {
      "long_name": "time",
@@ -173,14 +192,17 @@ dset["time"].attrs = {
 }
 
 # Add global attributes:
-dset.attrs['title']       = f'{varnm} on mesh025 grid from monthly summer Arctic data ICESat-2, v2 {YRS}-{YRE}' 
-dset.attrs['institution'] = 'NOAA NWS NCEP EMC'
+dset.attrs['title']       = f'{varnm} on mesh025 grid from monthly summer Arctic product ICESat-2, v2 {YRS}-{YRE}' 
+dset.attrs['institution'] = 'NOAA NWS MDC'
 dset.attrs['source']      = 'derive_ithkn_hsnow_summer_clim_ICESat2_arctic.py'
 dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'
 dset.attrs['region']      = 'north'
 
 pthclm = os.path.join(pthdata,'ICESat2_arctic_summer_ithkn_hsnow','clim')
 flclm = f"{fld_name}_ICESat2_arctic_mnth_{YRS}-{YRE}_{jdim}x{idim}.nc"
+if fld_name == 'hsnow':
+ flclm = f"{fld_name}_{snow_model}_ICESat2_arctic_mnth_{YRS}-{YRE}_{jdim}x{idim}.nc"
+
 dflclm = os.path.join(pthclm, flclm)
 
 print(f'Dumping interpolated {fld_name} --> {dflclm}\n')

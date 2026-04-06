@@ -17,7 +17,6 @@ import sys
 import importlib
 import matplotlib
 import xarray
-from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
@@ -42,75 +41,54 @@ sys.path.extend([
 
 from mod_utils_fig import bottom_text
 import mod_time as mtime
-import mod_utils as mutil
-import mod_misc1 as mmisc
 import mod_colormaps as mclrmps
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
-import mod_mom6 as mmom6
-import mod_misc1 as mmisc
 import mod_cice6_utils as mc6util
 importlib.reload(mc6util)
 
 
 def main():
-  flrst_in = 'cice_model.res.20250103.00.iconc_thkn.snow.nc'
   sfx_end = 'snphys'
   yrR = mmR = ddR = hrR = None
   yrN = mmN = ddN = hrN = None
 
   parser = argparse.ArgumentParser()
+  parser.add_argument("--rdate", help=f"restart date input file", required=True, type=int)
+  parser.add_argument("--rhr", help=f"input file, restart hour = 0, ..., 23", type=int)
+  parser.add_argument("--rdate_out", help="output file, restart date", required=True, type=int)
+  parser.add_argument("--rhr_out", help="output file, restart hour", required=True, type=int)
   parser.add_argument("--pth_in", help="input restart directory with original file", type=str, required=True)
   parser.add_argument("--flrst_in", help=f"rest file in", required=True, type=str)
   parser.add_argument("--pth_out", help="output restart directory where new file be dumped", 
                       type=str, required=True)
-  parser.add_argument("--flrst_out", help="new rest file, otherwise flrst_in + snowphys", type=str)
+  parser.add_argument("--flrst_out", help="new rest file name", required=True, type=str)
   args = parser.parse_args()
 
-  flrst_in   = args.flrst_in  if args.flrst_in  is not None else flrst_in
-  flrst_out  = args.flrst_out if args.flrst_out is not None else None
-  pthrst_in  = args.pth_in    if args.pth_in    is not None else None
-  pthrst_out = args.pth_out   if args.pth_out   is not None else None
+  rest_date   = args.rdate
+  rest_hr     = args.rhr
+  rest_date_out = args.rdate_out
+  rest_hr_out = args.rhr_out
+  flrst_in    = args.flrst_in  
+  flrst_out   = args.flrst_out 
+  pthrst_in   = args.pth_in    
+  pthrst_out  = args.pth_out   
 
-  # Derive restart dates assuming file nameing is cice_restart.res.YYYYMMDD.XX[XXX]
-  # or YYYYMMDD.<time>.---.nc
-  yrR, mmR, ddR, hrR, mintR = mc6util.get_date_filename(flrst_in)
-  rest_date = int(yrR*1e4 + mmR*100 + ddR)
-  rest_hr = hrR
-
-  # Output restart - same date
-  yrN, mmN, ddN, hrN, mintN = yrR, mmR, ddR, hrR, mintR
-  rest_date_out = int(yrN*1e4 + mmN*100 + ddN)
-  rest_hr_out = hrN
-
-  print(f"Restart date input:  {rest_date}:{rest_hr}")
-  print(f"Restart date output: {rest_date_out}:{rest_hr_out}")
-
-  dnmbR = mtime.datenum([yrR,mmR,ddR,hrR])
-  dnmbN = dnmbR
-
+  # Input restart file
+  dnmbR = mtime.rdate2datenum(rest_date*100+rest_hr)  # restart day nmb
+  if yrR is None:
+    yrR,mmR,ddR,hrR = mtime.datevec(dnmbR, round_hrs=True)[:4]
   nsecR = hrR*3600
+
+  # Dates of the output fields in the new restart:
+  dnmbN = mtime.rdate2datenum(rest_date_out*100+rest_hr_out)
+  if yrN is None:
+    yrN, mmN, ddN, hrN = mtime.datevec(dnmbN, round_hrs=True)[:4]
   nsecN = hrN*3600
+
+
+  print(f"Snow phys: Restart date input:  {rest_date}:{rest_hr}")
+  print(f"Snow phys: Restart date output: {rest_date_out}:{rest_hr_out}")
+
    
-  syst_info = os.uname()
-  machine = syst_info.nodename
-      
-  if 'dtn' in machine:
-    print("Running on DTN node:", machine)
-    node_nm = "dtn"
-  elif 'gaea' in machine:
-    print("Running on Gaea compute node:", machine)
-    node_nm = "gaea"
-  elif 'an' in machine:
-    print("Running on PPAN node:", machine)  
-    node_nm = "ppan"
-  else:
-    print("Unknown machine:", machine)
-
-  fyaml = 'paths_ufs.yaml'
-  with open(fyaml) as ff:
-    pths_ufs = safe_load(ff)
-
   # Default parameters (icepack_parameters.F90)
   nslyr      = 1          # snow layers
   rhos       = 330.       # density of snow (kg/m3)
@@ -139,9 +117,6 @@ def main():
 
   print(f"old restart: {yrR}/{mmR:02d}/{ddR:02d}:{hrR:02d}")
   print(f"new restart: {yrN}/{mmN:02d}/{ddN:02d}:{hrN:02d}")
-
-  #if flrst_in is None:
-  #  flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{nsecR:06d}.nc"
 
   dflrst_in = os.path.join(pthrst_in, flrst_in)
   print(f"Reading restart: {dflrst_in}")
@@ -253,60 +228,6 @@ def main():
   print(f"Saving CICE restart --> {dflrst_out}")
   ds_out.to_netcdf(dflrst_out, encoding={var: {'_FillValue': None} for var in ds_out.data_vars}, format='NETCDF3_64BIT')
   ds_out.close()
-
-
-  f_plt = False
-  if f_plt:
-    clrmp = mclrmps.colormap_conc()
-    rmin = 0.
-    rmax = 1.
-    clrmp.set_bad(color=[0.2, 0.2, 0.2])
-    hlon = LON
-    hlat = LAT   
-   
-    if regn == 'south':
-      m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
-    #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
-    parallels = np.arange(-80,-10,10.)
-    meridians = np.arange(-360,359.,45.)
-    xl1 = -9e6
-    xl2 = -0.8e6
-    yl1 = xl1
-    yl2 = xl2
-
-    xh, yh = m(hlon,hlat) # GFS coords
-
-    plt.ion()
-    fig1 = plt.figure(1, figsize=(8,8))
-    plt.clf()
-    ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
-
-    m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-    m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
-    img1 = ax1.pcolormesh(xh,yh,aice, cmap=clrmp, vmin=rmin, vmax=rmax)
-
-    ax1.contour(xh,yh,HH,[0], linestyles='solid', colors=[(0.,0.,0.)], linewidths=1)
-
-    ax1.set_xlim([xl1, xl2])
-    ax1.set_ylim([yl1, yl2])
-    ax1.invert_yaxis()
-    ax1.invert_xaxis()
-
-    # Plot pnt:
-    x0 = hlon[j0,i0]
-    y0 = hlat[j0,i0]
-    xh0 = xh[j0,i0]
-    yh0 = yh[j0,i0]
-    ax1.plot(xh0,yh0,'o')
-
-    # Colorbars
-    ax3 = fig1.add_axes([0.2, 0.05, 0.6, 0.02])
-    clb = plt.colorbar(img1, cax=ax3, orientation='horizontal', extend='max')
-    ax3.xaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
-    ax3.set_xticklabels(ax3.get_xticks())
-    ticklabs = clb.ax.get_xticklabels()
-    clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
-    clb.ax.tick_params(direction='in', length=12)
 
 if __name__ == "__main__":
   main()

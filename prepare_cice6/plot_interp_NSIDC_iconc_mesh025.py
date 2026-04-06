@@ -138,7 +138,7 @@ clb = plt.colorbar(img, cax=ax3, orientation='horizontal', extend='max')
 ax3.xaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
 ax3.set_xticklabels(ax3.get_xticks())
 ticklabs = clb.ax.get_xticklabels()
-clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=12)
 clb.ax.tick_params(direction='in', length=12)
 
 btx = 'plot_interp_NSIDC_iconc_mesh025.py'

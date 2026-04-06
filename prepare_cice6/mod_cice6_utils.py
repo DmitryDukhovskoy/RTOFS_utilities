@@ -1334,6 +1334,88 @@ def get_date_filename(file_name, nnumb_date=8):
 
   return year, month, day, hr, mint  
 
+def flname_replace_date(file_name, rdate_out, rhr_out):
+  """
+    replace date & time in the input restart to
+    new date/ time in the output restart
+    keeping file template unchanged
+
+    file naming: use "." to separate parts in the name
+  """
+  parts = file_name.split('.')
+  len_name = len(parts)
+  nnumb_date = 8   # at least: YYYYMMDD
+
+  # Find date part:
+  idate = itime = None
+  for ik in range(len_name):
+    if parts[ik].isdigit() and len(parts[ik]) >= nnumb_date:
+      idate = ik
+      itime = ik + 1 if ik + 1 < len(parts) else None
+      break
+    
+  if idate is None:
+    raise ValueError(f"flname_replace_date: Could not identify date and time in {file_name}")
+ 
+  parts[idate] = f"{rdate_out}"
+
+  # Replace time if present
+  if itime is not None:
+    parts[itime] = f"{rhr_out:02d}"
+
+  # Reassemble filename
+  flname_out = ".".join(parts)
+
+  return flname_out
+
+
+def change_base_template(fl_tmp, rdate_out, rhr_out, flrst_in):
+  """
+    change base name of restart file to match template name fl_tmp
+    Date time positions are indicated as YYYYMMDD.HH
+
+    all parts of the flrst_in are preserved but time position
+    is adjusted based on the template
+
+    file naming: use "." to separate parts in the name
+  """
+  parts = fl_tmp.split('.')
+  len_name = len(parts)
+
+  # Find date part:
+  idate = itime = None
+  for ik in range(len_name):
+    if parts[ik] == 'YYYYMMDD':
+      idate = ik
+      itime = ik + 1 if ik + 1 < len(parts) else None
+      break
+
+  if idate is None:
+    raise ValueError(f"change_base_template: Could not identify date and time in {flnm_base}")
+
+  parts[idate] = f"{rdate_out}"
+
+  # Replace time if present
+  if itime is not None:
+    parts[itime] = f"{rhr_out:02d}"
+
+  # Check if flrst_in name has suffixes inidcating previous changes: iconc, hsnow, etc.
+  # remove extension:
+  flinp_base = os.path.splitext(flrst_in)[0]
+  pinp = flinp_base.split('.')
+  len_inp = len(pinp)
+  for ik in range(len_inp):
+    if pinp[ik].isdigit():
+      continue
+    
+    if pinp[ik] == 'iconc' or pinp[ik] == 'iconc_ithkn' or pinp[ik] == 'hsnow':
+      parts.append(pinp[ik])
+
+  # Reassemble filename
+  flname_out = ".".join(parts)
+
+  return flname_out
+
 def snow_ice_freeboard(vin, vsn, ain, rho_ice=917., rho_snow=330., rho_ocean=1025.):
   """
     Compute height of the snow-ice interface wrt sea level

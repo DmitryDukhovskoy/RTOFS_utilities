@@ -48,22 +48,22 @@ import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
 expt = 'ufs_datm_mx025_v02'
-init_date = 20250103
+#init_date = 20250103
 init_hr = 0
 regn = 'south'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-parser.add_argument("--init", help=f"init date, default={init_date}", type=int)
+parser.add_argument("--init", help=f"init date: YYYYMMDD", required=True, type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
 parser.add_argument("--fday", help=f"forecast day to plot: 1,...,14, =0 - init. cond.", type=int, required=True)
 parser.add_argument("--enmb", help="experiment number: 1, 2, ...", type=int, required=True)
 args = parser.parse_args()
   
-enmb      = args.enmb if args.enmb else None
-init_date = args.init if args.init else init_date
+enmb      = args.enmb 
+init_date = args.init
 init_hr   = args.ihr if args.ihr else init_hr
-fday      = args.fday if args.fday is not None else None
+fday      = args.fday 
 regn      = args.regn if args.regn else regn
   
 syst_info = os.uname() 
@@ -109,6 +109,44 @@ def read_CryoSat(YR,MM,DD,regn,pthnsidc,varnm):
 
   return A
 
+def find_varnm(dflithkn, var_opt):
+  with xarray.open_dataset(dflithkn) as ds_ithkn:
+    for varnm in var_opt:
+      if varnm in ds_ithkn.data_vars:
+        #print(f"Using variable {varnm}")
+        return varnm 
+        
+  raise KeyError("No ice thickness variable name found, check file")
+  
+  return
+
+def ice_clim_files(enmb, regn, pths_ufs):
+  pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
+  if enmb >= 30:
+    fyaml_rest = 'cice6rest_files.yaml'
+    with open(fyaml_rest) as fy:
+      pths_clim = safe_load(fy)
+
+
+    pthice = pths_clim["target_paths"][f"ithkn_{regn}"]["path"]
+    fhice = pths_clim["target_paths"][f"ithkn_{regn}"]["file"]
+
+    var_opt = ['ice_thkn', 'ithkn', 'hi', 'ice_thickness']
+    varnm = find_varnm(os.path.join(pthice, fhice), var_opt)
+
+
+  else:
+    if regn == 'south':
+      pthice = os.path.join(pthdata,'CryoSat2_antarctic_ice_snow_thkn','clim')
+      fhice  = f'CryoSat_hice_mnthclim_2011_2020_mesh025_1440x1080_{regn}.nc'
+      varnm = 'ice_thkn'
+    elif regn == 'north':
+      pthice = os.path.join(pthdata,'CryoSat_arctic_ice_snow_thkn','clim')
+      fhice = f'ithkn_CryoSat_arcticAWI_mnthclim_2015-2024_1080x1440.nc'
+      varnm = 'ithkn'
+
+  return pthice, fhice, varnm
+
 # Get date:
 plot_init = fday == 0  # initial conditions
 
@@ -124,22 +162,12 @@ nsec0 = hr0*3600
 
 
 # Get ithkn monthly clim interpolated to mesh025
-pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-if regn == 'south':
-  pthice = os.path.join(pthdata,'CryoSat2_antarctic_ice_snow_thkn','clim')
-  fhice  = f'CryoSat_hice_mnthclim_2011_2020_mesh025_{idim}x{jdim}_{regn}.nc'
-  varnm = 'ice_thkn'
-elif regn == 'north':
-  pthice = os.path.join(pthdata,'CryoSat_arctic_ice_snow_thkn','clim')
-  fhice = f'ithkn_CryoSat_arcticAWI_mnthclim_2015-2024_{jdim}x{idim}.nc'
-  varnm = 'ithkn'
+pthice, fhice, varnm = ice_clim_files(enmb, regn, pths_ufs)
 
 dfhice = os.path.join(pthice, fhice)
 
 print(f'Reading ice thickn climatology {dfhice}')
 with xarray.open_dataset(dfhice) as ds_hice:
-  #LONI = ds_hice['lon'].data
-  #LATI = ds_hice['lat'].data
   AI = ds_hice[varnm].isel(time=MM-1).squeeze()
 
 AI = np.where(np.isnan(AI), 0., AI)

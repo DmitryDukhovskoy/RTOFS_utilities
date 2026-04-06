@@ -214,7 +214,7 @@ def list_files(year, month, day, regn="north"):
   return files
 
 if save_final:
-  pthice   = os.path.join(pthdata, 'AVHRR_albedo_ithkn','tmp')
+  pthice   = os.path.join(pthdata, 'AVHRR_albedo_ithkn','clim')
   fliceout = f'AVHRR_{fld_name}_mnthclim_{YRS}-{YRE}_{idim}x{jdim}_{regn}.nc'
   dfliceout = os.path.join(pthice,fliceout)
   if os.path.isfile(dfliceout):
@@ -320,7 +320,7 @@ for MM in range(MMS, MME+1):
   # Average all records for this month:
   print(f"Averaging, nrecs={irecs}, max count_ice={np.max(count_ice)}")
   Aavrg = np.divide(ASUM, count_ice, out=np.zeros_like(ASUM), where = count_ice > 0)
-  Aavrg[np.isnan(AA)] = np.nan
+  #Aavrg[np.isnan(AA)] = np.nan
   
   print(f"Interpolating {fld_name} ...")
   CIint = msisrlx.interp2Dfld(Aavrg, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat, land_mask=True)

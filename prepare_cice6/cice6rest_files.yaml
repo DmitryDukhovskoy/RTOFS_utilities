@@ -1,0 +1,63 @@
+---
+# Directories and filenames for modifying CICE6 restart inserting hsnow, ithkn, iconc
+# To be used with: prepare_cice6_restart_driver.py
+# The driver will call functions to generate necessary restart files
+# Input restart date and hr are read from the input restart file
+# no need to specify
+restart_time:
+  rdate_in:  ~          # input restart date
+  rhr_in:    ~          # input restart hour
+  rdate_out: 20250704   # output restart date
+  rhr_out:   0          # output restart hour
+
+cice_paths:
+  #pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields'
+  pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields/cice6_global'
+  pth_out: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields/cice6_{regn}'
+
+rest_names:
+# Input CICE6 restart file to be modified
+# Output restart file name - specify final restart filename
+# Note flrst_out if provided is the final restart file name 
+# use ~ for empty input --> None in python, then final restart filename is created
+#  if empty - name will be constructed using input restart name and rdate_out 
+#  optional: if flrst_out is empty provide template to be used to construct 
+#            restart files, after iconc, ithkn, hsnow, ... changed
+#            tags will be added at the end: {flrst_tmp}.iconc_ithkn.hsnow.nc
+#            YYYYMMDD.HH is space holder to indicate where restart date / time 
+#            to put in the file name
+#  e.g. flrst_in: 20250704.030000.cice_restart.iconc_ithkn.n
+# flrst_tmp: "cice_restart.YYYYMMDD.HH"  --> cice_restart.20250704.00.iconc_ithkn.nc
+#
+#  flrst_in: "20250704.030000.cice_model.res.nc"
+  flrst_in: "cice_restart.20250704.00.iconc_ithkn.hsnow.nc"
+  flrst_out: ~
+  flrst_tmp: "cice_restart.YYYYMMDD.HH"
+
+grid_topo:
+  pthgrid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
+  pthdata: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data'
+
+target_paths:
+# Target fields directories and filenames to use in the IC
+  ice_conc:
+    path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{YR}"
+    file: "NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc"
+
+  ithkn_south:
+    path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/CryoSat2_antarctic_ice_snow_thkn/clim"
+    file: "CryoSat_hice_mnthclim_2011_2020_mesh025_1440x1080_south.nc"
+
+  ithkn_north:
+    path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ithkn_clim_combined"
+    file: "ithkn_mnthclim_cryo_avhrr_ices_1440x1080_north.nc"
+
+  hsnow_south:
+    path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/snow_nasa/monthly_clim"
+    file: "SSMI_hsnow_mnthclim_1992_2007_mesh025_1440x1080_south.nc"
+
+  hsnow_north:
+    path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/hsnow_clim_combined"
+    file: "hsnow_mnthclim_Cryo_ICESat2_1440x1080_north.nc"
+
+

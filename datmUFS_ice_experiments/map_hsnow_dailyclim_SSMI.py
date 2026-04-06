@@ -110,10 +110,10 @@ units = plot_units
 clrmp = mclrmps.colormap_temp()
 if plot_units == 'cm':
   rmin = 0
-  rmax = 50
+  rmax = 40
 else:
   rmin = 0
-  rmax = 0.5
+  rmax = 0.4
 
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
@@ -168,7 +168,7 @@ ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
 ax2.set_yticklabels(ax2.get_yticks())
 ticklabs = clb.ax.get_yticklabels()
 #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
-clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=12)
 clb.ax.tick_params(direction='in', length=12)
 
 ax3 = fig1.add_axes([0.02, 0.03, 0.8, 0.06])
