@@ -5,13 +5,15 @@ import datetime
 import time
 import numpy as np
 
-def datenum(ldate0,ldate_ref=[1,1,1,0,0]):
+def datenum(ldate0, ldate_ref=[1,1,1,0,0]):
   """
   Given list [YY,MM,DD] - current date 
   compute days wrt to reference date - optional
   Hours and Minutes  - optional
   [YY,MM,DD,HR]
   [YY,MM,DD,HR,MN]
+
+  Note for day = day reference ==> dnmb = 1 (not always what is expected!!!)
   """
 
   ll = len(ldate0)
@@ -52,7 +54,62 @@ def datenum(ldate0,ldate_ref=[1,1,1,0,0]):
 
   return dnmb
 
+def datenum_v2(ldate0, ldate_ref=[1,1,1,0,0], ref_day0=True): 
+  """
+    Compute days relative to reference date
+    day = ref. day ==> dnmb = 0
+    ref_day0 = False: adds + 1 to make it compatible with datenum
+
+    Supports:
+    - Single date: [YY,MM,DD,(HR),(MN)]
+    - Multiple dates: [[...], [...], ...]
+
+    Returns:
+    - float (single input)
+    - numpy array (multiple input)
+  """
+
+  def compute_one(ld):
+    # Pad to length 5
+    if len(ld) < 5:
+      ld = list(ld) + [0]*(5-len(ld))
+
+    YR, MM, DD, HR, MN = map(int, ld[:5])
+    time0 = datetime.datetime(YR, MM, DD, HR, MN)
+    return time0
+
+  # Prepare reference time (once)
+  if len(ldate_ref) < 5:
+    ldate_ref = list(ldate_ref) + [0]*(5-len(ldate_ref))
+
+  YRr, MMr, DDr, HRr, MNr = map(int, ldate_ref[:5])
+  timeR = datetime.datetime(YRr, MMr, DDr, HRr, MNr)
+
+  # Detect single vs multiple input
+  is_multiple = isinstance(ldate0[0], (list, tuple))
+
+  if is_multiple:
+    dnmb = []
+    for ld in ldate0:
+      time0 = compute_one(ld)
+      delta = time0 - timeR
+      if ref_day0:
+        dnmb.append(delta.total_seconds() / 86400.0)
+      else:
+        dnmb.append(delta.total_seconds() / 86400.0 + 1)
+
+    return np.array(dnmb)
+  else:
+    time0 = compute_one(ldate0)
+    delta = time0 - timeR
+    dnmb = delta.total_seconds() / 86400.0
+    if not ref_day0:
+      dnmb += 1
+    return dnmb
+
+
 def adddays_date(rdate,ndays):
+
   """
   Add/subtract n days from rdate
   rdate is in the format YYYYMMDD[HR]

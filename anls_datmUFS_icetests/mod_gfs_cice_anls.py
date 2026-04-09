@@ -70,6 +70,42 @@ def sens_tests_info(enmb):
 
   return sinfo
 
+def sfs_tests_info(enmb):
+  """
+    Sensitivity experiments with SFS configuration 
+    ai - ice conc, hi - ice thickn, hs - snow thickn
+    qi - ice enthalpy adjusted in 1st layer to match surf T / or snow T 
+    thermo - adjusted ice conudct --> bubbly and dSdt_slow_mode S relax in ice
+    fbrd - adjust snow-ice freeboard to keep snow-ice intrf >= sea level
+    ITDrdg - snow distribution, snow phys on
+    smtrphs - snow metamorphysm is on
+
+    2024/07/01 -  1 year
+
+
+  hsU - designates updated hsnow insertion code (see extp 11 in DATM UFS: ice freeboard + enthalpy)
+  hsU = hs+qi+fbrd  - updated hsnow code
+  hs0 - original code without ice enth. and ice freeboard correction
+  SNPHYS = thermo+ITDrdg+snphys 
+
+  """
+  EXPTS = {
+    "01" : "control",                         # control January 2025  
+    "02" : "ai",
+    "03" : "ai+hi",
+    "04" : "hsU",
+    "05" : "ai+hi+hsU",
+    "06" : "ai+hi+hsU+thermo+ITDrdg+snphys",
+   }
+
+  key = f"{enmb:02d}"    
+  if key in EXPTS:
+    sinfo = EXPTS.get(key) 
+  else:
+    raise Exception(f"key is not found for {enmb}, add experiment ...")
+
+  return sinfo
+
 
 def sens_tests_colors():
   # Line colors:

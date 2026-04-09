@@ -86,6 +86,12 @@ DDE   = args.de if args.de else DDE
 ENMBS = args.enmb if args.enmb else None
 PRST  = args.prst if args.prst else []
 plt_init = True  # show RMSE for init state if init. state file exists and saved by CICE6
+
+# Error in NSIDC ice concentration fields Northern h/sphere:
+if regn == 'north':
+  NSIDC_err = mtime.datenum_v2([[2025,7,27]], ref_day0=False)
+else:
+  NSIDC_err = None
   
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -121,7 +127,7 @@ jdm, idm = HH.shape
 
 
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
+#pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
 
 RMsk = np.where(HH>=0, 0, 1)
 if regn == 'south':
@@ -192,16 +198,21 @@ for enmb in ENMBS:
     with xarray.open_dataset(dflcice) as dcice:
       AA = dcice['aice_d'].data.squeeze()
 
-    # Interpolated NSIDC obs fields:
-    fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}_{regn}.nc'
-    dfliceout = os.path.join(pthnsidc,fliceout)
-    print(f'Loading interpolated ice conc {dfliceout}')
-    with xarray.open_dataset(dfliceout) as dsint:
-      AI = dsint['ice_conc'].isel(time=DD-1).squeeze()
+    if int(dnmb) in NSIDC_err: 
+      # Error ice conc fields
+      rmse_mo = np.nan
+    else:
+      # Interpolated NSIDC obs fields:
+      pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
+      fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}_{regn}.nc'
+      dfliceout = os.path.join(pthnsidc,fliceout)
+      print(f'Loading interpolated ice conc {dfliceout}')
+      with xarray.open_dataset(dfliceout) as dsint:
+        AI = dsint['ice_conc'].isel(time=DD-1).squeeze()
 
-    AA = np.where(RMsk == 0, np.nan, AA)
-    AI = np.where(RMsk == 0, np.nan, AI)
-    rmse_mo = rmse2d(AA,AI)
+      AA = np.where(RMsk == 0, np.nan, AA)
+      AI = np.where(RMsk == 0, np.nan, AI)
+      rmse_mo = rmse2d(AA,AI)
 
     irec += 1
     if track_prst:

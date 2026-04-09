@@ -16,7 +16,6 @@ import sys
 import importlib
 import matplotlib  
 import xarray
-from copy import copy
 import matplotlib.colors as colors 
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
@@ -43,13 +42,8 @@ sys.path.extend([
 
 from mod_utils_fig import bottom_text
 import mod_time as mtime
-import mod_utils as mutil
 import mod_misc1 as mmisc
-import mod_colormaps as mclrmps
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
 import mod_mom6 as mmom6
-import mod_misc1 as mmisc
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 

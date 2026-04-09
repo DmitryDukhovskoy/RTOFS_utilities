@@ -3,14 +3,50 @@
   setup of initial conditions
 
   Can use any restart adding missing fields to it, e.g.:
-run prepare_cice6_restart_driver.py --iconc 0 --ithkn 0 --hsnow 1 --snitd 0 --regn global --rdate_in 20250103 --pth_in {pthrst_in} --flrst_in cice_restart.20250103.00.iconc_ithkn.nc
+  edit cice6rest_files_SFS.yaml
+  rdate_out:  requested restart date in the new restart
+  rdate_in, rhr_in: can be blank, the date/time will be derived from the input restart name assuming one of the formats:
+                    YYYYMMDD.XX[XXXX].restart_name.*.nc
+                    some_sfx.YYYYMMDD.XX[XXXX].*.nc
 
-will grab ice restart from flrst_in (with already inserted iconc and ithkn) and will add
-hsnow on top of this
+  pth_in, pth_out: specify input/output restart dirctories
 
-similarly can create from original restart (default name) creating iconc+ithkn then hsnow:
-run prepare_cice6_restart_driver.py --iconc 1 --ithkn 1 --hsnow 1 --snitd 0 --regn global --rdate_in 20250103 --pth_in {pthrst_in} 
+  flrst_in: intput restart file name
+  flrst_out:  leave blank, output restart name will be created based on the flrst_tmp (template) and restart time
+               by adding fields being corrected, e.g. cice_restart.20240701.00.iconc_ithkn.nc
 
+  Example:
+  create restart with corrected hsnow:
+  in YAML file:
+  rdate_in:  ~          # input restart date
+  rhr_in:    ~          # input restart hour
+  rdate_out: 20240701   # output restart date
+
+  flrst_in: "20240701.064800.cice_restart.nc"
+  flrst_out: ~
+  flrst_tmp: "cice_restart.YYYYMMDD.HH"
+
+  run prepare_cice6_restart_driver.py --iconc 0 --ithkn 0 --hsnow 1 --snitd 0 --regn global
+
+  To create restart with iconc + ithkn + hsnow
+  2 options:
+  (1) use ice restart from flrst_in (with already inserted iconc and ithkn) and will add
+    hsnow on top of this
+  flrst_in: "cice_restart.20240701.00.iconc_ithkn.nc"   <--- use restart with already added iconc and ithkn
+  flrst_out: ~
+  flrst_tmp: "cice_restart.YYYYMMDD.HH"
+
+  run prepare_cice6_restart_driver.py --iconc 0 --ithkn 0 --hsnow 1 --snitd 0 --regn global
+
+  (2) create from original restart, note that intermediate restart files will also be created and saved
+  flrst_in: "20240701.064800.cice_restart.nc"   <--- use original restart
+  flrst_out: ~
+  flrst_tmp: "cice_restart.YYYYMMDD.HH"
+
+  run prepare_cice6_restart_driver.py --iconc 1 --ithkn 1 --hsnow 1 --snitd 0 --regn global
+
+
+  Note that for snitd = 1, use ice_in with added options for snow redistribution, snow physics
 
 """
 import os
@@ -44,7 +80,7 @@ import mod_cice6_utils as mc6util
 import mod_time as mtime
 
 #rest_date = 20250103
-rest_date = 20250704
+#rest_date = 20250701 - not needed, check yaml 
 rest_hr   = 0
 rhr_out   = rest_hr
 flrst_in  = None

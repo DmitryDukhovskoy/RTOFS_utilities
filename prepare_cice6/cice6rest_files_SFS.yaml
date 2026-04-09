@@ -8,12 +8,13 @@
 restart_time:
   rdate_in:  ~          # input restart date
   rhr_in:    ~          # input restart hour
-  rdate_out: 20250701   # output restart date
+  rdate_out: 20240701   # output restart date
   rhr_out:   0          # output restart hour
 
 cice_paths:
   #pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields'
-  pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice'
+  #pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice'
+  pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice/cice6_global'
   pth_out: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice/cice6_global'
 
 rest_names:
@@ -31,7 +32,8 @@ rest_names:
 # flrst_tmp: "cice_restart.YYYYMMDD.HH"  --> cice_restart.20250704.00.iconc_ithkn.nc
 #
 #  flrst_in: "20250704.030000.cice_model.res.nc"
-  flrst_in: "20240701.00.cice_model.res.nc"
+#  flrst_in: "20240701.00.cice_model.res.nc"
+  flrst_in: "cice_restart.20240701.00.iconc_ithkn.hsnow.nc"
   flrst_out: ~
   flrst_tmp: "cice_restart.YYYYMMDD.HH"
 
