@@ -54,8 +54,8 @@ init_hr = 0    # nominal hr, actual: -6 hrs for IAU, and -3 FHROT (f/cast hr rot
 regn = 'south'
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-#parser.add_argument("--init", help=f"init date, default={init_date}", type=int)
+parser.add_argument("--regn", help=f"hemisphere: north or south", required=True, type=str)
+parser.add_argument("--init", help=f"init date", choices=[20250704, 20250103, 20240701], type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
 #parser.add_argument("--fhr", help=f"forecast hour to plot: 6, 12, ...,390, =0 - init. cond.", type=int)
 parser.add_argument("--fday", help=f"forecast day to plot: 0, 1, 2, ... , =0 - init. cond.", type=int, required=True)
@@ -63,18 +63,21 @@ parser.add_argument("--enmb", help="experiment number: 0, 1, 2, ...", type=int)
 args = parser.parse_args()
   
 enmb      = args.enmb if args.enmb else None
-#init_date = args.init if args.init else init_date
+init_date = args.init if args.init else None
 #init_hr   = args.ihr if args.ihr else init_hr
 #fhr       = args.fhr if args.fhr is not None else None
 
 fday      = args.fday
-regn      = args.regn if args.regn else regn
+regn      = args.regn 
 fhr   = fday * 24.
 
-if enmb < 30:
-  init_date = 20250103
-else:
-  init_date = 20250704
+if init_date is None:
+  if enmb < 30:
+    init_date = 20250103
+  elif enmb >= 30 and enmb < 40:
+    init_date = 20250704
+  elif enmb >= 40 and enmb < 50:
+    init_date = 20240701
 
 
 # Get date:
@@ -163,18 +166,16 @@ plt.ion()
 clrmp = mclrmps.colormap_conc()
 rmin = 0.
 rmax = 1.
-clrmp.set_bad(color=[0.2, 0.2, 0.2])
-
+clrmp.set_bad(color=[0.1, 0.1, 0.1])
 
 if regn == 'south':
-  m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
-#lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
-parallels = np.arange(-80,-10,10.)
-meridians = np.arange(-360,359.,45.)
-xl1 = -8.6e6
-xl2 = -0.8e6
-yl1 = xl1
-yl2 = xl2 
+  m = Basemap(projection='spstere',boundinglat=-55,lon_0=180,resolution='l')
+  parallels = np.arange(-80,-10,10.)
+  meridians = np.arange(-360,359.,45.)
+elif regn == 'north':
+  m = Basemap(projection='npstere',boundinglat=60,lon_0=-10,resolution='l')
+  parallels = np.arange(50, 90, 5)
+  meridians = np.arange(-360, 359., 45.)
 
 xh, yh = m(hlon,hlat) # GFS coords
 fig1 = plt.figure(1,figsize=(9,9))
@@ -186,10 +187,6 @@ img1 = ax1.pcolormesh(xh,yh,AA, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,sqerr, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,np.abs(AA-AI), cmap=clrmp, vmin=rmin, vmax=rmax)
 ax1.set_title(f'{expt}-{enmb:02d} init {init_date}/{init_hr:02d}, iconc, fcast day: {fday} \n{YR}/{MM:02d}/{DD:02d}')
-ax1.set_xlim([xl1, xl2]) 
-ax1.set_ylim([yl1, yl2]) 
-ax1.invert_yaxis()
-ax1.invert_xaxis()
 
 
 # Colorbars
@@ -198,7 +195,7 @@ clb = plt.colorbar(img1, cax=ax2, orientation='horizontal', extend='max')
 ax2.xaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
 ax2.set_xticklabels(ax2.get_xticks())
 ticklabs = clb.ax.get_xticklabels()
-clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=12)
+clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=14)
 clb.ax.tick_params(direction='in', length=12)
 
 
@@ -208,8 +205,7 @@ ax3 = fig1.add_axes([0.02, 0.03, 0.8, 0.06])
 ax3.text(0, 0, sinfo, fontsize=8)
 ax3.axis('off')
 
-
-btx = 'maps_iconc_GFS.py'
+btx = 'maps_iconc_datmUFS.py'
 bottom_text(btx, pos=[0.1,0.01], fsz=8)
 
 

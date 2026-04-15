@@ -17,6 +17,11 @@ cice_paths:
   pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice/cice6_global'
   pth_out: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice/cice6_global'
 
+mom6_paths:
+  pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ocean'
+  pth_out: ~
+  pth_grid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
+
 rest_names:
 # Input CICE6 restart file to be modified
 # Output restart file name - specify final restart filename
@@ -36,6 +41,12 @@ rest_names:
   flrst_in: "cice_restart.20240701.00.iconc_ithkn.hsnow.nc"
   flrst_out: ~
   flrst_tmp: "cice_restart.YYYYMMDD.HH"
+
+mom6_names:
+#  flmom_in: MOM6 restart file name, e.g.: 20240701.000000.MOM.res.nc
+# varnm_temp - Variable name in the MOM restart file
+  flrst_in: ~
+  varnm_temp: "Temp"
 
 grid_topo:
   pthgrid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'

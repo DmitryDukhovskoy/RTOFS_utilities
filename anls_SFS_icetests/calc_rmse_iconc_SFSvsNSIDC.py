@@ -21,6 +21,7 @@ import sys
 import importlib
 import matplotlib  
 import xarray
+import datetime
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
 import argparse
@@ -87,7 +88,10 @@ if end_date is None and ndays is None:
   raise RuntimeError("Both end_day and ndays are None, one of them has to be provided")
 
 # Error in NSIDC ice concentration fields:
-NSIDC_err = mtime.datenum_v2([[2024,7,12]], ref_day0=False)
+if regn == 'north':
+  NSIDC_err = mtime.datenum_v2([[2024,7,12]], ref_day0=False)
+else:
+  NSIDC_err = np.array([])
  
 # Dates:
 # Assumed init hour = 0
@@ -146,7 +150,7 @@ if regn == 'south':
 elif regn == 'north':
   RMsk = np.where(hlat < 50, 0, RMsk)
 
-def rmse2d(AA,AI):
+def rmse2d(AA, AI):
   """
     RMSE of 2d fields
   """
@@ -248,9 +252,50 @@ CLRS = mgfscice.sens_tests_colors()
 print("Plotting ...")
 
 XT = RECS - np.floor(RECS[0])
-xticks = np.arange(np.floor(XT[0]),np.ceil(XT[-1]+1))
+DV0 = mtime.datevec(RECS[0])
+yr0, mm0, dd0 = DV0[:3]
+ndays = np.floor(XT[-1] - XT[0])
+start_date = datetime.datetime(yr0, mm0, dd0)  
+end_date = start_date + datetime.timedelta(days=XT[-1])
+day0 = start_date
+xticks = []
+xtick_labels = []
+N = 40  # threshold
+
+if ndays < N:
+  # Daily ticks
+  day0 = start_date
+  while day0 <= end_date:
+    xt = (day0 - start_date).days
+    if 0 <= xt <= ndays:
+      xticks.append(xt)
+      xtick_labels.append(day0.strftime("%m/%d/%y"))
+    day0 += datetime.timedelta(days=1)
+else:
+  # Day 1 and 15 of the month
+  while day0 <= end_date:
+    # 1st of month
+    xt = (day0 - start_date).days
+    if 0 <= xt <= XT[-1]:
+      xticks.append(xt)
+      xtick_labels.append(day0.strftime("%m/%d/%y"))
+
+    # 15th of month
+    mid = day0.replace(day=15)
+    xt = (mid - start_date).days
+    if 0 <= xt <= XT[-1]:
+      xticks.append(xt)
+      xtick_labels.append(mid.strftime("%m/%d/%y"))
+
+    # next month
+    if day0.month == 12:
+      day0 = day0.replace(year=day0.year+1, month=1, day=1)
+    else:
+      day0 = day0.replace(month=day0.month+1, day=1)
+
+
 yticks = np.arange(0.,1.,0.05)
-sttl = f"RMSE btw iconc NSIDC and datmUFS expts, {regn}\n"
+sttl = f"RMSE btw iconc NSIDC and SFS GFS expts, {regn}\n"
 sttl = sttl + f"{YR}/{MMS:02d}/{DDS:02d}-{YR}/{MME:02d}/{DDE:02d}"
 
 plt.ion()
@@ -265,7 +310,7 @@ for iens in range(nexpts):
   clr0  = CLRS[iens,:]
   #line_lbl  = f"expt{enmb:02d}"
   line_lbl = mgfscice.sfs_tests_info(enmb)
-  ln1, = ax1.plot(XT,rmse0, 'o-', linewidth=2, color=clr0, label=line_lbl)
+  ln1, = ax1.plot(XT,rmse0, '.-', linewidth=2, color=clr0, label=line_lbl)
   LNS.append(ln1)
 
 if nprst > 0:
@@ -289,106 +334,18 @@ if nprst > 0:
   yl2 = np.max([yl2, ylP])
  
 ax1.set_yticks(yticks)
-ax1.set_xticks(xticks)
 ax1.set_ylim(yl1, yl2)
-ax1.set_xlim(0,xticks[-1])
+#ax1.set_xlim(XT[0], XT[-1])
+ax1.set_xticks(xticks)
+ax1.set_xticklabels(xtick_labels, rotation=60, ha='right')
 ax1.grid('on')
-ax1.set_xlabel('Forecast days')
+#ax1.set_xlabel('Forecast days')
 ax1.set_title(sttl)
 
-ax3 = plt.axes([0.1, 0.15, 0.6, 0.2])
-lgd = plt.legend(handles=LNS, loc='upper left')
+ax3 = plt.axes([0.08, 0.1, 0.6, 0.2])
+lgd = plt.legend(handles=LNS, loc='lower left')
 ax3.axis('off')
 
 btx = 'calc_rmse_iconc_SFSvsNSIDC.py'
-bottom_text(btx, pos=[0.1,0.1])
-
-f_chck = False
-if f_chck:
-  clrmp = mclrmps.colormap_conc()
-  rmin = 0.
-  rmax = 1.
-  clrmp.set_bad(color=[0.2, 0.2, 0.2])
-
-  clrmp_dlt = mclrmps.colormap_uv()
-  dmin = -1
-  dmax = 1
-  clrmp_dlt.set_bad(color=[0.2, 0.2, 0.2])
-
-  if regn == 'south':
-    m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
-  #lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
-  parallels = np.arange(-80,-10,10.)
-  meridians = np.arange(-360,359.,45.)
-  xl1 = -8.e6
-  xl2 = -1.2e6
-  yl1 = xl1
-  yl2 = xl2 
- 
-  xh, yh = m(hlon,hlat) # GFS coords
-  plt.clf()
-  ax1 = plt.axes([0.05, 0.55, 0.4, 0.4])
-  m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-  m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
-  img1 = ax1.pcolormesh(xh,yh,AA, cmap=clrmp, vmin=rmin, vmax=rmax)
-  #img1 = ax1.pcolormesh(xh,yh,sqerr, cmap=clrmp, vmin=rmin, vmax=rmax)
-  #img1 = ax1.pcolormesh(xh,yh,np.abs(AA-AI), cmap=clrmp, vmin=rmin, vmax=rmax)
-  ax1.set_title(f'UFS CICE iconc {YR}/{MM:02d}/{DD:02d}')
-  ax1.set_xlim([xl1, xl2]) 
-  ax1.set_ylim([yl1, yl2]) 
-  ax1.invert_yaxis()
-  ax1.invert_xaxis()
-
-  # Interpolated iconc
-  ax2 = plt.axes([0.55, 0.55, 0.4, 0.4])
-  m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-  m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
-  img2 = ax2.pcolormesh(xh, yh, AI, cmap=clrmp, vmin=rmin, vmax=rmax)
-  ax2.set_title('NSIDC iconc interp to mesh025')
-  ax2.set_xlim([xl1, xl2])      
-  ax2.set_ylim([yl1, yl2])      
-  ax2.invert_yaxis()
-  ax2.invert_xaxis()
-
-  ax21 = plt.axes([0.05, 0.1, 0.4, 0.4])
-  m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-  m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
-  ax21.pcolormesh(xh,yh,np.abs(AA-AI), cmap=clrmp, vmin=rmin, vmax=rmax)
-  ax21.set_title(f'|err| UFS CICE vs NSIDC {YR}/{MM:02d}/{DD:02d}')
-  ax21.set_xlim([xl1, xl2])      
-  ax21.set_ylim([yl1, yl2])      
-  ax21.invert_yaxis()
-  ax21.invert_xaxis()
-  
-  ax22 = plt.axes([0.55, 0.1, 0.4, 0.4])
-  m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-  m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
-  img2 = ax22.pcolormesh(xh,yh,(AA-AI), cmap=clrmp_dlt, vmin=dmin, vmax=dmax)
-  ax22.set_title(f'diff UFS CICE vs NSIDC {YR}/{MM:02d}/{DD:02d}')
-  ax22.set_xlim([xl1, xl2])      
-  ax22.set_ylim([yl1, yl2])      
-  ax22.invert_yaxis()
-  ax22.invert_xaxis()
-
-  
-  # Colorbars
-  ax3 = fig1.add_axes([0.05, 0.05, 0.4, 0.02])
-  clb = plt.colorbar(img, cax=ax3, orientation='horizontal', extend='max')
-  ax3.xaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
-  ax3.set_xticklabels(ax3.get_xticks())
-  ticklabs = clb.ax.get_xticklabels()
-  clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
-  clb.ax.tick_params(direction='in', length=12)
-
-  ax4 = fig1.add_axes([0.55, 0.05, 0.4, 0.02])
-  clb = plt.colorbar(img2, cax=ax4, orientation='horizontal', extend='max')
-  ax4.xaxis.set_ticks(list(np.linspace(dmin,dmax,11)))
-  ax4.set_xticklabels(ax4.get_xticks())
-  ticklabs = clb.ax.get_xticklabels()
-  clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
-  clb.ax.tick_params(direction='in', length=12)
-
-  bottom_text(btx, pos=[0.1,0.01])
-
-
+bottom_text(btx, pos=[0.1,0.05])
 

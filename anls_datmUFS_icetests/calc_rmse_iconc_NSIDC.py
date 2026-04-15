@@ -87,9 +87,10 @@ ENMBS = args.enmb if args.enmb else None
 PRST  = args.prst if args.prst else []
 plt_init = True  # show RMSE for init state if init. state file exists and saved by CICE6
 
+
 # Error in NSIDC ice concentration fields Northern h/sphere:
 if regn == 'north':
-  NSIDC_err = mtime.datenum_v2([[2025,7,27]], ref_day0=False)
+  NSIDC_err = mtime.datenum_v2([[2024,7,12],[2025,7,27]], ref_day0=False)
 else:
   NSIDC_err = None
   

@@ -197,19 +197,23 @@ TM = np.array(TM)
 XT = (TM - TM[0]) + 1    # lead time, days
 Xplt = XT-0.5            # dayly avrg
 xticks = np.arange(np.floor(XT[0]),np.ceil(XT[-1]+1))
-yticks = np.arange(0.,0.8,0.05)
+yticks = np.arange(0.,1,0.05)
 sttl = f"RMSE iconc NRT NSIDC and GFSv16, GFSv17 {init_date}, {regn}\n"
 
-clr16 = [0., 0.6, 1]
-clr17 = [0.9, 0.3, 0]
+#clr16 = [0., 0.6, 1]
+clr16 = [0., 0, 0]
+clr17 = [1, 0., 0]
 yl1 = 0
 if track_prst:
   yl2 = max([np.max(RMSE16), np.max(RMSE17), np.max(RMSEp17)]) * 1.3
 else:
   yl2 = max([np.max(RMSE16), np.max(RMSE17)]) * 1.3
 
-#yl2 = np.max([yl2,0.5])
-
+# To keep yl2 same for Arc/ S. Ocean:
+if yl2 > 0.5:
+  yl2 = 0.8
+else:
+  yl2 = 0.35
 
 plt.ion()
 fig1 = plt.figure(1,figsize=(9,9))

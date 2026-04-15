@@ -527,8 +527,8 @@ for ipp in range(npnts):
     tice_max = sice_new*0 + Tfrz - 0.01
     qice_lr = mc6util.ice_enthalpy_BL99(tice_max, sice_new)
     qice_old = qice[varnum][:,j0,i0]
-    qice_new = np.where(ain_old < puny, qice_lr, qice_old)
-    qice_new = np.where(ain_new < puny, 0., qice_new)
+    qice_new = np.where(ain_old < puny, qice_lr, qice_old)  # fill gaps
+    qice_new = np.where(ain_new < puny, 0., qice_new)       # no enth if no ice
 
     qicen_new[varnum][:,j0,i0] = qice_new
 

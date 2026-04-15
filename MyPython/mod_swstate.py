@@ -4,7 +4,12 @@
     The code is based on  Phil Morgan 1993, CSIRO
     Matlab version
 
-  Dmitry Dukhovskoy, NOAA NCEI 2022
+
+  2026: 
+  added Ocean Freezing T similar to MOM6
+  see: MOM6/src/equation_of_state/MOM_TFreeze.F90
+
+  Dmitry Dukhovskoy, NOAA NWS EMC
 """
 import numpy as np
 import sys
@@ -336,5 +341,44 @@ def sw_dens(S,T,P):
   rho   = rhoP0/(1.-P/K)
 
   return rho
+
+# Ocean freezing T:
+def freezing_temp_linear(Sal, pres):
+  """
+  Compute freezing point potential temperature of seawater.
+
+  Parameters:
+      S (float): Salinity [PSU]
+      pres (float): Pressure [Pa]
+
+  Returns:
+      float: Freezing temperature [degC]
+
+  From MOM6:
+!> This subroutine computes the freezing point potential temperature
+!! [degC] from salinity [ppt], and pressure [Pa] using the expression
+!! from Millero (1978) (and in appendix A of Gill 1982), but with the of the
+!! pressure dependence changed from 7.53e-8 to 7.75e-8 to make this an
+!! expression for potential temperature (not in situ temperature), using a
+!! value that is correct at the freezing point at 35 PSU and 5e6 Pa (500 dbar).
+
+  """
+  # Constants
+  cS1     = -0.0575        # A term in the freezing point fit [degC PSU-1]
+  cS3_2   = 1.710523e-3    # A term in the freezing point fit [degC PSU-3/2]
+  cS2     = -2.154996e-4   # A term in the freezing point fit [degC PSU-2]
+  dTFr_dp = -7.75e-8       # Derivative of freezing point with pressure [degC Pa-1]
+
+  # Convert to numpy arrays (handles scalar or array input)
+  Sal = np.asarray(Sal)
+  pres = np.asarray(pres)
+
+  # Ensure non-negative salinity inside sqrt
+  S_sqrt = np.sqrt(np.maximum(Sal, 0.0))
+
+  # Compute freezing temperature
+  Tfrz = Sal * (cS1 + (cS3_2 * S_sqrt + cS2 * Sal)) + dTFr_dp * pres
+
+  return Tfrz
 
 

@@ -35,6 +35,9 @@ def sens_tests_info(enmb):
   hs0 - original code without ice enth. and ice freeboard correction
   SNPHYS = thermo+ITDrdg+snphys 
 
+  experiments 40 - 42 - init 2024/07/01 using SFS initial conditions
+                        to compare with SFS runs
+
   """
   EXPTS = {
     "01" : "control",                         # control January 2025  
@@ -60,6 +63,9 @@ def sens_tests_info(enmb):
     "33" : "ai+hsU",
     "34" : "ai+hsU+hi",
     "35" : "ai+hi+hsU+SNPHYS",
+    "40" : "control",                  # July 1 2024 - similar to SFS runs
+    "41" : "ai",                       # similar to SFS ai
+    "42" : "ai+hi",                    # similar to SFS ai+hi
    }
 
   key = f"{enmb:02d}"    
@@ -80,7 +86,9 @@ def sfs_tests_info(enmb):
     ITDrdg - snow distribution, snow phys on
     smtrphs - snow metamorphysm is on
 
-    2024/07/01 -  1 year
+    branch - tried expt06 but In ufs.configure:   start_type = branch
+
+    2024/07/01 - for varying time period
 
 
   hsU - designates updated hsnow insertion code (see extp 11 in DATM UFS: ice freeboard + enthalpy)
@@ -90,12 +98,13 @@ def sfs_tests_info(enmb):
 
   """
   EXPTS = {
-    "01" : "control",                         # control January 2025  
+    "01" : "control",                          
     "02" : "ai",
     "03" : "ai+hi",
     "04" : "hsU",
     "05" : "ai+hi+hsU",
     "06" : "ai+hi+hsU+thermo+ITDrdg+snphys",
+    "07" : "all+branch",
    }
 
   key = f"{enmb:02d}"    
