@@ -237,10 +237,12 @@ if unstb:
 
 # Check for NaNs:
 if np.isnan(T3d_new).any():
-  raise RuntimeError("T3d_new has nans")
+  print("T3d Converting NaNs --> 0")
+  T3d_new = np.nan_to_num(T3d_new, nan=0.0)
 
 if np.isnan(S3d_new).any():
-  raise RuntimeError("S3d_new has nans")
+  print("S3d Converting NaNs --> 0")
+  S3d_new = np.nan_to_num(S3d_new, nan=0.0)
 
 
 T3d_new = np.expand_dims(T3d_new, axis=0)

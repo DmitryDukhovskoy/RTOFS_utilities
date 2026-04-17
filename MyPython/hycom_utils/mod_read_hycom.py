@@ -141,14 +141,14 @@ def read_topo(pthtopo,ftopo,IDM,JDM,dpth_neg=True):
 #       = else - leave as in the grid file
 #
 # read HYCOM grid and topo files *.[ab]
-  fltopoa = pthtopo+ftopo+'.a'
-  fltopob = pthtopo+ftopo+'.b'
+  fltopoa = os.path.join(pthtopo,f"{ftopo}.a")
+  fltopob = os.path.join(pthtopo,f"{ftopo}.b")
 
   IJDM = IDM*JDM
   npad =4096-IJDM%4096
 
-  print('Reading HYCOM topo {0} '.format(ftopo))
-  print('Grid: IDM={0}, JDM={1}'.format(IDM,JDM))
+  print(f'Reading HYCOM topo {fltopoa}')
+  print(f'Grid: IDM={IDM}, JDM={JDM}')
 
 # Read bottom topography:
 # Big endian float 32

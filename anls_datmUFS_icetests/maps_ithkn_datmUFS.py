@@ -1,5 +1,11 @@
 """
-  Plot snow depth for Arctic / S. Ocean
+  Plot ice thickness maps for Arctic / S. Ocean
+
+if enmb < 30:
+  init_date = 20250103
+else:
+  init_date = 20250704
+
 """
 import os
 import numpy as np
@@ -52,23 +58,22 @@ nsec0 = 0
 regn = 'south'
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-#parser.add_argument("--init", help=f"init date", choices=[20250714, 20250103], required=True, type=int)
+parser.add_argument("--regn", help=f"hemisphere: north or south", required=True, type=str)
+parser.add_argument("--init", help=f"init date", choices=[20250704, 20250103, 20240701], type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
-#parser.add_argument("--fhr", help=f"forecast hour to plot: 6, 12, ...,390, =0 - init. cond.", type=int, required=True)
+#parser.add_argument("--fhr", help=f"forecast hour to plot: 6, 12, ...,390, =0 - init. cond.", type=int)
 parser.add_argument("--fday", help=f"forecast day to plot: 0, 1, 2, ... , =0 - init. cond.", type=int, required=True)
-parser.add_argument("--enmb", help="experiment number: 1, 2, ...", type=int)
+parser.add_argument("--enmb", help="experiment number: 0, 1, 2, ...", type=int)
 args = parser.parse_args()
   
-enmb = args.enmb if args.enmb else None
-fday = args.fday
-regn = args.regn if args.regn else regn
-fhr  = fday * 24.
-
-if enmb < 30:
-  init_date = 20250103
-else:
-  init_date = 20250704
+enmb      = args.enmb if args.enmb else None
+init_date = args.init if args.init else None
+#init_hr   = args.ihr if args.ihr else init_hr
+#fhr       = args.fhr if args.fhr is not None else None
+    
+fday      = args.fday
+regn      = args.regn 
+fhr   = fday * 24.
 
 # Get date:
 plot_init = fday == 0  # initial conditions
@@ -131,13 +136,13 @@ if expt == 'gfs_fcast':
     flinp = "gfs.t06z.ic.nc"
   else:
     flinp = f"gfs.t06z.6hr_avg.f{fhr:03d}.nc"
-  varnm = 'hs_d'
+  varnm = 'hi_h'
 else:
   if plot_init:
     flinp = f"iceh_ic.{yr0}-{mm0:02d}-{dd0:02d}-{nsec0:05d}.nc"
   else:
     flinp = f"iceh.{yr0}-{mm0:02d}-{dd0:02d}.nc"
-  varnm = 'hs_d'
+  varnm = 'hi_d'
 
 dflice = os.path.join(pthoutp,flinp)
 
@@ -150,19 +155,23 @@ AA = np.where(HH >= 0, np.nan, AA)
 plt.ion()
 
 
-clrmp = mclrmps.colormap_temp()
+clrmp = mclrmps.colormap_ice_thkn()
 rmin = 0.
-rmax = 0.4
+rmax = 3.
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
-# Find high snow depth:
-JJ, II = np.where(AA > 1.)
+# Find high ice thickness:
+JJ, II = np.where(AA > 10.)
 
 if regn == 'south':
   m = Basemap(projection='spstere',boundinglat=-55,lon_0=180,resolution='l')
-#lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
-parallels = np.arange(-80,-10,10.)
-meridians = np.arange(-360,359.,45.)
+  parallels = np.arange(-80,-10,10.)
+  meridians = np.arange(-360,359.,45.)
+elif regn == 'north':
+  m = Basemap(projection='npstere',boundinglat=60,lon_0=-10,resolution='l')
+  parallels = np.arange(50, 90, 5)
+  meridians = np.arange(-360, 359., 45.)
+
 
 xh, yh = m(hlon,hlat) # GFS coords
 fig1 = plt.figure(1,figsize=(9,9))
@@ -174,7 +183,7 @@ img1 = ax1.pcolormesh(xh,yh,AA, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,sqerr, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,np.abs(AA-AI), cmap=clrmp, vmin=rmin, vmax=rmax)
 hmax = np.nanmax(AA)
-ax1.set_title(f'{expt}-{enmb:02d} init {init_date}/{init_hr:02d}, hsnow, fcast day: {fday}  max h={hmax:.2f}\n{YR}/{MM:02d}/{DD:02d}')
+ax1.set_title(f'{expt}-{enmb:02d} init {init_date}/{init_hr:02d}, ithkn, fcast day: {fday}  max h={hmax:.2f}\n{YR}/{MM:02d}/{DD:02d}')
 
 plt_hmax = False
 if plt_hmax and len(JJ)>0:
@@ -198,7 +207,7 @@ ax3.text(0, 0, sinfo, fontsize=8)
 ax3.axis('off')
 
 
-btx = 'maps_hsnow_GFS.py'
+btx = 'maps_ithkn_datmUFS.py'
 bottom_text(btx, pos=[0.1,0.01], fsz=8)
 
 

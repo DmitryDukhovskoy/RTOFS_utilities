@@ -86,7 +86,7 @@ def sfs_tests_info(enmb):
     ITDrdg - snow distribution, snow phys on
     smtrphs - snow metamorphysm is on
 
-    branch - tried expt06 but In ufs.configure:   start_type = branch
+    Tfrz - updated SST in MOM6 = Tfrz * aice 
 
     2024/07/01 - for varying time period
 
@@ -104,7 +104,7 @@ def sfs_tests_info(enmb):
     "04" : "hsU",
     "05" : "ai+hi+hsU",
     "06" : "ai+hi+hsU+thermo+ITDrdg+snphys",
-    "07" : "all+branch",
+    "11" : "ai+Tfrz",
    }
 
   key = f"{enmb:02d}"    

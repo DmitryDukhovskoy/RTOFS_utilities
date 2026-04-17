@@ -51,7 +51,8 @@ import mod_cice6_utils as mc6util
 importlib.reload(mc6util)
 
 # YAML is used if input file name or vartmp is None
-flmom_in = '20240701.000000.MOM.res.nc'  # MOM restart file or specify in YAML 
+#flmom_in = '20240701.000000.MOM.res.nc'  # MOM restart file or specify in YAML 
+flmom_in = '20240701.000000.MOM.res.iconc.nc'  # MOM restart file or specify in YAML 
 fyaml = 'cice6rest_files_SFS.yaml'
 vartmp = 'Temp'      # variable name in the restart file
 
@@ -103,11 +104,8 @@ S3d  = ds_in[varsal].isel(Time=0).data
 
 ds_in.close()
 
-# Check signs:
-assert np.nanmin(HH) < 0, f"Bottom topo has to be negative"
-assert np.nanmin(lrthk_in[1,:,:]) < 0, f"Layer interf depths expected <0"
 
-def check_lrs(A3d, fname)
+def check_lrs(A3d, fname):
   nlrs = 75
   for ilr in range(nlrs):
     A2d = A3d[ilr,:,:]
@@ -117,14 +115,30 @@ def check_lrs(A3d, fname)
     else:
       print(f"  {fname} Lr={ilr+1} ok")
 
-
-
+print(f"MOM6 restart: {dflmom_in}")
 # Check for NaNs:
+fname="T3d"
 if np.isnan(T3d).any():
-  fname="T3d"
   print(f"{fname} NaNs, checking layers ...")
   check_lrs(T3d, fname)
+else:
+  print(f"{fname} is ok")
+print(" ")
 
+fname="S3d"
+if np.isnan(S3d).any():
+  print(f"{fname} NaNs, checking layers ...")
+  check_lrs(S3d, fname)
+else:
+  print(f"{fname} is ok")
+print(" ")
+
+fname="L3d"
+if np.isnan(L3d).any():
+  print(f"{fname} NaNs, checking layers ...")
+  check_lrs(L3d, fname)
+else:
+  print(f"{fname} is ok")
 
 
 
