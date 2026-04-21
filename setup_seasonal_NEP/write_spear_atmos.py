@@ -26,40 +26,37 @@ import subprocess
 import xarray
 import argparse
 from yaml import safe_load
+import shutil
 
 from utils import pad_ds, write_ds
 
 # To run this code cdo is required
-#subprocess.run(['module load cdo'], shell=True)
-try:
-  subprocess.run(["which cdo"], shell=True, check=True, capture_output=True) 
-except subprocess.CalledProcessError as err:
-  print("Need to load module cdo prior to python session")
-  print(err)
-  raise Exception("cdo module is missing")
-
+if shutil.which("cdo") is None:
+    raise RuntimeError("Need to load module cdo prior to python session")
 
 # Specify year, month, ensembles to 
 # generate atm fields from SPEAR 
 parser = argparse.ArgumentParser()
 parser.add_argument("--yrs", help="Year to begin data extraction: 1993,...,2024", type=int, required=True)
 parser.add_argument("--yre", help="Year to end data extraction, default=yrs", type=int)
-parser.add_argument("--mms", help="1st month in each year to extract, default=1", type=int)
-parser.add_argument("--mme", help="Last month in each year to extract, default=10", type=int)
-parser.add_argument("--ensS", help="1st SPEAR ens. to extract: 1,...,10", type=int, required=True)
-parser.add_argument("--ensE", help="Last SPEAR ens. to extract, default=ensS", type=int)
+parser.add_argument("--mm", help="init months to extract, list: 1 7 ...",
+                    type=int,
+                    nargs="+",
+                    required=True)
+parser.add_argument("--ensmb", help="List of ens.runs to extract, e.g.: 1 7 12",
+                    type=int,
+                    nargs="+",
+                    required=True)
 args = parser.parse_args()
 
-yr1  = args.yrs if args.yrs else None
-yr2  = args.yre if args.yre else yr1
-mms  = args.mms if args.mms else 1
-mme  = args.mme if args.mme else 10
-ensS = args.ensS if args.ensS else None
-ensE = args.ensE if args.ensE else ensS
-dltM = 3    # time interval between the initializations, months
+yr1 = args.yrs
+yr2 = args.yre if args.yre is not None else yr1
+MM = args.mm
+ensmb = args.ensmb
 
-MM      = [x for x in range(mms,mme+1,dltM)]
-ensmb   = [x for x in range(ensS,ensE+1)]
+assert all(1 <= m <= 12 for m in MM), "Months should be between 1 and 12"
+
+
 fconfig = 'config_nep.yaml'
 
 print(f"Creating SPEAR atmos fields for NEP, {yr1}-{yr2}")

@@ -244,6 +244,11 @@ if plot_fields:
       LAT  = ds_piomas['lat_scaler'].data
       LON  = ds_piomas['lon_scaler'].data
 
+    # Arctic reagion:
+    #m = Basemap(projection='npstere',boundinglat=60,lon_0=-10,resolution='l')
+    #parallels = np.arange(50, 90, 5)
+    #meridians = np.arange(-360, 359., 45.)
+
     xRp, yRp = m(LON, LAT)
     if piomas_vers == 'reconstr':
       A2dP = msisrlx.read_PIOMAS(YR0, MM0, dfpiomas, varnm)

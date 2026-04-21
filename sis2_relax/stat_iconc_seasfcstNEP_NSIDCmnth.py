@@ -35,6 +35,9 @@ import mod_anls_seas as manseas
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
+#expt  = "seasonal_daily" # seasonal_daiy for PHYS f/cast, or NEP_BGC_seas
+expt  = "NEP_BGC_seas"
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--YRS", help="start year for averaging NEP seas f/cast: 1993, ..., 2020", type=int)
 parser.add_argument("--YRE", help="end year for averaging NEP seas. f/cast: 1993, ..., 2020", type=int)
@@ -48,7 +51,7 @@ YRE = 2020
 MMI = 1     # init month
 ifld = 'siconc' # partial area only
 ens_nmb = 1  # SPEAR ensemble #
-expt_nmb = 2 # f/cast experiment group number 
+expt_nmb = 2 # f/cast experiment group number only for PHYS f/casts 
 
 if args.YRS:
   YRS = args.YRS
@@ -67,7 +70,6 @@ with open(fyaml) as ff:
 
 dirspear = pthseas['ALL']['dirspear_anls']
 
-expt     = "seasonal_daily"
 pthtopo    = pthseas['MOM6_NEP'][expt]['pthgrid']
 fgrid      = pthseas['MOM6_NEP'][expt]['fgrid']
 ftopo_mom  = pthseas["MOM6_NEP"][expt]["ftopo"]
@@ -85,20 +87,49 @@ pthoutp = pthseas['MOM6_NEP'][expt]['pthoutp'].format(expt_nmb=expt_nmb)
 DX, DY = mmom6.dx_dy(hlon, hlat)
 Acell  = DX*DY*1.e-6  # km2
 
+# Bering Sea - Chukchi Sea :
+hsh = -5000.
+LMsk = np.where((HH>=hsh) & (HH<0), 1, 0)
 # Mask out southern lats:
-LMsk = np.where(hlat<53.,0,LMsk)
+LMsk = np.where(hlat<55.,0,LMsk)
 LMsk[:567,:] = 0
 LMsk[:,:39] = 0
 LMsk[:595,177:] = 0
-# Mask for Bering Sea + Ber. Str. + S. Chukchi Shelf
+LMsk[:579,:129] = 0
+LMsk[:575,:143] = 0
+#LMsk[748:,:143] = 0
+
+# Remove near-boundary points:
+LMsk[810:,:] = 0
+LMsk[:,338:] = 0
+
+# 
+# Mask for Bering Sea
+# Bounded by the Bering Strait 
 BMsk = LMsk.copy()
-BMsk[750:,189:] = 0
-BMsk[:750,239:] = 0
+BMsk = np.where(hlat>66,0,BMsk)
 JB,IB = np.where(BMsk==1)
 # Mask for the Arctic Oc. part of the domain:
+# Ber. Str. + S. Chukchi Shelf
 AMsk = LMsk.copy()
 AMsk = np.where(BMsk==1, 0, AMsk)
+AMsk[:,:192] = 0
 JA,IA = np.where(AMsk==1)
+
+# Mask out southern lats:
+#LMsk = np.where(hlat<53.,0,LMsk)
+#LMsk[:567,:] = 0
+#LMsk[:,:39] = 0
+#LMsk[:595,177:] = 0
+# Mask for Bering Sea + Ber. Str. + S. Chukchi Shelf
+#BMsk = LMsk.copy()
+#BMsk[750:,189:] = 0
+#BMsk[:750,239:] = 0
+#JB,IB = np.where(BMsk==1)
+# Mask for the Arctic Oc. part of the domain:
+#AMsk = LMsk.copy()
+#AMsk = np.where(BMsk==1, 0, AMsk)
+#JA,IA = np.where(AMsk==1)
 
 #mcal = np.arange(mmi,mmi+12)
 #mcal = np.where(mcal>12, mcal-12, mcal)
@@ -242,14 +273,14 @@ I2dNA_pl = np.percentile(I2dNA, 10, axis=0)
 
 plt.ion()
 def plot_rmse_bias(fgnmb,time_yrs, rmse, rmse_md,rmse_pu,rmse_pl,\
-                   bias, bias_md, bias_pu, bias_pl,clr1,clr2,regn):
+                   bias, bias_md, bias_pu, bias_pl, clr1, clr2, regn, expt):
   fig1 = plt.figure(fgnmb,figsize=(9,8))
   plt.clf()
   # Time series RMSE
   time_yrs = DV[:,0]+(DV[:,1]-1)/12
   ax1 = plt.axes([0.06, 0.56, 0.4, 0.38])
   ax1.plot(time_yrs,rmse, '-', linewidth=2, color=clr1)
-  sttl = f'NEP f/cast MMI={MMI} e{ens_nmb:02d} vs NSIDC RMSE Ice Area \n {regn} {YRS}-{YRE}'
+  sttl = f'NEP f/cast {expt} MMI={MMI} e{ens_nmb:02d} vs NSIDC\n RMSE Ice Area {regn} {YRS}-{YRE}'
   ax1.set_title(sttl)
 
   # Monthly RMSE
@@ -282,7 +313,7 @@ def plot_rmse_bias(fgnmb,time_yrs, rmse, rmse_md,rmse_pu,rmse_pl,\
   ax4.set_xlabel('Months')
 
 
-  btx = 'stat_iconc_seafcstNEP_NSIDCmnth.py'
+  btx = 'stat_iconc_seasfcstNEP_NSIDCmnth.py'
   bottom_text(btx, pos=[0.02,0.01])
 
   return fig1, ax1, ax2, ax3, ax4
@@ -299,11 +330,11 @@ time_mnth = np.arange(1,13)
 fgnmb=1
 time_yrs = DV[:,0]+(DV[:,1]-1)/12
 fig1,ax11,ax12,ax13,ax14 = plot_rmse_bias(fgnmb,time_yrs,RMSE_Ber,R2dB_md,R2dB_pu,R2dB_pl,\
-               BIAS_Ber,B2dB_md,B2dB_pu,B2dB_pl,clr_ber,clr2_ber,"Bering Sea")
+               BIAS_Ber,B2dB_md,B2dB_pu,B2dB_pl,clr_ber,clr2_ber,"BerSea", expt)
 
 # RMSE and bias for Arct.
 fig3,ax31,ax32,ax33,ax34 = plot_rmse_bias(3,time_yrs,RMSE_Arc,R2dA_md,R2dA_pu,R2dA_pl,\
-               BIAS_Arc,B2dA_md,B2dA_pu,B2dA_pl,clr_arc,clr2_arc,"Arctic Ocean")
+               BIAS_Arc,B2dA_md,B2dA_pu,B2dA_pl,clr_arc,clr2_arc,"ArctOc", expt)
 
 # Time Ser. of ice area:
 # Ber. Sea

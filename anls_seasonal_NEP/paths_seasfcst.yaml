@@ -121,10 +121,20 @@ MOM6_NEP:
     year_start: 1993
     month_start: 4
     day_start: 1
+  "NEP_BGC_seas":
+    pthrun:  ' '
+    pthoutp_old: '/archive/e1n/fre/cefi/NEP/2024_07/NEP_cefi_bgc_072024/gfdl.ncrc5-intel22-prod/pp/ocean_monthly_z/ts/monthly/27yr/'
+    pthoutp: '/archive/Dmitry.Dukhovskoy/fre/NEP/forecast_bgc/NEPbgc_fcst_dailyOB01'
+    pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
+    ftopo:   'topog.nc'
+    fgrid:   'ocean_hgrid.nc'
+    ndav:    30
+    pthdump: '/work/Dmitry.Dukhovskoy/data/mom6_nep_tmp'
 MOM6_NEP_GFDL:
   "NEP_BGC_seas":
     pthrun:  ' '
-    pthoutp: '/archive/e1n/fre/cefi/NEP/2024_07/NEP_cefi_bgc_072024/gfdl.ncrc5-intel22-prod/pp/ocean_monthly_z/ts/monthly/27yr/'
+    pthoutp_old: '/archive/e1n/fre/cefi/NEP/2024_07/NEP_cefi_bgc_072024/gfdl.ncrc5-intel22-prod/pp/ocean_monthly_z/ts/monthly/27yr/'
+    pthoutp: '/archive/Dmitry.Dukhovskoy/fre/NEP/forecast_bgc/NEPbgc_fcst_dailyOB01'
     pthgrid: '/work/Dmitry.Dukhovskoy/NEP_input/topo_grid/'
     ftopo:   'topog.nc'
     fgrid:   'ocean_hgrid.nc'
