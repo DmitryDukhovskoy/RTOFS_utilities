@@ -773,19 +773,20 @@ def dx_dy(LON,LAT):
 
   return DX, DY
  
-
-def find_indx_lonlat(x0,y0,LON,LAT):
+def find_indx_lonlat(x0, y0, LON, LAT):
   """
   Find closest grid point to lon/lat coordinate
   x0, y0 - geographic coordinates
+  Quick and dirty - be aware, 
+  can be inaccurate especially near the poles and long discontinuity
   """
-  if x0 > 180.:
-    x0 = x0-360.
-
+  x0 = (x0 + 360) % 360.
+  LON = (LON + 360) % 360.
   dmm = np.sqrt((LON-x0)**2+(LAT-y0)**2)
-  jj0, ii0 = np.where(dmm == np.min(dmm))
 
-  return ii0[0], jj0[0]
+  jj0, ii0 = np.unravel_index(np.argmin(dmm), dmm.shape)
+
+  return ii0, jj0
   
 
 def read_targ_dens(finb, ss, sep, ifld, kki=-1, prntTD=True):

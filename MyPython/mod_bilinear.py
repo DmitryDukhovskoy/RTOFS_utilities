@@ -1,7 +1,6 @@
 """
   Functions/subroutines for bilinear interpolation
-  Dmitry Dukhovskoy NOAA NESDIS NCEI 
-  June 2022
+  Dmitry Dukhovskoy NOAA NWS OMD
 """
 import numpy as np
 
@@ -37,6 +36,8 @@ def basisFn_RectRef():
 
 def sort_gridcell_indx(II, JJ, fsens='positive'):
   """
+    Alternative: mmisc.reorder_polygon(xv, yv, indx=False)
+
     In case when rectangular indices are in random order
     need to put them in c/clckwize (positive) or clockwize (negative)
     order
@@ -330,6 +331,25 @@ def shift_longitudes(lons, ref_lon=360):
     # Shift so that longitudes are within +/-180° of ref_lon
     lons = (lons - ref_lon + 180.0) % 360.0 - 180.0 + ref_lon
   return lons
+
+def check_convex(X, Y):
+  """
+    Check if a quadrilateral is convex:
+    no "batterfly" (self-intersecting)
+    no concave quad
+    Important for bilenear interpolation
+  """
+  cross = []
+  for ii in range(len(X)):
+    dx1 = X[(ii+1)%4] - X[ii]
+    dy1 = Y[(ii+1)%4] - Y[ii]
+    dx2 = X[(ii+2)%4] - X[(ii+1)%4]
+    dy2 = Y[(ii+2)%4] - Y[(ii+1)%4]
+    cross.append(dx1*dy2 - dy1*dx2)
+
+  convex =  np.all(np.array(cross) > 0) or np.all(np.array(cross) < 0)
+
+  return convex
 
 def lonlat2xy_wrtX0(XX, YY, x0, y0):
   """

@@ -19,7 +19,9 @@ import mod_misc1 as mmisc1
 import mod_bilinear as mblnr
 
 def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
-                      ignore_north_lim=False, use_close_indx=False):
+                      ignore_north_lim=False, 
+                      wrap_long=False,
+                      use_close_indx=False):
   """
     Given pnt (x0,y0) find 4 grid points enclosing the pnt
     on a grid XX, YY - coordinates
@@ -58,9 +60,17 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
            grid points of the original grid
            This works for Polar stereogr. projection by grabbing points over the N. Pole 
            For other projections - this will likely not work
+
+    wrap_long - True:
+          when at the East/West bndry, search box vertices around the globe
+          i.e. +/- 360 assuming grlobal grid, e.g. pnt at i=0 (0. deg) is connected to i=idm-1 (359.5 deg)
+
   """
-  #import mod_misc1 as mmisc1
-  #import mod_bilinear as mblnr
+  #import time
+  #tt0 = time.perf_counter()
+  import mod_misc1 as mmisc1
+  import mod_bilinear as mblnr
+
 
 # Need 2D arrays for LON, LAT
 # if 1D array - Mercator grid is assumed
@@ -74,29 +84,37 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   mm,nn = LAT.shape
 
   # dhstep should be > max grid spacing in latitudes:
-  dlat_j = np.abs(np.diff(LAT, axis=0))  # north–south
-  dlat_i = np.abs(np.diff(LAT, axis=1))  # east–west
-  max_dlat = max(np.nanmax(dlat_j), np.nanmax(dlat_i))
+  max_dlat = max(
+    np.nanmax(np.abs(np.diff(LAT, axis=0))),
+    np.nanmax(np.abs(np.diff(LAT, axis=1)))
+  )
   #print(max_dlat)
 
   assert dhstep > max_dlat, f"increase dhstep={dhstep} to be >= (lat grid dlt={max_dlat:.4f})"
 
   # Normalize x0
   x0 = (x0 + 360) % 360
+  #tt1 = time.perf_counter()
+  #print(f" dT1 = {tt1-tt0} sec")
 
   # Normalize LON0
-  #LON = np.where(LON0 < 0., LON0 + 360., LON0)
-  #assert np.min(LON) >= 0.
-  #assert np.max(LON) < 360.
-
   # Special treatment near discontinuities
   # Avoid +/- 180 and 0/360 discontinuites by shifting lon grid:
-  LON = mblnr.shift_longitudes(LON0, ref_lon=x0)
+  if y0 < 90 - 2*max_dlat:
+    LON = (LON0 + 360) % 360
+  else:
+    LON = mblnr.shift_longitudes(LON0, ref_lon=x0)  # expensive to run
+
+  #tt2 = time.perf_counter()
+  #print(f" dT2 = {tt2-tt1} sec")
 
   # Latitude range check - global min lat
-  assert np.nanmin(LAT) <= y0, f"check lat y0={y0:.4f} < min(LAT) {np.nanmin(LAT):.4f}"
+  lat_min = np.nanmin(LAT)
+  lat_max = np.nanmax(LAT)
+
+  assert lat_min <= y0, f"check lat y0={y0:.4f} < min(LAT) {np.nanmin(LAT):.4f}"
   if not ignore_north_lim:
-    assert np.nanmax(LAT) >= y0, f"check lat y0={y0:.4f} > max(LAT) {np.nanmax(LAT):.4f}"
+    assert lat_max >= y0, f"check lat y0={y0:.4f} > max(LAT) {np.nanmax(LAT):.4f}"
 
   # Check local min lat:
   # For curvilinear grids a point can be > global min(LAT) but still outside the domain
@@ -104,16 +122,45 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   dx = 2 * dhstep
   xl1 = x0 - dx
   xl2 = x0 + dx
-  JL, IL = np.where( (LON > xl1) & (LON < xl2) )
-  assert JL.size > 0,  f"Local min lat: No pnts found in long: {xl1:.4f}/{xl2:.4f}, pnt x0/y0: {x0:.4f}/{y0:.4f}"
-    
-  if y0 < np.min(LAT[JL,IL]):
+  lon_mask = (LON > xl1)
+  lon_mask &= (LON < xl2)
+  if not lon_mask.any():
+    raise AssertionError(f"Local min lat: No pnts found in long: {xl1:.4f}/{xl2:.4f}, pnt x0/y0: {x0:.4f}/{y0:.4f}")
+   
+  local_min = np.min(LAT[lon_mask]) 
+  if y0 < local_min:
     print(f'pnt x0/y0: {x0:.3f}/{y0:.3f} outside: local min lat={np.min(LAT[JL,IL]):.4f} skipping ...')
     return [],[]
 
   # Subsample
   dy = dhstep
-  JJ, II = np.where((LAT > y0 - dy) & (LAT < y0 + dy))
+
+  # Away from Pole, limit Long. for quicker search
+  if y0 < (90 - 2*max_dlat):
+    # Wrapped longitude distance
+    # Works for [0,360] !!!
+    dlon = np.abs(LON - x0)
+    dlon = np.minimum(dlon, 360.0 - dlon)  # this gives 1 - 359 = 2 not 358
+    NPmask = (LAT > y0 - dy)
+    NPmask &= (LAT < y0 + dy)
+    NPmask &= (dlon < dx)
+  else:
+    # Keep all long. around N. Pole for wrapping over the N. Pole
+    NPmask = (LAT > y0 - dy)
+    NPmask &= (LAT < y0 + dy)
+
+  JJ, II = np.where(NPmask)
+  min_npnts = 8      # smaller N points - higher risk to not hav 4 pnts to include x0, y0
+                     # near boundaries of tripolar grids
+                     # too high N - slower code
+  if len(JJ) < min_npnts:
+    print(f"ERR: Subsampling the region around x0={x0}, y0={y0} failed")
+    print(f"ERR: Only {len(JJ)} grid points are in ths subset")
+    print(f"ERR: Try increasing dhstep={dhstep}")
+    raise RuntimeError("Subsample region around x0,y0 failed: Not enough points")
+
+  #tt3 = time.perf_counter()
+  #print(f" dT3 = {tt3-tt2} sec")
 
   def find_closest_point(y0, x0, LON, LAT, JJ, II, Np=5):
     XX = LON[JJ, II]
@@ -136,7 +183,6 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
     """
     XX = LON[JJ, II]
     YY = LAT[JJ, II]
-
     DD = mmisc1.dist_sphcrd(y0, x0, YY, XX)
     idx = np.argsort(DD)[:N]
 
@@ -146,20 +192,43 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   # Try finding N closest points and enclosing grid boxes for each of these
   # until find the right one
   # But better - find closest grid centroid not vertices
-  JVX, IVX, _ = find_n_closest_points(y0, x0, LON, LAT, JJ, II, N=5)
+  JVX, IVX, _ = find_n_closest_points(y0, x0, LON, LAT, JJ, II, N=min_npnts)
+
   jv1, iv1 = JVX[0], IVX[0]  # keep this in case the find_box approach fails
   xv1 = LON[jv1,iv1]
   yv1 = LAT[jv1,iv1]
 
+  #tt4 = time.perf_counter()
+  #print(f" dT4 = {tt4-tt3} sec")
+
   INp = False
   for jv, iv in zip(JVX, IVX):
     # skip boundaries
-    if iv == 0 or jv == 0 or iv == nn-1 or jv == mm-1:
-      print(f'WARN: pnt x0/y0: {x0:.3f}/{y0:.3f} outside or near the boundary: i/j={iv1}/{jv1}, skipping ...')
-      return [],[] # <--- the point is skipped, not ideal when at ~90N, modify LAT by adding extra row at 89.999
+    if jv == 0:
+      print(f'WARN: pnt x0/y0: {x0:.3f}/{y0:.3f} at the S boundary: i/j={iv1}/{jv1}, skipping ...')
+      return [],[] 
+
+    if jv == mm-1:
+      if not ignore_north_lim:
+        print(f'WARN: pnt x0/y0: {x0:.3f}/{y0:.3f} at N boundary: i/j={iv1}/{jv1}, skipping ...')
+        return [],[] 
+      else:
+        # For grid with Merc. porjections, i.e. where N. Polar region
+        # is split in halves and point on one side can be continued
+        # to the other side over the N Boundary, take 4 closest pnts:
+        ixx = IVX[:4]
+        jxx = JVX[:4]    
+        return ixx, jxx
+
+    if not wrap_long and (iv == 0 or iv == nn-1):
+      print(f'WARN: pnt x0/y0: {x0:.3f}/{y0:.3f} outside or near the E/W boundary: i/j={iv1}/{jv1}, skipping ...')
+      return [],[] 
 
     if not INp:
-      IV,JV,INp = find_box_include([x0,y0], [iv,jv], LON, LAT, eps_tol=1.e-8)
+      IV, JV, INp = find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1.e-8)
+
+    if not INp:
+      IV, JV, INp = find_box_include([x0,y0], [iv,jv], LON, LAT, eps_tol=1.e-8)
 
     if INp:
       #print("Found")
@@ -169,6 +238,8 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
       return ixx, jxx
 
   # If nothing worked, try another approach
+  # The following code is probably not needed:
+  print(" --> Find_box methods failed, trying point search")
 
   # First guess for xv2: 
   # Find where the point lies wrt to the closest pnt:
@@ -410,20 +481,17 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
         else:
           raise Exception(f"adjusting vx2: too many steps {icc}")
 
-# Vertx 4: best guess use vertex 2 and vertex 3:
+  # Vertx 4: best guess use vertex 2 and vertex 3:
   iv4 = iv2
   jv4 = jv3
 
-# Construct a box enclosing the point x0, y0 and check: 
+  # Construct a box enclosing the point x0, y0 and check: 
   IV = [iv1, iv2, iv4, iv3]
   JV = [jv1, jv2, jv4, jv3]
-#  IV, JV = mblnr.sort_gridcell_indx(IV, JV)
-#  IV0 = IV.astype(int)
-#  JV0 = JV.astype(int)
   IV0 = IV.copy()
   JV0 = JV.copy()
 
-# Convert box vertices into Cartesian coord wrt a reference pnt 
+  # Convert box vertices into Cartesian coord wrt a reference pnt 
   XX  = LON[JV,IV]
   YY  = LAT[JV,IV]
   XXc, YYc = mmisc1.polygon_centroid(XX, YY) 
@@ -439,7 +507,7 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   if F_bndry:
     if not INp:
       print(f"WARNING: x0={x0:6.2f} y0={y0:6.2f} on " +\
-            f"bndry of outerdomain, cannot enclose")
+            f"bndry or out of the domain, cannot enclose")
     ixx = np.array(IV).astype(int)
     jxx = np.array(JV).astype(int)
     return ixx, jxx
@@ -557,7 +625,51 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   
   return ixx, jxx
 
-def find_box_include(XY0,IJ1,LON,LAT, eps_tol=1.e-8):
+
+def find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1e-8):
+  """
+   Try combinations of N selected closest points in IVX, JVX to find
+   a box that includes x0, y0
+  """
+  from itertools import combinations
+  import mod_misc1 as mmisc1
+
+  AL=list(combinations(range(len(IVX)), 4))
+  for cp in AL:
+    IV = IVX[list(cp)]
+    JV = JVX[list(cp)]
+    XX = LON[JV, IV]
+    YY = LAT[JV, IV]
+
+    # center longitude around target to avoid discont. over the fold
+    XX = mblnr.shift_longitudes(XX, ref_lon=x0)
+
+    # reject degenerate
+    area = mmisc1.polygon_area(XX, YY)
+    if abs(area) < 1e-12:
+      continue
+
+    # local projection 
+    XXc, YYc = XX.mean(), YY.mean()
+    transf = mblnr.make_lonlat2xy_transformer(XXc, YYc)
+    XV, YV = transf.transform(XX, YY)
+    x0c, y0c = transf.transform(x0, y0)
+    XV, YV, IDX = mmisc1.reorder_polygon(XV, YV, indx=True)
+
+    # reject self-intersecting quads
+    if not mblnr.check_convex(XV, YV):
+      continue
+
+    # inclusion test
+    if point_on_edge(x0c, y0c, XV, YV, tol=eps_tol):
+      return IV[IDX], JV[IDX], True
+
+    if mmisc1.inpolygon_1pnt(x0c, y0c, XV, YV, eps0=eps_tol):
+      return IV[IDX], JV[IDX], True
+
+  return [], [], False
+
+def find_box_include(XY0, IJ1, LON, LAT, eps_tol=1.e-8):
   """
     Find a grid cell that encloses a pnt XY0
     given the first nearst vertex 

@@ -2,6 +2,7 @@
   1d interpolation algorithms global and picewise 
 
   Dmitry Dukhovskoy, NOAA NCEP EMC
+                     NOAA NWS OMD
 """
 import numpy as np
 import sys
@@ -129,6 +130,63 @@ def lagr_polynom1D(Xp,Yp,xx):
 
   return Pn
 
+def bary_weights(Xp):
+  """
+    Precompute barycentr weights once and then 
+    use for multiple calls of 
+    barycentr_lagr_polynom
+    for efficiency
+  """
+  Np = len(Xp)
+  w = np.ones(Np)
+  for j in range(Np):
+    for k in range(Np):
+      if j != k:
+        w[j] /= (Xp[j] - Xp[k])
+  return w
+
+def barycentr_lagr_polynom(Xp, Yp, xx, wt=None):
+  """
+    More stable, lower complexity
+    Xp - 1D array of node coordinates Xp(Np)
+    Yp - 2D values at Xp at different depths, or time instances
+         Yp(Np,Nz)
+    xx - node where to find values
+
+   wt - barycentr weights precomputed, or not
+  """
+  Xp = np.asarray(Xp)
+  Yp = np.asarray(Yp)
+  Np = Xp.size
+
+  # Ensure shape (Np, Nz)
+  if Yp.shape[0] != Np:
+      Yp = Yp.T
+
+  # Precompute weights
+  if wt is None:
+    wt = np.ones(Np)
+    for jj in range(Np):
+      for kk in range(Np):
+        if jj != kk:
+          wt[jj] /= (Xp[jj] - Xp[kk])
+
+  # Interpolating polynomial:
+  # Pn(x) = f(x) at the nodes
+  dltX = xx - Xp
+
+  # Exact node match
+  mask = (dltX == 0)
+  if np.any(mask):
+    return Yp[mask, :][0]
+
+  tmp = wt / dltX
+
+  num = np.dot(tmp, Yp)   # (Nz,)
+  denom = np.sum(tmp)
+  Pn = num / denom
+
+  return Pn
 
 def pcws_lagr1(Xp,Yp,xx):
   """

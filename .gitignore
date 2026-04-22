@@ -38,6 +38,7 @@ README.*
 *.py*bkp
 **/bkp/*
 .*.swp
+.*
 
 # Somebody else's codes #
 #########################

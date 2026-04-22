@@ -50,17 +50,20 @@ def inpolygon_v2(X,Y,Xv,Yv):
 
   return MSK, IP, JP
 
-def reorder_polygon(xv, yv):
+def reorder_polygon(xv, yv, indx=False):
   """
     Order vertices of the polygon so that 
-    they do not zig-zag
+    they do not zig-zag: self-intersect sides (butterfly)
   """
   cx = np.mean(xv)
   cy = np.mean(yv)
   angles = np.arctan2(yv - cy, xv - cx)
   idx = np.argsort(angles)
 
-  return xv[idx], yv[idx]
+  if indx:
+    return xv[idx], yv[idx], idx
+  else:
+    return xv[idx], yv[idx]
 
 def polygon_centroid(XV,YV):
   """
