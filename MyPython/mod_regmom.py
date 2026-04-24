@@ -68,7 +68,6 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   """
   #import time
   #tt0 = time.perf_counter()
-  import mod_misc1 as mmisc1
   import mod_bilinear as mblnr
 
 
@@ -202,6 +201,9 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   #print(f" dT4 = {tt4-tt3} sec")
 
   INp = False
+  if not INp:
+    IV, JV, INp = find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1.e-8)
+
   for jv, iv in zip(JVX, IVX):
     # skip boundaries
     if jv == 0:
@@ -223,9 +225,6 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
     if not wrap_long and (iv == 0 or iv == nn-1):
       print(f'WARN: pnt x0/y0: {x0:.3f}/{y0:.3f} outside or near the E/W boundary: i/j={iv1}/{jv1}, skipping ...')
       return [],[] 
-
-    if not INp:
-      IV, JV, INp = find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1.e-8)
 
     if not INp:
       IV, JV, INp = find_box_include([x0,y0], [iv,jv], LON, LAT, eps_tol=1.e-8)
@@ -340,7 +339,7 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   # In case pnt (x0,y0) lies exectly on the X-axis or Yaxis line between (xv1,yv1) and (xv2,yv2)
   # move it a bit to avoid possible errors in finding the other vertices:
   dxy = 1.e-9
-  dist_pnt = distance_point2segment(x0,y0,xv1,yv1,xv2,yv1) 
+  dist_pnt = mmisc1.distance_point2segment(x0,y0,xv1,yv1,xv2,yv1) 
   if dist_pnt < dxy:
     x0 = x0 + dxy
     y0 = y0 + dxy 
@@ -632,7 +631,6 @@ def find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1e-8):
    a box that includes x0, y0
   """
   from itertools import combinations
-  import mod_misc1 as mmisc1
 
   AL=list(combinations(range(len(IVX)), 4))
   for cp in AL:
@@ -657,11 +655,11 @@ def find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1e-8):
     XV, YV, IDX = mmisc1.reorder_polygon(XV, YV, indx=True)
 
     # reject self-intersecting quads
-    if not mblnr.check_convex(XV, YV):
+    if not mblnr.strictly_convex_quad(XV, YV, eps_tol=1e-4):
       continue
 
     # inclusion test
-    if point_on_edge(x0c, y0c, XV, YV, tol=eps_tol):
+    if mmisc1.point_on_edge(x0c, y0c, XV, YV, tol=eps_tol):
       return IV[IDX], JV[IDX], True
 
     if mmisc1.inpolygon_1pnt(x0c, y0c, XV, YV, eps0=eps_tol):
@@ -676,7 +674,6 @@ def find_box_include(XY0, IJ1, LON, LAT, eps_tol=1.e-8):
 
     Box #5 - larger box that inclues smaller 4 boxes
   """
-  import mod_misc1 as mmisc1
   import mod_bilinear as mblnr
 
   x0, y0   = XY0 
@@ -730,7 +727,7 @@ def find_box_include(XY0, IJ1, LON, LAT, eps_tol=1.e-8):
 
     XV, YV  = mmisc1.reorder_polygon(XV,YV)
     # Check if the point is on one of the edges, count it as in the box 
-    if point_on_edge(x0c, y0c, XV, YV, tol=eps_tol): 
+    if mmisc1.point_on_edge(x0c, y0c, XV, YV, tol=eps_tol): 
       return True, IV, JV
 
     INp     = mmisc1.inpolygon_1pnt(x0c, y0c, XV, YV, eps0=eps_tol)
@@ -767,53 +764,6 @@ def find_box_include(XY0, IJ1, LON, LAT, eps_tol=1.e-8):
 #ax1.plot(IN,JN,'y.')
 #ax1.plot(iv1,jv1,'ro')
 
-def distance_point2segment(px, py, x1, y1, x2, y2):
-  """
-  distance_point_segment
-  Return the minimum distance from point (px, py)
-  to the segment (x1, y1) -> (x2, y2).
-  """
-  # segment vector
-  vx = x2 - x1
-  vy = y2 - y1
-
-  # vector from start to point
-  wx = px - x1
-  wy = py - y1
-
-  # project w onto v, compute parameter t
-  # t < 0  -> closest is endpoint 1
-  # t > 1  -> closest is endpoint 2
-  # 0 <= t <= 1 -> closest is interior point
-  Lsegm2 = vx*vx + vy*vy
-  if Lsegm2 == 0:
-    # the segment is a point
-    dist_p2sgm = np.sqrt(wx**2 + wy**2)
-    return dist_p2sgm
-
-  t = (wx*vx + wy*vy) / Lsegm2
-  t = max(0.0, min(1.0, t))   # clamp to the segment normalized [0,1]
-
-  # closest point on the segment
-  cx = x1 + t * vx
-  cy = y1 + t * vy
-
-  # distance from point to closest point
-  dist_p2sgm = np.sqrt((px-cx)**2 + (py - cy)**2)
-  return dist_p2sgm
-
-def point_on_edge(x0, y0, XV, YV, tol=1e-9):
-  for k in range(len(XV)):
-    x1, y1 = XV[k],     YV[k]
-    x2, y2 = XV[(k+1)%len(XV)], YV[(k+1)%len(YV)]
-
-    # compute distance from point to segment
-    dist = distance_point2segment(x0, y0, x1, y1, x2, y2)
-    #print(f"Distance pnt to edge: {dist:.4e}")
-    if dist < tol:
-      return True
-
-  return False
 
 def fill_npole(A2d, HLON, HLAT, HH, Rpole = 2.5, bad_val = None, npnts_max=10):
   """
@@ -828,7 +778,6 @@ def fill_npole(A2d, HLON, HLAT, HH, Rpole = 2.5, bad_val = None, npnts_max=10):
     npnts_max - max number of the closest points for averaging
   """
   import mod_utils as mutil
-  import mod_misc1 as mmisc1
   import mod_bilinear as mblnr
 
   mm,nn = HLAT.shape
@@ -906,7 +855,6 @@ def smooth_edges_arctic(A2d, HLON, HLAT, HH, hlat0=65, Rsearch=0.25, fill_land=T
 
     Rsearch - radius (degrees) where values are searched for extrapolation / ramping
   """
-  import mod_misc1 as mmisc1
 
   Aex = A2d.copy()
   Aex[np.isnan(Aex)] = 0.
@@ -990,7 +938,6 @@ def extrapolate_to_lat_arctic(A2d, HLON, HLAT, HH, hlat0=65, Npnts=5, Rsearch=20
     Npnts - # of the closest data points to use for averaging
 
   """
-  import mod_misc1 as mmisc1
 
   HLON = (HLON + 360.) % 360
 
@@ -1374,7 +1321,6 @@ def insitu2pot_3D(T3d, S3d, ZZ, HLAT, z_ref=0, uref='m'):
     ZZ - can be 1D or 3D array
   """
   import mod_swstate as msw
-  import mod_misc1 as mmisc
 
   kdm, jdm, idm = T3d.shape
   if len(ZZ.shape) == 1:
@@ -1418,7 +1364,6 @@ def insitu2pot_2D(T2d, S2d, zz0, HLAT, z_ref=0, uref='m'):
     zz0 - in situ depth, m or dbar
   """
   import mod_swstate as msw
-  import mod_misc1 as mmisc
 
   jdm, idm = T2d.shape
   Zref = np.zeros((jdm,idm)) + z_ref
@@ -1446,7 +1391,6 @@ def insitu2pot_1D(T1d, S1d, Z1d, lat0, z_ref=0, uref='m', printT=False):
     T, S, Z - 1D arrays, 1 profile, lat0 - local latitude
   """
   import mod_swstate as msw
-  import mod_misc1 as mmisc
 
   if uref == 'm':
     prref_db, prref_pa = msw.sw_press(z_ref, lat0)
@@ -1476,7 +1420,6 @@ def pot2insitu_1D(T1d, S1d, Z1d, lat0, z_ref=0, uref='m', printT=False):
     T, S, Z - 1D arrays, 1 profile, lat0 - local latitude
   """
   import mod_swstate as msw
-  import mod_misc1 as mmisc
 
   if uref == 'm':
     pr_db, _ = msw.sw_press(z_ref, lat0)

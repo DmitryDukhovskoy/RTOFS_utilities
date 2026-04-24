@@ -45,29 +45,38 @@ fhr = 0
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-#parser.add_argument("--init", help=f"init date", choices=[20250103, 20250704], required=True, type=int)
 parser.add_argument("--init", help=f"init date", choices=[20251231, 20250704], required=True, type=int)
 parser.add_argument("--ihr", help=f"init hour, default {init_hr}", type=int)
 parser.add_argument("--fhr", help=f"f/cast hour to plot", 
                    choices=[0,24,48,72,96,120,144,168,192], required=True, type=int)
+parser.add_argument("--crct", help="Plot corrected RTOFS 0=no (default), 1=yes",
+                    default=0, type=int)
 args = parser.parse_args()
 
 regn      = args.regn if args.regn else regn
 init_date = args.init if args.init else init_date
 init_hr   = args.ihr if args.ihr else init_hr
 fhr       = args.fhr if args.fhr is not None else fhr
-
+crct      = args.crct
+plt_crct = crct==1  # show corrected RTOFS: correct_RTOFS_NPole_seam.py
 
 # Init date:
 dnmbI = mtime.rdate2datenum(init_date*100+init_hr)  # init. day nmb
 yrI, mmI, ddI, hrI = mtime.datevec(dnmbI)[:4]
 
+if plt_crct:
+  print("Plotting RTOFS Corrected fields")
 
 pthice = f"/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/cice4_fcast/{init_date}"
 if fhr == 0:
   flice = f"rtofs_glo.t{init_hr:02d}z.n00.cice_inst.nc"
+  if plt_crct:
+    flice = f"rtofs_glo.t{init_hr:02d}z.n00.cice_inst.seam_crct.nc"
 else:
   flice = f"rtofs_glo.t{init_hr:02d}z.f{fhr:02d}.cice_inst.nc"
+  if plt_crct:
+    flice = f"rtofs_glo.t{init_hr:02d}z.f{fhr:02d}.cice_inst.seam_crct.nc"
+
 dflice = os.path.join(pthice, flice)
 
 # Get grid
@@ -118,6 +127,8 @@ cntr_clr = [0.9,0.,1]
 
 
 sttl = f"ithkn RTOFS-CICE4 init:{init_date}, lead time={fhr:03d}hrs\n {YR}/{MM:02d}/{DD:02d}"
+if plt_crct:
+  sttl = f"ithkn_crct RTOFS-CICE4 init:{init_date}, lead time={fhr:03d}hrs\n {YR}/{MM:02d}/{DD:02d}"
 
 sinfo = 'instant. ice concentration from operational RTOFS-CICE4\n'
 sinfo = sinfo + dflice

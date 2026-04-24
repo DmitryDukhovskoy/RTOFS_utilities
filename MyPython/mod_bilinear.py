@@ -351,6 +351,42 @@ def check_convex(X, Y):
 
   return convex
 
+def strictly_convex_quad(X, Y, eps_tol=1e-4):
+  """
+    More stric check of convexivity for a quadrilateral
+    guarantees that none of the vertices
+    are on the same line
+    Scale the corss product to get the nearly-collinear cases 
+    when the cross ~0 relative to large edge lengths
+    For scaled cross for coliniear lines is ~1e-6 - 1e-7
+  """
+  signs = []
+  for i in range(4):
+    dx1 = X[(i+1)%4] - X[i]
+    dy1 = Y[(i+1)%4] - Y[i]
+    dx2 = X[(i+2)%4] - X[(i+1)%4]
+    dy2 = Y[(i+2)%4] - Y[(i+1)%4]
+
+    cross = dx1*dy2 - dy1*dx2
+
+    # scale factor ~ product of edge lengths
+    scale = (dx1*dx1 + dy1*dy1)**0.5 * (dx2*dx2 + dy2*dy2)**0.5
+
+    if scale == 0:
+      return False
+
+    cross_scaled = cross / scale
+    #print(f"cross={cross}  scaled={cross_scaled}")
+
+    if abs(cross_scaled) < eps_tol:
+      return False  # catches if --*---*  
+
+    signs.append(np.sign(cross_scaled))
+
+  convex = all(s > 0 for s in signs) or all(s < 0 for s in signs)
+ 
+  return convex 
+
 def lonlat2xy_wrtX0(XX, YY, x0, y0):
   """
     Convert lon/lat coordinates of 4 quadrilateral vertices XX, YY

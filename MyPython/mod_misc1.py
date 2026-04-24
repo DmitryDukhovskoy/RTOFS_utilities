@@ -133,6 +133,54 @@ def point_on_segment(xq, yq, x1, y1, x2, y2, eps0=1e-8):
 
   return True
 
+def point_on_edge(x0, y0, XV, YV, tol=1e-9):
+  for k in range(len(XV)):
+    x1, y1 = XV[k],     YV[k]
+    x2, y2 = XV[(k+1)%len(XV)], YV[(k+1)%len(YV)]
+
+    # compute distance from point to segment
+    dist = distance_point2segment(x0, y0, x1, y1, x2, y2)
+    #print(f"Distance pnt to edge: {dist:.4e}")
+    if dist < tol:
+      return True
+
+  return False
+
+def distance_point2segment(px, py, x1, y1, x2, y2):
+  """
+  distance_point_segment
+  Return the minimum distance from point (px, py)
+  to the segment (x1, y1) -> (x2, y2).
+  """
+  # segment vector
+  vx = x2 - x1
+  vy = y2 - y1
+
+  # vector from start to point
+  wx = px - x1
+  wy = py - y1
+  
+  # project w onto v, compute parameter t
+  # t < 0  -> closest is endpoint 1
+  # t > 1  -> closest is endpoint 2
+  # 0 <= t <= 1 -> closest is interior point
+  Lsegm2 = vx*vx + vy*vy
+  if Lsegm2 == 0:
+    # the segment is a point
+    dist_p2sgm = np.sqrt(wx**2 + wy**2)
+    return dist_p2sgm
+    
+  t = (wx*vx + wy*vy) / Lsegm2
+  t = max(0.0, min(1.0, t))   # clamp to the segment normalized [0,1]
+    
+  # closest point on the segment
+  cx = x1 + t * vx 
+  cy = y1 + t * vy
+    
+  # distance from point to closest point
+  dist_p2sgm = np.sqrt((px-cx)**2 + (py - cy)**2)
+  return dist_p2sgm
+
 def inpolygon_1pnt(xq, yq, XV, YV, eps0=1e-8):
   """
     Point-in-polygon test: True if inside OR on edge

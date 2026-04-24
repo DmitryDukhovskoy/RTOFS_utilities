@@ -46,6 +46,7 @@ init_date = 20250704  #
 init_hr = 0
 regn = 'global'  
 fhr = 0
+chsize = 144   # for saving multiple tmp files by chunks 0:143, 144:287, etc 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
@@ -53,17 +54,26 @@ parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}"
 parser.add_argument("--init", help=f"init date", choices=[20251231, 20250704], default=init_date, type=int)
 parser.add_argument("--ihr", help=f"init hour, default {init_hr}", type=int)
 parser.add_argument("--stmp", 
-        help="Save temporary files at stmp=percent processed pnts, continue from saved (>0 - 100=yes, 0=no)",
+        help="Save temp files at stmp-perc processed pnts, continue from saved (>0 - 100=yes, 0=no)",
         required=True, type=int)
+parser.add_argument("--chsize", help="Chunk size: numb of i indices 1,..., idm", type=int)
+parser.add_argument("--kchunk", help=f"If save tmp, chunk number: 1:idm/chunk size, default={chsize}", 
+                    type=int)
+parser.add_argument("--final", help="Finish by combining all tmp files 1=yes, 0=no", default=0, type=int)
 args = parser.parse_args()
 
-regn      = args.regn if args.regn else regn
-init_date = args.init if args.init else init_date
-init_hr   = args.ihr if args.ihr else init_hr
-stmp      = args.stmp 
+regn      = args.regn if args.regn is not None else regn
+init_date = args.init if args.init is not None else init_date
+init_hr   = args.ihr if args.ihr is not None else init_hr
+stmp      = args.stmp
 use_tmp   = stmp > 0
 
-assert stmp > 1 and stmp < 100, 'keep stmp > 1% and <100%'
+chsize = args.chsize if args.chsize is not None else chsize
+kchunk = args.kchunk if args.kchunk is not None else None
+final  = args.final == 1
+
+assert stmp == 0 or (1 < stmp < 100), 'keep stmp=0 or 1<stmp<100'
+
 
 syst_info = os.uname()
 machine = syst_info.nodename
@@ -117,6 +127,15 @@ with xarray.open_dataset(dflice) as dcice:
 JDIM, IDIM = LON.shape
 JDIM = JDIM + 1   # ocean grid has + 1 row
 
+if not final:
+  assert kchunk > 0, f"kchunk should be > 0, kchunk={kchunk}"
+  iS = (kchunk-1) * chsize
+  iE = kchunk * chsize
+
+  assert iE <= IDIM, print(f"  WARN:   check kchunk={kchunk} chsize={chsize} ==> iE={iE} > {IDIM}")
+    
+
+
 # Read RTOFS topo:
 # Note that RTOFS grid has +1 row at the top compared to CICE6
 pthtopo = '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/topo_grid/'
@@ -157,10 +176,12 @@ jdm, idm = hlon.shape
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 pthdump = os.path.join(pthdata,'gmapi_mapping2mesh025')
 pthtmp  = os.path.join(pthdata,'gmapi_mapping2mesh025','tmp')
-fltmp   = f'RTOFS008_mesh025_gmapi_{regn}_tmp.npz'
+fltmp   = f'RTOFS008_mesh025_gmapi_iS{iS:04d}_iE{iE:04d}_{kchunk:03d}.npz'
 flgmapi = f'RTOFS008_mesh025_gmapi_{idm}x{jdm}_{regn}.nc'
 dfltmp  = os.path.join(pthtmp, fltmp)
 dflgmapi = os.path.join(pthdump, flgmapi)
+
+print(f"   Final saved file: {final}, tmp file={fltmp}")
 
 INDX = None
 JNDX = None
@@ -199,7 +220,7 @@ if use_tmp > 0:
 pnts_saved = set(zip(IMOM, JMOM))
 icc = -1
 time0 = time.perf_counter()
-for ii in range(idm):
+for ii in range(iS, iE):
   for jj in range(jS,jE+1):
     if HH[jj,ii] >= 0:
       continue
@@ -254,59 +275,76 @@ for ii in range(idm):
                jndx=np.concatenate(JNDX_list, axis=0)
                ) 
 
-IMOM = np.array(IMOM)
-JMOM = np.array(JMOM)
-INDX = np.concatenate(INDX_list, axis=0)
-JNDX = np.concatenate(JNDX_list, axis=0)
+if not final:
+  if use_tmp:
+    # Saving tmp file:
+    print(f"Final tmp:  icc={icc} Dumping tmp file --> {dfltmp}")
+    np.savez(
+             dfltmp,
+             imom=np.array(IMOM), 
+             jmom=np.array(JMOM),    
+             indx=np.concatenate(INDX_list, axis=0),
+             jndx=np.concatenate(JNDX_list, axis=0)
+             )
 
-# RTOFS coord dimensions:
-jdim, idim = LON.shape
+  print("Finished without saving final netcdf")
 
-npnts = len(IMOM)
-darr_imom = xarray.DataArray(IMOM, dims=("npoints"),\
-                   coords={"npoints": np.arange(npnts)})
-darr_jmom = xarray.DataArray(JMOM, dims=("npoints"),\
-                   coords={"npoints": np.arange(npnts)})
-darr_indx = xarray.DataArray(INDX, dims=("npoints","nvert"),\
-                   coords={"npoints": np.arange(npnts),\
-                           "nvert": np.arange(4)})
-darr_jndx = xarray.DataArray(JNDX, dims=("npoints","nvert"),\
-                   coords={"npoints": np.arange(npnts),\
-                           "nvert": np.arange(4)})
-darr_lon = xarray.DataArray(LON, dims=("jdim","idim"),\
-                  coords={"jdim": np.arange(jdim),\
-                          "idim": np.arange(idim)})
-darr_lat = xarray.DataArray(LAT, dims=("jdim","idim"),\
-                  coords={"jdim": np.arange(jdim),\
-                          "idim": np.arange(idim)})
+else:
+  IMOM = np.array(IMOM)
+  JMOM = np.array(JMOM)
+  INDX = np.concatenate(INDX_list, axis=0)
+  JNDX = np.concatenate(JNDX_list, axis=0)
 
-dset = xarray.Dataset({"mom_indx": darr_imom, \
-                       "mom_jndx": darr_jmom, \
-                       "gmapi_i": darr_indx,\
-                       "gmapi_j": darr_jndx,\
-                       "longit":  darr_lon,\
-                       "latit":   darr_lat})
+  # RTOFS coord dimensions:
+  jdim, idim = LON.shape
 
-dset['mom_indx'].attrs['long_name'] = 'MOM6 grid I indices corresponding gmapi'
-dset['mom_jndx'].attrs['long_name'] = 'MOM6 grid J indices corresponding gmapi'
-dset['gmapi_i'].attrs['long_name'] = 'I indices RTOFS grid for interpolation'
-dset['gmapi_j'].attrs['long_name'] = 'J indices RTOFS grid for interpolation'
-dset['longit'].attrs['long_name']  = 'Longitudes derived from RTOFS polar grid'
-dset['latit'].attrs['long_name']   = 'Latitudes derived from RTOFS polar grid'
+  npnts = len(IMOM)
+  darr_imom = xarray.DataArray(IMOM, dims=("npoints"),\
+                     coords={"npoints": np.arange(npnts)})
+  darr_jmom = xarray.DataArray(JMOM, dims=("npoints"),\
+                     coords={"npoints": np.arange(npnts)})
+  darr_indx = xarray.DataArray(INDX, dims=("npoints","nvert"),\
+                     coords={"npoints": np.arange(npnts),\
+                             "nvert": np.arange(4)})
+  darr_jndx = xarray.DataArray(JNDX, dims=("npoints","nvert"),\
+                     coords={"npoints": np.arange(npnts),\
+                             "nvert": np.arange(4)})
+  darr_lon = xarray.DataArray(LON, dims=("jdim","idim"),\
+                    coords={"jdim": np.arange(jdim),\
+                            "idim": np.arange(idim)})
+  darr_lat = xarray.DataArray(LAT, dims=("jdim","idim"),\
+                    coords={"jdim": np.arange(jdim),\
+                            "idim": np.arange(idim)})
 
-# Global attributes
-dset.attrs['title']       = f'Grid mapping between RTOFS CICE4 and MOM6 mesh025 grid'
-dset.attrs['institution'] = 'NOAA NWS NCEP EMC'
-dset.attrs['source']      = 'get_gmapi_RTOFS_to_mesh025.py'
-dset.attrs['history']     = f'RTOFS CICE4 grid  {flice}'
-dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'
-dset.attrs['region']      = regn
+  dset = xarray.Dataset({"mom_indx": darr_imom, \
+                         "mom_jndx": darr_jmom, \
+                         "gmapi_i": darr_indx,\
+                         "gmapi_j": darr_jndx,\
+                         "longit":  darr_lon,\
+                         "latit":   darr_lat})
 
-fgmapi  = f'RTOFS_NRTice_MOM6_gmapi_{idm}x{jdm}_{regn}.nc'
-dfgmapi = os.path.join(pthdump, fgmapi)
+  dset['mom_indx'].attrs['long_name'] = 'MOM6 grid I indices corresponding gmapi'
+  dset['mom_jndx'].attrs['long_name'] = 'MOM6 grid J indices corresponding gmapi'
+  dset['gmapi_i'].attrs['long_name'] = 'I indices RTOFS grid for interpolation'
+  dset['gmapi_j'].attrs['long_name'] = 'J indices RTOFS grid for interpolation'
+  dset['longit'].attrs['long_name']  = 'Longitudes derived from RTOFS polar grid'
+  dset['latit'].attrs['long_name']   = 'Latitudes derived from RTOFS polar grid'
 
-print(f'Saving gmapi --> {dfgmapi}')
-dset.to_netcdf(dfgmapi, format='NETCDF4', engine='netcdf4')
+  # Global attributes
+  dset.attrs['title']       = f'Grid mapping between RTOFS CICE4 polar regions and UFS mesh025 grid'
+  dset.attrs['institution'] = 'NOAA NWS OMD'
+  dset.attrs['source']      = 'get_gmapi_RTOFS_to_mesh025.py'
+  dset.attrs['history']     = f'RTOFS CICE4 grid  {flice}'
+  dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'
+  dset.attrs['region']      = regn
+
+  fgmapi  = f'RTOFS_CICE4_gmapi_{idm}x{jdm}_{regn}.nc'
+  dfgmapi = os.path.join(pthdump, fgmapi)
+
+  print(f'Saving gmapi --> {dfgmapi}')
+  dset.to_netcdf(dfgmapi, format='NETCDF4', engine='netcdf4')
+
+
 
 f_chck = False
 f_xy = False     # True - plot on X.Y grid. False - plot on index space
@@ -315,17 +353,18 @@ if f_chck:
   # WARN: pnt x0/y0: 74.107/68.533 outside or near the S/N boundary: i/j=4017/3296, skipping
   #x0 = 74.125
   #y0 = -50.697
-  ii0, jj0 = mhycom.find_indx_lonlat(74.107, 68.533, hlon, hlat)
+  #ii0, jj0 = mhycom.find_indx_lonlat(74.107, 68.533, hlon, hlat)
+  ii0 = 293
+  jj0 = 1070
+  x0 = hlon[jj0,ii0]
+  y0 = hlat[jj0,ii0]
+
+  ii0, jj0 = mhycom.find_indx_lonlat(219.125, -50.699, hlon, hlat)
   x0 = hlon[jj0,ii0]
   y0 = hlat[jj0,ii0]
   ixx, jxx = mrmom.find_gridpnts_box(x0, y0, LON, LAT, dhstep=.3,
                                        ignore_north_lim=ignore_north_lim,
                                        wrap_long=True)
-
-  ii0 = 293
-  jj0 = 1070
-  x0 = hlon[jj0,ii0]
-  y0 = hlat[jj0,ii0]
 
   plt.ion()
   fig1 = plt.figure(1,figsize=(9,8))
