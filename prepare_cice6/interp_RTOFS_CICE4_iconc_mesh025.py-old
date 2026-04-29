@@ -150,7 +150,7 @@ elif field_name == 'iconc':
 else:
   raise Exception(f"Unrecognized variable {field_name}")
 
-def write_nc(A2d, time_out, field_name, dfliceout, varnm, snow_model, rtofs_vers):
+def write_nc(A2d, time_out, field_name, dfliceout, varnm, rtofs_vers):
   model_str = f'RTOFSv{rtofs_vers} CICE4' 
   # Dump netcdf:
   darr_cice = xarray.DataArray(A2d, dims=("time","jdim","idim"),\
@@ -221,7 +221,6 @@ AA = np.where(A2d > 1.e30, np.nan, A2d) * cff2m  # cm --> m if needed
 AAi = msisrlx.interp2Dfld(AA, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
 A2d = AAi.copy()
 
-A = STOP
 
 BDmask = HH >= 0
 A2d[np.isnan(A2d)] = 0.
@@ -229,7 +228,7 @@ A2d[BDmask] = np.nan
 
 time_out = np.array([np.datetime64(f"{YR:04d}-{MM:02d}-15", "ns")])
 A2d = np.expand_dims(A2d, axis=0) 
-write_nc(A2d, time_out, field_name, dfliceout, varnm, snow_model)
+write_nc(A2d, time_out, field_name, dfliceout, varnm, rtofs_vers)
 
   
 f_chck = False

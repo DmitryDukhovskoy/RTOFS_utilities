@@ -379,6 +379,7 @@ def strictly_convex_quad(X, Y, eps_tol=1e-4):
     #print(f"cross={cross}  scaled={cross_scaled}")
 
     if abs(cross_scaled) < eps_tol:
+      #print(f"Convex test: Rejected < {eps_tol}")
       return False  # catches if --*---*  
 
     signs.append(np.sign(cross_scaled))

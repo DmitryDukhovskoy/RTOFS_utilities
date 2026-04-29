@@ -1207,7 +1207,7 @@ def adjust_thkncats_aice(ain_new, vin_new, vtot_target, \
   # find ain_new and vin_new, keep the solution close to the original ain_new
   # constrains: 
   # (1) sum(ain_new) = ai_new
-  # (2) sum(ain_new*hin_new) = vtot_old
+  # (2) sum(ain_new*hin_new) = vtot_target
   # (3) for each (i=1,..,ncat): hicat[i] <= hin_new < hicat[i+1]
   # (4) ain_new > 0
   #  minimizes sum(ain_new - ain_orig)**2
@@ -1236,33 +1236,46 @@ def adjust_thkncats_aice(ain_new, vin_new, vtot_target, \
 
   res = minimize(objective, XX0, bounds=bounds, constraints=constraints)
 
+  # Solutions from optimization
+
   if res.success:
-    ain_new = res.x[:ncat]
-    hin_new = res.x[ncat:]
+    ain_new = res.x[:ncat].copy()
+    hin_new = res.x[ncat:].copy()
     ain_new[hin_new < puny] = 0.
     vin_new = hin_new * ain_new
   else:
     # Ususally it is fine, but check what is causing this
-    print("WARNING: Minimization failed, use approximate estimates for aice and hice")
-    print(f"    target tot conc: {ai_new}, ai_new={np.sum(ain_new)}, error={np.sum(ain_new)-ai_new}")
-    print(f"    target tot vol:  {vtot_target}, vtot_new={np.sum(vin_new)}, error={np.sum(vin_new)-vtot_target}")
+    # res.success is not important - check errors
+    # or print(res.success, res.message)
+    ain_est = res.x[:ncat].copy()
+    hin_est = res.x[ncat:].copy()
+    ain_est[hin_est < puny] = 0.
+    vin_est = hin_est * ain_est
+    err_aice = np.sum(ain_est) - ai_new
+    err_vice = np.sum(vin_est) - vtot_target
+    eps_err = 0.001
+    valid_sol = (
+      np.isfinite(ain_est).all() and
+      np.isfinite(vin_est).all() and
+      abs(err_aice) < eps_err and
+      abs(err_vice) < eps_err
+    )
+
+    if not valid_sol:
+      print("WARNING: Minimization failed, use approximate estimates for aice and hice")
+      print(f"    target tot conc: {ai_new}, ai_new={np.sum(ain_est)}, error={err_aice}")
+      print(f"    target tot vol:  {vtot_target}, vtot_new={np.sum(vin_est)}, error={err_vice}")
     #raise Exception(f"{res}") 
-    ain_new = res.x[:ncat]
-    hin_new = res.x[ncat:]
-    ain_new[hin_new < puny] = 0.
-    vin_new = hin_new * ain_new
+    ain_new = ain_est
+    hin_new = hin_est
+    vin_new = vin_est
 
   # eliminate truncation errors:
-  exc_ai = np.sum(ain_new) - 1.
-  eps_err = puny
-  #print(f"exc_ai = {exc_ai}")
-  if exc_ai > eps_err:
-    icen_mask = ain_new > bnd_min
-    nice = np.count_nonzero(icen_mask)
-    ain_new [icen_mask] = ain_new[icen_mask] - exc_ai / nice
-    if nice > 0:
-      correction = exc_ai / nice
-      ain_new[icen_mask] = np.maximum(ain_new[icen_mask] - correction, 0.0)
+  ain_sum = np.sum(ain_new)
+  if ain_sum > 1.0:
+    ain_new /= ain_sum
+    
+  ain_new[ain_new < puny] = 0.
 
   #print(f"After correction: {np.sum(ain_new) - 1.}")
   return ain_new, vin_new 

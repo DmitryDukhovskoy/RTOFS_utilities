@@ -28,7 +28,7 @@ def sens_tests_info(enmb):
                       will be different to the new simulation because added freeboard and ice 
                       enthalpy adjustments
 
-  experiments 30-35 - July 2025, 28 days forecasts
+  experiments 30-35 - July 4, 2025, 28 days forecasts, use hsU for all hsnow (hs=hsU)
 
   hsU - designates updated hsnow insertion code (see extp 11: ice freeboard + enthalpy)
   hsU = hs+qi+fbrd  - updated hsnow code
@@ -38,12 +38,14 @@ def sens_tests_info(enmb):
   experiments 40 - 42 - init 2024/07/01 using SFS initial conditions
                         to compare with SFS runs
 
+  epxeriment 45-47 - 2025/07/04 using RTOFS ice / snow IC
+                     insert hsnow - use updated code (=hsU)
   """
   EXPTS = {
     "01" : "control",                         # control January 2025  
     "02" : "ai+hi+hs0+qi+fbrd+thermo",
     "03" : "ai+hi+hs0+qi+fbrd+thermo+ITDrdg",
-    "04" : "hs0",
+    "04" : "hs0",                             # deleted - use 21
     "05" : "ai+hi+hsU+thermo+ITDrdg+snphys",
     "06" : "EMPTY",
     "07" : "ai",
@@ -57,15 +59,17 @@ def sens_tests_info(enmb):
     "23" : "ai+hi",
     "24" : "ai+hi+hsU",
     "25" : "ai+hi+hsU+SNPHYS",
-    "30" : "control",                    # control July 2025
-    "31" : "ai",                         # July, iconc 
+    "30" : "control",                    # control July 4 2025
+    "31" : "ai",                         # iconc 07/04/2025
     "32" : "ai+hi",
-    "33" : "ai+hsU",
-    "34" : "ai+hsU+hi",
-    "35" : "ai+hi+hsU+SNPHYS",
+    "33" : "ai+hs",
+    "34" : "ai+hi+hs",
+    "35" : "ai+hi+hs+SNPHYS",
     "40" : "control",                  # July 1 2024 - similar to SFS runs
-    "41" : "ai",                       # similar to SFS ai
-    "42" : "ai+hi",                    # similar to SFS ai+hi
+    "41" : "ai",                       # similar to SFS ai, 07/01/2024
+    "42" : "ai+hi",                    # similar to SFS ai+hi 07/01/2024
+    "45" : "RTOFS ai+hi",              # RTOFS IC July 4 2025
+    "46" : "RTOFS ai+hi+hs"            # RTOFS IC July 4 2025
    }
 
   key = f"{enmb:02d}"    

@@ -2,14 +2,9 @@
   Insert ice concentration (sea ice partial area) and 
   (optionally) ice thickness 
   into CICE6 aice fields 
-  Using NSIDC interpoalted fields for iconc
-  and CryoSat for ice thickness
+  Using RTOFS interpoalted fields for iconc
+  and for ice thickness
 
-  if ice thickness is opted out, this should be idential to
-  insert_iconc_cice6_restart.py
-
-  See python/prepare_cice6/interp_NSIDC_iconc_mesh025.py
-                    interp_CryoSat_ithkn_antarct_mesh025.py
 
 """
 import os
@@ -44,12 +39,8 @@ sys.path.extend([
 
 from mod_utils_fig import bottom_text
 import mod_time as mtime
-import mod_utils as mutil
 import mod_colormaps as mclrmps
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
 import mod_mom6 as mmom6
-import mod_misc1 as mmisc
 import mod_cice6_utils as mc6util
 importlib.reload(mc6util)
 
@@ -64,71 +55,77 @@ def find_varnm(dflithkn, var_opt):
     
   return
 
-rest_date = 20250103
 rest_hr = 0
-regn = 'south'
+regn = 'global'
+fyaml = 'cice6rest_files_RTOFS.yaml'
 yrR = mmR = ddR = hrR = None
 yrN = mmN = ddN = hrN = None
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--ithkn", type=int, default=1,
-    help="insert ice thickn climatology, 0=no, 1=yes (default 1)", choices=[0,1])
-parser.add_argument("--rdate", help=f"restart date input file, default={rest_date}", type=int)
-parser.add_argument("--rhr", help=f"input file, restart hour = 0, ..., 23, default={rest_hr}", type=int)
-parser.add_argument("--rdate_out", help="output file, restart date if different from input", type=int)
-parser.add_argument("--rhr_out", help="output file, restart hour if date is different from input", type=int)
-parser.add_argument("--pth_in", help="input restart directory with original file, default=None", type=str)
-parser.add_argument("--flrst_in", help="rest file in, otherwise name constructed from rest_date", type=str)
-parser.add_argument("--pth_out", help="output restart directory where new file be dumped, default=None", type=str)
-parser.add_argument("--flrst_out", help="new rest file, otherwise name constructed from rdate_out", type=str)
-parser.add_argument("--regn", help=f"where icon incerted", 
-                    choices=['north','south'], type=str)
+parser.add_argument("--ithkn", 
+    help="insert ice thickn climatology, 0=no, 1=yes", 
+    choices=[0,1], required=True, type=int)
+parser.add_argument("--rdate", help=f"restart date input file", 
+                    choices=[20250704, 20251231], required=True, type=int)
+parser.add_argument("--fyaml", help=f"YAML file default={fyaml}",
+                    default=fyaml, type=str)
 args = parser.parse_args()
 
 ins_thkn = bool(args.ithkn)
-flrst_in  = args.flrst_in  if args.flrst_in  else None
-flrst_out = args.flrst_out if args.flrst_out else None
-regn      = args.regn if args.regn else regn
-# if rest_date and rest_date_out are provided
-# Derive dates assuming file nameing is cice_restart.res.YYYYMMDD.XX[XXX]
-# or YYYYMMDD.<time>.---.nc
-if flrst_in is not None:
-  yrR, mmR, ddR, hrR, mintR = mc6util.get_date_filename(flrst_in)
-  rest_date = int(yrR*1e4 + mmR*100 + ddR)
-  rest_hr = hrR
+fyaml    = args.fyaml 
+rdate_in = args.rdate if args.rdate else None
+
+print(f"Reading YAML with restart info: {fyaml}\n")
+with open(fyaml) as ff:
+  config_rest = safe_load(ff)
+
+# Input restart:
+# Where original CICE6 restart file is located:
+pthrst_in = config_rest["cice_paths"]["pth_in"]
+if ins_ithkn:
+  flrst_in  = config_rest["rest_names"]["ins_iconc_ithkn"]["flrst_in"]
 else:
-  rest_date = args.rdate if args.rdate else rest_date
-  rest_hr   = args.rhr if args.rhr else rest_hr
+  flrst_in  = config_rest["rest_names"]["ins_iconc"]["flrst_in"]
 
-if flrst_out is not None:
-  yrN, mmN, ddN, hrN, mintN = mc6util.get_date_filename(flrst_out)
-  rest_date_out = int(yrN*1e4 + mmN*100 + ddN)
-  rest_hr_out = hrN  
-else:
-  rest_date_out = args.rdate_out if args.rdate_out else rest_date
-  rest_hr_out   = args.rhr_out if args.rhr_out else rest_hr
+if rdate_in is None:
+  rdate_in = config_rest["restart_time"]["rdate_in"]
 
-pth_in = args.pth_in if args.pth_in else None
-pth_out = args.pth_out if args.pth_out else None
+# Output Restart dates if missing - same as input
+# input dates are deduced from restart input file
+rdate_in    = config_rest["restart_time"]["rdate_in"]
+rhr_in      = config_rest["restart_time"]["rhr_in"]
+rdate_out   = config_rest["restart_time"]["rdate_out"]
+rhr_out     = config_rest["restart_time"]["rhr_out"]
+flrst_out   = config_rest["rest_names"]["flrst_out"]
+flrst_tmp   = config_rest["rest_names"]["flrst_tmp"]
+pthrest     = config_rest["cice_paths"]["pth_in"]
+pthrest_out = config_rest["cice_paths"]["pth_out"]
 
-print(f"Restart date input:  {rest_date}:{rest_hr}")
-print(f"Restart date output: {rest_date_out}:{rest_hr_out}")
+assert rdate_in is not None, "Missing rdate_in: YAML or key args"
+
+print(f"Restart date input:  {rdate_in}:{rest_hr}")
+print(f"Restart date output: {rdate_out}:{rhr_out}")
 if ins_thkn:
   print("Insert NSDIC NRT ice concenatraion + CryoSat ice thickness climatology into CICE restart\n")
 else:
   print("Insert NSDIC NRT ice concenatraion, NO ice thickness\n")
 
-change_rest_time = (rest_date != rest_date_out) or (rest_hr != rest_hr_out)
+change_rest_time = (rdate_in != rdate_out) or (rest_hr != rhr_out)
 
 # Get date numbers:
 # Input restart file
-dnmbR = mtime.rdate2datenum(rest_date*100+rest_hr)  # restart day nmb
+dnmbR = mtime.rdate2datenum(rdate_in*100+rest_hr)  # restart day nmb
 if yrR is None:
   yrR,mmR,ddR,hrR = mtime.datevec(dnmbR, round_hrs=True)[:4]
 nsecR = hrR*3600
 
+if dnmbR < mtime.datenum([2025,8,1]):
+  rtofs_vers = "2.4"
+else:
+  rtofs_vers = "2.5"
+
 # Dates of the output fields in the new restart:
-dnmbN = mtime.rdate2datenum(rest_date_out*100+rest_hr_out)
+dnmbN = mtime.rdate2datenum(rdate_out*100+rhr_out)
 if yrN is None:
   yrN, mmN, ddN, hrN = mtime.datevec(dnmbN, round_hrs=True)[:4]
 nsecN = hrN*3600
@@ -152,19 +149,6 @@ fyaml = 'paths_ufs.yaml'
 with open(fyaml) as ff:
   pths_ufs = safe_load(ff)
 
-if pth_in is None:
-  pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
-else:
-  pthrest = pth_in
-#pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_da'
-
-# Output dir for new restart:
-if pth_out is None:
-  pthrest_out = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
-else:
-  pthrest_out = pth_out
-
-pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 
 # CICE parameters:
 puny      = 1.e-11
@@ -201,48 +185,37 @@ jdm, idm = HH.shape
 
 LON, LAT = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 
-# Interpolated NSIDC ice conc:
-pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{yrN}")
-RMsk = np.where(HH>=0, 0, 1)
-if regn == 'south':
-  RMsk[LAT > -60.] = 0
-elif regn == 'north':
-  RMsk[LAT < 50.] = 0
-else:
-  raise Exception(f"Unrecognized region {regn}")
+# Mask: region to exclude: all land and outside polar regions
+RMsk = (HH >= 0) | ((LAT >= -50) & (LAT <= 50))
 
 print(f"old restart: {yrR}/{mmR:02d}/{ddR:02d}:{hrR:02d}")
 print(f"new restart: {yrN}/{mmN:02d}/{ddN:02d}:{hrN:02d}")
 
-#fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{yrN}{mmN:02d}_{regn}.nc'
-pthnsidc, fliconc = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, "iconc_NSIDC", \
-                                                      YR=yrN, MM=mmN, regn=regn)
-dfliconc = os.path.join(pthnsidc,fliconc)
+pthiconc = config_rest["target_paths"]["iconc"]["path"].format(rdate=rdate_in)
+fliconc  = config_rest["target_paths"]["iconc"]["file"].format(rdate=rdate_in, vers=rtofs_vers)
+dfliconc = os.path.join(pthiconc,fliconc)
 print(f'Loading interpolated ice conc {dfliconc}')
 with xarray.open_dataset(dfliconc) as dsint:
-  AICEint = dsint['ice_conc'].isel(time=ddN-1).squeeze()
+  AICEint = dsint['ice_conc'].isel(time=0).data
 
-AICEint = np.where(RMsk == 0, np.nan, AICEint)
+AICEint[RMsk] = np.nan
 
 # Read ice thickness data:
 if ins_thkn:
-  var_opt = ['ice_thkn', 'ithkn', 'hi', 'ice_thickness']
-  pthithkn, flithkn = mc6util.pathfname_icesnow_mesh025(fyaml, node_nm, 'ithkn_clim', regn=regn)
+  pthithkn = config_rest["target_paths"]["ithkn"]["path"].format(rdate=rdate_in)
+  flithkn  = config_rest["target_paths"]["ithkn"]["file"].format(rdate=rdate_in, vers=rtofs_vers)
   dflithkn = os.path.join(pthithkn,flithkn)
   
-  #pthithkn = os.path.join(pthdata,'CryoSat2_antarctic_ice_snow_thkn','clim')
-  #flithkn = 'CryoSat_hice_mnthclim_2011_2020_mesh025_1440x1080_south.nc'
-  #dflithkn = os.path.join(pthithkn,flithkn)
-  ithkn_varnm = find_varnm(dflithkn, var_opt)
-  print(f"Reading ice thickn varnm='{ithkn_varnm}' for month {mmN} from {dflithkn}")
+  
+  #ithkn_varnm = find_varnm(dflithkn, var_opt)
+  ithkn_varnm = "ice_thkn"
+  print(f"Reading ice thickn varnm='{ithkn_varnm}' from {dflithkn}")
   with xarray.open_dataset(dflithkn) as ds_ithkn:
-    ITHKN = ds_ithkn[ithkn_varnm].isel(time=mmN-1).data
+    ITHKN = ds_ithkn[ithkn_varnm].isel(time=0).data
 else:
   ITHKN = np.full_like(HH, np.nan)
 
-if flrst_in is None:
-  flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{nsecR:06d}.nc"
-
+# Input restart:
 dflrst_in = os.path.join(pthrest, flrst_in)
 print(f"Reading restart: {dflrst_in}")
 ds_in = xarray.open_dataset(dflrst_in)
@@ -271,14 +244,14 @@ for i in range(1, nilrs+1):
 aice = np.sum(aicen, axis=0).squeeze()
 
 # Select points to insert:
-Jins, Iins = np.where((RMsk > 0) & (~np.isnan(AICEint)))
+Jins, Iins = np.where( (~RMsk) & (np.isfinite(AICEint)))
 Xins = LON[Jins,Iins]
 Yins = LAT[Jins,Iins]
 npnts = len(Jins)
 
 npnts_ithkn = 0
 if ins_thkn:
-  mask_ithkn = (RMsk > 0) & np.isfinite(ITHKN)
+  mask_ithkn = (~RMsk) & np.isfinite(ITHKN)
   npnts_ithkn = np.count_nonzero(mask_ithkn)
 
 print(f"iconc insertion: {npnts} pnts, min/max lat={np.min(Yins):.1f}/{np.max(Yins):.1f}"
@@ -626,22 +599,23 @@ for k in range(1,ncat+1):
 from datetime import datetime
 istep1_val = ds_out.attrs.get('istep1', None)
 ds_out.attrs.update({
-    "title": f"CICE6 restart with inserted ice concentration from NSIDC NRT {rest_date_out} ",
-    "source": "insert_iconc_ithkn_cice6_restart.py",
+    "title": f"CICE6 restart with inserted ice conc / thickn from RTOFSv{rtofs_vers} CICE4 initial fields {rdate_in}",
+    "source": "insert_iconc_ithkn_cice6_RTOFSrest.py",
     "istep1": np.int32(istep1_val) if istep1_val is not None else np.int32(0), 
     "myear": np.int32(yrN),
     "mmonth": np.int32(mmN),
     "mday": np.int32(ddN),
     "msec": np.int32(nsecN),
+    "info": f"Original restart: {flrst_in}",
     "history": f"Modified {datetime.now().isoformat()}",
 })
 
 # Save:
 if flrst_out is None:
   if ins_thkn:
-    flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc_ithkn.nc"
+    flrst_out = f"{flrst_tmp}.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc_ithkn.nc"
   else:
-    flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc.nc"
+    flrst_out = f"{flrst_tmp}.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc.nc"
 
 dflrst_out = os.path.join(pthrest_out,flrst_out)
 print(f"Saving CICE restart --> {dflrst_out}")

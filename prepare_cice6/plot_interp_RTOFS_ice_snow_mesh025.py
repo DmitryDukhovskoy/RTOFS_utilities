@@ -1,11 +1,10 @@
 """
-  Plot Interpolated CryoSat ice thickness on mesh025
+  Plot interpolated RTOFS CICE4 onto mesh025 grid
+  gmapi:
+  get_gmapi_RTOFS_to_mesh025.py
 
-  gmapi indices:
-  get_gmapi_CryoSat_to_mesh025.py
-
-  interpolation:
-  interp_CryoSat_ithkn_antarct_mesh025.py
+  interp RTOFS:
+  interp_RTOFS_CICE4_iconc_mesh025.py
 
 """
 import os
@@ -15,7 +14,6 @@ import sys
 import importlib
 import matplotlib  
 import xarray
-from copy import copy
 import matplotlib.colors as colors 
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
@@ -45,22 +43,19 @@ import mod_time as mtime
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
 
-yrS = 2011
-yrE = 2020
-MM  = 2
-regn = 'south'
+init_hr = 0
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-parser.add_argument("--yrS", help=f"start year of CryoSat clim, default={yrS}", type=int)
-parser.add_argument("--yrE", help=f"end year of CryoSat clim, default={yrE}", type=int)
-parser.add_argument("--mm", help=f"month of CryoSat data to plot", type=int, required=True)
+parser.add_argument("--regn", help="hemisphere: north or south", required=True, type=str)
+parser.add_argument("--init", help="RTOFS init date", 
+                   choices=[20250704, 20251231], required=True, type=int)
+parser.add_argument("--field", help="Field to plot",
+                    choices=['iconc','ithkn','hsnow'], required=True, type=str)
 args = parser.parse_args()
   
-regn = args.regn if args.regn else regn
-yrS  = args.yrS if args.yrS else yrS
-yrE  = args.yrE if args.yrE else yrE
-MM   = args.mm if args.mm else None
+regn = args.regn 
+init_date = args.init
+fldnm = args.field
   
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -82,8 +77,7 @@ with open(fyaml) as ff:
 pthgrid = pths_ufs[node_nm]["MOM6"]["pthgrid"]
 dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
 dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
-    
-#hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
+LON, LAT  = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 
 with xarray.open_dataset(dftopo_mom) as dstopo:
   HH = dstopo['depth'].data.squeeze()
@@ -92,34 +86,58 @@ HH = np.where(HH < 1.e-20, np.nan, HH)
 HH = -HH
 HH = np.where(np.isnan(HH), 1., HH)
 
-jdim, idim = HH.shape
+jdm, idm = HH.shape
 
-pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-pthice  = os.path.join(pthdata, 'CryoSat2_antarctic_ice_snow_thkn','clim')
-fliceout = f'CryoSat_hice_mnthclim_{yrS}_{yrE}_mesh025_{idim}x{jdim}_{regn}.nc'
-dfliceout = os.path.join(pthice,fliceout)
+# Read RTOFS - CICE4
+# Init date:
+dnmbI = mtime.rdate2datenum(init_date*100+init_hr)  # init. day nmb
+yrI, mmI, ddI, hrI = mtime.datevec(dnmbI)[:4]
+
+if dnmbI < mtime.datenum([2025,8,1]):
+  rtofs_vers = "2.4"
+else:
+  rtofs_vers = "2.5" 
+
+pthice = f"/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/cice4_fcast/{init_date}/interp_mesh025"
+flice  = f"{fldnm}_RTOFSv{rtofs_vers}_{init_date}_{jdm}x{idm}.nc"
+if fldnm == 'ithkn':
+  varnm  = "ice_thkn"
+  clrmp = mclrmps.colormap_ice_thkn()
+  rmin = 0.
+  rmax = 3.
+elif fldnm == 'iconc':
+  varnm = "ice_conc"
+  clrmp = mclrmps.colormap_conc()
+  rmin = 0.
+  rmax = 1.
+elif fldnm == 'hsnow':
+  varnm = 'snow_depth'
+  clrmp = mclrmps.colormap_temp()
+  rmin = 0.
+  rmax = 0.4
+clrmp.set_bad(color=[0.2, 0.2, 0.2])
+
+dfliceout = os.path.join(pthice,flice)
 print(f'Reading interpolated ice thickness --> {dfliceout}')
 with xarray.open_dataset(dfliceout) as ds_hi:
-  LON = ds_hi['lon'].data
-  LAT = ds_hi['lat'].data
-  AI = ds_hi['ice_thkn'].isel(time=MM-1).squeeze()
+  AI = ds_hi[varnm].data.squeeze()
 
 
 AI = np.where(np.isnan(AI), 0., AI)
 AI[HH >=0] = np.nan
 
-clrmp = mclrmps.colormap_ice_thkn()
-rmin = 0.
-rmax = 3.
-clrmp.set_bad(color=[0.2, 0.2, 0.2])
-
 
 print("Plotting ...")
 
 
-m = Basemap(projection='spstere',boundinglat=-55,lon_0=180,resolution='l')
-parallels = np.arange(-80,-10,10.)
-meridians = np.arange(-360,359.,45.)
+if regn == 'south':
+  m = Basemap(projection='spstere',boundinglat=-55,lon_0=180,resolution='l')
+  parallels = np.arange(-80,-10,10.)
+  meridians = np.arange(-360,359.,45.)
+elif regn == 'north':
+  m = Basemap(projection='npstere',boundinglat=60,lon_0=-10,resolution='l')
+  parallels = np.arange(50, 90, 5)
+  meridians = np.arange(-360, 359., 45.)
 xh, yh = m(LON,LAT) # GFS coords
 
 
@@ -132,8 +150,7 @@ ax1 = plt.axes([0.1, 0.13, 0.8, 0.8])
 m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
 m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 img1 = ax1.pcolormesh(xh, yh, AI, cmap=clrmp, vmin=rmin, vmax=rmax)
-#ax1.contour(xh,yh,HH,[0], linestyles='solid', colors=[(0.,0.,0.)], linewidths=1)
-ax1.set_title(f'{fliceout}, ithkn clim MM={MM:02d}\n {pthice}')
+ax1.set_title(f'{fldnm} RTOFS interp mesh025, {flice}\n {pthice}')
 
 # Colorbars
 ax3 = fig1.add_axes([0.2, 0.1, 0.6, 0.02])
@@ -145,7 +162,7 @@ clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=1
 clb.ax.tick_params(direction='in', length=12)
 
 
-btx = 'plot_interp_CryoSate_ithkn_mesh025.py'
+btx = 'plot_interp_RTOFS_ice_snow_mesh025.py'
 bottom_text(btx, pos = [0.02,0.02])
 
 

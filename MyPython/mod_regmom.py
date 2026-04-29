@@ -69,7 +69,7 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   #import time
   #tt0 = time.perf_counter()
   import mod_bilinear as mblnr
-
+  import mod_misc1 as mmisc1
 
 # Need 2D arrays for LON, LAT
 # if 1D array - Mercator grid is assumed
@@ -202,8 +202,9 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
 
   INp = False
   if not INp:
-    IV, JV, INp = find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1.e-8)
+    IV, JV, INp = find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1.e-2)
 
+  # Not worked try i+/-1, j+/-1
   for jv, iv in zip(JVX, IVX):
     # skip boundaries
     if jv == 0:
@@ -625,10 +626,12 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   return ixx, jxx
 
 
-def find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1e-8):
+def find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1e-3, eps0=1e-4):
   """
    Try combinations of N selected closest points in IVX, JVX to find
    a box that includes x0, y0
+   making eps_tol too small - risk of false acceptance not quadrilateral boxes
+                  too big  - rejecting semi-quadrilateral 
   """
   from itertools import combinations
 
@@ -655,14 +658,14 @@ def find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1e-8):
     XV, YV, IDX = mmisc1.reorder_polygon(XV, YV, indx=True)
 
     # reject self-intersecting quads
-    if not mblnr.strictly_convex_quad(XV, YV, eps_tol=1e-4):
+    if not mblnr.strictly_convex_quad(XV, YV, eps_tol=eps_tol):
       continue
 
     # inclusion test
-    if mmisc1.point_on_edge(x0c, y0c, XV, YV, tol=eps_tol):
+    if mmisc1.point_on_edge(x0c, y0c, XV, YV, tol=eps0):
       return IV[IDX], JV[IDX], True
 
-    if mmisc1.inpolygon_1pnt(x0c, y0c, XV, YV, eps0=eps_tol):
+    if mmisc1.inpolygon_1pnt(x0c, y0c, XV, YV, eps0=eps0):
       return IV[IDX], JV[IDX], True
 
   return [], [], False

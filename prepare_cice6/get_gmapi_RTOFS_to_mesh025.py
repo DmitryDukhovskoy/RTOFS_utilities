@@ -54,12 +54,13 @@ parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}"
 parser.add_argument("--init", help=f"init date", choices=[20251231, 20250704], default=init_date, type=int)
 parser.add_argument("--ihr", help=f"init hour, default {init_hr}", type=int)
 parser.add_argument("--stmp", 
-        help="Save temp files at stmp-perc processed pnts, continue from saved (>0 - 100=yes, 0=no)",
-        required=True, type=int)
+    help="Save temp files at stmp-perc processed pnts & continue from saved (1 - 100, 100-only final save)",
+    required=True, type=int)
 parser.add_argument("--chsize", help="Chunk size: numb of i indices 1,..., idm", type=int)
 parser.add_argument("--kchunk", help=f"If save tmp, chunk number: 1:idm/chunk size, default={chsize}", 
                     type=int)
-parser.add_argument("--final", help="Finish by combining all tmp files 1=yes, 0=no", default=0, type=int)
+parser.add_argument("--final", help="Finish by combining all tmp files 1=yes, 0=no", 
+                    default=0, choices=[0,1], type=int)
 args = parser.parse_args()
 
 regn      = args.regn if args.regn is not None else regn
@@ -97,6 +98,7 @@ dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
 dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
 
 hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
+jdm, idm = hlon.shape
 
 with xarray.open_dataset(dftopo_mom) as dstopo:
   HH = dstopo['depth'].data.squeeze()
@@ -133,7 +135,9 @@ if not final:
   iE = kchunk * chsize
 
   assert iE <= IDIM, print(f"  WARN:   check kchunk={kchunk} chsize={chsize} ==> iE={iE} > {IDIM}")
-    
+else:
+  iS = 0
+  iE = idm
 
 
 # Read RTOFS topo:
@@ -168,30 +172,30 @@ if ignore_north_lim:
 row_min = np.min(hlat, axis=1)  # min lat in each row
 row_max = np.max(hlat, axis=1)  # max lat in each row
 jS = np.argmax(row_min >= lat_min)
-jE = len(row_max) - np.argmax(row_max[::-1] <= lat_max) - 1 # note reverse indexing for [::-1]
-#jE = np.argmin(row_max <= lat_max) - 1
-jdm, idm = hlon.shape
+jE = jdm
 
 # Output dir, temp file:
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 pthdump = os.path.join(pthdata,'gmapi_mapping2mesh025')
 pthtmp  = os.path.join(pthdata,'gmapi_mapping2mesh025','tmp')
-fltmp   = f'RTOFS008_mesh025_gmapi_iS{iS:04d}_iE{iE:04d}_{kchunk:03d}.npz'
 flgmapi = f'RTOFS008_mesh025_gmapi_{idm}x{jdm}_{regn}.nc'
-dfltmp  = os.path.join(pthtmp, fltmp)
 dflgmapi = os.path.join(pthdump, flgmapi)
 
-print(f"   Final saved file: {final}, tmp file={fltmp}")
+if final:
+  print(f"   Final file will be combined from tmp files and saved")
+else:
+  fltmp   = f'RTOFS008_mesh025_gmapi_iS{iS:04d}_iE{iE:04d}_{kchunk:03d}.npz'
+  dfltmp  = os.path.join(pthtmp, fltmp)
+  print(f"   Final file will not be saved,  tmp file={fltmp}")
 
-INDX = None
-JNDX = None
-INDX_list = []
-JNDX_list = []
-IMOM = []
-JMOM = []
-
-# if saving tmp file, check if file exists:
-if use_tmp:
+def read_tmp_file(dfltmp): 
+  """
+    Update gmapi indices from tmp files
+  """
+  INDX_list = []
+  JNDX_list = []
+  IMOM = []
+  JMOM = []
   if os.path.isfile(dfltmp):
     print(f"Loading temp. file {dfltmp}")
     data = np.load(dfltmp)
@@ -200,105 +204,96 @@ if use_tmp:
     INDX_list.append(data["indx"])
     JNDX_list.append(data["jndx"])
   else:
-    print(f"No saved processed pnts, Temp. file does not exist {dfltmp}") 
+    print(f"No saved processed pnts, Temporary file does not exist {dfltmp}") 
 
- 
-JDIM, IDIM = hlon.shape
-IJDIM = IDIM*JDIM
-if regn == 'global':
-  PMsk = ((hlat <= lat_sh) | (hlat >= lat_nh)) & (HH <= 0)
-elif regn == 'north':
-  PMsk = (hlat >= lat_nh) & (HH <= 0)
-elif regn == 'south':
-  PMsk = (hlat <= lat_sh) & (HH <= 0)
+  return IMOM, JMOM, INDX_list, JNDX_list
 
-Npnts_mom = np.sum(PMsk)
-step_dump = int(stmp/100. * Npnts_mom)
-if use_tmp > 0:
-  print(f"Temporary files dumped every icc = {step_dump} step")
-  
-pnts_saved = set(zip(IMOM, JMOM))
-icc = -1
-time0 = time.perf_counter()
-for ii in range(iS, iE):
-  for jj in range(jS,jE+1):
-    if HH[jj,ii] >= 0:
-      continue
-    x0 = hlon[jj,ii]
-    y0 = hlat[jj,ii]
-
-    # Skip grid points outside the region:
-    if regn == 'global':
-      if lat_nh > y0 > lat_sh:
-        continue
-    else:
-      if y0 < lat_min or y0 > lat_max:
-        continue
-
-    icc += 1
-    if icc%5000 == 0:
-      prc_done = icc / Npnts_mom * 100.
-      time1 = time.perf_counter()
-      dltT = (time1 - time0)/60.
-      print(f'     icc={icc} {prc_done:.2f}% done, time={dltT:.3}min ...')
-      time0 = time.perf_counter()
-
-    if use_tmp and (ii,jj) in pnts_saved:
-      continue
-
-    #tt0 = time.perf_counter()
-    #print(f"icc={icc}, ii={ii}, jj={jj}, x0={x0}, y0={y0}")
-    ixx, jxx = mrmom.find_gridpnts_box(x0, y0, LON, LAT, dhstep=.8, 
-                                       ignore_north_lim=ignore_north_lim, 
-                                       wrap_long=True)
-    #tt1 = time.perf_counter()
-    #print(f" dT = {tt1-tt0} sec, estimated tot time={(tt1-tt0)*Npnts_mom/3600} hrs")
-
-    if len(ixx)==0 or len(jxx)==0:
-     continue
-    ixx = np.expand_dims(ixx, axis=0)
-    jxx = np.expand_dims(jxx, axis=0)
-
-    INDX_list.append(ixx)
-    JNDX_list.append(jxx)
-    IMOM.append(ii)
-    JMOM.append(jj)
-
-    if use_tmp and icc > 0 and icc % step_dump == 0:
-      # Saving tmp file:
-      print(f"  icc={icc} Dumping tmp file --> {dfltmp}")
-      np.savez(
-               dfltmp, 
-               imom=np.array(IMOM), 
-               jmom=np.array(JMOM), 
-               indx=np.concatenate(INDX_list, axis=0),
-               jndx=np.concatenate(JNDX_list, axis=0)
-               ) 
-
-if not final:
-  if use_tmp:
-    # Saving tmp file:
-    print(f"Final tmp:  icc={icc} Dumping tmp file --> {dfltmp}")
+def save_tmp(dfltmp, IMOM, JMOM, INDX_list, JNDX_list):
     np.savez(
-             dfltmp,
-             imom=np.array(IMOM), 
-             jmom=np.array(JMOM),    
-             indx=np.concatenate(INDX_list, axis=0),
-             jndx=np.concatenate(JNDX_list, axis=0)
-             )
+        dfltmp,
+        imom=np.array(IMOM),
+        jmom=np.array(JMOM),
+        indx=np.concatenate(INDX_list, axis=0),
+        jndx=np.concatenate(JNDX_list, axis=0)
+    )
 
-  print("Finished without saving final netcdf")
 
-else:
+
+def combine_tmp_files(pthtmp):
+  tmp_files = sorted([
+      f for f in os.listdir(pthtmp)
+      if f.startswith("RTOFS008_mesh025_gmapi_") and f.endswith(".npz")
+  ])
+
+  if len(tmp_files) == 0:
+    raise RuntimeError(f"No tmp files found in {pthtmp}")
+
+  IMOM_all = []
+  JMOM_all = []
+  INDX_all = []
+  JNDX_all = []
+
+  for fl in tmp_files:
+    print(f"Reading {fl}")
+    dfl = os.path.join(pthtmp, fl)
+    d = np.load(dfl, allow_pickle=True)
+
+    imom = np.asarray(d["imom"])
+    jmom = np.asarray(d["jmom"])
+    indx = np.asarray(d["indx"])
+    jndx = np.asarray(d["jndx"])
+
+    # skip empty files
+    if imom.size == 0 or indx.size == 0:
+      continue
+
+    # fix shape issues
+    if indx.ndim == 1:
+      indx = indx.reshape(1, -1)
+    if jndx.ndim == 1:
+      jndx = jndx.reshape(1, -1)
+
+    IMOM_all.append(imom)
+    JMOM_all.append(jmom)
+    INDX_all.append(indx)
+    JNDX_all.append(jndx)
+
+  # final merge
+  IMOM = np.concatenate(IMOM_all)
+  JMOM = np.concatenate(JMOM_all)
+  #INDX = np.vstack(INDX_all)
+  #JNDX = np.vstack(JNDX_all)
+
+  return IMOM, JMOM, INDX_all, JNDX_all
+
+
+def save_netcdf(IMOM, JMOM, INDX_list, JNDX_list, LON, LAT, dfgmapi):
+  """
+    Final NetCDF writer
+  """
   IMOM = np.array(IMOM)
   JMOM = np.array(JMOM)
-  INDX = np.concatenate(INDX_list, axis=0)
-  JNDX = np.concatenate(JNDX_list, axis=0)
+  npnts = len(IMOM)
+  if isinstance(INDX_list, np.ndarray):
+      INDX = INDX_list
+      JNDX = JNDX_list
+
+  elif isinstance(INDX_list, list):
+      INDX = np.vstack([np.asarray(x) for x in INDX_list])
+      JNDX = np.vstack([np.asarray(x) for x in JNDX_list])
+
+  else:
+      raise TypeError(f"Unrecognized type: {type(INDX_list)}")
+
+  INDX = np.asarray(INDX)
+  JNDX = np.asarray(JNDX)
+
+  assert INDX.shape == (npnts, 4), f"INDX shape wrong: {INDX.shape}"
+  assert JNDX.shape == (npnts, 4), f"JNDX shape wrong: {JNDX.shape}"
 
   # RTOFS coord dimensions:
   jdim, idim = LON.shape
 
-  npnts = len(IMOM)
   darr_imom = xarray.DataArray(IMOM, dims=("npoints"),\
                      coords={"npoints": np.arange(npnts)})
   darr_jmom = xarray.DataArray(JMOM, dims=("npoints"),\
@@ -338,11 +333,114 @@ else:
   dset.attrs['contact']     = 'dmitry.dukhovskoy@noaa.gov'
   dset.attrs['region']      = regn
 
-  fgmapi  = f'RTOFS_CICE4_gmapi_{idm}x{jdm}_{regn}.nc'
-  dfgmapi = os.path.join(pthdump, fgmapi)
-
   print(f'Saving gmapi --> {dfgmapi}')
   dset.to_netcdf(dfgmapi, format='NETCDF4', engine='netcdf4')
+
+
+INDX = None
+JNDX = None
+INDX_list = []
+JNDX_list = []
+IMOM = []
+JMOM = []
+
+if not final:
+  IMOM, JMOM, INDX_list, JNDX_list = read_tmp_file(dfltmp)
+else:
+  # For final stage: combine all temporary files that exist:
+  IMOM, JMOM, INDX_list, JNDX_list = combine_tmp_files(pthtmp)
+
+JDIM, IDIM = hlon.shape
+IJDIM = IDIM*JDIM
+
+# Points to process:
+# Note: PMsk is ~12 points > jS:jE, iS:iE
+# because PMsk leaving points at jS-1 
+PMsk = (HH < 0.)
+PMsk &= (hlat >= lat_min)
+if regn == 'global':
+  PMsk &= (hlat <= lat_sh) | (hlat >= lat_nh)
+elif regn == 'north':
+  PMsk &= (hlat >= lat_nh)
+elif regn == 'south':
+  PMsk &= (hlat <= lat_sh)
+
+Npnts_mom = np.sum(PMsk)
+step_dump = max(100, int(stmp/100. * Npnts_mom))
+if not final:
+  print(f"Temporary files dumped every icc = {step_dump} step")
+  
+pnts_saved = set(zip(IMOM, JMOM))
+
+# Find not matched PMsk
+#JM, IM = np.where(PMsk)
+#mask_pnts = set(zip(IM,JM))
+#for im, jm in mask_pnts:
+#  if (im,jm) not in pnts_saved:
+#    print(f"Missing jm={jm} im={im}")
+
+
+print(f" Processed in tmp files: {len(pnts_saved)}, total pnts={Npnts_mom}\n")
+
+icc = -1
+time0 = time.perf_counter()
+for ii in range(iS, iE):
+  for jj in range(jS,jE):
+    x0 = hlon[jj,ii]
+    y0 = hlat[jj,ii]
+
+    # Skip grid points outside the region:
+    if not PMsk[jj, ii]:
+      continue
+
+    icc += 1
+    if icc%5000 == 0:
+      prc_done = icc / Npnts_mom * 100.
+      time1 = time.perf_counter()
+      dltT = (time1 - time0)/60.
+      print(f'     icc={icc} {prc_done:.2f}% done, time={dltT:.3}min ...')
+      time0 = time.perf_counter()
+
+    if (ii,jj) in pnts_saved:
+      continue
+
+    #tt0 = time.perf_counter()
+    #print(f"icc={icc}, ii={ii}, jj={jj}, x0={x0}, y0={y0}")
+    ixx, jxx = mrmom.find_gridpnts_box(x0, y0, LON, LAT, dhstep=.8, 
+                                       ignore_north_lim=ignore_north_lim, 
+                                       wrap_long=True)
+    #tt1 = time.perf_counter()
+    #print(f" dT = {tt1-tt0} sec, estimated tot time={(tt1-tt0)*Npnts_mom/3600} hrs")
+
+    if len(ixx)==0 or len(jxx)==0:
+     continue
+    ixx = np.expand_dims(ixx, axis=0)
+    jxx = np.expand_dims(jxx, axis=0)
+    assert ixx.shape == (1, 4), "unexpected ixx shape"
+    assert jxx.shape == (1, 4), "unexpected jxx shape"
+
+    INDX_list.append(ixx)
+    JNDX_list.append(jxx)
+    IMOM.append(ii)
+    JMOM.append(jj)
+
+    if not final and icc > 0 and icc % step_dump == 0:
+      # Saving tmp file:
+      print(f"  icc={icc} Dumping tmp file --> {dfltmp}")
+      save_tmp(dfltmp, IMOM, JMOM, INDX_list, JNDX_list)
+
+if not final:
+  # Saving tmp file:
+  print(f"Final tmp:  icc={icc} Dumping tmp file --> {dfltmp}")
+  save_tmp(dfltmp, IMOM, JMOM, INDX_list, JNDX_list)
+
+  print("Finished without saving final netcdf")
+
+else:
+  fgmapi  = f'RTOFS_CICE4_gmapi_{idm}x{jdm}_{regn}.nc'
+  dfgmapi = os.path.join(pthdump, fgmapi)
+  print(f"Final saving NetCDF --> {dfgmapi}")
+  save_netcdf(IMOM, JMOM, INDX_list, JNDX_list, LON, LAT, dfgmapi) 
 
 
 
@@ -374,7 +472,7 @@ if f_chck:
   # Lon/lat space:
   X = LON[jxx,ixx]
   Y = LAT[jxx,ixx]
-  ax1.plot(LON, LAT, '.', color=[0.8,0.8,0.8])   # RTOFS grid
+  #ax1.plot(LON, LAT, '.', color=[0.8,0.8,0.8])   # RTOFS grid
   ax1.plot(x0, y0, 'r*')     # pnt of interest
   ax1.plot(X, Y, '.-')
   ax1.plot([X[0], X[-1]], [Y[0], Y[-1]], '-')

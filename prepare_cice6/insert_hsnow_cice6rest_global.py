@@ -138,6 +138,7 @@ def insert_hsnow(regn_wrk, ds_out, config_rest, dnmbR, dnmbN, pthrest, flrst_in)
   # Tsfc = Tsnow in the 1 layer --> change qsnon(1)
   Tsfc_max = -1.0   
   rho_ice  = 917. 
+  hsnow_max = 500.   # to avoid very thick hsnow / ice_area which will cause picard iteration crush
   if regn_wrk == 'south':
     #rho_ocean = msws.sw_dens0(32.,-1.8)  # take lower S to guarantee snow-ice interf above sea level
     rho_ocean = 1025.
@@ -253,6 +254,11 @@ def insert_hsnow(regn_wrk, ds_out, config_rest, dnmbR, dnmbN, pthrest, flrst_in)
     #if check_pnt:
     #  print(f"checking: lon={LON[j0,i0]:.2f}, lat={LAT[j0,i0]:.2f}")
     #  print(f"i0={i0} j0={j0}, ai={ai:.3f}, hsn_new={hsn_new:.5f}, HSi={HSi[j0,i0]:.5f}")    
+
+    # This should not happen (target HSi assumed to be m3/m2_ice) just to make sure
+    # there is no very thick snow --> possible crash in picard iteration for very thick snow or ice
+    if hsn_new > hsnow_max:
+      hsn_new = hsnow_max
 
     # ice conc should not change except for a few locaitons to adjust snow load across cats:
     ain_new = ain.copy()

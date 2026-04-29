@@ -17,8 +17,6 @@ import sys
 import importlib
 import matplotlib
 import xarray
-from copy import copy
-import matplotlib.colors as colors
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
 import argparse
@@ -42,30 +40,34 @@ sys.path.extend([
 
 from mod_utils_fig import bottom_text
 import mod_time as mtime
-import mod_utils as mutil
-import mod_misc1 as mmisc
 import mod_colormaps as mclrmps
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
 import mod_mom6 as mmom6
-import mod_misc1 as mmisc
 import mod_cice6_utils as mc6util
 importlib.reload(mc6util)
 
 
-flrst_in = 'cice_model.res.20250103.00.iconc_thkn.snow.nc'
 sfx_end = 'sphys'
+fyaml = 'cice6rest_files_RTOFS.yaml'
 yrR = mmR = ddR = hrR = None
 yrN = mmN = ddN = hrN = None
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--flrst_in", help=f"rest file in, default={flrst_in}", type=str)
+parser.add_argument("--flrst_in", help=f"rest file in, if None - use fyaml", type=str)
 parser.add_argument("--flrst_out", help="new rest file, otherwise flrst_in + snowphys", type=str)
+parser.add_argument("--fyaml", help=f"YAML file with flrst_in, pthrst_in default={fyaml}", type=str) 
 args = parser.parse_args()
 
-flrst_in  = args.flrst_in if args.flrst_in else flrst_in
+flrst_in  = args.flrst_in if args.flrst_in else None
 flrst_out = args.flrst_out if args.flrst_out else None
+fyaml =  args.fyaml if args.fyaml else fyaml
 
+print(f"Reading YAML with restart info: {fyaml}\n")
+with open(fyaml) as ff: 
+  config_rest = safe_load(ff)
+
+pthrest  = config_rest["cice_paths"]["pth_in"]
+flrst_in = config_rest["rest_names"]["add_snphys"]["flrst_in"] 
+ 
 # Derive restart dates assuming file nameing is cice_restart.res.YYYYMMDD.XX[XXX]
 # or YYYYMMDD.<time>.---.nc
 yrR, mmR, ddR, hrR, mintR = mc6util.get_date_filename(flrst_in)
@@ -106,7 +108,7 @@ fyaml = 'paths_ufs.yaml'
 with open(fyaml) as ff:
   pths_ufs = safe_load(ff)
 
-pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+#pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
 #pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_da'
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 

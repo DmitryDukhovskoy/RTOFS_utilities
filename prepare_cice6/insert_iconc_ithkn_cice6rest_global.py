@@ -288,6 +288,7 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
   vitot_min = 0.05    # min total ice vol m3/m2_grid, when ai_old = 0 --> ai_new > 0
   hitot_min = 0.1    # mean ice thickness over ice area: = sum(hice(n)*aice(n)) / sum(aice(n)) 
   hsnow_min = 0.01   # min snow thickness for noice --> ice case, this is m3/m2_ice 
+  hsnow_max = 500.   # to avoid very thick hsnow / ice_area which will cause picard iteration crush
 
   if ins_thkn:
     print("Ice concentration and ice thickness insertion ...")
@@ -474,6 +475,9 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
       hsn_new = vstot_old / ai_new  # mean snow thickn over ice
       if hsn_new < hsnow_min:
         hsn_new = hsnow_min
+        vstot_new = hsn_new * ai_new
+      elif hsn_new > hsnow_max:
+        hsn_new = hsnow_max
         vstot_new = hsn_new * ai_new
       else:
         vstot_new = vstot_old

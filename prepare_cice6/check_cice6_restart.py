@@ -44,7 +44,8 @@ regn = 'north'
 #flrst = '20250103.030000.cice_model.res.nc'       # original ice restart
 #flrst = 'cice_model.res.20250103.00.iconc_thkn.snow.nc'
 #flrst = 'cice_restart.20250103.00.iconc_ithkn.hsnow.snphys.nc' 
-flrst = 'cice_restart.20250704.00.iconc_ithkn.nc'
+#flrst = 'cice_restart.20250704.00.iconc_ithkn.nc'
+flrst ='cice_RTOFSres.20250704.00.iconc_ithkn.nc'
 
 # ithkn - mean ice thkn per m2 of grid cell area
 # ithkn_ice - mean ice thkn per m2 of ice area
