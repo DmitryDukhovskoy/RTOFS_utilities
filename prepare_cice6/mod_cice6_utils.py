@@ -1539,14 +1539,22 @@ def adjust_snow_freeboard(vin, vsn, ain, hsn_coef=0.999, \
   return vsn_adj
 
 
-def adjust_ice_freeboard(vin, vsn, ain, hicat, \
-              rho_ice=917., eps_hice=1.e-8, rho_snow=330., rho_ocean=1025.):
+def adjust_ice_freeboard(vin, vsn, ain, hicat, 
+    rho_ice=917., eps_hice=1.e-8, rho_snow=330., 
+    rho_ocean=1025., eps_bin=1e-6, fdebug=False):
   """
     For cats where snow-ice interf < 0, adjust
     ice thickness to bring the interf at the sea level
-    The change should be ~0.3 of snow excess depth
 
     eps_hice - small delta above 0 sea level to guarantee ice freeboard > 0
+  vin :   Ice volume per category
+  vsn :   Snow volume per category
+  ain :   Ice concentration per category
+  hicat :  Category thickness bounds (size ncat+1)
+  relax :  Fraction of adjustment toward hydrostatic balance (1.0 = full)
+
+  Returns:  vin_adj, ain_adj, vsn_adj
+
   """
   puny = 1e-11
   ncat = len(vsn)
@@ -1565,11 +1573,10 @@ def adjust_ice_freeboard(vin, vsn, ain, hicat, \
 
   if np.all(ice_frb >= 0.):
     # nothing to correct: 
-    return vin_adj
+    return vin_adj, ain_adj, vsn_adj
 
-  hice_adj = hsnow*rho_snow/(rho_ocean-rho_ice)
+  hice_adj = hsnow * rho_snow / (rho_ocean-rho_ice)
   hice_adj = (1. + eps_hice) * np.where(ice_frb < 0., hice_adj, hice)
-  vin_adj  = hice_adj * ain
 
   check_vsnon(vsn_adj, vsn_tot, fstr="(1):")
   check_aicen(ain_adj, ain_tot, fstr="(1):")
@@ -1580,39 +1587,52 @@ def adjust_ice_freeboard(vin, vsn, ain, hicat, \
   #dlt_hice = np.diff(hice_adj)
   #if np.all(dlt_hice >= 0.):
   #  return vin_adj, ain_adj, vsn_adj
-
-  # Check that ice thicknesses do not cross over the ice cats:
-  # see: Check hice[k+1] > hice[k], icepack_therm_itd.F90 ITD thermodyn
   # Redistribute ice + snow across cats if needed
-  eps_bin = 1.e-6
   for k in range(ncat-1):
+    if ain_adj[k] <= puny:
+      hice_adj[k] = 0.0
+      continue
+
     hbin_min = hicat[k]
-    hbin_max = hicat[k+1]
+    hbin_max = hicat[k+1] - eps_bin
 
-    if ain_adj[k] > puny and hice_adj[k] < hbin_min:
-      # Unlikely situation, just sanity check:
+    # Limit ice thickness adjustment to min/max thickness bound within the cat
+    if hice_adj[k] < hbin_min:
       hice_adj[k] = hbin_min
+    if hice_adj[k] > hbin_max:
+      hice_adj[k] = hbin_max
 
-    if hice_adj[k] >= hice_adj[k+1] and hice_adj[k+1] > puny:
-      # excess ice thkn:
-      assert hice_adj[k] > hbin_max-eps_bin, f"k={k} expected: hice_adj[k] > hbin_max-eps_bin"
-      hi_exc = hice_adj[k] - (hbin_max - eps_bin)
-      if hice_adj[k+1] < puny:
-        # if the upper cat is empty - simply relocate all ice & snow
-        hice_adj[k+1] = hice_adj[k]
-        ain_adj[k+1]  = ain_adj[k]
-        vsn_adj[k+1]  = vsn_adj[k]
+  # Checking cross-cutting categories:
+  # excess ice thkn move to thicker cat if thicker is thinner
+  for k in range(1, ncat):
+    if ain_adj[k] > puny and ain_adj[k-1] > puny:
+      if hice_adj[k] <= hice_adj[k-1]:
+        hice_adj[k] = hice_adj[k-1] + eps_bin
 
-        hice_adj[k] = 0.
-        ain_adj[k]  = 0.
-        van_adj[k]  = 0.
-      else:
-        # move excess ice to the next cat
-        # no need to adjust snow or ice conc
-        hice_adj[k]   -= hi_exc
-        hice_adj[k+1] += hi_exc
-      
-  vin_adj  = hice_adj * ain_adj
+        hbin_max = hicat[k+1] - eps_bin
+        if hice_adj[k] > hbin_max:
+          hice_adj[k] = hbin_max
+
+  #reconstruct volume (area unchanged)
+  vin_adj = hice_adj * ain_adj
+
+  if fdebug:
+    hwater_new = (rho_ice * hice_adj + rho_snow * hsnow) / rho_ocean
+    frb_new = hice_adj - hwater_new
+    if np.any(frb_new < -1e-10):
+      print("WARN: negative freeboard remains after adjustment")
+      print(f"vin={vin}")
+      print(f"vsn={vsn}")
+      print(f"ain={ain}")
+      print(f"hicat={hicat}")
+      print(f"hice={hice}")
+      print(f"hsnow={hsnow}")
+      print(f"ice_frb original {ice_frb}")
+      print(f"frb_new={frb_new}")
+      print(f"readjusted hice: {hice_adj}")
+      print(f"readjusted ain: {ain_adj}")
+      print(f"readjusted vin: {hice_adj * ain_adj}\n")
+ 
   check_vsnon(vsn_adj, vsn_tot, fstr="(1):")
   check_aicen(ain_adj, ain_tot, fstr="(1):")
 

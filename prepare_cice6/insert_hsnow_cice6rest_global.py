@@ -355,7 +355,7 @@ def insert_hsnow(regn_wrk, ds_out, config_rest, dnmbR, dnmbN, pthrest, flrst_in)
                       rho_ice=rho_ice, rho_snow=rhos, rho_ocean=rho_ocean)  
     if np.any(ice_frb < 0.):
       vin_new, ain_new, vsn_new = mc6util.adjust_ice_freeboard(vin, vsn_new, ain, hicat, \
-                      rho_ice=rho_ice, rho_snow=rhos, rho_ocean=rho_ocean) 
+                      rho_ice=rho_ice, rho_snow=rhos, rho_ocean=rho_ocean, fdebug=False) 
     else:
       vin_new = vin.copy()
 

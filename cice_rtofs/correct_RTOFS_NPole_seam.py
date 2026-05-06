@@ -54,19 +54,20 @@ fhr = 0
 parser = argparse.ArgumentParser()
 parser.add_argument("--init", help=f"init date", choices=[20251231, 20250704], required=True, type=int)
 parser.add_argument("--ihr", help=f"init hour, default {init_hr}", type=int)
+parser.add_argument("--fhr", help=f"f/cast hour, default=0", 
+                   choices=[0,24,48,72,96,120,144,168,192], default=0,  type=int)
 parser.add_argument("--save", help="Save corrected fields or not (for debugging or plotting), default=1",
            choices=[0,1], default=1, type=int)
 args = parser.parse_args()
 
 init_date = args.init if args.init else init_date
 init_hr   = args.ihr if args.ihr else init_hr
+fhr       = args.fhr
 fsave = args.save == 1
-
 
 # Init date:
 dnmbI = mtime.rdate2datenum(init_date*100+init_hr)  # init. day nmb
 yrI, mmI, ddI, hrI = mtime.datevec(dnmbI)[:4]
-
 
 pthice = f"/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/cice4_fcast/{init_date}"
 if fhr == 0:

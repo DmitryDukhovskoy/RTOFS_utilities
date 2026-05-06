@@ -59,7 +59,7 @@ flrst_cice = 'cice_restart.20240701.00.iconc.nc'
 vartmp = 'Temp'      # variable name in the restart file
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--flmom_in", help="MOM6 rest file name, input default={flmom_in}", type=str)
+parser.add_argument("--flmom_in", help=f"MOM6 rest file name, input default={flmom_in}", type=str)
 parser.add_argument("--flice", help="CICE6 restart file to use for MOM6 surf T", required=True, type=str)
 #parser.add_argument("--flice", help="CICE6 restart file to use, default={flrst_cice}", type=str)
 parser.add_argument("--fyaml",
@@ -268,7 +268,7 @@ if flrst_out is None:
   if cice_sfx == 'res':
     cice_sfx = 'cntrl'
 
-  flrst_out = f"{base}.{cice_sfx}.nc"
+  flrst_out = f"{base}.{cice_sfx}.Tfrz.nc"
 
 dflrst_out = os.path.join(pthrest_out, flrst_out)
 print(f"Saving MOM6 restart --> {dflrst_out}")

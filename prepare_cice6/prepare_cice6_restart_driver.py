@@ -75,9 +75,7 @@ sys.path.extend([
     os.path.join(PPTHN, 'MyPython', 'mom6_utils')
 ])
 
-import mod_misc1 as mmisc
 import mod_cice6_utils as mc6util
-import mod_time as mtime
 
 #rest_date = 20250103
 #rest_date = 20250701 - not needed, check yaml 
@@ -85,9 +83,7 @@ rest_hr   = 0
 rhr_out   = rest_hr
 flrst_in  = None
 flrst_out = None
-#fyaml = 'cice6rest_files.yaml'   # YAML with paths, files, dates for restart
-#fyaml = 'cice6rest_files_SFS.yaml'
-fyaml = 'cice6rest_files_RTOFS.yaml'
+fyaml = 'cice6rest_files_SFSmem.yaml'
 iconc  = 1  # insert iconc from NRT NSIDC
 ithkn  = 0  # insert ithkn clim
 hsnow  = 0  # insert snow depth clim
@@ -103,20 +99,24 @@ parser.add_argument("--hsnow", type=int,
                     choices=[0,1], help=f"insert snow depth climatology, default={hsnow}")
 parser.add_argument("--snitd", type=int, 
                     choices=[0,1], help=f"use snow redistribution over ice, default={snitd}")
-parser.add_argument("--regn", help=f"region where restart is being updated", 
-                    choices=['south','north','global'], required=True, type=str)
+parser.add_argument("--regn", help=f"region where restart is being updated, default=global", 
+                    choices=['south','north','global'], default="global", type=str)
 parser.add_argument("--fyaml", 
                     help=f"YAML with local directories, filenames, restart dates, default={fyaml}",
                     default=fyaml,
                     type=str)
+parser.add_argument("--enmb",
+      help=f"ensemble number for ensamble runs, requires YAML for enmb choice", 
+      default=None, type=int)
 args = parser.parse_args()
 
-regn      = args.regn
-iconc     = args.iconc  if args.iconc  is not None else iconc
-ithkn     = args.ithkn  if args.ithkn  is not None else ithkn
-hsnow     = args.hsnow  if args.hsnow  is not None else hsnow
-snitd     = args.snitd  if args.snitd  is not None else snitd
-fyaml     = args.fyaml  if args.fyaml  is not None else fyaml 
+regn  = args.regn
+iconc = args.iconc  if args.iconc  is not None else iconc
+ithkn = args.ithkn  if args.ithkn  is not None else ithkn
+hsnow = args.hsnow  if args.hsnow  is not None else hsnow
+snitd = args.snitd  if args.snitd  is not None else snitd
+fyaml = args.fyaml  if args.fyaml  is not None else fyaml 
+enmb  = args.enmb 
 
 print(f"Reading YAML with restart info: {fyaml}\n")
 with open(fyaml) as ff:
@@ -124,27 +124,43 @@ with open(fyaml) as ff:
 
 # Output Restart dates if missing - same as input
 # input dates are deduced from restart input file
-rdate_out = config_rest["restart_time"]["rdate_out"] 
-rhr_out   = config_rest["restart_time"]["rhr_out"]
+# or provided in YAML
+def to_int_or_none(val):
+    return None if val is None else int(val)
+
+rdate_out = to_int_or_none(config_rest["restart_time"]["rdate_out"])
+rhr_out   = to_int_or_none(config_rest["restart_time"]["rhr_out"])
+rdate_in  = to_int_or_none(config_rest["restart_time"]["rdate_in"])
+rhr_in    = to_int_or_none(config_rest["restart_time"]["rhr_in"])
 
 # Input restart:
 # Where original CICE6 restart file is located:
-pthrst_in = config_rest["cice_paths"]["pth_in"]
-flrst_in  = config_rest["rest_names"]["flrst_in"]
+if enmb is None:
+  pthrst_in = config_rest["cice_paths"]["pth_in"]
+  flrst_in  = config_rest["rest_names"]["flrst_in"]
+else:
+  pthrst_in = config_rest["cice_mem_paths"]["pth_in"].format(enmb=f"{enmb:03d}")
+  flrst_in  = config_rest["rest_names"]["mem"]["flrst_in"]
+
 
 if flrst_in is None:
   raise RuntimeError("Input restart file name is missing in YAML")
 else:
   flrst_in_start  = flrst_in
 
-with xarray.open_dataset(os.path.join(pthrst_in, flrst_in)) as ds:
-  year  = ds.attrs["myear"]
-  month = ds.attrs["mmonth"]
-  day   = ds.attrs["mday"]
-  sec   = ds.attrs["msec"]
+# Derive restart time from file if not specified in YAML
+if rdate_in is None or rhr_in is None:
+  with xarray.open_dataset(os.path.join(pthrst_in, flrst_in)) as ds:
+    try:
+      year  = ds.attrs["myear"]
+      month = ds.attrs["mmonth"]
+      day   = ds.attrs["mday"]
+      sec   = ds.attrs["msec"]
+    except KeyError as err:
+      raise RuntimeError(f"Missing expected attribute in restart file: {err}")
 
-  rdate_in = int(year*10000 + month*100 + day)
-  rhr_in   = sec // 3600
+    rdate_in = int(year*10000 + month*100 + day)
+    rhr_in   = sec // 3600
 
 if rdate_out is None:
   rdate_out = rdate_in
@@ -152,14 +168,23 @@ if rhr_out is None:
   rhr_out = rhr_in
 
 # Output restart:
-pthrst_out = config_rest["cice_paths"]["pth_out"].format(regn=regn)
-flrst_out  = config_rest["rest_names"]["flrst_out"]
+#pthrst_out = config_rest["cice_paths"]["pth_out"].format(regn=regn)
+#flrst_out  = config_rest["rest_names"]["flrst_out"]
+if enmb is None:
+  pthrst_out = config_rest["cice_paths"]["pth_out"]
+  flrst_out = config_rest["rest_names"]["flrst_out"]
+else:
+  pthrst_out = config_rest["cice_mem_paths"]["pth_out"].format(enmb=f"{enmb:03d}")
+  flrst_out = config_rest["rest_names"]["mem"]["flrst_out"]
 
 # If restart out is not specified, check if template has been provided 
 # to use in constructing file name:
 #if flrst_out_tmp is None:
 #  flrst_out_tmp = 'cice_restart.YYYYMMDD.HH'  # default
-flrst_out_tmp = config_rest["rest_names"]["flrst_tmp"]
+if enmb is None:
+  flrst_out_tmp = config_rest["rest_names"]["flrst_tmp"]
+else:
+  flrst_out_tmp = config_rest["rest_names"]["mem"]["flrst_tmp"]
 
 flrst_out_start = flrst_out
 

@@ -1,6 +1,6 @@
 """
   Turning snwredist to 'ITDrdg' or 'ITDsd' requires additional 
-  variables in the CICE6 restart file
+  tracer variables in the CICE6 restart file
 
   smice    , & ! tracer for mass of ice in snow (kg/m^3)
   smliq    , & ! tracer for mass of liquid in snow (kg/m^3)
@@ -12,14 +12,8 @@
 """
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 import sys
-import importlib
-import matplotlib
 import xarray
-import matplotlib.colors as colors
-from yaml import safe_load
-from mpl_toolkits.basemap import Basemap, cm
 import argparse
 
 PPTHN = None
@@ -33,18 +27,10 @@ if 'PPTHN' not in locals() or PPTHN is None:
     raise RuntimeError("Directory 'python' not found in current working directory path.")
 
 sys.path.extend([
-    os.path.join(PPTHN, 'MyPython', 'hycom_utils'),
-    os.path.join(PPTHN, 'MyPython', 'draw_map'),
     os.path.join(PPTHN, 'MyPython'),
-    os.path.join(PPTHN, 'MyPython', 'mom6_utils')
 ])
 
-from mod_utils_fig import bottom_text
 import mod_time as mtime
-import mod_colormaps as mclrmps
-import mod_cice6_utils as mc6util
-importlib.reload(mc6util)
-
 
 def main():
   sfx_end = 'snphys'
@@ -54,8 +40,8 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("--rdate", help=f"restart date input file", required=True, type=int)
   parser.add_argument("--rhr", help=f"input file, restart hour = 0, ..., 23", type=int)
-  parser.add_argument("--rdate_out", help="output file, restart date", required=True, type=int)
-  parser.add_argument("--rhr_out", help="output file, restart hour", required=True, type=int)
+  parser.add_argument("--rdate_out", help="output file, restart date if different from rdate", type=int)
+  parser.add_argument("--rhr_out", help="output file, restart hour if different from rhr", type=int)
   parser.add_argument("--pth_in", help="input restart directory with original file", type=str, required=True)
   parser.add_argument("--flrst_in", help=f"rest file in", required=True, type=str)
   parser.add_argument("--pth_out", help="output restart directory where new file be dumped", 
@@ -63,27 +49,14 @@ def main():
   parser.add_argument("--flrst_out", help="new rest file name", required=True, type=str)
   args = parser.parse_args()
 
-  rest_date   = args.rdate
-  rest_hr     = args.rhr
-  rest_date_out = args.rdate_out
-  rest_hr_out = args.rhr_out
-  flrst_in    = args.flrst_in  
-  flrst_out   = args.flrst_out 
-  pthrst_in   = args.pth_in    
-  pthrst_out  = args.pth_out   
-
-  # Input restart file
-  dnmbR = mtime.rdate2datenum(rest_date*100+rest_hr)  # restart day nmb
-  if yrR is None:
-    yrR,mmR,ddR,hrR = mtime.datevec(dnmbR, round_hrs=True)[:4]
-  nsecR = hrR*3600
-
-  # Dates of the output fields in the new restart:
-  dnmbN = mtime.rdate2datenum(rest_date_out*100+rest_hr_out)
-  if yrN is None:
-    yrN, mmN, ddN, hrN = mtime.datevec(dnmbN, round_hrs=True)[:4]
-  nsecN = hrN*3600
-
+  rest_date     = args.rdate
+  rest_hr       = args.rhr
+  rest_date_out = args.rdate_out if args.rdate_out else rest_date
+  rest_hr_out   = args.rhr_out   if args.rhr_out   else rest_hr
+  flrst_in      = args.flrst_in  
+  flrst_out     = args.flrst_out 
+  pthrst_in     = args.pth_in    
+  pthrst_out    = args.pth_out   
 
   print(f"Snow phys: Restart date input:  {rest_date}:{rest_hr}")
   print(f"Snow phys: Restart date output: {rest_date_out}:{rest_hr_out}")
@@ -114,6 +87,18 @@ def main():
   snwliq_max =    0.033   # irreducible saturation fraction
                           #   0.033 (Anderson 1976)
                           # 0.09 to 0.1  (Denoth et al, 1979 & Brun 1989)
+
+  # Input restart file
+  dnmbR = mtime.rdate2datenum(rest_date*100+rest_hr)  # restart day nmb
+  if yrR is None:
+    yrR,mmR,ddR,hrR = mtime.datevec(dnmbR, round_hrs=True)[:4]
+  nsecR = hrR*3600
+
+  # Dates of the output fields in the new restart:
+  dnmbN = mtime.rdate2datenum(rest_date_out*100+rest_hr_out)
+  if yrN is None:
+    yrN, mmN, ddN, hrN = mtime.datevec(dnmbN, round_hrs=True)[:4]
+  nsecN = hrN*3600
 
   print(f"old restart: {yrR}/{mmR:02d}/{ddR:02d}:{hrR:02d}")
   print(f"new restart: {yrN}/{mmN:02d}/{ddN:02d}:{hrN:02d}")
@@ -149,8 +134,8 @@ def main():
   # For CICE6 snow, asumme no liquid fraction if T snow < Tliq
   # snow grain radius 
   # Typical effective snow grain radii in the Arctic 
-  # vary widely, from around 50-100 µm (micrometers) 
-  # for fresh snow to over 1000 µm (1 mm) for old, wet, or melting snow
+  # vary widely, from around 50-100 mcrm (micrometers) 
+  # for fresh snow to over 1000 mcrm (1 mm) for old, wet, or melting snow
   # Dang et al., JGR Atmos, 2017, "Measurements of light-absorbing particles in snow ..."
 
   Tliq = -0.05

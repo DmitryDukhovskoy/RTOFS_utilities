@@ -134,8 +134,10 @@ def extract_suffix(fname):
       return suffix
   return None
 
-pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
+#pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
 #pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_da'
+pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice/Neil_IC/GFS/mem008'
+
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 
 # CICE parameters:
@@ -364,7 +366,7 @@ for ipp in range(npnts):
                     rho_ice=rho_ice, rho_snow=rhos, rho_ocean=rho_ocean)  
   if np.any(ice_frb < 0.):
     vin_new, ain_new, vsn_new = mc6util.adjust_ice_freeboard(vin, vsn_new, ain, hicat, \
-                    rho_ice=rho_ice, rho_snow=rhos, rho_ocean=rho_ocean) 
+                    rho_ice=rho_ice, rho_snow=rhos, rho_ocean=rho_ocean, fdebug=True) 
   else:
     vin_new = vin.copy()
 

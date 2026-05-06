@@ -79,7 +79,6 @@ if init_date is None:
   elif enmb >= 40 and enmb < 50:
     init_date = 20240701
 
-
 # Get date:
 plot_init = fday == 0  # initial conditions
 

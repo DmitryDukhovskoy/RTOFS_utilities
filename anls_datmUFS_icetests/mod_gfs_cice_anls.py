@@ -69,7 +69,8 @@ def sens_tests_info(enmb):
     "41" : "ai",                       # similar to SFS ai, 07/01/2024
     "42" : "ai+hi",                    # similar to SFS ai+hi 07/01/2024
     "45" : "RTOFS ai+hi",              # RTOFS IC July 4 2025
-    "46" : "RTOFS ai+hi+hs"            # RTOFS IC July 4 2025
+    "46" : "RTOFS ai+hi+hs",            # RTOFS IC July 4 2025
+    "47" : "RTOFS ai+hi+hs+SNPHYS",
    }
 
   key = f"{enmb:02d}"    
@@ -98,6 +99,7 @@ def sfs_tests_info(enmb):
   hsU - designates updated hsnow insertion code (see extp 11 in DATM UFS: ice freeboard + enthalpy)
   hsU = hs+qi+fbrd  - updated hsnow code
   hs0 - original code without ice enth. and ice freeboard correction
+  in all expts with sn. physics: thermo 
   SNPHYS = thermo+ITDrdg+snphys 
 
   """
@@ -107,8 +109,9 @@ def sfs_tests_info(enmb):
     "03" : "ai+hi",
     "04" : "hsU",
     "05" : "ai+hi+hsU",
-    "06" : "ai+hi+hsU+thermo+ITDrdg+snphys",
+    "06" : "ai+hi+hsU+ITDrdg+snphys",
     "11" : "ai+Tfrz",
+    "12" : "ai+hi+hsU+ITDrdg+snphys+Tfrz",
    }
 
   key = f"{enmb:02d}"    
