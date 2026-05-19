@@ -2,7 +2,7 @@
   after extracting domain from SPEAR monthly fields
   calculate monthly climatology 
 
-  For the climatology, 1 ensemble member started at 1 month is used for now
+  For climatology, 1 ensemble member started at 1 month is used for now
 
 """
 import numpy as np

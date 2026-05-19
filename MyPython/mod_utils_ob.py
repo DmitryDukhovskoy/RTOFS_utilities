@@ -1354,13 +1354,14 @@ def subset_spear_coord(grid_point):
   fconfig = 'config_nep.yaml'
   with open(fconfig) as ff:
     config = safe_load(ff)
-  spear_dir = os.path.join(config['filesystem']['spear_month_ens'], 'monthly_clim')
+
   spear_topo_dir = config['filesystem']['spear_topo_grid']
   ftopo_spear = os.path.join(spear_topo_dir,'ocean_z.static.nc')
-  spear_topo = xarray.open_dataset(ftopo_spear)
+  ds_topo = xarray.open_dataset(ftopo_spear)
+
   lonW = config['domain']['west_lon']
   lonE = config['domain']['east_lon']
-  LONh = xarray.open_dataset(ftopo_spear).variables['geolon'].data
+  LONh = ds_topo['geolon'].data
 
   if lonW > np.max(LONh):
     lonW = lonW-360.
@@ -1374,8 +1375,13 @@ def subset_spear_coord(grid_point):
 
   lon_slice = slice(lonW, lonE)
   lat_slice = slice(config['domain']['south_lat'], config['domain']['north_lat'])
-  ds_grid_spear  = xarray.open_dataset(ftopo_spear).sel(xh=lon_slice, xq=lon_slice, \
-                   yh=lat_slice, yq=lat_slice)
+  ds_grid_spear = ds_topo.sel(
+      xh=lon_slice,
+      xq=lon_slice,
+      yh=lat_slice,
+      yq=lat_slice
+  )
+
   if grid_point == 'h':
     LONs = ds_grid_spear.variables['geolon'].data
     LATs = ds_grid_spear.variables['geolat'].data
@@ -1385,6 +1391,8 @@ def subset_spear_coord(grid_point):
   elif grid_point == 'v':
     LONs = ds_grid_spear.variables['geolon_v'].data
     LATs = ds_grid_spear.variables['geolat_v'].data
+  else:
+    raise ValueError("grid_point must be 'h', 'u', or 'v'")
  
   return LONs, LATs
 

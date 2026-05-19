@@ -1,5 +1,5 @@
 """
-  Use subset of SPEAR monthly climatology fields
+  Use subset of SPEAR monthly fields
   derived in derive_monthly_clim_spear.py
 
   Create daily fields from monthly by linear interpolation in time
@@ -325,7 +325,7 @@ dsetOB_bkp = dsetOB.copy()
 
 dstart = f'{dv_start[0]}/{dv_start[1]:02d}/{dv_start[2]:02d}'
 dsetOB.attrs["history"] = f"Created from SPEAR monthly T,S,U,V and daily SSH fields f/cast started {dstart} ens={ens_spear:02d}"
-dsetOB.attrs["code"] = f"/home/Dmitry.Dukhovskoy/python/setup_seasonal_NEP/create_daily_from_monthly_spear.py"
+dsetOB.attrs["code"] = f"create_dailyOB_from_monthly_spear.py"
 
 """
   Add attributes for time var
