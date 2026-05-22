@@ -15,7 +15,6 @@ import sys
 import importlib
 import matplotlib
 import xarray
-from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
@@ -52,14 +51,14 @@ yrN = mmN = ddN = hrN = None
 # No date / time change 
 # TODO: add logic for N MOM restart files: MOM_*.res.nc, MOM_*.res_1.nc, ... 
 # YAML is used if input file name or vartmp is None
-flmom_in = '20240701.000000.MOM.res.nc'  # MOM restart file or specify in YAML 
+#flmom_in = '20240701.000000.MOM.res.nc'  # MOM restart file or specify in YAML 
 flrst_out = None        # MOM modified restart
 fyaml = 'cice6rest_files_SFS.yaml'
 flrst_cice = 'cice_restart.20240701.00.iconc.nc'
 vartmp = 'Temp'      # variable name in the restart file
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--flmom_in", help=f"MOM6 rest file name, input default={flmom_in}", type=str)
+parser.add_argument("--flmom_in", help=f"MOM6 rest file name, original", type=str)
 parser.add_argument("--flice", help="CICE6 restart file to use for MOM6 surf T", required=True, type=str)
 #parser.add_argument("--flice", help="CICE6 restart file to use, default={flrst_cice}", type=str)
 parser.add_argument("--fyaml",
@@ -68,7 +67,7 @@ parser.add_argument("--fyaml",
                     type=str)
 args = parser.parse_args()
 
-flmom_in   = args.flmom_in if args.flmom_in else flmom_in
+flmom_in   = args.flmom_in if args.flmom_in else None 
 fyaml      = args.fyaml    if args.fyaml  is not None else fyaml
 flrst_cice = args.flice    if args.flice else flrst_cice
 
@@ -77,12 +76,13 @@ with open(fyaml) as ff:
   config_rest = safe_load(ff)
 
 if vartmp is None:
-  vartmp = config_rest["mom6_names"]["vartmp_temp"]
+  vartmp = config_rest["mom6_names"]["varnm_temp"]
   assert vartmp is not None, "vartmp is not provided"
 
 if flmom_in is None:
-  flmom_in = config_rest["mom6_names"]["flmom_in"]
-  assert flmom_in is not None, "flmom_in is not provided"
+  flmom_in = config_rest["mom6_names"]["flrst_in"]
+  
+assert flmom_in is not None, f"flmom_in has to be provided either --flmom_in or in {fyaml}"
 
 
 # MOM restart path: input and output restart dir

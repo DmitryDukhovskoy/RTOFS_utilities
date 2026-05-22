@@ -560,7 +560,7 @@ for ipp in range(npnts):
   # In theory, qsn_max = -rhos_Lfresh (latent heat of metling at 0C)
   # Make it a little lower to keep snow from melting right away
   #hsn_new = vsn_new / ain
-  qsn = qsnon[:,j0,i0]        # enthalpy, J/kg < 0
+  qsn = qsnon[:,j0,i0]        # enthalpy, J/m3 < 0
   qsn_min = -rhos * Lfresh + (Tmin + 0.01) * cp_ice * rhos  # enth. of the coldest possible snow
   qsn_max = -rhos * Lfresh - 0.01 * cp_ice * rhos  # a little colder than 0C snow
   qsn_tsfc = -rhos * Lfresh + tsf_new * cp_ice * rhos # snow enth for surf. T

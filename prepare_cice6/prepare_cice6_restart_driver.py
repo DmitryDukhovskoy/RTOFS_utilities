@@ -83,12 +83,13 @@ rest_hr   = 0
 rhr_out   = rest_hr
 flrst_in  = None
 flrst_out = None
-fyaml = 'cice6rest_files_SFSmem.yaml'
+#fyaml = 'cice6rest_files_SFSmem.yaml'  # to run Neils restart for SFS ensmb GFS / CPC cases
+fyaml = 'cice6rest_files_SFS_RTOFS.yaml'
 iconc  = 1  # insert iconc from NRT NSIDC
 ithkn  = 0  # insert ithkn clim
 hsnow  = 0  # insert snow depth clim
-snphys = 0  # snow physics on / off
-snitd  = 0  # snow redistribution over ice 
+snitd  = 0  # snow redistribution over ice (ITDrdg - requires extra tracers in restart) 
+sstmom = 0  # adjust MOM6 SST to bring closer to Tfreeze(S) under sea ice, will modify MOM.res.nc 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--iconc", type=int, 
@@ -101,10 +102,14 @@ parser.add_argument("--snitd", type=int,
                     choices=[0,1], help=f"use snow redistribution over ice, default={snitd}")
 parser.add_argument("--regn", help=f"region where restart is being updated, default=global", 
                     choices=['south','north','global'], default="global", type=str)
+parser.add_argument("--sst", help=f"adjust SST in MOM restart under sea ice, default={sstmom}",
+                    choices=[0,1], default=sstmom, type=int) 
 parser.add_argument("--fyaml", 
                     help=f"YAML with local directories, filenames, restart dates, default={fyaml}",
                     default=fyaml,
                     type=str)
+# For GFS ensembles with different restart files under mem000, mem001, ... dirs
+# Not needed otherwise
 parser.add_argument("--enmb",
       help=f"ensemble number for ensamble runs, requires YAML for enmb choice", 
       default=None, type=int)
@@ -117,6 +122,7 @@ hsnow = args.hsnow  if args.hsnow  is not None else hsnow
 snitd = args.snitd  if args.snitd  is not None else snitd
 fyaml = args.fyaml  if args.fyaml  is not None else fyaml 
 enmb  = args.enmb 
+sstmom = args.sst
 
 print(f"Reading YAML with restart info: {fyaml}\n")
 with open(fyaml) as ff:
@@ -126,7 +132,7 @@ with open(fyaml) as ff:
 # input dates are deduced from restart input file
 # or provided in YAML
 def to_int_or_none(val):
-    return None if val is None else int(val)
+  return None if val is None else int(val)
 
 rdate_out = to_int_or_none(config_rest["restart_time"]["rdate_out"])
 rhr_out   = to_int_or_none(config_rest["restart_time"]["rhr_out"])
@@ -316,4 +322,20 @@ if snitd == 1:
   subprocess.run(cmd_snitd, check=True)
 
 
- 
+if sstmom == 1: 
+  # Adjust MOM6 SST  under sea ice
+  nsec = int(rhr_in * 3600)
+  flmom_in = f"{rdate_in}.{nsec:06d}.MOM.res.nc"
+  print(f"Running MOM6 SST update, YAML file = {fyaml}, MOM orig restart = {flmom_in}")
+
+  cmd_sst = [
+    "python", "correct_surfT_mom6_restart.py",
+    "--flmom_in", str(flmom_in),
+    "--flice", str(flrst_out),
+    "--fyaml", str(fyaml)
+  ]
+
+  subprocess.run(cmd_sst, check=True)
+
+
+

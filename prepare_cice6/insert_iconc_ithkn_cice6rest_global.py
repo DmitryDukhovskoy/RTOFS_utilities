@@ -130,6 +130,11 @@ def find_varnm(dflithkn, var_opt):
 
   return
 
+def yaml_path(cfg, **fmt):
+  path = cfg["path"].format(**fmt)
+  file = cfg["file"].format(**fmt)
+  return os.path.join(path, file)
+
 def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN,\
                        ins_thkn, pthrest, flrst_in):
   """
@@ -167,10 +172,19 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
   # Restart time: in
   yrR,mmR,ddR,hrR = mtime.datevec(dnmbR, round_hrs=True)[:4]
   nsecR = hrR*3600
+  rdate_in = int(yrR*10000 + mmR*100 + ddR)
 
   # Restart time: out
   yrN, mmN, ddN, hrN = mtime.datevec(dnmbN, round_hrs=True)[:4]
   nsecN = hrN*3600
+
+  fmt = {
+      "YR": yrN,
+      "MM": mmN,
+      "DD": ddN,
+      "rdate": rdate_in,
+      "regn": regn_wrk
+  }
 
   # Interpolated NSIDC ice conc:
   RMsk = np.where(HH>=0, 0, 1)
@@ -179,9 +193,10 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
   elif regn_wrk == 'north':
     RMsk[LAT < 50.] = 0  
 
-  pthiconc = config_rest["target_paths"]["ice_conc"]["path"].format(YR=yrN)
-  fliconc  = config_rest["target_paths"]["ice_conc"]["file"].format(YR=yrN, MM=mmN, regn=regn_wrk)
-  dfliconc = os.path.join(pthiconc, fliconc)
+  #pthiconc = config_rest["target_paths"]["ice_conc"]["path"].format(YR=yrN)
+  #fliconc  = config_rest["target_paths"]["ice_conc"]["file"].format(YR=yrN, MM=mmN, regn=regn_wrk)
+  #dfliconc = os.path.join(pthiconc, fliconc)
+  dfliconc = yaml_path(config_rest["target_paths"]["ice_conc"], **fmt)
   print(f'Loading target ice conc {dfliconc}')
   with xarray.open_dataset(dfliconc) as dsint:
     AICEint = dsint['ice_conc'].isel(time=ddN-1).squeeze()
@@ -191,19 +206,32 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
   # Read ice thickness data if thickness is inserted:
   if ins_thkn:
     if regn_wrk == 'south':
-      pthithkn = config_rest["target_paths"]["ithkn_south"]["path"]
-      flithkn  = config_rest["target_paths"]["ithkn_south"]["file"]
+      #pthithkn = config_rest["target_paths"]["ithkn_south"]["path"]
+      #flithkn  = config_rest["target_paths"]["ithkn_south"]["file"]
+      dflithkn = yaml_path(config_rest["target_paths"]["ithkn_south"], **fmt)
     elif regn_wrk == 'north':
-      pthithkn = config_rest["target_paths"]["ithkn_north"]["path"]
-      flithkn  = config_rest["target_paths"]["ithkn_north"]["file"]
+      #pthithkn = config_rest["target_paths"]["ithkn_north"]["path"]
+      #flithkn  = config_rest["target_paths"]["ithkn_north"]["file"]
+      dflithkn = yaml_path(config_rest["target_paths"]["ithkn_north"], **fmt)
 
-    dflithkn = os.path.join(pthithkn,flithkn)
+    #dflithkn = os.path.join(pthithkn,flithkn)
 
     var_opt = ['ice_thkn', 'ithkn', 'hi', 'ice_thickness']
     ithkn_varnm = find_varnm(dflithkn, var_opt)
     print(f"Reading ice thickn varnm='{ithkn_varnm}' for month {mmN} from {dflithkn}")
+
     with xarray.open_dataset(dflithkn) as ds_ithkn:
-      ITHKN = ds_ithkn[ithkn_varnm].isel(time=mmN-1).data
+      # Assume:
+      # ntimes = 1  -> single field
+      # ntimes = 12 -> monthly climatology
+
+      ntimes = ds_ithkn.sizes["time"]
+      if ntimes == 1:
+        ITHKN = ds_ithkn[ithkn_varnm].values.squeeze()
+      elif ntimes == 12:
+        ITHKN = ds_ithkn[ithkn_varnm].isel(time=mmN-1).values
+      else:
+        raise RuntimeError(f"Unexpected number of time levels: {ntimes}")
 
   else:
     # No ice thickness insertion
@@ -569,7 +597,7 @@ def main():
   print(f"Restart date input:  {rest_date}:{rest_hr}")
   print(f"Restart date output: {rest_date_out}:{rest_hr_out}")
   if ins_thkn:
-    print("Insert NSDIC NRT ice concenatraion + ice thickness climatology into CICE restart\n")
+    print("Insert NSDIC NRT ice concenatraion + ice thickness {fyaml} into CICE restart\n")
   else:
     print("Insert NSDIC NRT ice concenatraion, NO ice thickness\n")
 
@@ -633,7 +661,7 @@ def main():
 
   # Attributes:
   if ins_thkn:
-    title_str = f"CICE6 restart with inserted ice concentration from NSIDC NRT {rest_date_out} and ice thickness clim"
+    title_str = f"CICE6 restart with inserted ice conc NSIDC NRT {rest_date_out} and ice thickness from {fyaml}"
   else:
     title_str = f"CICE6 restart with inserted ice concentration from NSIDC NRT {rest_date_out} "
 
