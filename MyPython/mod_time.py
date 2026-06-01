@@ -58,6 +58,9 @@ def adddays_date(rdate,ndays):
   rdate is in the format YYYYMMDD[HR]
   """
 
+  if not isinstance(rdate, str):
+    rdate = str(rdate)
+
   ll = len(rdate)
   yr = int(rdate[0:4])
   mo = int(rdate[4:6])
@@ -121,6 +124,9 @@ def rdate2jday(rdate):
   """
   Given string with rdate YYYYMMDD or YYYYMMDDHH derive year day
   """
+
+  if not isinstance(rdate, str):
+    rdate = str(rdate)
 
   ll = len(rdate)
   yr = int(rdate[0:4])
@@ -188,6 +194,9 @@ def rdate2datenum(rdate):
   Convert rtofs date string YYYYMMDD or YYYYMMDDHR to
   matlab-type datenum
   """
+  if not isinstance(rdate, str):
+    rdate = str(rdate)
+
   if len(rdate) == 8:
       YR = int(rdate[0:4])
       MM = int(rdate[4:6])
