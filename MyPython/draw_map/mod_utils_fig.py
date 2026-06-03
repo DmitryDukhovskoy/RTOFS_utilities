@@ -7,17 +7,21 @@ import matplotlib.pyplot as plt
 
 def bottom_text(btx, gtdir='RTOFS_utilities', \
                 ipwd=1, pos=[0.05, 0.05], fsz=8, f_short=False):
+  # add machine name:
+  syst_info = os.uname()
+  machine = syst_info.nodename
+
   sgit = 'github.com/DmitryDukhovskoy/' + gtdir
   drr = os.getcwd()
 #  btnm = drr+'/'+btx
   bnm = os.path.basename(drr)
   if f_short:
-    btnm = bnm + '/' + btx
+    btnm = os.path.join(bnm, btx)
   else:
-    btnm = sgit + '/' + bnm + '/' + btx
+    btnm = os.path.join(sgit, bnm, f"@{machine}: {btx}")
 
   if ipwd==0:
-    btnm = btx
+    btnm = (f"@{machine}: {btx}")
 
   plt.text(pos[0],pos[1],btnm,horizontalalignment='left',
          transform=plt.gcf().transFigure, fontsize=fsz)

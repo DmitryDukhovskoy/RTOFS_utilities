@@ -687,82 +687,65 @@ def print_1col(A,wd=8,prc=2):
   """
     Print out 1 colume of data
   """
-  if type(A) == list:
-    A = np.array(A)
+  A = np.asarray(A)
 
-  ndim1 = A.shape[0]
-  for k in range (ndim1):
-    print('{0}: {1:{width}.{precis}f}'.format(k+1,A[k],width=wd,precis=prc))
+  if A.ndim != 1:
+    raise ValueError("Input must be 1-dimensional")
+
+  for i, value in enumerate(A, start=1):
+    print(f"{i}: {value:{width}.{precision}f}")
 
   return
 
-def print_2col(A1,A2,wd=8,prc=2,kend=[]):
+def print_2col(A1, A2, wd=8, prc=2, kend=None):
   """
     Print out 2 columns of data, same size or not
-    if not - stops at shortest length of the arrays
-    kend >= 0  stops at kend
+
+    If arrays have different lengths, stop at the shorter one.
+    If kend is specified, stop at kend.
   """
-  if type(A1) == list:
-    A1 = np.array(A1)
-  if type(A2) == list:
-    A2 = np.array(A2)
+  A1 = np.asarray(A1)
+  A2 = np.asarray(A2)
 
   ndim1 = A1.shape[0]
   ndim2 = A2.shape[0]
-  if not kend:
+  if kend is not None:
     kend = min([ndim1, ndim2])
 
-  for k in range (kend):
-    print('{0}: {1:{width}.{precis}f}  {2:{width}.{precis}f}'.\
-          format(k+1,A1[k],A2[k],width=wd,precis=prc))
+  for k, (val1, val2) in enumerate(zip(A1[:kend], A2[:kend]), start=1):
+    print(f"{k}: {val1:{width}.{precision}f}  {val2:{width}.{precision}f}")
 
   return
 
-def print_3col(A1,A2,A3,wd=8,prc=2,kend=[]):
+def print_cols(*arrays, wd=15, prc=8, kend=None, str=None):
   """
-    Print out 3 columns of data, same size
-    if not - stops at shortest length of the arrays
-    kend >= 0  stops at kend
+  Print N columns of numeric data.
+  Provide N 1D arrays or lists:
+  a = [1.1, 2.2, 3.3]
+  b = [10.1, 20.2, 30.3]
+  c = [100.1, 200.2, 300.3]
+  ...
+
+  Stops at the shortest array length unless kend is specified
+
+  str - optional title, e.g. str='snon i=100 j=105'
   """
-  if type(A1) == list:
-    A1 = np.array(A1)
-  if type(A2) == list:
-    A2 = np.array(A2)
-  if type(A3) == list:
-    A3 = np.array(A3)
+  arrays = [np.asarray(a) for a in arrays]
 
-  ndim1 = A1.shape[0]
-  ndim2 = A2.shape[0]
-  ndim3 = A3.shape[0]
-  if not kend:
-    kend = min([ndim1, ndim2, ndim3])
+  n = min(len(a) for a in arrays)
 
-  for k in range (kend):
-    print('{0:3d}: {1:{width}.{precis}f} {2:{width}.{precis}f} {3:{width}.{precis}f}'.\
-          format(k+1,A1[k],A2[k],A3[k],width=wd,precis=prc))
+  if kend is not None:
+    n = min(n, kend)
+
+  if str is not None:
+    print(f"{str}")
+
+  for k, vals in enumerate(zip(*(a[:n] for a in arrays)), start=1):
+    s = "  ".join(f"{v:{wd}.{prc}f}" for v in vals)
+    print(f"{k}: {s}")
 
   return
 
-def print_col(*argv, wd=8, prc=2, kend=[]):
-  """
-  
-   !!! NOT FINISHED  !!!
-
-    Print out N columns of data, same size or not
-    if not - stops at shortest length of the arrays
-    kend >= 0  stops at kend
-
-    Input: A1, A2, ... 1D arrays of data to print out
-    type - numpy arrays
-  """
-  ND = []
-  for A in argv:
-    ndim = A.shape[0] 
-    ND.append(ndim)
-  if not kend:
-    kend = min(ND)
-
-  return
 
 def polysegm_indx(IV, JV):
   """

@@ -1,5 +1,6 @@
 """
-  12 suplots of fused monthly snow depth clim in Arctic
+  Monthly field: 
+   fused monthly snow depth clim in Arctic
 
    derived:
    derive_mnthclimALL_hsnow_arctic_mesh025.py
@@ -83,7 +84,8 @@ with xarray.open_dataset(dfliceout) as dsice:
 
 clrmp = mclrmps.colormap_temp()
 rmin = 0.
-rmax = 0.4
+rmax = 0.1
+
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 clrmp.set_under(color=[1,1,1])
 
@@ -95,13 +97,19 @@ m = Basemap(projection='npstere', boundinglat=60, lon_0=-10,resolution='l')
 #m = Basemap(projection='npstere', boundinglat=53, lon_0=-10,resolution='l')
 xh, yh = m(hlon,hlat) # GFS coords
 
-def plot_field(ax1, fig1, m, xR, yR, A2d, clrmp, rmin, rmax, plt_clrb, sttl=[]):
+def plot_field(ax1, fig1, m, xR, yR, A2d, clrmp, rmin, rmax, plt_clrb, cntrs=[], sttl=[]):
   fig1.sca(ax1)
   m.drawcoastlines()
   parallels = np.arange(40,89,10.)
   meridians = np.arange(-360,359.,45.)
 
   img = ax1.pcolormesh(xR, yR, A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
+
+  if len(cntrs) > 0:
+    cs = ax1.contour(xR, yR, A2d, cntrs, linestyles='solid', colors=[(0.6,0.6,0.6)], linewidths=1)
+    ax1.clabel(cs, inline=True, fontsize=10, fmt="%.2f")
+
+
   m.drawparallels(parallels,labels=[0,0,0,0])
   m.drawmeridians(meridians,labels=[0,0,0,0])
   ax1.set_title(sttl)
@@ -134,8 +142,10 @@ with xarray.open_dataset(dfliceout) as dsice:
 
 sttl = f'hsnow diffused clim {MM:02d}'
 
+# snow contours:
+cntrs = [x/100 for x in range(1,10,1)]
 plt_clrb = True
-ax1 = plot_field(ax1, fig1, m, xh, yh, A2d, clrmp,rmin,rmax,plt_clrb,sttl=sttl)
+ax1 = plot_field(ax1, fig1, m, xh, yh,  A2d, clrmp, rmin, rmax, plt_clrb, cntrs=cntrs, sttl=sttl)
 
 sinfo = 'fused clim (CryoSat + summer NSIDC EWG + summer ICESat-2: sme5, smm2, w99r)'
 bottom_text(sinfo, pos=[0.05,0.08], fsz=10, ipwd=0)

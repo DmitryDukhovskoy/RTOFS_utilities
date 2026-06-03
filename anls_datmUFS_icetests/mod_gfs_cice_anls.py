@@ -94,24 +94,28 @@ def sfs_tests_info(enmb):
     Tfrz - updated SST in MOM6 = Tfrz * aice 
 
     2024/07/01 - for varying time period
+    expt01 and expt02
 
+  2025/07/01 - all expts with MOM6 Tfrz (except for control run)
+  RTOFS ice thickness inserted, NSIDC ice conc, hsnow - clim
+  expt > 02
+  all experiments use updates in snow enthalpy and ice/snow interface updated (to keep aboce sea level)
 
   hsU - designates updated hsnow insertion code (see extp 11 in DATM UFS: ice freeboard + enthalpy)
   hsU = hs+qi+fbrd  - updated hsnow code
-  hs0 - original code without ice enth. and ice freeboard correction
   in all expts with sn. physics: thermo 
   SNPHYS = thermo+ITDrdg+snphys 
 
   """
   EXPTS = {
-    "01" : "control",                          
-    "02" : "ai",
-    "03" : "ai+hi",
-    "04" : "hsU",
+    "01" : "control 20240701",
+    "02" : "ai+hi+hsU+ITDrdg+snphys+Tfrz",
+    "03" : "control 20250701",
+    "04" : "ai+hi",
     "05" : "ai+hi+hsU",
     "06" : "ai+hi+hsU+ITDrdg+snphys",
-    "11" : "ai+Tfrz",
-    "12" : "ai+hi+hsU+ITDrdg+snphys+Tfrz",
+    "07" : "ai+hi+hsU+ITDrdg+snphys+RadParam",
+    "61" : "ai+hi+hsU+ITDrdg+snphys_debug",   # cat. ice output for debugging
    }
 
   key = f"{enmb:02d}"    

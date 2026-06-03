@@ -1,5 +1,10 @@
 """
   Compare atm. fluxes on ice / snow
+  all fluxes (excpet a few) are W/m2 averaged over ice area:
+  Flux = sum(cat=1,...,nc)(flux_n(cat)*aicen(cat)) / sum(aicen(cat)) - averged over day (or requested T)
+
+  flux_ai is (supposedly) = mean of sum(cat=1,...,nc)(flux_n(cat)*aicen(cat))
+
 """
 import os
 import numpy as np
@@ -41,19 +46,42 @@ init_date = 20240701
 init_hr = 0    # nominal hr, actual: -6 hrs for IAU, and -3 FHROT (f/cast hr rotation)
 regn = 'north'
 
-# fswint - sh/wave absorbed in ice interior fswint_ai_d, W/m2 <-- all 0's ???
+# All fluxes are positive downward
+# fswint - sh/wave absorbed in ice interior fswint_ai_d, W/m2 <-- all 0's ?? not used
 # fswabs - snow/ice/ocn absorbed solar flux
+# flat   - latent heat flux, W/m2
 # fsens - sens. heat flux, fsens_ai_d
-# fswdn  - downward solar (sh/wave) flux, fswdn_d
+# fsurf - net surface heat flux (ice to atm), positive downward, excludes conductive flux, weighted by area
 # flwdn - down. longwave flux, flwdn_d
+# flwup - upward longwave
+# flwnet - net longwave (flwdn + flwup)
+# fswdn  - downward solar (sh/wave) flux, fswdn_d
+# fswup  - upward solar flux
+# fswnet - net sh/wave (fswdn + fswup)
+# fswthru - SW through ice to ocean (positive to the ocean)
+# fhocn - turbulent ocean-to-ice heat f(Tfrz)
+# fbot  - net bottom heat flux at bottom (fhocn - fcond) - what actually goes to basal melt/growth
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-parser.add_argument("--init", help=f"init date", choices=[20240701, 20250101], default=init_date, type=int)
+parser.add_argument("--init", help=f"init date", 
+                    choices=[20240701, 20250701], 
+                    default=init_date, type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
 parser.add_argument("--dend", help="End date to plot YYYYMMDD or provide --ndays", type=int)
 parser.add_argument("--ndays", help=f"Optional: N days to show from init, will override dend", type=int)
-parser.add_argument("--fld", help="Plot field", choices=['fswint','fsens','flwdn','fswdn','fswabs'],
-                    type=str, required=True)
+parser.add_argument(
+    "--fld",
+    help="Plot field",
+    choices=[
+        'fswabs', 'flat', 'fsens', 'fsurf',
+        'flwdn', 'flwup', 'flwnet',
+        'fswdn', 'fswup', 'fswnet',
+        'fswthru', 'fhocn', 'fbot'
+    ],
+    type=str,
+    required=True
+)
 parser.add_argument(
     "--enmb",
     help="List of experiment numbers (e.g., 1 3 9 12)",
@@ -130,7 +158,7 @@ if plot_init:
 else:
   RECS = [x + 0.5 for x in range(dnmbS, dnmbE + 1)]
 
-aice_eps = 0.15 # minimum ice conc to consider
+aice_eps = 0.95 # minimum ice conc to consider
 hbins = np.array([0,0.5,1,2,100])
 ncats = len(hbins)-1
 
@@ -139,25 +167,57 @@ nrecs  = RECS.shape[0]
 nexpts = len(ENMBS)
 FMLT = np.zeros((nexpts, nrecs, ncats))
 
-cnvrt_ice_mean = False  # convert to ice area mean
-if fld_name == 'fswint':
-  varnm = 'fswint_ai_d'  # sh/wave absorbed in ice interior
-  strs = f"Sh/wave absorb. ice, W/m2 "
-  cnvrt_ice_mean = True
-elif fld_name == 'fswabs':
-  varnm = 'fswabs_ai_d'     # snow/ice/ocn absorbed solar flux
+#cnvrt_ice_mean = False  # convert to ice area mean - not needed as all fluxes should be wrt ice area
+avrg = "_ice"
+varnm2 = None
+swap_sign = False
+if fld_name == 'fswabs':
+  varnm = 'fswabs_d'     # snow/ice/ocn absorbed solar flux
   strs = "Sn/ice/ocn absorbed solar, W/m2"
-  cnvrt_ice_mean = True
+elif fld_name == 'flat':
+  varnm = 'flat_d'    # latent heat flux (cpl), positive down, cpl - cell averaged?
+  strs = "Latent heat flux (cpl), W/m2"
 elif fld_name == 'fsens':
-  varnm = 'fsens_ai_d'   # sens. heat flux
+  varnm = 'fsens_d'       # sens heat flux m2/m2_ice_area
   strs = f"Sens flux, W/m2 "
   cnvrt_ice_mean = True
-elif fld_name == 'fswdn':
-  varnm = 'fswdn_d'      # downward solar (sh/wave) flux
-  strs = "Down sh/wave, W/m2"
+elif fld_name == 'fsurf':
+  varnm = 'fsurf_ai_d' # positive downward, excludes conductive flux, weighted by area
+  strs = f"Net surf heat flux, W/m2 "
+  avrg = '_cell'
 elif fld_name == 'flwdn':
-  varnm = 'flwdn_d'     # down longwave
-  strs = "Longwave, W/m2"
+  varnm = 'flwdn_d'     # down longwave, positive downward
+  strs = "Down Longwave, W/m2"
+elif fld_name == 'flwup':
+  varnm = 'flwup_d'     # upward longwave (cpl), positive downward
+  strs = "Upward Longwave, W/m2"
+elif fld_name == 'flwnet':
+  varnm = 'flwup_d'
+  varnm2 = 'flwdn_d'
+  strs = 'Net longwave, W/m2' 
+elif fld_name == 'fswdn':
+  varnm = 'fswdn_d'      # downward solar (sh/wave) flux, positive downward
+  strs = "Down sh/wave, W/m2"
+elif fld_name == 'fswup':
+  varnm = 'fswup_d'      # Upward solar (sh/wave) flux, positive upward
+  swap_sign = True       # positive downward, i.e. reflected sh/wave < 0
+  strs = "Upward sh/wave, W/m2"
+elif fld_name == 'fswnet':
+  varnm = 'fswup_d'      # Upward solar (sh/wave) flux, positive up
+  varnm2 = 'fswdn_d'     # Downward solar (sh/wave) flux, positive down
+  swap_sign = True
+  strs = "Net sh/wave, W/m2"
+elif fld_name == 'fswthru':
+  varnm = 'fswthru_d'  # Sh/wave through ice to ocean (cpl)
+  strs = "Sh/wave through ice to ocean, W/m2"
+elif fld_name == 'fhocn':
+  varnm = 'fhocn_d'   # heat flux ice to ocn (cpl)
+  strs = "Heat flux ice to ocn, W/m2"
+elif fld_name == 'fbot':
+  varnm = 'fbot_d'  # ice net heat flux = ocean_to_ice - Fcond --> basal ice melt/growth
+  strs = "Basal net heat flux, W/m2"
+
+strs = strs + avrg  # m2 of ice area or grid cell area
 
 iens = -1
 for enmb in ENMBS:
@@ -190,11 +250,17 @@ for enmb in ENMBS:
       AI = dcice['aice_d'].values.squeeze()
       HI = dcice['hi_d'].values.squeeze()
       AF = dcice[varnm].values.squeeze() 
-      units = dcice[varnm].attrs["units"]
+      #units = dcice[varnm].attrs["units"]
+      if swap_sign: 
+        AF = - AF
+      if varnm2 is not None:
+        # net fluxes
+        AF2 = dcice[varnm2].values.squeeze()
+        AF += AF2
 
     # averaged over ice area:
-    if cnvrt_ice_mean:
-      AF = np.divide(AF, AI, out=np.zeros_like(AF), where=AI > 0)
+    #if cnvrt_ice_mean:
+    #  AF = np.divide(AF, AI, out=np.zeros_like(AF), where=AI > 0)
 
     AF[AI < aice_eps] = np.nan
     AF[~RMsk] = np.nan
@@ -235,7 +301,7 @@ elif nrows == 3:
 else:
     bottom = 0.1
 
-sinfo = f'SFS init {init_date}, {regn}, ' + strs + f" avrg=ice area"
+sinfo = f'SFS init {init_date}, {regn}, ' + strs + f", {varnm}," + f" aice>{aice_eps:.2f}"
 #sinfo = sinfo + f'{pthout_cice}'
 
 plt.ion()
@@ -279,12 +345,12 @@ for ibin in range(nbins):
   else:
     ax1.set_title(f'hice>{hmin:.1f}')
 
-  if fmlt_max < 0.01:
-    ax1.set_ylim([0, 1])
+  if 0 < fmlt_max < 0.01:
+    ax1.set_ylim([0, 0.1])
    
 line_lbl = mgfscice.sfs_tests_info(enmb)
 
-ax3 = plt.axes([0.55, 0.01, 0.43, 0.05])
+ax3 = plt.axes([0.55, 0.04, 0.43, 0.05])
 handles = [
     plt.Line2D([0], [0], color=CLRS[i,:], lw=2)
     for i in range(nexpts)
@@ -310,5 +376,5 @@ ax4.text(
 ax4.axis('off')
 
 btx = 'compare_atm_fluxes.py'
-bottom_text(btx, pos=[0.01,0.01])
+bottom_text(btx, pos=[0.01,0.015])
 

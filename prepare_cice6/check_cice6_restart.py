@@ -45,7 +45,8 @@ regn = 'north'
 #flrst = 'cice_model.res.20250103.00.iconc_thkn.snow.nc'
 #flrst = 'cice_restart.20250103.00.iconc_ithkn.hsnow.snphys.nc' 
 #flrst = 'cice_restart.20250704.00.iconc_ithkn.nc'
-flrst ='cice_RTOFSres.20250704.00.iconc_ithkn.nc'
+#flrst ='cice_RTOFSres.20250704.00.iconc_ithkn.nc'
+flrst = '20260422.030000.analysis.cice_model.res.nc'  # SOCA file from Anna
 
 # ithkn - mean ice thkn per m2 of grid cell area
 # ithkn_ice - mean ice thkn per m2 of ice area
@@ -128,6 +129,8 @@ with open(fyaml) as ff:
 #pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"])
 pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'cice6_global')
 #pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'cice6_north')
+
+pthrest = '/gpfs/f6/sfs-emc/world-shared/Dmitry.Dukhovskoy/restart_CICE6_SOCA/soca2cice/enkfgdas.20260422/06/mem001/analysis/ice'
 dflrst = os.path.join(pthrest,flrst)
 
 print(f"Reading {dflrst}")
@@ -193,7 +196,8 @@ for k in range(1,ncat+1):
   Jerr, Ierr = np.where(Merr)
 
   # ice thicknesses within the cats cannot cross-over!!!
-  # Check hice[k+1] > hice[k], see icepack_therm_itd.F90 ITD thermodyn 
+  # i.e. hice[k] > hice[k+1] 
+  # Check this is true: hice[k+1] > hice[k], see icepack_therm_itd.F90 ITD thermodyn 
   Jdh, Idh = [], []
   if k > 1:
     dlt_hice = hice_n - hice_km1

@@ -36,13 +36,13 @@ import mod_time as mtime
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
 
-init_date = 20240701
+init_date = 20250701
 init_hr = 0
 regn = 'south'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south", required=True, type=str)
-parser.add_argument("--init", help=f"init date", choices=[20240701, 20250101], default=init_date, type=int)
+parser.add_argument("--init", help=f"init date", choices=[20240701, 20250701], default=init_date, type=int)
 parser.add_argument("--ihr", help=f"init hour, default {init_hr}", type=int)
 parser.add_argument("--fday", help=f"forecast day to plot: 0, 1, 2, ... , =0 - init. cond.", type=int, required=True)
 parser.add_argument("--enmb", help="experiment number: 0, 1, 2, ...", required=True, type=int)
@@ -122,14 +122,18 @@ A2d[HH >= 0] = np.nan
 
 clrmp = mclrmps.colormap_temp()
 rmin = 0.
-rmax = 0.4
+rmax = 0.1
 
 clrmp.set_bad(color=[0.1, 0.1, 0.1])
 cntr_clr = [0.9,0.,1]
 
-sttl = f"hsnow SFS expt{enmb:02d} init {init_date}, lead time={fday:02d} days\n {YR}/{MM:02d}/{DD:02d}"
+import mod_gfs_cice_anls as mgfscice
+importlib.reload(mgfscice)
+expt_name = mgfscice.sfs_tests_info(enmb)
 
-sinfo = 'daily average snow depth from CICE6\n'
+sttl = f"hsnow SFS expt{enmb:02d} ({expt_name}) init {init_date}\n lead time={fday:02d}, {YR}/{MM:02d}/{DD:02d}"
+
+sinfo = f'daily average snow depth from CICE6, {varnm}\n'
 sinfo = sinfo + dflice
 
 
@@ -146,6 +150,9 @@ elif regn == 'north':
 
 xh, yh = m(hlon,hlat) # GFS coords
 
+# snow contours:
+#cntrs = [x/100 for x in range(1,10,1)]
+cntrs=[]
 
 print("Plotting ...")
 
@@ -157,6 +164,11 @@ m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
 m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 
 img = ax1.pcolormesh(xh, yh, A2d, cmap=clrmp, vmin=rmin, vmax=rmax, shading='auto')
+
+if len(cntrs) > 0:
+  cs = ax1.contour(xh, yh, A2d, cntrs, linestyles='solid', colors=[(0.6,0.6,0.6)], linewidths=1)
+  ax1.clabel(cs, inline=True, fontsize=10, fmt="%.2f")
+
 
 ax1.set_title(sttl)
 
@@ -180,5 +192,20 @@ ax3.axis('off')
 
 btx = 'plot_SFS_hsnow_daily.py'
 bottom_text(btx, pos=[0.2, 0.01])
+
+
+f_debug = False
+if f_debug:
+  plt.clf
+  ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
+  ax1.pcolormesh(A2d, cmap=clrmp, vmin=rmin, vmax=rmax, shading='auto')
+
+  ax1.set_aspect('equal', adjustable='box')
+  ax1.set_ylim(800, 1080)
+  ax1.set_xlim(100, 670)
+
+  ii0 = 482
+  jj0 = 1062
+
 
 

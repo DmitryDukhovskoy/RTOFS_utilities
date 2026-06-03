@@ -36,13 +36,13 @@ import mod_time as mtime
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
 
-init_date = 20240701
+init_date = 20250701
 init_hr = 0
 regn = 'south'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-parser.add_argument("--init", help=f"init date", choices=[20240701, 20250101], default=init_date, type=int)
+parser.add_argument("--init", help=f"init date", choices=[20240701, 20250701], default=init_date, type=int)
 parser.add_argument("--ihr", help=f"init hour, default {init_hr}", type=int)
 parser.add_argument("--fday", help=f"forecast day to plot: 0, 1, 2, ... , =0 - init. cond.", type=int, required=True)
 parser.add_argument("--enmb", help="experiment number: 0, 1, 2, ...", required=True, type=int)
@@ -128,9 +128,13 @@ rmax = 3.
 clrmp.set_bad(color=[0.1, 0.1, 0.1])
 cntr_clr = [0.9,0.,1]
 
-sttl = f"ithkn SFS expt{enmb:02d} init {init_date}, lead time={fday:02d} days\n {YR}/{MM:02d}/{DD:02d}"
+import mod_gfs_cice_anls as mgfscice
+importlib.reload(mgfscice)
+expt_name = mgfscice.sfs_tests_info(enmb)
 
-sinfo = 'daily average ice thickness from CICE6\n'
+sttl = f"ithkn SFS expt{enmb:02d} ({expt_name}) init {init_date}\n lead time={fday:02d}, {YR}/{MM:02d}/{DD:02d}"
+
+sinfo = f'daily average ice thickness from CICE6 {varnm}\n'
 sinfo = sinfo + dflice
 
 

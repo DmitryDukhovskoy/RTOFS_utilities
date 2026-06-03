@@ -1,5 +1,5 @@
 """
-  Plot ice concentration maps for Arctic / S. Ocean
+  Plot cumulative snow fall from daily fields
   SFS runs
 """
 import os
@@ -7,17 +7,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import importlib
-import matplotlib  
+import matplotlib
 import xarray
-import matplotlib.colors as colors 
+import matplotlib.colors as colors
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
 import argparse
-                   
-# Append custom module paths
+
 PPTHN = None
 if 'PPTHN' not in locals() or PPTHN is None:
-  cwd = os.getcwd()    
+  cwd = os.getcwd()
   parts = cwd.split(os.sep)
   if 'python' in parts:
     idx = parts.index('python')
@@ -32,21 +31,20 @@ sys.path.extend([
     os.path.join(PPTHN, 'MyPython', 'mom6_utils')
 ])
 
-
 from mod_utils_fig import bottom_text
 import mod_time as mtime
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
 
 init_date = 20250701
-init_hr = 0    # nominal hr, actual: -6 hrs for IAU, and -3 FHROT (f/cast hr rotation)
-regn = 'north'
+init_hr = 0
+regn = 'south'
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
+parser.add_argument("--regn", help=f"hemisphere: north or south", required=True, type=str)
 parser.add_argument("--init", help=f"init date", choices=[20240701, 20250701], default=init_date, type=int)
-parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
-parser.add_argument("--fday", help=f"forecast day to plot: 0, 1, 2, ... , =0 - init. cond.", type=int, required=True)
+parser.add_argument("--ihr", help=f"init hour, default {init_hr}", type=int)
+parser.add_argument("--fday", help=f"forecast day to plot: 1, 2, ... ", type=int, required=True)
 parser.add_argument("--enmb", help="experiment number: 0, 1, 2, ...", required=True, type=int)
 args = parser.parse_args()
 
@@ -54,26 +52,16 @@ regn      = args.regn if args.regn else regn
 init_date = args.init if args.init else init_date
 init_hr   = args.ihr if args.ihr else init_hr
 fday      = args.fday if args.fday is not None else fday
-enmb      = args.enmb 
+enmb      = args.enmb
 
-if fday < 0:
+if fday <= 0:
   raise RuntimeError(f"fday should be > 0")
-
-# Get date:
-plot_init = fday == 0  # initial conditions
-
+  
 dnmbI = mtime.rdate2datenum(init_date*100+init_hr)  # init. day nmb
 YRI,MMI,DDI,hrI = mtime.datevec(dnmbI, round_hrs=True)[:4]
 
-if plot_init:
-  dnmb0 = dnmbI
-else:
-  dnmb0 = dnmbI + fday-1                              # day to plot
+DNMBF = np.arange(dnmbI, dnmbI + fday - 1).astype(int)
 
-yr0,mm0,dd0,hr0 = mtime.datevec(dnmb0, round_hrs=True)[:4]
-nsec0 = int(hr0 * 3600)
-YR,MM,DD = mtime.datevec(dnmb0)[:3]
-  
 syst_info = os.uname() 
 machine = syst_info.nodename
   
@@ -85,17 +73,16 @@ elif 'gaea' in machine:
   node_nm = "gaea"
 else:
   print("Unknown machine:", machine)
-    
-fyaml = 'paths_sfs.yaml'
-with open(fyaml) as ff:
-  pths_sfs = safe_load(ff)
-    
-pthgrid = pths_sfs[node_nm]["MOM6"]["pthgrid"]
-pthoutp = f"/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/sfs_C192mx025_cice_test/expt{enmb:02d}/cice6"
 
+fyaml = 'paths_ufs.yaml'
+with open(fyaml) as ff:
+  pths_ufs = safe_load(ff)
+
+# Get MOM6 grid
+pthgrid = pths_ufs[node_nm]["MOM6"]["pthgrid"]
 dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
 dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
-    
+
 hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 
 with xarray.open_dataset(dftopo_mom) as dstopo:
@@ -104,42 +91,44 @@ with xarray.open_dataset(dftopo_mom) as dstopo:
 HH = np.where(HH < 1.e-20, np.nan, HH)
 HH = -HH
 HH = np.where(np.isnan(HH), 1., HH)
-
 jdm, idm = HH.shape
 
-# Get date:
-plot_init = fday == 0  # initial conditions
+pthoutp = f"/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/sfs_C192mx025_cice_test/expt{enmb:02d}/cice6"
+varnm = 'snow_d'     # (cpl) - sent by the coupler
+#varnm = 'snow_ai_d'  # wieghted by ice area, *aice, i.e. = 0 where aice ~0
 
-if plot_init:
-  flinp = f"iceh_ic.{yr0}-{mm0:02d}-{dd0:02d}-{nsec0:05d}.nc"
-else:
-  flinp = f"iceh.{yr0}-{mm0:02d}-{dd0:02d}.nc"
-varnm = 'aice_d'
+cumS = np.zeros_like(HH)
+for dnmb0 in DNMBF:
+  YR,MM,DD = mtime.datevec(dnmb0)[:3]
+  flinp = f"iceh.{YR}-{MM:02d}-{DD:02d}.nc" 
+  dflice = os.path.join(pthoutp,flinp)
+  print(f"Processing {YR}/{MM}/{DD}, SFS init {YRI}/{MMI:02d}/{DDI:02d}\n   {dflice}")
 
-dflice = os.path.join(pthoutp,flinp)
+  with xarray.open_dataset(dflice) as dcice:
+    A2d = dcice[varnm].data.squeeze()
 
-print(f"Processing {YR}/{MM}/{DD} {hr0:02d}:00, SFS init {YRI}/{MMI:02d}/{DDI:02d} {hrI:02d}:00\n{dflice}")
-with xarray.open_dataset(dflice) as dcice:
-  A2d = dcice[varnm].data.squeeze()
+  A2d[HH >= 0] = np.nan
 
-A2d = np.where(HH >= 0, np.nan, A2d)
+  cumS += A2d
 
-plt.ion()
-
-
-clrmp = mclrmps.colormap_conc()
+clrmp = mclrmps.colormap_temp()
 rmin = 0.
-rmax = 1.
+rmax = 10
+
 clrmp.set_bad(color=[0.1, 0.1, 0.1])
+cntr_clr = [0.9,0.,1]
 
 import mod_gfs_cice_anls as mgfscice
 importlib.reload(mgfscice)
 expt_name = mgfscice.sfs_tests_info(enmb)
 
-sttl = f"iconc SFS expt{enmb:02d} ({expt_name}) init {init_date}\n lead time={fday:02d}, {YR}/{MM:02d}/{DD:02d}"
+sttl = f"cum snowfall (cm), SFS expt{enmb:02d} ({expt_name}) init {init_date}\n ndays={fday:02d}, {YR}/{MM:02d}/{DD:02d}"
 
-sinfo = f'daily average ice concentration from CICE6, {varnm}\n'
+sinfo = f'Cumulative snowfall, m from CICE6,  {varnm}\n'
 sinfo = sinfo + dflice
+
+
+plt.ion()
 
 if regn == 'south':
   m = Basemap(projection='spstere',boundinglat=-55,lon_0=180,resolution='l')
@@ -150,7 +139,11 @@ elif regn == 'north':
   parallels = np.arange(50, 90, 5)
   meridians = np.arange(-360, 359., 45.)
 
-xh, yh = m(hlon,hlat) 
+xh, yh = m(hlon,hlat) # GFS coords
+
+# snow contours:
+#cntrs = [x/100 for x in range(1,10,1)]
+cntrs=[]
 
 print("Plotting ...")
 
@@ -161,7 +154,12 @@ ax1 = plt.axes([0.08, 0.1, 0.8, 0.8])
 m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
 m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 
-img = ax1.pcolormesh(xh, yh, A2d, cmap=clrmp, vmin=rmin, vmax=rmax, shading='auto')
+img = ax1.pcolormesh(xh, yh, cumS, cmap=clrmp, vmin=rmin, vmax=rmax, shading='auto')
+
+if len(cntrs) > 0:
+  cs = ax1.contour(xh, yh, A2d, cntrs, linestyles='solid', colors=[(0.6,0.6,0.6)], linewidths=1)
+  ax1.clabel(cs, inline=True, fontsize=10, fmt="%.2f")
+
 
 ax1.set_title(sttl)
 
@@ -183,8 +181,7 @@ ax3 = fig1.add_axes([0.02, 0.03, 0.8, 0.06])
 ax3.text(0, 0, sinfo, fontsize=8)
 ax3.axis('off')
 
-btx = 'plot_SFS_iconc_daily.py'
+btx = "plot_cumSnowFall.py"
 bottom_text(btx, pos=[0.2, 0.01])
-
 
 

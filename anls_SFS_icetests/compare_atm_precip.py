@@ -43,19 +43,21 @@ init_date = 20240701
 init_hr = 0    # nominal hr, actual: -6 hrs for IAU, and -3 FHROT (f/cast hr rotation)
 regn = 'north'
 
-# snow = snow_ai_d snowfall rate, cm/day
-# snow_lwe = snow_ai_d snowfall rate, cm/day of liquid water equivalent
-# rain = rain_ai_d rainfall rate, cm/day
+# snow = snow_d snowfall rate, cm/day <-- is this cell or ice area mean? 
+# snow_lwe = snow_d snowfall rate, cm/day of liquid water equivalent
+# rain = rain_d rainfall rate, cm/day
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-parser.add_argument("--init", help=f"init date", choices=[20240701, 20250101], default=init_date, type=int)
+parser.add_argument("--init", help=f"init date", 
+        choices=[20240701, 20250701], 
+        default=init_date, type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
 parser.add_argument("--dend", help="End date to plot YYYYMMDD or provide --ndays", type=int)
 parser.add_argument("--ndays", help=f"Optional: N days to show from init, will override dend", type=int)
 parser.add_argument("--fld", help="Plot field", choices=['snow_lwe','snow','rain'],
                     type=str, required=True)
-parser.add_argument("--avrg", help="Use grid cell mean (grid) or ice area mean(ice)",
-                    choices=['grid','ice'], default='grid', type=str)
+#parser.add_argument("--avrg", help="Use grid cell mean (grid) or ice area mean(ice)",
+#                    choices=['grid','ice'], default='grid', type=str)
 parser.add_argument(
     "--enmb",
     help="List of experiment numbers (e.g., 1 3 9 12)",
@@ -71,7 +73,7 @@ init_hr   = args.ihr if args.ihr else init_hr
 ENMBS     = args.enmb if args.enmb else None
 end_date  = args.init if args.dend else None
 ndays     = args.ndays if args.ndays else None
-avrg      = args.avrg
+#avrg      = args.avrg
 fld_name  = args.fld
 
 # Get date:
@@ -144,15 +146,15 @@ FMLT = np.zeros((nexpts, nrecs, ncats))
 
 rho_snow = 300.
 if fld_name == 'snow':
-  varnm = 'snow_ai_d'  # snowfall rate cm/day of liquid water equivalent
+  varnm = 'snow_d'  # snowfall rate cm/day of liquid water equivalent
   strs = f"Snowfall (hsnow, rho={rho_snow}), cm/day "
   cff = 1000. / rho_snow   # convert liquid water equival. to cm of snow
 elif fld_name == 'snow_lwe':
-  varnm = 'snow_ai_d'     # snow/ice/ocn absorbed solar flux
+  varnm = 'snow_d'     # snow/ice/ocn absorbed solar flux
   strs = "Snowfall liq.wat.eq., cm/day "
   cff = 1.
 elif fld_name == 'rain':
-  varnm = 'rain_ai_d'
+  varnm = 'rain_d'
   strs = "Rainfall, cm/day "
   cff = 1.
 
@@ -189,9 +191,9 @@ for enmb in ENMBS:
       AF = dcice[varnm].values.squeeze() * cff # liq.water equiv. --> snow depth 
       units = dcice[varnm].attrs["units"]
 
-    if avrg == 'ice':
-      # averaged over ice area:
-      AF = np.divide(AF, AI, out=np.zeros_like(AF), where=AI > 0)
+    #if avrg == 'ice':
+    #  # averaged over ice area:
+    #  AF = np.divide(AF, AI, out=np.zeros_like(AF), where=AI > 0)
 
     AF[AI < aice_eps] = np.nan
     AF[~RMsk] = np.nan
@@ -232,7 +234,7 @@ elif nrows == 3:
 else:
     bottom = 0.1
 
-sinfo = f'SFS init {init_date}, {regn}, ' + strs + f"avrg={avrg}"
+sinfo = f'SFS init {init_date}, {regn}, ' + strs + f", {varnm}," + f" aice>{aice_eps:.2f}"
 #sinfo = sinfo + f'{pthout_cice}'
 
 plt.ion()
@@ -281,7 +283,7 @@ for ibin in range(nbins):
    
 line_lbl = mgfscice.sfs_tests_info(enmb)
 
-ax3 = plt.axes([0.55, 0.01, 0.43, 0.05])
+ax3 = plt.axes([0.55, 0.05, 0.43, 0.05])
 handles = [
     plt.Line2D([0], [0], color=CLRS[i,:], lw=2)
     for i in range(nexpts)
@@ -296,7 +298,7 @@ ax3.legend(handles, leg_labels, loc='lower left')
 ax3.axis('off')
 
 # Overasll header:
-ax4 = plt.axes([0.05, 0.95, 0.9, 0.03])
+ax4 = plt.axes([0.01, 0.95, 0.98, 0.03])
 ax4.text(
     0.5, 0.5, sinfo,
     fontsize=12,
@@ -307,5 +309,5 @@ ax4.text(
 ax4.axis('off')
 
 btx = 'compare_atm_precip.py'
-bottom_text(btx, pos=[0.01,0.01])
+bottom_text(btx, pos=[0.01,0.015])
 

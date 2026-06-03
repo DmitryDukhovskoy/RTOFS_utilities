@@ -50,13 +50,14 @@ import mod_time as mtime
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
 
-init_date = 20240701
+init_date = 20250701
 init_hr = 0
 expt_name = 'sfs_C192mx025_cice_test'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help="hemisphere: north or south", type=str, required=True)
-parser.add_argument("--init", help=f"Start of the f/cast YYYYMMDD, default=f{init_date}", choices=[20240701], type=int)
+parser.add_argument("--init", help=f"Start of the f/cast YYYYMMDD, default=f{init_date}", 
+                    choices=[20240701, 20250701], type=int)
 parser.add_argument("--dend", help="End date to plot YYYYMMDD or provide --ndays", type=int)
 parser.add_argument("--ndays", help=f"Optional: N days to show from init, will override dend", type=int)
 parser.add_argument("--pinit", help="Show initial state if exists: 1=yes (default), 0=no", default=1, type=int)

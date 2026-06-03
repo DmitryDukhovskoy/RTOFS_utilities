@@ -7,7 +7,8 @@ The snow-and-ice albedo, albsni, and diagnostic albedos albice, albsno, and albp
 
  albedo is grid cell mean, computed as
  albedo_d = sum(alfa(n) * aice(n)) 
- 
+
+  To get ice-area mean value, need to normalize by aice (m2_ice/m2_cell) 
 
 """
 import os
@@ -46,16 +47,19 @@ import mod_time as mtime
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
 
-init_date = 20240701
+#init_date = 20240701
+init_date = 20250701
 init_hr = 0    # nominal hr, actual: -6 hrs for IAU, and -3 FHROT (f/cast hr rotation)
 regn = 'north'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-parser.add_argument("--init", help=f"init date", choices=[20240701, 20250101], default=init_date, type=int)
+parser.add_argument("--init", help=f"init date", choices=[20240701, 20250701], default=init_date, type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
 parser.add_argument("--dend", help="End date to plot YYYYMMDD or provide --ndays", type=int)
 parser.add_argument("--ndays", help=f"Optional: N days to show from init, will override dend", type=int)
+parser.add_argument("--fld", help=f"Albedo to analyze, default albsni (broad band ice/snow)",
+                   choices=['albsni','albice','albsno','albpnd'], default='albsni', type=str)
 parser.add_argument(
     "--enmb",
     help="List of experiment numbers (e.g., 1 3 9 12)",
@@ -71,7 +75,7 @@ init_hr   = args.ihr if args.ihr else init_hr
 ENMBS     = args.enmb if args.enmb else None
 end_date  = args.init if args.dend else None
 ndays     = args.ndays if args.ndays else None
-fld_name  = 'albedo'
+fld_name  = args.fld
 
 # Get date:
 plot_init = False  # initial conditions
@@ -141,7 +145,15 @@ nrecs  = RECS.shape[0]
 nexpts = len(ENMBS)
 FMLT = np.zeros((nexpts, nrecs, ncats))
 
-varnm = 'albsni_d'  # snow/ice broad band albedo
+match fld_name:
+  case 'albsni':
+    varnm = 'albsni_d'  # snow/ice broad band albedo
+  case 'albice':
+    varnm = 'albice_d'  # bare ice albedo
+  case 'albsno':
+    varnm = 'albsno_d'  # snow albedo
+  case 'albpnd':
+    varnm = 'albpnd_d'  # melt pond albedo
 
 iens = -1
 for enmb in ENMBS:
@@ -174,8 +186,12 @@ for enmb in ENMBS:
       AI = dcice['aice_d'].values.squeeze()
       HI = dcice['hi_d'].values.squeeze()
       HS = dcice['hs_d'].values.squeeze()
-      AF = dcice[varnm].values.squeeze() 
-      units = dcice[varnm].attrs["units"]
+      if varnm in dcice.variables:
+        AF = dcice[varnm].values.squeeze()
+      else:
+        raise RuntimeError (f"Variable '{varnm}' not found in {dflcice}")
+        
+      units = dcice[varnm].attrs.get("units", "")  # "" - avoids error if units attr is missing
 
     # Normalize by total ice area to have albedo over ice area
     AF = np.divide(AF, AI, out=np.zeros_like(AF), where=AI > 0)
@@ -208,7 +224,7 @@ importlib.reload(mgfscice)
 CLRS = mgfscice.sens_tests_colors()
 XT = RECS - np.floor(RECS[0])
 
-strs = f"Snow/ice albedo % "
+strs = f"{fld_name} % "
 
 nbins = len(hbins) - 1
 ncols = 2
@@ -221,7 +237,7 @@ elif nrows == 3:
 else:
     bottom = 0.1
 
-sinfo = f'SFS init {init_date}'
+sinfo = f'SFS init {init_date} ' + strs + f' {regn} '
 #sinfo = sinfo + f'{pthout_cice}'
 
 print("Plotting ...")
@@ -263,9 +279,9 @@ for ibin in range(nbins):
   ax1.grid(True, alpha=0.3)
   #ax1.set_xlabel('Forecast days')
   if hmax < 10:
-    ax1.set_title(f'{strs}, hice=[{hmin:.1f}, {hmax:.1f}], {regn}')
+    ax1.set_title(f'hice=[{hmin:.1f}, {hmax:.1f}]')
   else:
-    ax1.set_title(f'{strs}, hice>{hmin:.1f}, {regn}')
+    ax1.set_title(f'hice>{hmin:.1f}')
 
   if fmlt_max < 0.01:
     ax1.set_ylim([0, 1])
