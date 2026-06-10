@@ -105,6 +105,11 @@ def sfs_tests_info(enmb):
   hsU = hs+qi+fbrd  - updated hsnow code
   in all expts with sn. physics: thermo 
   SNPHYS = thermo+ITDrdg+snphys 
+  radpar - changed parameters for dlt Eddington to increase snow albedo during melting
+  sealvl - ice melt pond sea level parameterization 
+
+  Switching to experiments with standard setup:
+  ai+hi+hsU+ITDrdg+snphys+radpar with MOM6 Tfrz = radpar with tr_pond_lvl parameterization
 
   """
   EXPTS = {
@@ -112,10 +117,16 @@ def sfs_tests_info(enmb):
     "02" : "ai+hi+hsU+ITDrdg+snphys+Tfrz",
     "03" : "control 20250701",
     "04" : "ai+hi",
-    "05" : "ai+hi+hsU",
-    "06" : "ai+hi+hsU+ITDrdg+snphys",
-    "07" : "ai+hi+hsU+ITDrdg+snphys+RadParam",
+    "05" : "radpar+sealvl2",     # identical to 08 with tuned pond param: pndaspect=1.2, apnd_sl=0.2
+    "06" : "radpar+pondtopo",    # expt07 but pond parameterization topo
+    "07" : "radpar",
+    "08" : "radpar+sealvl", 
+    "09" : "radpar+nopond",
     "61" : "ai+hi+hsU+ITDrdg+snphys_debug",   # cat. ice output for debugging
+    "62" : "ai+hi+hsU+ITDrdg+snphys",            #  same as 61, every step output 1 day run
+    "63" : "ai+hi+hsU+ITDrdg+snphys+pondpar",   #  tr_pond_lvl params changed, every step out 
+    "64" : "ai+hi+hsU+ITDrdg+snphys+pondpar+radpar",      #  tr_pond_lvl params changed + rad param (expt07), every step out
+    "65" : "ai+hi+hsU+ITDrdg+snphys+sealvl+radpar",      #  tr_pond_seallvl + all from expt 64
    }
 
   key = f"{enmb:02d}"    
