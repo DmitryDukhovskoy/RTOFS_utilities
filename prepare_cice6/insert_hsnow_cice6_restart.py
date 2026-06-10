@@ -11,6 +11,9 @@
   Here, snow depth climatology (1998-2007) from NASA SSM/I gridded fields
   are used
 
+
+  author: Dmitry Dukhovskoy, NOAA NWS EMC 2025
+
 """
 import os
 import numpy as np

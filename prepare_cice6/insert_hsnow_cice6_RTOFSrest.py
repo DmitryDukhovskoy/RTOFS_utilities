@@ -10,6 +10,7 @@
 
   RTOFS snow fields are used
 
+  author: Dmitry Dukhovskoy, NOAA NWS EMC 2026
 """
 import os
 import numpy as np

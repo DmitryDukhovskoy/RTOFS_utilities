@@ -5,7 +5,7 @@
   Using RTOFS interpoalted fields for iconc
   and for ice thickness
 
-
+  author: Dmitry Dukhovskoy, NOAA NWS EMC 2025
 """
 import os
 import numpy as np

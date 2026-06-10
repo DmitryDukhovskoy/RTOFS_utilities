@@ -10,12 +10,10 @@
   Snow is distributed across the thikn. categories proportional 
   to the aice (ice partial area)
 
-  Here, snow depth climatology (1998-2007) from NASA SSM/I gridded fields
-  are used for the Antarctic
+  Input: snow thickness over sea ice (aggregated over thickness cats)
+         on UFS grid
 
-  and from 2018-2021 CryoSat winter observations and EWG Atlas summer months
-  for the Arctic
-
+  author: Dmitry Dukhovskoy, NOAA NWS EMC 2025
 """
 import os
 import numpy as np
@@ -46,9 +44,7 @@ sys.path.extend([
     os.path.join(PPTHN, 'MyPython', 'mom6_utils')
 ])
 
-from mod_utils_fig import bottom_text
 import mod_time as mtime
-import mod_colormaps as mclrmps
 import mod_swstate as msws
 import mod_cice6_utils as mc6util
 importlib.reload(mc6util)
@@ -182,8 +178,6 @@ def insert_hsnow(regn_wrk, ds_out, config_rest, dnmbR, dnmbN, pthrest, flrst_in)
       print("No 'units' attribute found for 'snow_depth', use default: {hunits}")
 
   units_m = hunits == 'm'
-  print(f"snow depth units = {hunits}")
-  print(f"units_m={units_m}")
  
   if ds_out is None: 
     dflrst_in = os.path.join(pthrest, flrst_in)
@@ -192,12 +186,12 @@ def insert_hsnow(regn_wrk, ds_out, config_rest, dnmbR, dnmbN, pthrest, flrst_in)
     ds_out = ds_in.copy(deep=True)
     ds_in.close()
   else:
-    print(f"Input restart is skipped, continue with existing ds_out")
+    print(f"Initialization of ds_out is skipped, continue with existing ds_out ...")
 
   # Input values:
-  aicen  = ds_out['aicen'].data  # partial area by cats
-  vsnon  = ds_out['vsnon'].data  # snow vol per m2 of ice area
-  qsnon  = ds_out['qsno001'].data  # snow enthalpy by cats for 1 snow layer
+  aicen  = ds_out['aicen'].data   # partial area by cats
+  vsnon  = ds_out['vsnon'].data   # snow vol per m2 of ice area
+  qsnon  = ds_out['qsno001'].data # snow enthalpy by cats for 1 snow layer
   vicen  = ds_out['vicen'].data   # ice vol per unit area of grid cell m3/m2
   tsfcn  = ds_out['Tsfcn'].data   # snow/ice surface T
   qicen1 = ds_out['qice001'].data # ice enthalpy, lr 1 surface
@@ -263,8 +257,6 @@ def insert_hsnow(regn_wrk, ds_out, config_rest, dnmbR, dnmbN, pthrest, flrst_in)
     # ice conc should not change except for a few locaitons to adjust snow load across cats:
     ain_new = ain.copy()
     
-    # Note hsn_new = sum(vsn) / aice for aice > 0, m3/m2_ice ==> mean snow thickn over ice 
-    # sum(vsn) = vstot_new = HSi[j0,i0] * aice, obs. gridded data assume 100% iconc 
     # Distribute new snow depth evenly by cats in snow vol m3/m2:
     vstot_new = hsn_new * ai
     if hsn_new <= hs_min or ai < puny:
@@ -275,18 +267,15 @@ def insert_hsnow(regn_wrk, ds_out, config_rest, dnmbR, dnmbN, pthrest, flrst_in)
       vsn_new = vstot_new * wts
 
     # Update snow enthalpy: J/m3  
-    # see icepack_therm_vertical.F90 in icepack
-    #
     # snow enthalpy should be: qsn_min <= qsn <= qsn_max
     # In theory, qsn_max = -rhos*Lfresh (latent heat of metling at 0C)
     # Make it a little lower to keep snow from melting right away
     # In general, snow enth. = enth(Tsfcn) if Tsfcn <=0
-    #hsn_new = vsn_new / ain
-    qsn = qsnon[:,j0,i0]        # enthalpy, J/m3 < 0
+    qsn = qsnon[:,j0,i0]                                      # enthalpy, J/m3 < 0
     qsn_min = -rhos * Lfresh + (Tmin + 0.01) * cp_ice * rhos  # enth. of the coldest possible snow
-    qsn_max = -rhos * Lfresh + Tsfc_max * cp_ice * rhos  # Tsfc_max <= 0
-    qsn_tsf = -rhos * Lfresh + tsn * cp_ice * rhos  # enth. for surf temp
-    qT0 = -Lfresh*rhos      # enth. of pure snow at 0C
+    qsn_max = -rhos * Lfresh + Tsfc_max * cp_ice * rhos       # Tsfc_max <= 0
+    qsn_tsf = -rhos * Lfresh + tsn * cp_ice * rhos            # enth. for surf temp
+    qT0 = -Lfresh*rhos                                        # enth. of pure snow at 0C
 
     # Update enthalpy of snow and enforce physical constraints
     # Limit qsn to [qsn_min, qsn_max]
@@ -461,11 +450,6 @@ def main():
    
   with open(fyaml) as ff:
     config_rest = safe_load(ff)
-
-  # Get MOM6 grid
-  #pthgrid    = config_rest["grid_topo"]["pthgrid"]
-  #dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
-  #dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
 
   # Insert hsnow for regions
   ds_out = None

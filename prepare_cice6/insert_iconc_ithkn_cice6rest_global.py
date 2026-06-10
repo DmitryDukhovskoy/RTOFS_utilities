@@ -14,6 +14,7 @@
   See python/prepare_cice6/interp_NSIDC_iconc_mesh025.py
                     interp_CryoSat_ithkn_antarct_mesh025.py
 
+  author: Dmitry Dukhovskoy, NOAA NWS EMC 2025
 """
 import os
 import numpy as np
