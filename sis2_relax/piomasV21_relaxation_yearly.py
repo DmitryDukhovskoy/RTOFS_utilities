@@ -80,6 +80,8 @@ fyaml = 'pypaths_gfdlpub.yaml'
 with open(fyaml) as ff:
   gridfls = safe_load(ff)
 
+iconc_min = 0.01  # min conc to consider for relaxation
+
 # MOM6 NEP topo/grid:
 run_name   = 'seasonal_fcst_daily'
 pthtopo    = gridfls['MOM6_NEP'][run_name]['pthgrid']
@@ -286,6 +288,8 @@ for YR1 in range(YRs,YRe+1):
       C2di = msisrlx.interp2Dfld(C2df, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
 
       C2di = np.where(C2di>0.99, 1.0, C2di) # interp error 1--> 0.99, also caps max conc = 1
+      # also may need to clip the low values:
+      C2di = np.where(C2di < iconc_min, 0.0, C2di)
 
     else:
       # Clim data for 2025 or previous year files (yr<2025):

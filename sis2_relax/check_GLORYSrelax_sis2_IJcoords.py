@@ -1,10 +1,10 @@
 """
-  Check relax fields from PIOMAS monthly ice thickness and concentration
+  Check relax fields from GLORYS
+   monthly ice thickness and concentration
   Plot in I-J coords for easy checking
 
-  monthly fields
-  1901 - 2010
-  https://psc.apl.uw.edu/research/projects/piomas-20c/
+
+  Fields creatd by Jessie L.
 
 """
 import datetime as dt
@@ -39,14 +39,8 @@ importlib.reload(msisrlx)
 
 plot_fields = True
 plot_piomas = False
-YR1 = 1993
-YR2 = 1994 
-YR0 = 1993   # year to plot
-MM0 = 6      # month to plot
 ifld = 'iarea'  # ithkn, iarea
 # Test point in Fortran indices:
-#iF0 = 230  
-#jF0 = 700
 iF0 = 110
 jF0 = 732
 i0 = iF0-1 ; j0 = jF0-1
@@ -110,7 +104,8 @@ LAT  = ds_thkn['Latitude'].data
 LON  = ds_thkn['Longitude'].data
 
 # Read saved relax. fields:
-flout = f'PIOMASv21_ithkn_iconc_{YR1}_{YR2}_{file_type}.nc'
+#flout = f'PIOMAS_ithkn_iconc_{YR1}_{YR2}_{file_type}.nc'
+flout = 'glorys_ithkn_iarea_2023_monthly_padded.nc'
 diclim = os.path.join(pthsis, flout)
 ds_rlx = xarray.open_dataset(diclim)
 Time = ds_rlx['time'].data
@@ -143,7 +138,7 @@ match ifld:
     rmax = 1.
 
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
-A2dP = msisrlx.read_PIOMAS(YR0, MM0, dfpiomas, varnm)
+#A2dP = msisrlx.read_PIOMAS(YR0, MM0, dfpiomas, varnm)
 
 plt.ion()
 
@@ -151,7 +146,7 @@ fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
 ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
 
-sttl = f'Relaxation {ifld} SIS2 from PIOMAS {YR0}/{MM0}\n'
+sttl = f'Relaxation {ifld} SIS2 from GLORYS {YR0}/{MM0}\n'
 sttl = sttl + f"Test pnt iF0/jF0 = {iF0}/{jF0}, year={YR0}, MM0={MM0}, {ifld}: {A2dS[j0,i0]:.6f}"
 
 img = ax1.pcolormesh(A2dS, cmap=clrmp, vmin=rmin, vmax=rmax)
@@ -174,7 +169,7 @@ ticklabs = clb.ax.get_yticklabels()
 clb.ax.set_yticklabels(["{:.1f}".format(i) for i in clb.get_ticks()], fontsize=10)
 clb.ax.tick_params(direction='in', length=12)
 
-btx = 'check_relax_sis2_IJcoords.py' 
+btx = 'check_GLORYSrelax_sis2_IJcoords.py'
 bottom_text(btx, pos=[0.2, 0.01])
 
 

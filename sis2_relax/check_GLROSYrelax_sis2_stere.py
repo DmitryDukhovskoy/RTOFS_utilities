@@ -1,25 +1,10 @@
 """
-  Check relax fields created from PIOMAS monthly ice thickness and concentration
+  Check relax fields created from GLORYS
+   monthly ice thickness and concentration
   stereographic projection
 
-  usage: check_relax_sis2_stere.py --varnm={ithkn,iarea or iconc} --yr=1993 --mo=8 --yrplot=1994
-
-  assumed 2 years are saved in each relax file (+/- 1 mo at the beginning/end)
-  by default, plot year is the first the relax. nameing files, if there are > 1 year saved
-
-  --yr=2009 --mo=3 --yrplot=2010 will plot 2010/3 
-      from the relax file PIOMAS_ithkn_iconc_2009_2010_monthly.nc 
-
-  Relaxation fields prepared in:
-  see: piomas_relaxation_yearly.py
-
-  monthly fields, reconstructed ice fields, based on Hadley Ice conc. 
-  1901 - 2010
-  https://psc.apl.uw.edu/research/projects/piomas-20c/
-  created fields until 2009-2010 
-
- and PIOMAS v2.1: 1979-present, assimilates satellite ice conc. 
- from 2010-2011, ... 
+  Prepared by Jessie L
+  
 """
 import datetime as dt
 import numpy as np
@@ -57,7 +42,6 @@ parser.add_argument("--yr", help="start year of saved relaxed fields: 1993, ...,
 parser.add_argument("--mo", help="month to plot: 1,..., 12, ...", type=int, required=True)
 parser.add_argument("--varnm", help="field to plot: ithkn or iarea", type=str)
 parser.add_argument("--yrplot", help="year to plot, >= yr_start and <= yr_end of relax fields", type=int)
-parser.add_argument("--piomas", help="PIMOAS version: v1.0 - reconstr, v2.1 - reanalys", type=str)
 args = parser.parse_args()
 
 plot_fields = True
@@ -78,16 +62,10 @@ if args.varnm:
     ifld = 'iarea'
 MM0 = args.mo if args.mo else None
 YR0 = args.yrplot if args.yrplot else YR1
-piomas_vers = args.piomas if args.piomas else 'reanalysis'
 
 if YR0 < YR1 or YR0 > YR2:
   raise Exception(f"year to plot {YR0} is outside the time window in the file: {YR1}/{YR2}")
 
-if YR1 > 2010 and piomas_vers == 'reconstr':
-  print(f'After 2010, only PIOMAS reanalysis is available, switch to reanalys')
-  piomas_vers = 'reanalys'
-
-print(f'PIOMAS version: {piomas_vers}')
 # Test point in Fortran indices:
 # make it <0 not to show
 #iF0 = 224
@@ -122,22 +100,11 @@ jdm, idm = HH.shape
 # PIOMAS fields on MOM6 NEP grid, relax fields:
 pthsis  = gridfls['MOM6_NEP'][run_name]['pthsis']
 # Original PIOMAS fields: 
-pthdata = '/work/Dmitry.Dukhovskoy/data/PIOMAS_ice'
-if piomas_vers == 'reconstr':
-  flthck = 'piomas20c.heff.1901.2010.v1.0.nc'
-  varthck = 'sit'
-  flconc  = 'piomas20c.area.1901.2010.v1.0.nc'
-  varconc = 'sic'
-else:
-  flthck  = f'piomas_heff{YR0}_v21.nc'
-  varthck = 'heff'
-  flconc  = f'piomas_area{YR0}_v21.nc'
-  varconc = 'area'
-
+#pthdata = '/work/Dmitry.Dukhovskoy/data/PIOMAS_ice'
 
 # Read saved relax. fields:
-flout = f'PIOMASv21_ithkn_iconc_{YR1}_{YR2}_{file_type}.nc'
-#flout = 'glorys_ithkn_iarea_2023_monthly_padded.nc'
+#flout = f'PIOMASv21_ithkn_iconc_{YR1}_{YR2}_{file_type}.nc'
+flout = 'glorys_ithkn_iarea_2023_monthly_padded.nc'
 diclim = os.path.join(pthsis, flout)
 print(f'Reading relax fields from {diclim}')
 ds_rlx = xarray.open_dataset(diclim)
@@ -152,17 +119,17 @@ assert dv0[1]==MM0, f'Requested month={MM0}, month in rlx file={dv0[1]}'
 
 A2dS = ds_rlx[ifld].isel(time=itime).data
 
-# Read PIOMAS field:
+
 match ifld:
   case('ithkn'):
-    varnm = varthck
-    dfpiomas = os.path.join(pthdata,flthck)
+    varnm = 'ithkn'
+    #dfpiomas = os.path.join(pthdata,flthck)
     clrmp = mclrmps.colormap_ice_thkn()
     rmin = 0.
-    rmax = 4.
+    rmax = 3.
   case('iarea'):
-    varnm = varconc
-    dfpiomas = os.path.join(pthdata,flconc)
+    varnm = 'area'
+    #dfpiomas = os.path.join(pthdata,flconc)
     clrmp = mclrmps.colormap_conc()
     rmin = 0.
     rmax = 1.
@@ -236,31 +203,10 @@ if plot_fields:
   else:
     plot_ice(fgnmb, xR, yR, A2dS, clrmp, rmin, rmax, sttlS)
 
-  if plot_piomas:
-    ds_piomas = xarray.open_dataset(dfpiomas)
-    if piomas_vers == 'reconstr':
-      LAT  = ds_piomas['Latitude'].data
-      LON  = ds_piomas['Longitude'].data
-    else:
-      LAT  = ds_piomas['lat_scaler'].data
-      LON  = ds_piomas['lon_scaler'].data
-
     # Arctic reagion:
     #m = Basemap(projection='npstere',boundinglat=60,lon_0=-10,resolution='l')
     #parallels = np.arange(50, 90, 5)
     #meridians = np.arange(-360, 359., 45.)
-
-    xRp, yRp = m(LON, LAT)
-    if piomas_vers == 'reconstr':
-      A2dP = msisrlx.read_PIOMAS(YR0, MM0, dfpiomas, varnm)
-      sttlP = f'{ifld} PIOMAS-reconstruct {YR0}/{MM0}'
-    else:
-      A2dP = msisrlx.read_PIOMASv21(YR0, MM0, dfpiomas, varnm)
-      A2dP = np.where(A2dP>=9999., np.nan, A2dP)
-      sttlP = f'{ifld} PIOMASv2.1 {YR0}/{MM0}'
-
-    fgnmb=2
-    plot_ice(fgnmb, xRp, yRp, A2dP, clrmp, rmin, rmax, sttlP)
 
 
 

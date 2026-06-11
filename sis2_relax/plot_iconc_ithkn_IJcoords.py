@@ -1,10 +1,5 @@
 """
-  Check relax fields from PIOMAS monthly ice thickness and concentration
-  Plot in I-J coords for easy checking
-
-  monthly fields
-  1901 - 2010
-  https://psc.apl.uw.edu/research/projects/piomas-20c/
+  Quick plot ice conc, ithkn fields on NEP10k IJ grid
 
 """
 import datetime as dt
@@ -37,12 +32,6 @@ from mod_utils_fig import bottom_text
 import mod_sis2_relax as msisrlx
 importlib.reload(msisrlx)
 
-plot_fields = True
-plot_piomas = False
-YR1 = 1993
-YR2 = 1994 
-YR0 = 1993   # year to plot
-MM0 = 6      # month to plot
 ifld = 'iarea'  # ithkn, iarea
 # Test point in Fortran indices:
 #iF0 = 230  
@@ -57,20 +46,27 @@ file_type = 'monthly'  # monthly, daily, ... or clim
 parser = argparse.ArgumentParser()
 parser.add_argument("--yr", help="start year of saved relaxed fields: 1993, ..., 2020", type=int, required=True)
 parser.add_argument("--mo", help="month to plot: 1,..., 12, ...", type=int, required=True)
-parser.add_argument("--varnm", help="field to plot: ithkn or iarea", type=str)
-parser.add_argument("--yrplot", help="year to plot, >= yr_start and <= yr_end of relax fields", type=int)
+parser.add_argument("--day", help="for daily output, month day 1,...31", type=int)
+parser.add_argument("--varnm", help="field to plot", 
+                    choices=['iarea','iconc','ithkn','ithik'],
+                    type=str, required=True)
 args = parser.parse_args()
 
 if args.yr:
   YR1 = args.yr
   YR0 = YR1
   YR2 = YR1+1
-if args.varnm:
-  ifld = args.varnm
-  if ifld=='iconc':
-    ifld = 'iarea'
+
+varnm = args.varnm
+ifld = varnm
+if ifld=='iconc':
+  ifld = 'iarea'
+
+if ifld == 'ithkn':
+  ifld = 'ithik'
+
 MM0 = args.mo if args.mo else None
-YR0 = args.yrplot if args.yrplot else YR1
+DD0 = args.day if args.day else 15
 
 
 fyaml = 'pypaths_gfdlpub.yaml'
@@ -95,55 +91,53 @@ HH = -HH
 HH = np.where(np.isnan(HH), 1., HH)
 jdm, idm = HH.shape
 
-pthsis  = gridfls['MOM6_NEP'][run_name]['pthsis']
-pthdata = '/work/Dmitry.Dukhovskoy/data/PIOMAS_ice'
-flthck = 'piomas20c.heff.1901.2010.v1.0.nc'
-varthck = 'sit'
-flconc  = 'piomas20c.area.1901.2010.v1.0.nc'
-varconc = 'sic'
+DX, DY = mmom6.dx_dy(hlon, hlat)
+Acell  = DX*DY  # m2
 
-dflthkn = os.path.join(pthdata, flthck)
-dflconc = os.path.join(pthdata, flconc)
 
-ds_thkn = xarray.open_dataset(dflthkn)
-LAT  = ds_thkn['Latitude'].data
-LON  = ds_thkn['Longitude'].data
+pthsis = f'/archive/Dmitry.Dukhovskoy/fre/NEP/hindcast_bgc/NEPbgc_nudged_hindcast02/history/{YR0}{MM0:02d}01'
+flice = 'ice_month.nc'
+pthsis = '/work/Jessie.Liu/debugging_sithick_issues/glorys_ice_zero_out_Bering_region/1x0m32d'
+flice = '20230101.ice_daily.nc'
 
-# Read saved relax. fields:
-flout = f'PIOMASv21_ithkn_iconc_{YR1}_{YR2}_{file_type}.nc'
-diclim = os.path.join(pthsis, flout)
-ds_rlx = xarray.open_dataset(diclim)
-Time = ds_rlx['time'].data
-TM = mmisc.convert_nptime_to_datenum(Time)
-dnmb0 = mtime.datenum([YR0,MM0,15,12])
-D = abs(TM-dnmb0)
-itime = np.argmin(D)
-dv0 = mtime.datevec(TM[itime])
-assert dv0[0]==YR0, f'Requested YR={YR0}, year in rlx file={dv0[0]}'
-assert dv0[1]==MM0, f'Requested month={MM0}, month in rlx file={dv0[1]}'
+dfsis2 = os.path.join(pthsis, flice)
+with xarray.open_dataset(dfsis2) as dset:
+  Time = dset['time'].data
+  TM = mmisc.convert_nptime_to_datenum(Time)
+  dnmb0 = mtime.datenum([YR0, MM0, DD0, 12])
+  D = abs(TM-dnmb0)
+  itime = np.argmin(D)
+  dv0 = mtime.datevec(TM[itime])
+  assert dv0[0]==YR0, f'Requested YR={YR0}, year in rlx file={dv0[0]}'
+  assert dv0[1]==MM0, f'Requested month={MM0}, month in rlx file={dv0[1]}'
+  HIce = dset['sithick'].isel(time=itime).values
+  CIce = dset['siconc'].isel(time=itime).values
+#  VIce = dset['sivol'].isel(time=0).values  # This is not ice vol, neither m3/m2, not sure what this is
 
-A2dS = ds_rlx[ifld].isel(time=itime).data
-#A2dS = np.where(HH>=0, np.nan, A2dS)
+if varnm == 'iconc':
+  A2d = CIce
+elif varnm == 'ithkn':
+  A2d = CIce*HIce      # convert m --> m3/m2_cell - not exact, limited to available output
+#  A2d = HIce           # this may have unrealistic thick ice where ice conc is small
+#  A2d = VIce
 
-print(f"Test pnt i/j = {i0}/{j0}, year={YR0}, MM0={MM0}, {ifld}: {A2dS[j0,i0]:.6f}")
 
-# Read PIOMAS field:
-match ifld:
+
+print(f"Test pnt i/j = {i0}/{j0}, year={YR0}, MM0={MM0}, {ifld}: {A2d[j0,i0]:.6f}")
+
+match varnm:
   case('ithkn'):
-    varnm = varthck
-    dfpiomas = os.path.join(pthdata,flthck)
     clrmp = mclrmps.colormap_ice_thkn()
     rmin = 0.
     rmax = 3.
-  case('iarea'):
-    varnm = varconc
-    dfpiomas = os.path.join(pthdata,flconc)
+  case('iconc' | 'iarea'):
     clrmp = mclrmps.colormap_conc()
     rmin = 0.
     rmax = 1.
 
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
-A2dP = msisrlx.read_PIOMAS(YR0, MM0, dfpiomas, varnm)
+
+
 
 plt.ion()
 
@@ -151,10 +145,11 @@ fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
 ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
 
-sttl = f'Relaxation {ifld} SIS2 from PIOMAS {YR0}/{MM0}\n'
-sttl = sttl + f"Test pnt iF0/jF0 = {iF0}/{jF0}, year={YR0}, MM0={MM0}, {ifld}: {A2dS[j0,i0]:.6f}"
+sttl = f'Monthly {varnm}  {YR0}/{MM0}/{DD0}\n'
+sttl = sttl + f"Test pnt iF0/jF0 = {iF0}/{jF0}, year={YR0}, MM0={MM0}, {ifld}: {A2d[j0,i0]:.6f}\n"
+sttl = sttl + f"{dfsis2}"
 
-img = ax1.pcolormesh(A2dS, cmap=clrmp, vmin=rmin, vmax=rmax)
+img = ax1.pcolormesh(A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
 ax1.contour(HH,[0], linestyles='solid', linewidths=1, colors=[(0.8, 0.8, 0.8)])
 ax1.plot(i0,j0,'o')
 
@@ -174,7 +169,7 @@ ticklabs = clb.ax.get_yticklabels()
 clb.ax.set_yticklabels(["{:.1f}".format(i) for i in clb.get_ticks()], fontsize=10)
 clb.ax.tick_params(direction='in', length=12)
 
-btx = 'check_relax_sis2_IJcoords.py' 
+btx = 'plot_iconc_ithkn_IJcoords.py'
 bottom_text(btx, pos=[0.2, 0.01])
 
 
