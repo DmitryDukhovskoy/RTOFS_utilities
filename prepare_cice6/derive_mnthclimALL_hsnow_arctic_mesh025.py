@@ -136,10 +136,15 @@ for imo in range(12):
 
     # change weights for Model-based estimates and Warn. clim 
     # base weights
-    wCryo = 0.4
-    wW99  = 0.3
-    wE5   = 0.15
-    wS2   = 0.15
+    #wCryo = 0.4
+    #wW99  = 0.3
+    #wE5   = 0.15
+    #wS2   = 0.15
+    wCryo = 0.98
+    wW99  = 0.01
+    wE5   = 0.0
+    wS2   = 0.01
+
 
     assert abs(1 - (wCryo + wW99 + wE5 + wS2)) < 1.e-6, "ERR: Check base weights"
 
@@ -219,9 +224,8 @@ if save_final:
 
   dset_hi.attrs.update({
     "title": f"Snow depth climatology fused: CryoSat AWI + NSIWDC EWG + ICESat-2: SnowModel ERA5, MERRA2, Warren99",
-    "institution": "NOAA NWS MDC",
+    "institution": "NOAA NWS OMD",
     "source": "derive_mnthclimALL_hsnow_arctic_mesh025.py",
-    "contact": "dmitry.dukhovskoy@noaa.gov",
     "region": regn,
   })
 
@@ -231,16 +235,15 @@ if save_final:
           format='NETCDF4')
 
 
-f_chck = False
+f_chck = True
 f_xy = False     # True - plot on X.Y grid. False - plot on index space
 if f_chck:
-
-  MM = 8
+  MM = 7
   A2d = A3d[MM-1,:,:].squeeze()
 
   clrmp = mclrmps.colormap_temp()
   rmin = 0.
-  rmax = 0.4
+  rmax = 0.2
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
   if regn == 'south':
