@@ -117,10 +117,10 @@ def sfs_tests_info(enmb):
     "02" : "ai+hi+hsU+ITDrdg+snphys+Tfrz",
     "03" : "control 20250701",
     "04" : "ai+hi",
-    "05" : "radpar+sealvl2",     # identical to 08 with tuned pond param: pndaspect=1.2, apnd_sl=0.2
+    "05" : "radpar+sealvl",      # sealvl pond  with tuned pond param: pndaspect=1.2, apnd_sl=0.2
     "06" : "radpar+pondtopo",    # expt07 but pond parameterization topo
-    "07" : "radpar",
-    "08" : "radpar+sealvl", 
+    "07" : "radpar+pondlvl",     # pond_lvl with all other settings 
+    "08" : "radpar+pondtopo+newsnclim",     # pond_topo with updated summer snow clim
     "09" : "radpar+nopond",
     "61" : "ai+hi+hsU+ITDrdg+snphys_debug",   # cat. ice output for debugging
     "62" : "ai+hi+hsU+ITDrdg+snphys",            #  same as 61, every step output 1 day run
