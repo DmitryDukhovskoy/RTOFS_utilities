@@ -10,7 +10,6 @@ import sys
 import importlib
 import matplotlib
 import xarray
-from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm

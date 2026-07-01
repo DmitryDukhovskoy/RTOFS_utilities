@@ -50,6 +50,10 @@ parser.add_argument("--regn", help="hemisphere to analyze", type=str,
                     choices=['north','south'], required=True)
 parser.add_argument("--init", help=f"init date", choices=[20251231, 20240715], required=True, type=int)
 parser.add_argument("--fdays", help=f"N of f/cast days, default={fdays}", type=int)
+parser.add_argument("--fv16", help="Show GFSv16 (1 default), no (0)",
+                    choices=[0,1],
+                    default=1,
+                    type=int)
 parser.add_argument(
     "--prst", 
     help=f"Show persitance using GFSv16 or GFSv17 IC, 0=no, 1=yes",
@@ -58,6 +62,7 @@ parser.add_argument(
     choices=[0,1]
 ) 
 args = parser.parse_args()
+show_v16 = args.fv16 == 1
   
 regn  = args.regn if args.regn else None
 init_date = args.init if args.init else init_date
@@ -220,7 +225,9 @@ fig1 = plt.figure(1,figsize=(9,9))
 plt.clf()
 
 ax1 = plt.axes([0.1, 0.4, 0.8, 0.5])
-ln1, = ax1.plot(Xplt, RMSE16, 'o-', linewidth=2, color=clr16, label='GFSv16')
+ln1 = []
+if show_v16:
+  ln1, = ax1.plot(Xplt, RMSE16, 'o-', linewidth=2, color=clr16, label='GFSv16')
 ln2, = ax1.plot(Xplt, RMSE17, 'o-', linewidth=2, color=clr17, label='GFSv17')
 ln3, = ax1.plot(Xplt, RMSEp17, '--', linewidth=2, color=clr17, label='persist')
 
@@ -233,7 +240,11 @@ ax1.set_xlabel('Forecast days')
 ax1.set_title(sttl)
 
 ax3 = plt.axes([0.1, 0.15, 0.6, 0.2])
-LNS = [ln1, ln2, ln3]
+if show_v16:
+  LNS = [ln1, ln2, ln3]
+else:
+  LNS = [ln2,ln3]
+
 lgd = plt.legend(handles=LNS, loc='upper left')
 ax3.axis('off')
 

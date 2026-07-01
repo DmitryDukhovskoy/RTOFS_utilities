@@ -11,14 +11,13 @@ def bottom_text(btx, gtdir='RTOFS_utilities', \
   syst_info = os.uname()
   machine = syst_info.nodename
 
-  sgit = 'github.com/DmitryDukhovskoy/' + gtdir
+  #sgit = 'github.com/DmitryDukhovskoy/' + gtdir
   drr = os.getcwd()
-#  btnm = drr+'/'+btx
   bnm = os.path.basename(drr)
   if f_short:
-    btnm = os.path.join(bnm, btx)
+    btnm = os.path.join(bnm, f"@{machine}: {btx}")
   else:
-    btnm = os.path.join(sgit, bnm, f"@{machine}: {btx}")
+    btnm = os.path.join(drr, f"@{machine}: {btx}")
 
   if ipwd==0:
     btnm = (f"@{machine}: {btx}")

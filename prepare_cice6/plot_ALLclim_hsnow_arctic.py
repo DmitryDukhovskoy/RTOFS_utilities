@@ -40,6 +40,7 @@ from mod_utils_fig import bottom_text
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
 import mod_cice6_utils as mc6util
+import mod_time as mtime
 importlib.reload(mc6util)
 
 regn = 'north'
@@ -47,10 +48,17 @@ fld_name = 'hsnow'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--mm", help="Month to plot", required=True, type=int)
+parser.add_argument("--imask", 
+      help="Use NRT NSIDC ice mask to remove snow over no-ice areas: YYYYMMDD",
+      type=int)
 args = parser.parse_args()
   
 field_name = 'hsnow'
 MM = args.mm
+ice_mask_date = args.imask if args.imask is not None else None
+
+app_mask = ice_mask_date is not None 
+
 
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -84,7 +92,7 @@ with xarray.open_dataset(dfliceout) as dsice:
 
 clrmp = mclrmps.colormap_temp()
 rmin = 0.
-rmax = 0.1
+rmax = 0.2
 
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 clrmp.set_under(color=[1,1,1])
@@ -116,15 +124,15 @@ def plot_field(ax1, fig1, m, xR, yR, A2d, clrmp, rmin, rmax, plt_clrb, cntrs=[],
 
   # extend: min, max, both
   if plt_clrb:
-    ax2 = fig1.add_axes([0.92,0.1,0.013,0.8])
-    clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='both')
+    ax2 = fig1.add_axes([0.92,0.1,0.014,0.8])
+    clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='max')
 
     ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
     ax2.set_yticklabels(ax2.get_yticks())
     ticklabs = clb.ax.get_yticklabels()
     #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
     clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=12)
-    clb.ax.tick_params(direction='in', length=12)
+    clb.ax.tick_params(direction='in', length=10)
 
   return ax1
 
@@ -140,10 +148,22 @@ with xarray.open_dataset(dfliceout) as dsice:
   A2d = dsice['snow_depth'].isel(time=imo).data.squeeze()
 
 
+if app_mask:
+  YR, MM, DD, _ = mtime.rdate2date(ice_mask_date)
+ 
+  pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
+  fliceout = f'NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc'
+  dfliceout = os.path.join(pthnsidc,fliceout)
+  print(f'Loading interpolated ice conc {dfliceout}')
+  with xarray.open_dataset(dfliceout) as dsint:
+    AI = dsint['ice_conc'].isel(time=DD-1).squeeze()
+
+  A2d[AI<0.15] = 0.
+
 sttl = f'hsnow diffused clim {MM:02d}'
 
 # snow contours:
-cntrs = [x/100 for x in range(1,10,1)]
+cntrs = [x/100 for x in range(2,40,2)]
 plt_clrb = True
 ax1 = plot_field(ax1, fig1, m, xh, yh,  A2d, clrmp, rmin, rmax, plt_clrb, cntrs=cntrs, sttl=sttl)
 

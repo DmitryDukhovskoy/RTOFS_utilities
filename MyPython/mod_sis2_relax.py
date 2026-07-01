@@ -9,8 +9,8 @@ import sys
 import matplotlib.pyplot as plt
 from yaml import safe_load
 
-PPTHN = '/home/Dmitry.Dukhovskoy/python'
-if len(PPTHN) == 0:
+PPTHN = None
+if PPTHN is None:
   cwd   = os.getcwd()
   aa    = cwd.split("/")
   nii   = cwd.split("/").index('python')
@@ -717,16 +717,24 @@ def redistribute_hice(hice, cice, ICAT=[], eps0=1.e-6, ck_min=1.e-3, verbose=Fal
   # Check that there is enough ice to be i
   # distributed over the cats for min cice and hice:
   #ck_min = 1.e-3  # some small value >> eps0
-  htot_min = np.sum(ck_min*ICAT)
+  # min requirement - enough ice to pu in the thinnest cat 
+  htot_min = ck_min * (ICAT[0] + eps0) 
   if hice < htot_min or cice < ck_min*ncat:
+  #if hice < htot_min or cice < ck_min:
     hcat = np.zeros((ncat))+eps0
     ccat = np.zeros((ncat))+eps0
-    ccat[ithk] = cice - np.sum(ccat[:ithk]) 
-    hcat[ithk] = hice/ccat[ithk]    # can be some high values due to low cice
+    # Try to assign all ice to 1 bin:
+    # cice > 0 but probably small or hice is too small:
+    hi0 = hice / cice 
+    ithk0 = np.searchsorted(ICAT, hi0, side='right') - 1
+    #ccat[ithk] = cice - np.sum(ccat[:ithk]) 
+    #hcat[ithk] = hice/ccat[ithk]    # can be some high values due to low cice
+    ccat[ithk0] = cice
+    hcat[ithk0] = hice
     chcat = ccat*hcat
     # Limit max hcat  aand adjust ccat allowing to be not exact?
 
-    print(f"Not enough ice")
+    print(f"WARN: Not enough ice --> simplest redistribution")
     return hcat, ccat
 
   # Find primary ice cat. where grid cell mean hice falls in:
@@ -791,8 +799,8 @@ def redistribute_hice(hice, cice, ICAT=[], eps0=1.e-6, ck_min=1.e-3, verbose=Fal
   htot = np.sum(ccat*hcat)
   print(f"redistr: ctot={ctot:.3f} cice={cice:.3f}, htot={htot:.3f} hice={hice:.3f}")
   err_hice, err_cice  = check_hcice(hcat, ccat, hice, cice)
-  assert not err_hice, f"1. error hice not conserved"
-  assert not err_cice, f"1. error cice not conserved"
+  assert not err_hice, f"2. error hice not conserved"
+  assert not err_cice, f"2. error cice not conserved"
 
   return hcat, ccat
 

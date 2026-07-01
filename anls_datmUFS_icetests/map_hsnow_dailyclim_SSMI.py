@@ -11,7 +11,6 @@ import sys
 import importlib
 import matplotlib
 import xarray
-from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
@@ -34,13 +33,11 @@ sys.path.extend([
     os.path.join(PPTHN, 'MyPython', 'mom6_utils')
 ])
 
+import mod_utils_fig
+importlib.reload(mod_utils_fig)
 from mod_utils_fig import bottom_text
 import mod_time as mtime
-import mod_utils as mutil
-import mod_misc1 as mmisc
 import mod_colormaps as mclrmps
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
 
 init_date = 20250103
 regn = 'south'
@@ -108,17 +105,19 @@ with xarray.open_dataset(dflhsn) as ds_snow:
 units = plot_units
 #clrmp = mclrmps.colormap_uv()
 clrmp = mclrmps.colormap_temp()
-if plot_units == 'cm':
-  rmin = 0
-  rmax = 40
-else:
-  rmin = 0
-  rmax = 0.4
+rmin = 0
+rmax = 20
+if units == 'm':
+  rmin = rmin * 0.01
+  rmax = rmax * 0.01
 
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
 sttl = f'hsnow SSM/I daily clim {MM:02d}/{DD:02d}'
 sinfo = f"Daily climatology snow depth over ice {regn}, from SSM/I daily fields"
+
+# snow contours meters:
+cntrs = [x/100 for x in range(20,80,10)]
 
 plt.ion()
 
@@ -148,6 +147,9 @@ meridians = np.arange(-360,359.,45.)
 m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
 
 img = ax1.pcolormesh(xh, yh, HSi, cmap=clrmp, vmin=rmin, vmax=rmax, shading='auto')
+if len(cntrs) > 0:
+  cs = ax1.contour(xh, yh, HSi, cntrs, linestyles='solid', colors=[(0.6,0.6,0.6)], linewidths=1)
+  ax1.clabel(cs, inline=True, fontsize=10, fmt="%.2f")
 
 if regn == 'south':
   ax1.set_xlim([xl1, xl2])

@@ -48,6 +48,9 @@ importlib.reload(mc6util)
 
 regn = 'north'
 fld_name = 'ithkn'
+min_hi = 0.6      # for plotting, mask low thickness
+
+print(f"Min ice thickness threhold = {min_hi:.3f}")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--mm", help="Month to plot", required=True, type=int)
@@ -136,6 +139,10 @@ print(f"Plotting {MM:02d}")
 
 with xarray.open_dataset(dfliceout) as dsice:
   A2d = dsice['ice_thkn'].isel(time=imo).data.squeeze()
+
+if min_hi > 0. and min_hi is not None:
+  A2d[A2d <= min_hi] = 0.
+
 
 sttl = f'ithkn fused clim {MM:02d}'
 

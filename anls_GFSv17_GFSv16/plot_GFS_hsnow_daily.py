@@ -41,13 +41,12 @@ import mod_mom6 as mmom6
 init_date = 20251231
 init_hr = 0
 regn = 'south'
-fday = 16
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
 parser.add_argument("--init", help=f"init date", choices=[20240715,20251231], required=True, type=int)
 parser.add_argument("--ihr", help=f"init hour, default {init_hr}", type=int)
-parser.add_argument("--fday", help=f"f/cast day to plot: 1-16, default={fday}", type=int)
+parser.add_argument("--fday", help=f"f/cast day to plot: 1-16, default=16", default=16, type=int)
 parser.add_argument("--gfs", help=f"GFS version to plot", choices=[16,17], required=True, type=int)
 args = parser.parse_args()
 
@@ -57,8 +56,8 @@ init_hr   = args.ihr if args.ihr else init_hr
 fday      = args.fday if args.fday is not None else fday
 gfsv      = args.gfs if args.gfs else None  
 
-if fday < 0:
-  raise RuntimeError(f"fday should be > 0")
+if fday < 1:
+  raise RuntimeError(f"fday should be > 0, 1st output = day 1")
 
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -124,7 +123,7 @@ DD = dt.day
 
 clrmp = mclrmps.colormap_temp()
 rmin = 0.
-rmax = 0.4
+rmax = 0.2
 clrmp.set_under(color=[1,1,1])
 clrmp.set_bad(color=[0.1, 0.1, 0.1])
 cntr_clr = [0.9,0.,1]
@@ -150,6 +149,10 @@ xh, yh = m(hlon,hlat) # GFS coords
 
 print("Plotting ...")
 
+# snow contours:
+#cntrs = [x/100 for x in range(2,40,2)]
+cntrs = []
+
 fig1 = plt.figure(1,figsize=(9,9))
 plt.clf()
 ax1 = plt.axes([0.08, 0.1, 0.8, 0.8])
@@ -158,6 +161,9 @@ m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
 m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 
 img = ax1.pcolormesh(xh, yh, A2d, cmap=clrmp, vmin=rmin, vmax=rmax, shading='auto')
+if len(cntrs) > 0:
+  cs = ax1.contour(xh, yh, A2d, cntrs, linestyles='solid', colors=[(0.6,0.6,0.6)], linewidths=1)
+  ax1.clabel(cs, inline=True, fontsize=10, fmt="%.2f")
 
 ax1.set_title(sttl)
 
@@ -172,7 +178,7 @@ ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
 ax2.set_yticklabels(ax2.get_yticks())
 ticklabs = clb.ax.get_yticklabels()
 #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
-clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=12)
+clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=14)
 clb.ax.tick_params(direction='in', length=12)
 
 ax3 = fig1.add_axes([0.02, 0.03, 0.8, 0.06])

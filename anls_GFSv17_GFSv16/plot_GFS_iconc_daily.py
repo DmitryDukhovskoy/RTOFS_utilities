@@ -171,7 +171,7 @@ ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
 ax2.set_yticklabels(ax2.get_yticks())
 ticklabs = clb.ax.get_yticklabels()
 #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
-clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=14)
+clb.ax.set_yticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=16)
 clb.ax.tick_params(direction='in', length=12)
 
 ax3 = fig1.add_axes([0.02, 0.03, 0.8, 0.06])
