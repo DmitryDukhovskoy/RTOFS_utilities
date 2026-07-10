@@ -16,12 +16,9 @@ import sys
 import importlib
 import matplotlib
 import xarray
-import pickle
-from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 import argparse
-import pickle
 
 PPTHN = '/home/Dmitry.Dukhovskoy/python'
 if len(PPTHN) == 0:
@@ -36,20 +33,8 @@ sys.path.append(PPTHN + '/MyPython/mom6_utils')
 sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/hausdorff')
 
 from mod_utils_fig import bottom_text
-import mod_plot_xsections as mxsct
 import mod_time as mtime
-import mod_utils as mutil
-import mod_misc1 as mmisc
-#import mod_valid_utils as mvutil
-import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
-import mod_sis2_relax as msisrlx
-import mod_rtofs as mrtofs
-import mod_hausdorff_distance as mmhd
-importlib.reload(mutob)
-importlib.reload(msisrlx)
 
 EXPTS = ['NEPbgc_nudged_hindcast02',
          'NEPphys_nudged_hindcast',
@@ -126,13 +111,15 @@ for iexp in range(nexp):
 
 
 ax1.set_xticks(xtck)
-ax1.set_xlim([YRS,YRE+1])
+#ax1.set_xlim([YRS,YRE+1])
+ax1.set_xlim([YRS,2020])
 ax1.grid('on')
 sttl = f'Hcasts SSS spat.avrg, {regn_name}'
 ax1.set_title(sttl)
 
 ax2.set_xticks(xtck)
-ax2.set_xlim([YRS,YRE+1])
+#ax2.set_xlim([YRS,YRE+1])
+ax2.set_xlim([YRS,2020])
 ax2.grid('on')
 sttl = f'Hcasts SST spat.avrg, {regn_name}'
 ax2.set_title(sttl)

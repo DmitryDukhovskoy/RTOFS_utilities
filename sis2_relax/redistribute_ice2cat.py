@@ -64,9 +64,9 @@ distribute_ice2cats thkn cat 10 hLim= 3.500
 distribute_ice2cats thkn cat 11 hLim= 4.000
 """
 # ICAT in NEP:
-#ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
+ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1])
 # ICAT in ARC:
-ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1, 1.5, 2.0, 2.5, 3.0, 3.5])
+#ICAT = np.array([1.0e-10, 0.1, 0.3, 0.7, 1.1, 1.5, 2.0, 2.5, 3.0, 3.5])
 
 fyaml = 'pypaths_gfdlpub.yaml'
 with open(fyaml) as ff:

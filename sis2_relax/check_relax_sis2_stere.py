@@ -196,12 +196,12 @@ def plot_ice(fgnmb, xR, yR, A2d, clrmp, rmin, rmax, sttl, xTst=-1, yTst=-1):
   ax2 = fig1.add_axes([ax1.get_position().x1+0.025, ax1.get_position().y0,
                      0.02, ax1.get_position().height])
   # extend: min, max, both
-  clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='both')
+  clb = plt.colorbar(img, cax=ax2, orientation='vertical', extend='max')
   ax2.yaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
   ax2.set_yticklabels(ax2.get_yticks())
   ticklabs = clb.ax.get_yticklabels()
   #  clb.ax.set_yticklabels(ticklabs,fontsize=10)
-  clb.ax.set_yticklabels(["{:.1f}".format(i) for i in clb.get_ticks()], fontsize=10)
+  clb.ax.set_yticklabels(["{:.1f}".format(i) for i in clb.get_ticks()], fontsize=12)
   clb.ax.tick_params(direction='in', length=12)
 
   btx = 'check_relax_sis2_stere.py'

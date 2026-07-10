@@ -18,8 +18,6 @@ import sys
 import importlib
 import matplotlib
 import xarray
-import pickle
-from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
 import argparse
@@ -38,29 +36,17 @@ sys.path.append(PPTHN + '/MyPython/mom6_utils')
 sys.path.append('/home/Dmitry.Dukhovskoy/python/MyPython/hausdorff')
 
 from mod_utils_fig import bottom_text
-import mod_plot_xsections as mxsct
 import mod_time as mtime
-import mod_utils as mutil
-import mod_misc1 as mmisc
-#import mod_valid_utils as mvutil
 import mod_colormaps as mclrmps
-import mod_mom6 as mmom6
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
-import mod_sis2_relax as msisrlx
-import mod_rtofs as mrtofs
-import mod_hausdorff_distance as mmhd
-importlib.reload(mutob)
-importlib.reload(msisrlx)
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--yrs", help="year to start calc trend, default=1993", type=int)
-parser.add_argument("--yre", help="year to end, default=2019", type=int)
+parser.add_argument("--yre", help="year to end, default=2019", default=2019, type=int)
 args = parser.parse_args()
 
 YRS = args.yrs if args.yrs else 1993
-YRE = args.yre if args.yre else 2019
+YRE = args.yre 
 
 
 EXPTS = ['NEPbgc_nudged_hindcast02',

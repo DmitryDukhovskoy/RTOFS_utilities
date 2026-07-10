@@ -21,7 +21,7 @@ def demean_ssh(ssh):
 
   return ssh_dmn, amn
 
-def calc_grad_sizeBG(ABG,lonh,lath,Acell,MSK_BG, dltC=0.005):
+def calc_grad_sizeBG(ABG, lonh, lath, Acell, MSK_BG, dltC=0.005):
   """
     Find ssh grad in the BG and size BG based on the
     last closed contour
@@ -119,6 +119,7 @@ def calc_grad_sizeBG(ABG,lonh,lath,Acell,MSK_BG, dltC=0.005):
 
   f_show = False
   if f_show:
+    import mod_colormaps as mclrmps
     clrmp = mclrmps.colormap_ssh(cpos='YlOrRd', cneg='PuBuGn_r')
     rmin = -0.5
     rmax = 0.5

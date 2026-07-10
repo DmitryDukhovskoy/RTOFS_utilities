@@ -47,7 +47,7 @@ parser.add_argument("--yrs", help="start year", type=int)
 parser.add_argument("--yre", help="end year", type=int)
 args = parser.parse_args()
 
-f_save = True  # save calculated characteristics
+f_save = False  # save calculated characteristics
 
 if args.yrs:
   YRS = args.yrs
@@ -79,7 +79,7 @@ jC2 = 995
 IBG = [iC1,iC1,iC2,iC2]
 JBG = [jC1,jC2,jC2,jC1]
 
-pthoras = '/work/Dmitry.Dukhovskoy/data/ORAS5'
+pthoras = '/work/Dmitry.Dukhovskoy/data/ORAS5/SSH'
 pthout = '/work/Dmitry.Dukhovskoy/anls_output/oras5/BG_anls'
 
 nyrs = YRE+1-YRS
