@@ -1,0 +1,20 @@
+---
+# Paths, filenames for ice thickness predictor
+#
+linregr:
+  pthithkn : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/sithick/"
+  pthiconc : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/siconc/"
+  pthsst   : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/thetao/"
+  pthssh   : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/zos/"
+  pthui    : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/usi/"
+  pthvi    : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/vsi/"
+  ptht2m   : "/archive/Dmitry.Dukhovskoy/data/ERA5/{regn_name}"
+  pthgmapi : "/archive/Dmitry.Dukhovskoy/data/remap_indx"
+  pthout   : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_linregr"
+  ithkntmp : "ithkn_IJpnts_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
+  iconctmp : "iconc_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
+  ssttmp   : "sst_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
+  divutmp  : "divu_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
+  sattmp   : "sat_tser_ERA5_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
+  dfrztmp  : "dayfrz_tser_ERA5_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
+

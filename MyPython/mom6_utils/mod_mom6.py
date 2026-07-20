@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import sys
 import importlib
 from netCDF4 import Dataset as ncFile
+import mod_misc1 as mmsc1
 
 def read_mom6grid(fgrid, grdpnt='hgrid', grid='nonsymmetr'):
   """
@@ -510,12 +511,14 @@ def create_time_array(date1, date2, dday, date_mat=False):
   return TPLT  
 
 
-def dx_dy(LON,LAT):
+def dx_dy(LON, LAT):
   """
-    Find horizontal grid spacing from LON,LAT 2D arrays 
-    hycom grid
+    Compute zonal (DX) and meridional (DY) grid spacing (m)
+    from 2D longitude and latitude arrays on the HYCOM grid.
+    DX[i,j] is the distance between (i,j) and (i,j+1).
+    DY[i,j] is the distance between (i,j) and (i+1,j).
+    The last row/column are copied from their neighboring values.
   """
-  import mod_misc1 as mmsc1
 
   IDM = LON.shape[1]
   JDM = LON.shape[0]
@@ -532,8 +535,6 @@ def dx_dy(LON,LAT):
     dx  = mmsc1.dist_sphcrd(LT1,LN1,LT2,LN2)
     DX[:,ii] = dx
 
-  DX[:,IDM-1] = dx
-
   for jj in range(JDM-1):
     LT1 = LAT[jj,:]
     LT2 = LAT[jj+1,:]
@@ -542,7 +543,8 @@ def dx_dy(LON,LAT):
     dy  = mmsc1.dist_sphcrd(LT1,LN1,LT2,LN2)
     DY[jj,:] = dy
 
-  DY[JDM-1,:] = dy
+  DX[:, -1] = DX[:, -2]
+  DY[-1, :] = DY[-2, :]
 
   print('Min/max DX, m = {0:12.4f} / {1:12.4f}'.format(np.min(DX),np.max(DX)))
   print('Min/max DY, m = {0:12.4f} / {1:12.4f}'.format(np.min(DY),np.max(DY)))
