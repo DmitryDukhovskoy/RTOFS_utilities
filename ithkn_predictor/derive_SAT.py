@@ -94,7 +94,7 @@ DIRS = {
   "pthout"   : config_predictor["linregr"]["pthout"],
   "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconctmp" : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
-  "ssttmp"   : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "ssttmp"   : config_predictor["linregr"]["ssttmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "divutmp"  : config_predictor["linregr"]["divutmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "sattmp"   : config_predictor["linregr"]["sattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   }
@@ -303,11 +303,7 @@ for irec, dnmb0 in enumerate(DNMB):
 
   T2d = A2d - 273.15  # K --> C
 
-  fld_pnts = []
-  for jje, iie in zip(JE, IE):
-    fld_pnts.append(T2d[jje,iie])
-
-  YY[:,irec] = np.asarray(fld_pnts)
+  YY[:,irec] = T2d[JE, IE]
 
   if (irec + 1) % dump_tstp == 0: 
     print(f"TMP step: Saving {fld_name} time series  --> {dfltmp}")

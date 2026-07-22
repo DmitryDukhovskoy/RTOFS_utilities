@@ -60,16 +60,13 @@ regn  = args.regn
 load_saved = args.load == 1
 
 fld_name = 'iconc'
-VARS = {
-  "iconc": "siconc",
-  }
 
 regions = {
     "north": ("Arctic", 65.0),
     "south": ("Antarctic", -60.0),
 }
 regn_name, lat0 = regions[regn]
-varnm = VARS[fld_name]
+varnm = 'siconc'
 
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:

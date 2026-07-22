@@ -20,5 +20,6 @@ def find_file(rdate, pthice):
     return dflice
   except StopIteration:
     print(f"No file found for {rdate} in {pthice}")
+    return None
 
 

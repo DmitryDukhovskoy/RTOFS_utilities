@@ -251,6 +251,7 @@ def datevec(dnmb, ldate_ref=[1,1,1], round_hrs=False):
 
   if not (isinstance(dnmb, int) or isinstance(dnmb, float)):
     raise Exception('dnmb should be int or float, for array use datevec2D')
+
   lr = len(ldate_ref)
   YRr = ldate_ref[0]
   MMr = ldate_ref[1]
@@ -271,17 +272,17 @@ def datevec(dnmb, ldate_ref=[1,1,1], round_hrs=False):
     HR = int(np.floor(dfrct*24.))
     MN = int(np.floor(dfrct*1440.-HR*60.))
 
-  if round_hrs:
-    if MN>=30:
-      HR = HR+1
-    elif MN<30:
-      MN = 0
+  ndays = int(np.floor(dnmb)) - 1
 
-    if HR > 24:
-      HR = HR-24
+  if round_hrs:
+    if MNi >= 30:
+      HR += 1
+    MN = 0
+
+    if HR >= 24:
+      HR -= 24
       ndays += 1
 
-  ndays = int(np.floor(dnmb))-1
   time0 = timeR+datetime.timedelta(days=ndays, seconds=(HR*3600 + MN*60))
   YR = time0.year
   MM = time0.month
@@ -522,6 +523,15 @@ def month_days(imo, YR):
   YRN   = dv2[0]
   dnmb2 = datenum([YRN, imoN,1])
   ndays = int(dnmb2-dnmb1)
+
+  return ndays
+
+def year_days(YR):
+  """
+    Find the number of days in a year
+  """
+  ndays = datenum([YR,12,31]) - datenum([YR,1,1]) + 1
+  ndays = int(ndays)
 
   return ndays
 

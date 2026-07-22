@@ -99,7 +99,7 @@ DIRS = {
   "pthout"   : config_predictor["linregr"]["pthout"],
   "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconctmp" : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
-  "ssttmp"   : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "ssttmp"   : config_predictor["linregr"]["ssttmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "divutmp"  : config_predictor["linregr"]["divutmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "sattmp"   : config_predictor["linregr"]["sattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "dfrztmp"  : config_predictor["linregr"]["dfrztmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
@@ -135,14 +135,14 @@ dnmbStart = DNMB[0]
 dnmbS = DNMB[0]   # actual start day
 dnmbP = dnmbS - intgr_time - 1  # previous intgr time preiod, start day
 Ypr, Mpr, Dpr = mtime.datevec(dnmbP)[:3]
-DNMBpr = derive_time(Ypr, Ypr, DIRS, regn_name, ndays_era)
+DNMBprv = derive_time(Ypr, Ypr, DIRS, regn_name, ndays_era)
 
 # Find closest time:
-idx0 = max(np.argmin(abs(DNMBpr - dnmbP)) - 2, 0) # add extra index
-nrec_prev = len(DNMBpr) - idx0     # how many records to keep for intgr Tfrz
+idx0 = max(np.argmin(abs(DNMBprv - dnmbP)) - 2, 0) # add extra index
+nrec_prev = len(DNMBprv) - idx0     # how many records to keep for intgr Tfrz
 # prepand first days for integrating Tfrz before the start:
 DNMB_run = DNMB.copy()
-DNMB = np.concatenate((DNMBpr[idx0:], DNMB))
+DNMB = np.concatenate((DNMBprv[idx0:], DNMB))
 
 # Read time array ad J,I sample grid points:
 # Time array should match ERA5 extracted fields
@@ -212,12 +212,14 @@ if load_saved:
     # Keep using those saved in ithkn - should be identical
     data = np.load(dfltmp)
     YY = data["YY"]
+    DNMBprv = data["DNMBprv"]
     DNMB_check = data["DNMB"]  
 
     # Check that this is the right time series:
-    dtmp = np.floor(np.abs(DNMB - DNMB_check))
+    dtmp = np.floor(np.abs(DNMB_run - DNMB_check))
     assert np.max(dtmp) == 0, "Check DNMB - dates do not match with saved time series"
 
+    DNMB = np.concatenate((DNMBprv, DNMB_check))
     #Find last saved record, no nans in the column:
     processed = np.all(np.isfinite(YY), axis=0)
     irec_start = np.count_nonzero(processed)
@@ -330,10 +332,10 @@ days_frz = np.zeros(nrec_prev)    # time stamps of saved SAT
   First N records will be skipped before actual start date
   To populate SAT array with temp for integrating Freez. days
 """
-npnts = len(JG)
-nrecs = len(DNMB)
-irec = 0
 iStart = np.where(DNMB == dnmbStart)[0][0]
+npnts = len(JG)
+nrecs = len(DNMB_run)
+irec = 0
 YRold = 1900
 if YY is None:
   YY = np.zeros((npnts, nrecs), dtype=float)*np.nan
@@ -360,7 +362,7 @@ for irec0, dnmb0 in enumerate(DNMB):
   #idx = np.where(np.isclose(TM, dnmb0))[0]
   idx = np.where(TM == int(dnmb0))[0]
   if len(idx) == 0:
-      raise ValueError(f"No matching day for {dnmb0} {YR}/{MM}/{DD}")
+    raise ValueError(f"No matching day for {dnmb0} {YR}/{MM}/{DD}")
   iday = idx[0]
   A2d = ds_t2m['t2m'].isel(valid_time=iday).values.squeeze()
   T2d = A2d - 273.15  # K --> C
@@ -400,7 +402,8 @@ for irec0, dnmb0 in enumerate(DNMB):
            IG=IG,
            JE=JE,
            IE=IE,
-           DNMB=DNMB)
+           DNMBprv=DNMB[:iStart],
+           DNMB=DNMB[iStart:])
 
 if irec_start < len(DNMB):
   # No need to save if already everything processed
@@ -411,7 +414,8 @@ if irec_start < len(DNMB):
          IG=IG,
          JE=JE,
          IE=IE,
-         DNMB=DNMB)
+         DNMBprv=DNMB[:iStart],
+         DNMB=DNMB[iStart:])
 
 ds_t2m.close()
 

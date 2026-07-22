@@ -30,8 +30,8 @@ import matplotlib.colors as colors
 from mpl_toolkits.basemap import Basemap, cm
 import argparse
 from pathlib import Path
-
-#ROOT = Path(__file__).resolve().parent
+from yaml import safe_load
+import statsmodels.api as statm
 
 # Append custom module paths
 PPTHN = None
@@ -52,12 +52,11 @@ sys.path.extend([
 ])
 import mod_time as mtime
 import mod_glorys as mglr 
+import mod_icepredict as micepr 
 
 #from MyPython.mod_cice6_utils import change_base_template, flname_replace_date
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--ndays", help="Use N-th day, 0, ndays, 2*ndays, ..., =0 - derive days from T2m data", 
-                    default=0, type=int)
 parser.add_argument("--dxy", help=f"Min dist (km) between data points (~corr.scale), to skip close i,j points", 
                     type=int, required=True)
 parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=int)
@@ -66,63 +65,68 @@ parser.add_argument("--regn", help="Region to process", choices=['north','south'
                     required=True, type=str)
 args = parser.parse_args()
 
-ndays = args.ndays
 dxy   = args.dxy    
 YS    = args.ys
 YE    = args.ye
 regn  = args.regn
 
+intgr_time = 90  # Time for freeze degree days accumulation, back from current time
+Tfrz = -1.85    # ocea freezing T
 ndays_era = 7   # freq. of saved era5 fields
 
-if regn == 'north':
-  regn_name = 'Arctic'
-  lat0 = 65.
-elif regn == 'south':
-  regn_name = 'Antarctic'
-  lat0 = -60.
+regions = {
+    "north": ("Arctic", 65.0),
+    "south": ("Antarctic", -60.0),
+}
+regn_name, lat0 = regions[regn]
+
+# Dynamic predictors:
+DPRD = ["iconc", "sst", "divu", "sat", "dayfrz"]
+# Static predictors:
+PRED = ["yday", "gcoord", "iconc", "sst", "divu", "frzdays", "sat"]
+
+fyaml = 'config_ithkn_predictor.yaml'
+with open(fyaml) as ff:
+  config_predictor = safe_load(ff)
 
 DIRS = {
-  "pthithkn" : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/sithick/",
-  "pthiconc" : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/siconc/",
-  "pthsst"   : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/sithick/",
-  "pthssh"   : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/zos/",
-  "ptht2m"   : f"/archive/Dmitry.Dukhovskoy/data/ERA5/{regn_name}",
-  "pthout"   : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_linregr",
+  "pthithkn" : config_predictor["linregr"]["pthithkn"],
+  "pthiconc" : config_predictor["linregr"]["pthiconc"],
+  "pthsst"   : config_predictor["linregr"]["pthsst"],
+  "pthssh"   : config_predictor["linregr"]["pthssh"],
+  "pthui"    : config_predictor["linregr"]["pthui"],
+  "pthvi"    : config_predictor["linregr"]["pthvi"],
+  "ptht2m"   : config_predictor["linregr"]["ptht2m"].format(regn_name=regn_name),
+  "pthgmapi" : config_predictor["linregr"]["pthgmapi"],
+  "pthout"   : config_predictor["linregr"]["pthout"],
+  "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "iconctmp" : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "ssttmp"   : config_predictor["linregr"]["ssttmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "divutmp"  : config_predictor["linregr"]["divutmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "sattmp"   : config_predictor["linregr"]["sattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "dfrztmp"  : config_predictor["linregr"]["dfrztmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "iconc"    : "iconctmp",
+  "sst"      : "ssttmp",
+  "divu"     : "divutmp",
+  "frzdays"  : "dfrztmp",
+  "sat"      : "sattmp",
+  "ithkn"    : "ithkntmp",
   }
 
-def derive_time(YS, YE, ndays, DIRS, regn_name):
-  DNMB = None
-  time_stmp = []
-  if ndays > 0:
-    print(f"Deriving time array for {ndays} skip days")
-    for YR in range(YS,YE+1):
-      dnmb0 = mtime.datenum([YR,1,1])
-      dnmbE = mtime.datenum([YR,12,31])
-      DYR = np.arange(dnmb0, dnmbEi+1, ndays)
-      time_stmp.append(DYR)
+# Read time array ad J,I sample grid points:
+# Time array should match ERA5 extracted fields
+pthout = DIRS["pthout"]
+flithkn = DIRS["ithkntmp"]
+dflithkn = os.path.join(pthout, flithkn)
 
-    DNMB = np.concatenate(time_stmp)  
-    return DNMB
+# Sample locations on GLORYS grid and time (date numbers):
+print(f"Loading saved {dflithkn}, will start from last saved record")
+assert os.path.isfile(dflithkn), f"Missing tmp file {dflithkn}\n First, create all predictors derive_*py"
+data = np.load(dflithkn)
+JG   = data["JG"]
+IG   = data["IG"]
+DNMB = data["DNMB"]
 
-  else:
-    print(f"Deriving time array from ERA5 fields")
-    # Derive Time from saved atm. fields:
-    ptht2m = DIRS['ptht2m']
-    for YR in range(YS,YE+1):
-      flnm = f"era5_2mTemp_daily{ndays_era}day_{regn_name}_{YR}.nc"
-      dflnm = os.path.join(ptht2m, flnm)
-      assert os.path.isfile(dflnm), f"Missing ERA5: {dflnm}, check ndays flag"
-
-      dnmb0 = mtime.datenum([YR,1,1])
-      with xr.open_dataset(dflnm, decode_times=False) as ds:
-        Time = ds["valid_time"].values
-        DYR = dnmb0 + Time
-      time_stmp.append(DYR)
-
-    DNMB = np.concatenate(time_stmp)
-    return DNMB
-
-DNMB = derive_time(YS, YE, ndays, DIRS, regn_name)
 
 # Read GLORYS grid:
 pthice = os.path.join(DIRS["pthithkn"],f"{YS}")
@@ -149,141 +153,171 @@ with xr.open_dataset(dflssh) as dszos:
 LMsk = np.where(np.isfinite(SSH),1,0)
 
 
-# Define domain:
-if regn == 'north':
-  DOMAIN = (hlat > lat0) & (LMsk == 1)
-elif regn == 'south':
-  DOMAIN = (hlat < lat0) & (LMsk == 1)
-
-# Exclude N. Atlantic and Barents Sea:
-DOMAIN[:1893,2154:2795] = False
-DOMAIN[:1764,:258] = False   # N. Bering 
-DOMAIN[:1807,1991:2243] = False # Iceland Sea
-
-# Subset points based on minimum distance criterion:
-# Estimate dltJ, assuming 1dgr ~= 111 km:
-Rearth = 6371
-dy1dgr = Rearth*np.pi/180
-
-dlty_dgr = np.diff(LAT)[0]  # regular grid
-dlty_km = dlty_dgr * dy1dgr
-dltJ = int(dxy / dlty_km)
-if dltJ == 0:
-  dltJ = 1 
-
-dltx_dgr = np.diff(LON)[0]
-
-
-JG = []
-IG = []
-nj, ni = DOMAIN.shape
-jj0 = np.argmax(DOMAIN.any(axis=1)) # gives the index of the 1st row containing any valid grid pnt
-for jj in range(jj0, nj, dltJ):
-  phi = LAT[jj]
-  dx1dgr = np.cos(np.deg2rad(phi)) * Rearth * np.pi / 180
-  dltx_km = dltx_dgr * dx1dgr
-  dltI = max(1, int(np.ceil(dxy / dltx_km))) 
- 
-  iold = -np.inf
-  for ii in np.flatnonzero(DOMAIN[jj]):
-    if ii - iold >= dltI:
-      IG.append(ii)
-      JG.append(jj)
-      iold = ii
-
-Npnts = len(IG)
-print(f"For dxy={dxy} km and lat0={lat0:.2f}, Selected N pnts={Npnts}")
-
-IG = np.asarray(IG, dtype=int)
-JG = np.asarray(JG, dtype=int)
-
-def update_icepnts(YY, JG, IG):
+def load_predictor(predict, DIRS, DNMB):
   """
-    Eliminate points that never have ice
+    These are created in derive_*.py
   """
-  indx_zeros = np.all(YY == 0, axis=1)
-  ikeep = ~indx_zeros
-  YY = YY[ikeep, :]
-  JG = JG[ikeep]
-  IG = IG[ikeep]
+  pthout  = DIRS["pthout"]
+  fldname = DIRS[predict]
+  fltmp   = DIRS[fldname]
+  dfltmp  = os.path.join(pthout, fltmp)
 
-  return YY, JG, IG
-
-def construct_ithkn(DNMB, DIRS, JG, IG):
-  """
-    Construct time series of response variable (ithkn)
-    2D: locations x time
-  """
-  npnts = len(JG)
-  nrecs = len(DNMB)
-  YY = np.empty((npnts, nrecs), dtype=float)
-  for irec, dnmb0 in enumerate(DNMB):
-    YR, MM, DD = mtime.datevec(dnmb0)[:3]
-    print(f"Reading ithkn {YR}/{MM:02d}/{DD:02d}")
-
-    pthice = os.path.join(DIRS["pthithkn"],f"{YR}")
-    rdate = int(YR*1e4 + MM*100 + DD)
-    dflice = mglr.find_file(rdate, pthice)
-
-    with xr.open_dataset(dflice) as dsice:
-      A2d = dsice['sithick'].isel(time=0).values.squeeze()
- 
-    # 0 values are nans?
-    A2d = np.nan_to_num(A2d, nan=0.0)
- 
-    fld_pnts = A2d[JG,IG]
-    YY[:,irec] = fld_pnts
-  
-    if irec%tmp_tstp == 0: 
-      print(f"TMP step: Saving ithkn time series and IG, JG --> {dfltmp}")
-      np.savez(dfltmp,
-             YY=YY,
-             JG=JG,
-             IG=IG,
-             DNMB=DNMB)
-
-      YY, JG, IG = update_icepnts(YY, JG, IG)
-
-  YY, JG, IG = update_icepnts(YY, JG, IG)
-
-  return YY, IG, JG
-
-# If needed: Construct response (ithkn) time series concatenating all locations, 
-# locations with 0 ithkn will be eliminated from IG, JG
-# Or load previously saved
-pthout = DIRS["pthout"]
-fltmp = f"ithkn_IJpnts_tser_{YS}-{YE}_{regn}.npz"
-dfltmp = os.path.join(pthout, fltmp)
-if derive_ithkn:
-  YY, IG, JG = construct_ithkn(DNMB, dfltmp, tmp_tstp=10)
-  
-  # Save:
-  print(f"Saving ithkn time series and IG, JG --> {dfltmp}")
-  np.savez(dfltmp,
-         YY=YY,
-         JG=JG,
-         IG=IG,
-         DNMB=DNMB)
-
-else:
+  print(f"Loading {predict}: {dfltmp}")
   data = np.load(dfltmp)
-  YY = data["YY"]
-  JG = data["JG"]
-  IG = data["IG"]
-  DNMB_check = data["DNMB"]  
-
-  # Check that this is the right time series:
+  F1d  = data["YY"]
+  DNMB_check = data["DNMB"]
   dtmp = np.floor(np.abs(DNMB - DNMB_check))
-  assert np.max(dtmp) == 0, "Check DNMB - dates do nnot match with saved time series"
+  assert np.max(dtmp) == 0, f"{predict}: Check DNMB - dates do not match processed days"
 
+  return F1d
+
+def update_lists_predictor(predict, PRED_LIST, PRED_STDZ, PRED_MEAN, 
+                           PRED_STDEV, PRED_NAMES, DIRS, DNMB):
+  FLD2d = load_predictor(predict, DIRS, DNMB)
+  FLD1d = FLD2d.ravel(order='C')
+  PRED_LIST.append(FLD1d)
+  mu = FLD1d.mean()
+  stdev = FLD1d.std()
+
+  if stdev == 0:
+    raise ValueError(f"Predictor '{predict}' is constant.")
+
+  PRED_STDZ.append((FLD1d - mu) / stdev)
+
+  PRED_MEAN.append(mu)
+  PRED_STDEV.append(stdev)
+
+  PRED_NAMES.append(predict)
+
+  return 
+
+
+PRED_LIST  = [] 
+PRED_STDZ  = []
+PRED_MEAN  = []
+PRED_STDEV = []
+PRED_NAMES = []
+
+for predict in PRED:
+  # Construct static predictors:
+  if predict == "yday":
+    cosD, sinD = micepr.construct_ydays(DNMB, len(IG), order_fast="time") 
+
+    PRED_LIST.extend([cosD, sinD])
+    PRED_STDZ.extend([cosD, sinD]) # Do not standardize cosD, sinD
+    PRED_MEAN.extend([np.nan, np.nan])
+    PRED_STDEV.extend([np.nan, np.nan])
+    PRED_NAMES.extend(["cosD", "sinD"])
+
+  elif predict == "gcoord":
+    Xcrd, Ycrd, Zcrd = micepr.construct_coord_sphere(hlon, hlat, IG, JG, len(DNMB), order_fast="time")
+
+    # Standardize only Zcrd because it is >0.9 (mean is not ~0)
+    # Xcrd and Ycrd means are close to 0
+    Zstd = (Zcrd - Zcrd.mean()) / Zcrd.std()
+    PRED_LIST.extend([Xcrd, Ycrd, Zstd])
+    PRED_STDZ.extend([Xcrd, Ycrd, Zstd])
+    PRED_MEAN.extend([np.nan, np.nan, Zcrd.mean()])
+    PRED_STDEV.extend([np.nan, np.nan, Zcrd.std()])
+    PRED_NAMES.extend(["Xcrd", "Ycrd", "Zcrd"])
+
+  else:
+    # Construct dynamic predictors
+    # Flatten 2D arrays into 1D ("row-major order (C): row1: col1, ..., colN, row2: col1, ..., colN, ...)
+    print(f"Constructing {predict}")
+    update_lists_predictor(
+        predict,
+        PRED_LIST,
+        PRED_STDZ,
+        PRED_MEAN,
+        PRED_STDEV,
+        PRED_NAMES,
+        DIRS,
+        DNMB,
+    )
+
+# Response variable:
+hice_max = 5.
+Ithkn = load_predictor("ithkn", DIRS, DNMB)
+Ithkn[Ithkn > hice_max] = hice_max
+Y = Ithkn.ravel(order='C')
+
+# Predictor 2D array, predictor matrix or design matrix
+A = np.column_stack((np.ones(len(Y)), *PRED_LIST))
+
+# Standardized predictors:
+# Include intercept:
+Astdz = np.column_stack((np.ones(len(Y)), *PRED_STDZ))
+
+# Check means of the predictors - should be ~0:
+print("Means and stdev of the predictors")
+for ipred, (name, x) in enumerate(zip(PRED_NAMES, PRED_STDZ)):
+  print(f"x{ipred+1} {name}:   {x.mean()},   {x.std()}")
+
+
+# Simple lin. regr:
+# divU = 7
+#Asmp = np.column_stack((np.ones(len(Y)), PRED_STDZ[7]))
+#msimp = statm.OLS(Y, Asmp)
+#ressimp = msimp.fit()
+#print(ressimp.summary())
+
+# No intercept:
+#Astdz_nointrcp = np.column_stack(PRED_STDZ)
+#model_nointrcp = statm.OLS(Y, Astdz_nointrcp)
+#results_nointrcp = model_nointrcp.fit()
+
+model = statm.OLS(Y, Astdz)
+results = model.fit()
+
+print(results.summary())
+
+"""
+coef = results.params          # coefficients
+stderr = results.bse           # standard errors
+pvalues = results.pvalues
+tvalues = results.tvalues
+confint = results.conf_int()
+r2 = results.rsquared
+r2adj = results.rsquared_adj
+
+yfit = results.fittedvalues
+resid = results.resid
+"""
+
+f_save = True
+if f_save:
+  model_name = "OLS_model1"
+  flstat = f"{model_name}.pkl"
+  dflstat = os.path.join(pthout, flstat)
+  print(f"Saving stat model --> {dflstat}")
+  results.save(dflstat)
+
+  # Predictor names, mean and stdev
+  flinfo = f"{model_name}_info.npz"
+  dflinfo = os.path.join(pthout, flinfo)
+  print(f"Saving: mean. stdev, predict. names --> {dflinfo}")
+  np.savez(dflinfo, 
+            PRED_NAMES=PRED_NAMES,
+            PRED_MEAN=PRED_MEAN,
+            PRED_STDEV=PRED_STDEV)
 
 
 plt.ion()
 
+fld_plot = 'frzdays'
+idx = PRED_NAMES.index(fld_plot) + 1 # offset one's for intercept
+#PR = A[:,idx]
+PR = Astdz[:,idx]
+
 fig1 = plt.figure(1,figsize=(9,8))
 plt.clf()
 ax1 = plt.axes([0.1, 0.12, 0.8, 0.8])
-ax1.contour(LMsk, [0.99], linestyles='solid', colors=[(0.5,0.8,1)])
-ax1.scatter(IG, JG, s=5, color=(0.8,0.4,0), marker='.')
+ax1.scatter(PR, Y, s=5, color=(0.5,0.6,0.9), marker='.')
+ax1.set_xlabel(fld_plot)
+ax1.set_ylabel('ithkn')
+
+#ax1.contour(LMsk, [0.99], linestyles='solid', colors=[(0.5,0.8,1)])
+#ax1.scatter(IG, JG, s=5, color=(0.8,0.4,0), marker='.')
 
 
