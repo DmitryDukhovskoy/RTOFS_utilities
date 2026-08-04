@@ -189,73 +189,6 @@ def calc_divU(dltI, dltJ, ii, jj, U2d, V2d, Acell, DX, DY):
   return div_uice
 
 
-def construct_ifld(DNMB, DIRS, JG, IG, dfltmp, irec_start, YY, Acell, DX, DY, dxy, dump_tstp=20):
-  """
-    Construct time series of response variable (ithkn)
-    2D: locations x time
-  """
-  npnts = len(JG)
-  nrecs = len(DNMB)
-  if YY is None:
-    YY = np.zeros((npnts, nrecs), dtype=float)*np.nan
-  for irec, dnmb0 in enumerate(DNMB):
-    YR, MM, DD = mtime.datevec(dnmb0)[:3]
-
-    if irec < irec_start:
-      print(f"Skipping, already processed: {YR}/{MM:02d}/{DD:02d}")
-      continue
-    
-    print(f"Reading {fld_name} {YR}/{MM:02d}/{DD:02d}")
-
-    rdate = int(YR*1e4 + MM*100 + DD)
-
-    pthu = os.path.join(DIRS["pthui"],f"{YR}")
-    dflice = mglr.find_file(rdate, pthu)
-    with xr.open_dataset(dflice) as dsice:
-      A2d = dsice['usi'].isel(time=0).values.squeeze()
- 
-    # Treat nans as no ice grid cells
-    U2d = np.nan_to_num(A2d, nan=0.0)
- 
-    pthv = os.path.join(DIRS["pthvi"],f"{YR}")
-    dflice = mglr.find_file(rdate, pthv)
-    with xr.open_dataset(dflice) as dsice:
-      A2d = dsice['vsi'].isel(time=0).values.squeeze()
- 
-    # Treat nans as no ice grid cells
-    V2d = np.nan_to_num(A2d, nan=0.0)
-
-    fld_pnts = []
-    for jj, ii in zip(JG, IG):
-      # Estimate box size based on min distance criterion
-      dltX = DX[jj,ii]*1e-3  # km
-      dltY = DY[jj,ii]*1e-3  # km
-      dltI = int(np.ceil(dxy / dltX))
-      dltJ = int(np.ceil(dxy / dltY))
-      div_uice = calc_divU(dltI, dltJ, ii, jj, U2d, V2d, Acell, DX, DY)
-      fld_pnts.append(div_uice)
-
-    YY[:,irec] = np.asarray(fld_pnts)
-  
-    if (irec + 1) % dump_tstp == 0: 
-      print(f"TMP step: Saving {fld_name} time series  --> {dfltmp}")
-      np.savez(dfltmp,
-             YY=YY,
-             JG=JG,
-             IG=IG,
-             DNMB=DNMB)
-
-  if irec_start < len(DNMB):
-    # No need to save if already everything processed
-    print(f"END TMP step: Saving {fld_name} time series and IG, JG --> {dfltmp}")
-    np.savez(dfltmp,
-           YY=YY,
-           JG=JG,
-           IG=IG,
-           DNMB=DNMB)
-
-  return YY, JG, IG
-
 # Construct predictor sst time series for all locations, 
 # Or load previously saved
 pthout = DIRS["pthout"]
@@ -284,8 +217,66 @@ if load_saved:
     irec_start = np.count_nonzero(processed)
     print(f"Next record to start {irec_start}")
 
-YY, JG, IG = construct_ifld(DNMB, DIRS, JG, IG, dfltmp, irec_start, YY, Acell, DX, DY, dxy, dump_tstp=10)
+#YY, JG, IG = construct_ifld(DNMB, DIRS, JG, IG, dfltmp, irec_start, YY, Acell, DX, DY, dxy, dump_tstp=10)
+
+"""
+  Construct time series of response variable (ithkn)
+  2D: locations x time
+"""
+npnts = len(JG)
+nrecs = len(DNMB)
+dump_tstp = 10
+if YY is None:
+  YY = np.zeros((npnts, nrecs), dtype=float)*np.nan
+for irec, dnmb0 in enumerate(DNMB):
+  YR, MM, DD = mtime.datevec(dnmb0)[:3]
+
+  if irec < irec_start:
+    print(f"Skipping, already processed: {YR}/{MM:02d}/{DD:02d}")
+    continue
   
+  print(f"Reading {fld_name} {YR}/{MM:02d}/{DD:02d}")
+
+  rdate = int(YR*1e4 + MM*100 + DD)
+
+  pthu = os.path.join(DIRS["pthui"],f"{YR}")
+  dflice = mglr.find_file(rdate, pthu)
+  with xr.open_dataset(dflice) as dsice:
+    A2d = dsice['usi'].isel(time=0).values.squeeze()
+
+  # Treat nans as no ice grid cells
+  U2d = np.nan_to_num(A2d, nan=0.0)
+
+  pthv = os.path.join(DIRS["pthvi"],f"{YR}")
+  dflice = mglr.find_file(rdate, pthv)
+  with xr.open_dataset(dflice) as dsice:
+    A2d = dsice['vsi'].isel(time=0).values.squeeze()
+
+  # Treat nans as no ice grid cells
+  V2d = np.nan_to_num(A2d, nan=0.0)
+
+  fld_pnts = []
+  for jj, ii in zip(JG, IG):
+    # Estimate box size based on min distance criterion
+    dltX = DX[jj,ii]*1e-3  # km
+    dltY = DY[jj,ii]*1e-3  # km
+    dltI = int(np.ceil(dxy / dltX))
+    dltJ = int(np.ceil(dxy / dltY))
+    div_uice = calc_divU(dltI, dltJ, ii, jj, U2d, V2d, Acell, DX, DY)
+    fld_pnts.append(div_uice)
+
+  YY[:,irec] = np.asarray(fld_pnts)
+
+  assert YY.shape[0] == len(IG), f"Check YY shape does not match IG {YY.shape}"
+
+  if (irec + 1) % dump_tstp == 0: 
+    print(f"TMP step: Saving {fld_name} time series  --> {dfltmp}")
+    np.savez(dfltmp,
+           YY=YY,
+           JG=JG,
+           IG=IG,
+           DNMB=DNMB)
+
 # Save:
 print(f"Final Saving ithkn time series and IG, JG --> {dfltmp}")
 np.savez(dfltmp,

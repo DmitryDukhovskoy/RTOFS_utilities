@@ -59,10 +59,21 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--rdate", help="Prediction date YYYYMMDD", required=True, type=int)
 parser.add_argument("--regn", help="Region to process", choices=['north','south'],
                     required=True, type=str)
+parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=int)
+parser.add_argument("--ye", help="Year end, default=2025", default=2025, type=int)
+parser.add_argument("--save", help="Save predicted ice thickness in npz (0=no, 1=yes)",
+                    choices=[0,1], default=0, type=int)
 args = parser.parse_args()
 
-rdate  = args.rdate
-regn  = args.regn
+YS    = args.ys
+YE    = args.ye
+rdate     = args.rdate
+regn      = args.regn
+save_fcst = args.save == 1
+
+f_plt = False   # Quick plot of predicted ithkn
+iconc_min = 0.05  # Discard too low ice conc. predictions
+sst_max = 5.      # Discard ice in too warm ocean
 
 dnmb0 = mtime.rdate2datenum(rdate)
 YR0, MM0, DD0 = mtime.datevec(dnmb0)[:3]
@@ -71,12 +82,13 @@ DNMB = np.asarray([dnmb0], dtype=int)
 # Training linregr params:
 # Model OLS_model1:
 model_name = "OLS_model1"
-dxy = 50  # correlation spatial scale, km - distance btw sampled grd pnts
-YS = 1993  # start of the training window
-YE = 2002  # end of the training window
-intgr_time = 90  # Time for freeze degree days accumulation, back from current time
-Tfrz = -1.85    # ocea freezing T
-ndays_era = 7   # freq. of saved era5 fields
+# Read from saved params:
+#dxy = 50  # correlation spatial scale, km - distance btw sampled grd pnts
+#YS = 1993  # start of the training window
+#YE = 2002  # end of the training window
+#intgr_time = 90  # Time for freeze degree days accumulation, back from current time
+#Tfrz = -1.85    # ocea freezing T
+#ndays_era = 7   # freq. of saved era5 fields
 
 regions = {
     "north": ("Arctic", 65.0),
@@ -87,6 +99,36 @@ regn_name, lat0 = regions[regn]
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
+
+# Load linregr info:
+pthout = config_predictor["linregr"]["pthout"]
+#flinfo = f"{model_name}_info.npz"
+flinfo = f"{model_name}_{YS}_{YE}_info.npz"
+dflinfo = os.path.join(pthout, flinfo)
+
+print(f"Reading: mean. stdev, predict. names --> {dflinfo}")
+data = np.load(dflinfo)
+PRED_NAMES   = data["PRED_NAMES"]
+PRED_MEAN    = data["PRED_MEAN"]
+PRED_STDEV   = data["PRED_STDEV"]
+Tfrz         = data["Tfrz"].item()
+sqrt_frzdays = data["sqrt_frzdays"].item()
+intgr_time   = data["intgr_time"].item()
+ndays_era    = data["ndays_era"].item() 
+dxy          = data["dxy"].item()
+YS           = data["YS"].item()
+YE           = data["YE"].item()
+nparams = len(PRED_NAMES) + 1  # for intersept
+
+# Load regr. results / parameters
+#flstat = f"{model_name}.pkl"
+flstat = f"{model_name}_{YS}_{YE}.pkl"
+dflstat = os.path.join(pthout, flstat)
+print(f"Reading stat model results {dflstat}")
+linregr = load_pickle(dflstat)
+
+COEF = results.params
+assert len(COEF) == nparams, f"Expected N parameters {nparams} mismatches COEF {len(COEF)}"
 
 DIRS = {
   "pthithkn" : config_predictor["linregr"]["pthithkn"],
@@ -112,28 +154,6 @@ DIRS = {
   "ithkn"    : "ithkntmp",
   }
 
-# Load linregr info:
-pthout = DIRS["pthout"]
-flinfo = f"{model_name}_info.npz"
-dflinfo = os.path.join(pthout, flinfo)
-
-print(f"Reading: mean. stdev, predict. names --> {dflinfo}")
-data = np.load(dflinfo)
-PRED_NAMES = data["PRED_NAMES"]
-PRED_MEAN  = data["PRED_MEAN"]
-PRED_STDEV = data["PRED_STDEV"]
-nparams = len(PRED_NAMES) + 1  # for intersept
-
-# Load regr. results / parameters
-flstat = f"{model_name}.pkl"
-dflstat = os.path.join(pthout, flstat)
-print(f"Reading stat model results {dflstat}")
-results = load_pickle(dflstat)
-
-COEF = results.params
-assert len(COEF) == nparams, f"Expected N parameters {nparams} mismatches COEF {len(COEF)}"
-
-# Derive predictors
 
 # GLORYS grid:
 # Read GLORYS grid:
@@ -178,12 +198,16 @@ YR = YR0
 print("\nDeriving GLORYS iconc")
 pthice = os.path.join(DIRS["pthiconc"],f"{YR}")
 dflice = mglr.find_file(rdate, pthice)
+if dflice is None:
+    raise FileNotFoundError(f"Not found {dflice}")
 Iconc = micepr.subset_glorys_iconc(dflice, IG, JG)
 
 # SST
 print("\nDeriving GLORYS sst")
 pthice = os.path.join(DIRS["pthsst"],f"{YR}")
 dflice = mglr.find_file(rdate, pthice)
+if dflice is None:
+    raise FileNotFoundError(f"Not found {dflice}")
 SST = micepr.subset_glorys_sst(dflice, IG, JG)
 
 # divU ice
@@ -203,10 +227,13 @@ dfgmapi = os.path.join(pthgmapi, flout)
 
 frzdays = micepr.subset_era_frzdays(IG, JG, dnmb0, intgr_time, ndays_era, 
                                     ptht2m, dfgmapi, regn, Tfrz=Tfrz)
+if sqrt_frzdays:
+  frzdays = np.sqrt(frzdays)
+
 
 # SAT
 print("\nDeriving GLORYS SAT")
-flt2m = f"era5_2mTemp_daily7day_Arctic_{YR}.nc"
+flt2m = f"era5_2mTemp_daily{ndays_era}day_{regn_name}_{YR}.nc"
 ptht2m = DIRS['ptht2m']
 dflt2m = os.path.join(ptht2m, flt2m)
 
@@ -216,47 +243,81 @@ SAT = micepr.subset_era_sat(dflt2m, IG, JG, dfgmapi, dnmb0)
 Iconc[SST>5.] = 0.
 
 
+# Transform and Standardize predictors
+raw = {
+    "Zcrd": Zcrd,
+    "iconc": Iconc,
+    "sst": SST,
+    "divu": divU,
+    "frzdays": frzdays,
+    "sat": SAT,
+}
+
+# Dict. with standardized arrays:
+std_arr = {}
+for name, mu, sigma in zip(PRED_NAMES, PRED_MEAN, PRED_STDEV):
+  if np.isnan(mu):
+    continue
+  std_arr[name] = (raw[name] - mu) / sigma
+
+# Construct predictors dictionary where each
+# predictor is linked to the standardized or raw array
+# The order of the predictor should match the order in PRED_NAMES
+# saved by lin. regr. model output
 pred_dict = {
     'cosD'    : cosD,
     'sinD'    : sinD,
     'Xcrd'    : Xcrd,
     'Ycrd'    : Ycrd,
-    'Zcrd'    : Zcrd_stdz,
-    'iconc'   : Iconc_stdz,
-    'sst'     : SST_stdz,
-    'divu'    : divU_stdz,
-    'frzdays' : frzdays_stdz,
-    'SAT'     : SAT_stdz,
+    'Zcrd'    : std_arr['Zcrd'],
+    'iconc'   : std_arr['iconc'],
+    'sst'     : std_arr['sst'],
+    'divu'    : std_arr['divu'],
+    'frzdays' : std_arr['frzdays'],
+    'sat'     : std_arr['sat'],
 }
 
-# Standardize:
-for ik, pr in enumerate(PRED_NAMES): 
-  mu   = PREAD_MEAN[ik]
-  sgm  = PREAD_STDEV[ik]
-  if np.isnan(mu) or np.isnan(sgm)::
-    continue
+#PRED_STDZ = [pred_dict[p] for p in PRED_NAMES]
 
-  arr = pred_dict[pr]
-  match pr:
-    case 'Zcrd':
-      arr = (Zcrd - mu) / sgm
-
-    case 'iconc':
-      arr = (Iconc - mu) / sgm
-
-
-# COnstruct design / predictor matrix:
-# The order of the predictor should match the order in PRED_NAMES
-# saved by lin. regr. model output
+# Combine all standardized predictors into a list:
 PRED_STDZ = []
+for predict in PRED_NAMES:
+  PRED_STDZ.append(pred_dict[predict])
+# Construct design / predictor matrix:
+# Include intercept:
+Astdz = np.column_stack((np.ones(len(JG)), *PRED_STDZ))
 
-PRED_STDZ = [pred_dict[p] for p in PRED_NAMES]
+# Retrieve lin. regr coefficients:
+X = linregr.params
+
+assert len(X) == Astdz.shape[1], f"N of coeff does not match A shape {A.shape}"
+
+# Check means of the predictors - not necess. be ~0
+# because use mean and std from trained data !
+print("Means and stdev of the standzd predictors (except: cosD, sinD, Xcrd, Ycrd)")
+for ipred, (name, x) in enumerate(zip(PRED_NAMES, PRED_STDZ)):
+  print(f"x{ipred+1} {name}:   {x.mean()},   {x.std()}")
 
 
+# Prediction:
+Yfcst = Astdz @ X
+
+#Ierr = np.where(Yfcst < 0)[0]
+Yfcst[Yfcst < 0] = 0
+Yfcst[Iconc < iconc_min] = 0
+Yfcst[SST > sst_max] = 0
+
+if save_fcst:
+  flfcst = f"{model_name}_{YS}_{YE}_ithkn_fcast_{rdate}.npz"
+  dflfcst = os.path.join(pthout, flfcst)
+  print(f"Saving fcst --> {dflfcst}")
+  np.savez(dflfcst,
+           Yfcst=Yfcst,
+           JG=JG,
+           IG=IG)
 
 
-f_check = False
-if f_check:
+if f_plt:
   # Land mask:
   LMsk = None
   pthssh = os.path.join(DIRS["pthssh"],f"{YR0}")
@@ -279,14 +340,21 @@ if f_check:
   ir0 = 0
   sc = ax1.scatter(
     IG, JG,
-    c=Iconc,
+    c=Yfcst,
     cmap='jet',
     s=20,          # marker size
     vmin=0,        # optional color scale limits
-    vmax=1
+    vmax=4
  )
 
-  plt.colorbar(sc, ax=ax1, label='SAT, degC')
+  if regn == 'north':
+    yl1 = 1650
+    yl2 = 2040
+
+  ax1.set_ylim([yl1,yl2])
+  ax1.set_title(f"Predicted ithkn, {YR0}/{MM0:02d}/{DD0:02d}")
+
+  plt.colorbar(sc, ax=ax1, label='ithkn, m')
 
 
 

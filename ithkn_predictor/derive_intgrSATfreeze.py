@@ -1,7 +1,10 @@
 """
-  Derive dynamic predictor: sqrt of the number of freeze degree days
+  Derive dynamic predictor: the number of freeze degree days
   Following Zubov's relation: h2 + 50h = 8 IFDD, 
   IFDD = sum of (Tfrz - Tair), when Tair < Tfrz
+
+  Note for lin.regr, it might be better to use sqrt(FDD)
+  check: train_linregr_ithkn.py
 
   Need mapping indices gmapi to map ERA5 --> GLORYS grid
   find_remap_indx_era5_to_GLORYS.py

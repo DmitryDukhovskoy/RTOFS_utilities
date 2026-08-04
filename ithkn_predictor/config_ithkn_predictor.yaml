@@ -11,6 +11,7 @@ linregr:
   ptht2m   : "/archive/Dmitry.Dukhovskoy/data/ERA5/{regn_name}"
   pthgmapi : "/archive/Dmitry.Dukhovskoy/data/remap_indx"
   pthout   : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_linregr"
+  pthfcst  : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ithkn_fcast"
   ithkntmp : "ithkn_IJpnts_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
   iconctmp : "iconc_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
   ssttmp   : "sst_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"

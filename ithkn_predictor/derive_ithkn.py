@@ -64,6 +64,7 @@ sys.path.extend([
 ])
 import mod_time as mtime
 import mod_glorys as mglr 
+import mod_icepredict as micepr
 
 #from MyPython.mod_cice6_utils import change_base_template, flname_replace_date
 
@@ -119,7 +120,7 @@ def derive_time(YS, YE, ndays, DIRS, regn_name):
     for YR in range(YS,YE+1):
       dnmb0 = mtime.datenum([YR,1,1])
       dnmbE = mtime.datenum([YR,12,31])
-      DYR = np.arange(dnmb0, dnmbEi+1, ndays)
+      DYR = np.arange(dnmb0, dnmbE+1, ndays)
       time_stmp.append(DYR)
 
     DNMB = np.concatenate(time_stmp)  
@@ -144,6 +145,11 @@ def derive_time(YS, YE, ndays, DIRS, regn_name):
     return DNMB
 
 DNMB = derive_time(YS, YE, ndays, DIRS, regn_name)
+
+# check DNMB array:
+check_dnmb = True
+if check_dnmb:
+  micepr.check_dnmb_array(DNMB, print_months=False)
 
 # Read GLORYS grid:
 pthice = os.path.join(DIRS["pthithkn"],f"{YS}")

@@ -70,6 +70,7 @@ YS    = args.ys
 YE    = args.ye
 regn  = args.regn
 
+sqrt_frzdays = True   # use sqrt(integrated freeze days) to better fit Zubov relation
 intgr_time = 90  # Time for freeze degree days accumulation, back from current time
 Tfrz = -1.85    # ocea freezing T
 ndays_era = 7   # freq. of saved era5 fields
@@ -80,10 +81,18 @@ regions = {
 }
 regn_name, lat0 = regions[regn]
 
-# Dynamic predictors:
-DPRD = ["iconc", "sst", "divu", "sat", "dayfrz"]
 # Static predictors:
-PRED = ["yday", "gcoord", "iconc", "sst", "divu", "frzdays", "sat"]
+#   yday   - year day represented as cos(yday) + sin(yday)
+#   gcoord - geogr. coord. in spherical coordinates
+# Dynamic predictors:
+#   mnithkn - monthly mean ice thickness (over ice area!), to account for interann. trend
+#   iconc   - ice concentration
+#   sst     - ocean SST
+#   divu    - area-mean ice divergence
+#   frzdays - integrated freeze degree days
+#   sat     - atm. surf. temp
+#
+PRED = ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "sat"]
 
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
@@ -120,7 +129,7 @@ flithkn = DIRS["ithkntmp"]
 dflithkn = os.path.join(pthout, flithkn)
 
 # Sample locations on GLORYS grid and time (date numbers):
-print(f"Loading saved {dflithkn}, will start from last saved record")
+print(f"Loading saved {dflithkn}")
 assert os.path.isfile(dflithkn), f"Missing tmp file {dflithkn}\n First, create all predictors derive_*py"
 data = np.load(dflithkn)
 JG   = data["JG"]
@@ -166,15 +175,23 @@ def load_predictor(predict, DIRS, DNMB):
   data = np.load(dfltmp)
   F1d  = data["YY"]
   DNMB_check = data["DNMB"]
+  print(f"{predict} N records = {len(DNMB_check)}, expected={len(DNMB)}")
   dtmp = np.floor(np.abs(DNMB - DNMB_check))
   assert np.max(dtmp) == 0, f"{predict}: Check DNMB - dates do not match processed days"
 
   return F1d
 
-def update_lists_predictor(predict, PRED_LIST, PRED_STDZ, PRED_MEAN, 
+def update_lists_predictor(predict, sqrt_frzdays, PRED_LIST, PRED_STDZ, PRED_MEAN, 
                            PRED_STDEV, PRED_NAMES, DIRS, DNMB):
   FLD2d = load_predictor(predict, DIRS, DNMB)
+
+  if predict == 'frzdays' and sqrt_frzdays == True:
+    assert np.min(FLD2d) >= 0, f"Negative freeze degree days found"
+    FLD2d = np.sqrt(FLD2d)
+
   FLD1d = FLD2d.ravel(order='C')
+  print(f"{predict} array size={len(FLD1d)}")
+
   PRED_LIST.append(FLD1d)
   mu = FLD1d.mean()
   stdev = FLD1d.std()
@@ -213,13 +230,27 @@ for predict in PRED:
     Xcrd, Ycrd, Zcrd = micepr.construct_coord_sphere(hlon, hlat, IG, JG, len(DNMB), order_fast="time")
 
     # Standardize only Zcrd because it is >0.9 (mean is not ~0)
-    # Xcrd and Ycrd means are close to 0
+    # Xcrd and Ycrd means are close to 0 and within [-1, 1]
     Zstd = (Zcrd - Zcrd.mean()) / Zcrd.std()
-    PRED_LIST.extend([Xcrd, Ycrd, Zstd])
+    PRED_LIST.extend([Xcrd, Ycrd, Zcrd])
     PRED_STDZ.extend([Xcrd, Ycrd, Zstd])
     PRED_MEAN.extend([np.nan, np.nan, Zcrd.mean()])
     PRED_STDEV.extend([np.nan, np.nan, Zcrd.std()])
     PRED_NAMES.extend(["Xcrd", "Ycrd", "Zcrd"])
+
+  elif predict == "mnithkn":
+    pthout = DIRS["pthout"]
+    fltmp = f"GLORYS_monthly_icevol_ithknmn_{regn}_{YS}_{YE}.npz"
+    dflmni = os.path.join(pthout, fltmp)
+    assert os.path.isfile(dflmni), f"File is missing: {dflmni}"
+
+    mnithkn = micepr.construct_mean_ithkn(len(IG), DNMB, dflmni, order_fast="time", Mavrg = 3)
+    mnithkn_std = (mnithkn - mnithkn.mean()) / mnithkn.std()
+    PRED_LIST.extend([mnithkn])
+    PRED_STDZ.extend([mnithkn_std])
+    PRED_MEAN.extend([mnithkn.mean()])
+    PRED_STDEV.extend([mnithkn.std()])
+    PRED_NAMES.extend(["mnithkn"])
 
   else:
     # Construct dynamic predictors
@@ -227,6 +258,7 @@ for predict in PRED:
     print(f"Constructing {predict}")
     update_lists_predictor(
         predict,
+        sqrt_frzdays,
         PRED_LIST,
         PRED_STDZ,
         PRED_MEAN,
@@ -250,7 +282,7 @@ A = np.column_stack((np.ones(len(Y)), *PRED_LIST))
 Astdz = np.column_stack((np.ones(len(Y)), *PRED_STDZ))
 
 # Check means of the predictors - should be ~0:
-print("Means and stdev of the predictors")
+print("Means and stdev of the standardized predictors (except: cosD, sinD, Xcrd, Ycrd)")
 for ipred, (name, x) in enumerate(zip(PRED_NAMES, PRED_STDZ)):
   print(f"x{ipred+1} {name}:   {x.mean()},   {x.std()}")
 
@@ -288,19 +320,27 @@ resid = results.resid
 f_save = True
 if f_save:
   model_name = "OLS_model1"
-  flstat = f"{model_name}.pkl"
+  flstat = f"{model_name}_{YS}_{YE}.pkl"
   dflstat = os.path.join(pthout, flstat)
   print(f"Saving stat model --> {dflstat}")
   results.save(dflstat)
 
-  # Predictor names, mean and stdev
-  flinfo = f"{model_name}_info.npz"
+  # Predictor names, mean and stdev and model constants
+  flinfo = f"{model_name}_{YS}_{YE}_info.npz"
   dflinfo = os.path.join(pthout, flinfo)
   print(f"Saving: mean. stdev, predict. names --> {dflinfo}")
   np.savez(dflinfo, 
             PRED_NAMES=PRED_NAMES,
             PRED_MEAN=PRED_MEAN,
-            PRED_STDEV=PRED_STDEV)
+            PRED_STDEV=PRED_STDEV,
+            Tfrz=Tfrz,
+            sqrt_frzdays=sqrt_frzdays,
+            intgr_time=intgr_time,
+            ndays_era=ndays_era,
+            dxy=dxy,
+            YS=YS,
+            YE=YE
+           )
 
 
 plt.ion()

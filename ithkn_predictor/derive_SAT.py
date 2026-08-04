@@ -7,9 +7,9 @@
   Use time stamps and J,I grid points from the response
   variable (ithkn), that need to be run first
 
-
-  For faster processing, run unstaging script before this:
-  /home/Dmitry.Dukhovskoy/scripts/GLORYS_anls/unstage_glorys.sh
+  Downloaded data from ERA5 website
+  Downloaded every 7-day daily mean 2m SAT for specified region from ERA5 website
+  https://cds.climate.copernicus.eu/datasets/derived-era5-single-levels-daily-statistics?tab=download
 
 """
 import os

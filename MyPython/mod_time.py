@@ -275,7 +275,7 @@ def datevec(dnmb, ldate_ref=[1,1,1], round_hrs=False):
   ndays = int(np.floor(dnmb)) - 1
 
   if round_hrs:
-    if MNi >= 30:
+    if MN >= 30:
       HR += 1
     MN = 0
 

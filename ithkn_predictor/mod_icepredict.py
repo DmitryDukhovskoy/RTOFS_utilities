@@ -92,6 +92,95 @@ def construct_coord_sphere(hlon, hlat, IG, JG, nrecs, order_fast="time"):
 
   return Xcrd, Ycrd, Zcrd
 
+def construct_mean_ithkn(npnts, DNMB, dflmni, order_fast="time", Mavrg=3, fld='ithkm'):
+  """
+    Construct a predictor from monthly mean ice thickness (or ice volume)
+    for the specified dates.
+
+    For each date, the predictor is the average over the previous Mavrg
+    months, excluding the current month.
+
+    Example:
+        June, Mavrg=3  --> average(Mar, Apr, May)
+
+    For the beginning of the record (1993), where fewer than Mavrg previous
+    months are available, average over all available previous months.
+
+    npnts = number of grid points used for creating stat model
+    DNMB  = 1D array of date numbers for stat. model
+    dflmni = path/file.npz with numpy arrays of monthly mean spatially averaged  ice statistics
+  """
+  # Read saved monthly ice volume and ice mean thkn:
+  print(f"Loading ice vol and mean ice thickness --> {dflmni}")
+  data = np.load(dflmni)
+  if fld == 'ithkm':
+    ITHK = data['ITHKM']
+  elif fld == 'ivol':
+    ITHK = data['IVOL']
+  else:
+    raise ValueError(
+      f"Unsupported field '{fld}'. Expected 'ithkm' or 'ivol'."
+    )
+    
+  DNMB_mo = data['DNMB']  # monthly date stamps
+  DVM = mtime.datevec2D(DNMB_mo)[:,:3]
+  ITHKN_comb = np.zeros((len(DNMB)))*np.nan   # array of combined mean ice thickness, averaged over Mavrg
+  for irec, dnmb0 in enumerate(DNMB):
+    YR, MM, DD = mtime.datevec(dnmb0)[:3]
+    indx = np.where( (DVM[:,0] == YR) & (DVM[:,1] == MM))[0]
+    assert len(indx) == 1, (
+      f"Expected one monthly record for {YR}/{MM:02d}, "
+      f"found {len(indx)}."
+    )
+
+    # Previous-month averaging window
+    iend = indx[0] - 1
+    if iend < 0:
+      # No previous months available (first month in record)
+      mith = ITHK[0]
+    else:
+      istart = max(0, iend - Mavrg + 1)
+      mith = np.mean(ITHK[istart:iend + 1])
+
+    ITHKN_comb[irec] = mith
+
+  assert np.all(np.isfinite(ITHKN_comb)), (
+      "ITHKN_comb contains NaN or infinite values."
+  )
+
+  # Repeat for all locations
+  if order_fast == "time":
+    ITHKN_crd = np.tile(ITHKN_comb, npnts)
+  elif order_fast == "coord":
+    ITHKN_crd = np.repeat(ITHKN_comb, npnts)
+  else:
+    raise ValueError(f"Unknown order: {order}")
+    
+  return ITHKN_crd
+
+def check_dnmb_array(DNMB, print_months=True):
+  """
+    Check Number of records per year
+  """
+  DVM = mtime.datevec2D(DNMB)[:,:3]
+  YR = DVM[:,0]
+  MM = DVM[:,1]
+
+  for year in range(YR[0],YR[-1]+1):
+    #nyr = len(np.where(YR == year)[0])
+    nyr = np.count_nonzero(YR == year)
+    print(f"YEAR={year}, N records={nyr}")
+    if print_months:
+      for month in range(1,13):
+        #nmo = len(np.where( (YR == year) & (MM == month) )[0])
+        nmo = np.count_nonzero((YR == year) & (MM == month))
+        print(f"      MM={month:02d}, N records={nmo}")
+
+  print(f"Total N records = {len(DNMB)}")
+
+  return
+
+
 def subset_glorys_iconc(dflice, IG, JG):
   """
     Subset ice conc fields for specified grid points 
@@ -217,6 +306,10 @@ def subset_glorys_divu(dfui, dfvi, IG, JG, hlon, hlat, dxy):
   return fld_pnts
 
 def derive_time(YS, YE, ptht2m, regn_name, ndays_era):
+  """
+    Derive time array of available ERA5 fields
+    for the full year within YS - YE
+  """
   DNMB = None
   time_stmp = []
 
@@ -418,4 +511,30 @@ def subset_era_sat(dflt2m, IG, JG, dfgmapi, dnmb0):
   fld_pnts = T2d[JE,IE]
 
   return fld_pnts
+
+def sens_tests_colors():
+  # Line colors:
+  CLRS      = np.array([
+      [0.00, 0.45, 0.70],  # blue
+      [0.90, 0.17, 0.31],  # red
+      [0.00, 0.62, 0.38],  # green
+      [0.90, 0.60, 0.00],  # orange
+      [0.95, 0.90, 0.25],  # yellow
+      [0.80, 0.47, 0.65],  # pink/violet
+      [0.35, 0.70, 0.90],  # light blue
+      [0.50, 0.39, 0.64],  # purple
+      [0.55, 0.63, 0.79],  # steel blue
+      [0.40, 0.60, 0.00],  # olive green
+      [0.70, 0.30, 0.00],  # brown
+      [0.70, 0.00, 0.30],  # wine red
+      [0.00, 0.55, 0.75],  # teal
+      [0.75, 0.75, 0.75],  # light gray
+      [0.30, 0.30, 0.30],  # dark gray
+      [0.10, 0.80, 0.60],  # aqua green
+      [0.55, 0.20, 0.60],  # plum purple
+      [0.20, 0.70, 0.30],  # jade green
+      [0.80, 0.55, 0.35],  # tan
+      [0.25, 0.25, 0.55]   # deep indigo
+  ])
+  return CLRS
 

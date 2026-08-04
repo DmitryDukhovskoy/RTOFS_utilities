@@ -66,7 +66,6 @@ regions = {
     "south": ("Antarctic", -60.0),
 }
 regn_name, lat0 = regions[regn]
-varnm = 'siconc'
 
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
@@ -121,59 +120,6 @@ LON = (LON + 360) % 360
 hlon, hlat = np.meshgrid(LON, LAT)
 
 
-def construct_ifld(DNMB, DIRS, JG, IG, dfltmp, irec_start, YY, dump_tstp=20):
-  """
-    Construct time series of response variable (ithkn)
-    2D: locations x time
-  """
-  npnts = len(JG)
-  nrecs = len(DNMB)
-  if YY is None:
-    YY = np.zeros((npnts, nrecs), dtype=float)*np.nan
-  for irec, dnmb0 in enumerate(DNMB):
-    YR, MM, DD = mtime.datevec(dnmb0)[:3]
-
-    if irec < irec_start:
-      print(f"Skipping, already processed: {YR}/{MM:02d}/{DD:02d}")
-      continue
-    
-    print(f"Reading {fld_name} {YR}/{MM:02d}/{DD:02d}")
-
-    pthice = os.path.join(DIRS["pthiconc"],f"{YR}")
-    rdate = int(YR*1e4 + MM*100 + DD)
-    dflice = mglr.find_file(rdate, pthice)
-
-    with xr.open_dataset(dflice) as dsice:
-      A2d = dsice[varnm].isel(time=0).values.squeeze()
- 
-    # Treat nans as no ice grid cells
-    A2d = np.nan_to_num(A2d, nan=0.0)
- 
-    fld_pnts = A2d[JG,IG]
-    #assert np.max(fld_pnts) < 1., f"Max conc > 1: {np.max(fld_pnts)}"
-    fld_pnts[fld_pnts > 1] = 1.
-    fld_pnts[fld_pnts < 0] = 0.
-    YY[:,irec] = fld_pnts
-  
-    if (irec + 1) % dump_tstp == 0: 
-      print(f"TMP step: Saving {fld_name} time series  --> {dfltmp}")
-      np.savez(dfltmp,
-             YY=YY,
-             JG=JG,
-             IG=IG,
-             DNMB=DNMB)
-
-  if irec_start < len(DNMB):
-    # No need to save if already everything processed
-    print(f"END TMP step: Saving {fld_name} time series and IG, JG --> {dfltmp}")
-    np.savez(dfltmp,
-           YY=YY,
-           JG=JG,
-           IG=IG,
-           DNMB=DNMB)
-
-  return YY, JG, IG
-
 # Construct predictor iconc time series for all locations, 
 # Or load previously saved
 pthout = DIRS["pthout"]
@@ -202,8 +148,52 @@ if load_saved:
     irec_start = np.count_nonzero(processed)
     print(f"Next record to start {irec_start}")
 
-YY, JG, IG = construct_ifld(DNMB, DIRS, JG, IG, dfltmp, irec_start, YY, dump_tstp=10)
+"""
+  Construct time series of response variable (ithkn)
+  2D: locations x time
+"""
+dump_tstp = 10
+#YY, JG, IG = construct_ifld(DNMB, DIRS, JG, IG, dfltmp, irec_start, YY, dump_tstp=10)
+npnts = len(JG)
+nrecs = len(DNMB)
+if YY is None:
+  YY = np.zeros((npnts, nrecs), dtype=float)*np.nan
+for irec, dnmb0 in enumerate(DNMB):
+  YR, MM, DD = mtime.datevec(dnmb0)[:3]
+
+  if irec < irec_start:
+    print(f"Skipping, already processed: {YR}/{MM:02d}/{DD:02d}")
+    continue
   
+  print(f"Reading {fld_name} {YR}/{MM:02d}/{DD:02d}")
+
+  pthice = os.path.join(DIRS["pthiconc"],f"{YR}")
+  rdate = int(YR*1e4 + MM*100 + DD)
+  dflice = mglr.find_file(rdate, pthice)
+
+  with xr.open_dataset(dflice) as dsice:
+    A2d = dsice['siconc'].isel(time=0).values.squeeze()
+
+  # Treat nans as no ice grid cells
+  A2d = np.nan_to_num(A2d, nan=0.0)
+
+  fld_pnts = A2d[JG,IG]
+  #assert np.max(fld_pnts) < 1., f"Max conc > 1: {np.max(fld_pnts)}"
+  fld_pnts[fld_pnts > 1] = 1.
+  fld_pnts[fld_pnts < 0] = 0.
+  YY[:,irec] = fld_pnts
+
+  assert YY.shape[0] == len(IG), f"Check YY shape does not match IG {YY.shape}"
+
+  if (irec + 1) % dump_tstp == 0: 
+    print(f"TMP step: Saving {fld_name} time series  --> {dfltmp}")
+    np.savez(dfltmp,
+           YY=YY,
+           JG=JG,
+           IG=IG,
+           DNMB=DNMB)
+
+ 
 # Save:
 print(f"Final Saving ithkn time series and IG, JG --> {dfltmp}")
 np.savez(dfltmp,
