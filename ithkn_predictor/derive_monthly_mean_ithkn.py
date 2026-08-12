@@ -71,6 +71,7 @@ sys.path.extend([
 ])
 import mod_time as mtime
 import mod_glorys as mglr 
+import mod_icepredict as micepr
 from mod_mom6 import dx_dy
 
 #from MyPython.mod_cice6_utils import change_base_template, flname_replace_date
@@ -109,7 +110,7 @@ DIRS = {
   "pthout"   : config_predictor["linregr"]["pthout"],
   }
 
-def derive_time(YS, YE, MDAYS, DIRS, regn_name):
+def derive_time_adhock(YS, YE, MDAYS, DIRS, regn_name):
   DNMB = []
   print(f"Deriving time array for {dlt_days} skip days")
   for YR in range(YS,YE+1):
@@ -120,7 +121,8 @@ def derive_time(YS, YE, MDAYS, DIRS, regn_name):
 
   return np.asarray(DNMB)
 
-DNMB = derive_time(YS, YE, MDAYS, DIRS, regn_name)
+ptht2m = DIRS["ptht2m"]
+DNMB = micepr.derive_time(YS, YE, ptht2m, regn_name, dlt_days)
 
 # Read GLORYS grid:
 pthice = os.path.join(DIRS["pthithkn"],f"{YS}")
@@ -161,8 +163,8 @@ elif regn == 'south':
 nrec = len(DNMB)
 nmonths = 12 * (YE-YS+1)
 IVOL = np.zeros(nmonths)
-ITHKM = np.zeros(nmonths)
-DNMBR = np.zeros(nmonths)
+ITHKM = np.zeros(nmonths)*np.nan
+DNMBR = np.zeros(nmonths)*np.nan
 mold = -1
 imm = -1
 iday = 0
@@ -175,14 +177,15 @@ for dnmb0 in DNMB:
     ivol_mean = 0.
     ithkn_mean = 0.
   elif mold != MM:
+    imm += 1
     # Monthly means:
     # Update records at the end of the month
-    ivol_mean /= iday
-    ithkn_mean /= iday
-    print(f"{yrold}/{mold:02d}: ivol_mean = {ivol_mean:.2f}km3, mean ithkn = {ithkn_mean:.2f}m")
-    imm += 1
-    IVOL[imm] = ivol_mean
-    ITHKM[imm] = ithkn_mean
+    if iday > 0:
+      ivol_mean /= iday
+      ithkn_mean /= iday
+      print(f"{yrold}/{mold:02d}: ivol_mean = {ivol_mean:.2f}km3, mean ithkn = {ithkn_mean:.2f}m")
+      IVOL[imm] = ivol_mean
+      ITHKM[imm] = ithkn_mean
     DNMBR[imm] = mtime.datenum([yrold, mold, 15])
 
     iday = 0
@@ -196,7 +199,10 @@ for dnmb0 in DNMB:
   rdate = int(YR*1e4 + MM*100 + DD)
   dflice = mglr.find_file(rdate, pthice)
   if dflice is None:
-    raise FileNotFoundError(f"No ice thickness file for {rdate}")
+    #raise FileNotFoundError(f"No ice thickness file for {rdate}")
+    print(f"No ice thickness file for {rdate}")
+    print("Skipping ...")
+    continue
 
   with xr.open_dataset(dflice) as dsice:
     A2d = dsice['sithick'].isel(time=0).values.squeeze()

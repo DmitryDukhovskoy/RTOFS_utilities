@@ -326,23 +326,28 @@ def datevec2D(DNMB0,ldate_ref=[1,1,1]):
   DV = np.zeros((nrec,5), dtype=int)
   for irec in range(nrec):
     dnmb  = DNMB0[irec]
-    timeR = datetime.datetime(YRr,MMr,DDr,HRr,MNr,0)
-    dfrct = dnmb-np.floor(dnmb)
 
-    if abs(dfrct) < 1.e-6:
-      HR = 0
-      MN = 0
-    else:
-      HR = int(np.floor(dfrct*24.))
-      MN = int(np.floor(dfrct*1440.-HR*60.))
+    if not np.isfinite(dnmb) or dnmb < 1:
+      YR = MM = DD = HR = MN = -1
 
-    ndays = int(np.floor(dnmb))-1
-    time0 = timeR+datetime.timedelta(days=ndays, seconds=(HR*3600 + MN*60))
-    YR = time0.year
-    MM = time0.month
-    MD = time0.day
-    HR = time0.hour
-    MN = time0.minute
+    else: 
+      timeR = datetime.datetime(YRr,MMr,DDr,HRr,MNr,0)
+      dfrct = dnmb-np.floor(dnmb)
+
+      if abs(dfrct) < 1.e-6:
+        HR = 0
+        MN = 0
+      else:
+        HR = int(np.floor(dfrct*24.))
+        MN = int(np.floor(dfrct*1440.-HR*60.))
+
+      ndays = int(np.floor(dnmb))-1
+      time0 = timeR+datetime.timedelta(days=ndays, seconds=(HR*3600 + MN*60))
+      YR = time0.year
+      MM = time0.month
+      MD = time0.day
+      HR = time0.hour
+      MN = time0.minute
 
     dvec = np.array([YR,MM,MD,HR,MN], dtype=int)
     DV[irec,:] = dvec

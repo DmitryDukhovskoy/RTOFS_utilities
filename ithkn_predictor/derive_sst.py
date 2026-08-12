@@ -96,7 +96,7 @@ def ocean_Tfreeze(s0):
 # Bound by the lowest possible Tfrz for expected max surface S in high lats
 sst_min = round(ocean_Tfreeze(38), 3)
 
-# Read time array ad J,I sample grid points:
+# Read time array at J,I sample grid points:
 pthout = DIRS["pthout"]
 fltmp = DIRS["ithkntmp"]
 dflithkn = os.path.join(pthout, fltmp)

@@ -7,6 +7,20 @@ from scipy.interpolate import interp1d
 #import matplotlib.pyplot as plt
 #import importlib
 
+import mod_glorys as mglr
+
+def models_info():
+  MODEL_NAMES = {
+    0  : "clim",
+    1  : "OLS_model1",
+    2  : "OLS_model1_1993_2025",
+    3  : "RF_model01_north",
+    4  : "RF_model02_north",
+    5  : "RF_model03_north"
+    }
+
+  return MODEL_NAMES
+
 def construct_ydays(DNMB, npnts, order_fast="time"):
   """
     Predictor year day represent as
@@ -512,6 +526,7 @@ def subset_era_sat(dflt2m, IG, JG, dfgmapi, dnmb0):
 
   return fld_pnts
 
+
 def sens_tests_colors():
   # Line colors:
   CLRS      = np.array([
@@ -537,4 +552,176 @@ def sens_tests_colors():
       [0.25, 0.25, 0.55]   # deep indigo
   ])
   return CLRS
+
+def construct_predictors_day(
+        hlon, hlat, IG, JG, dnmb0, DIRS, PRED_NAMES, 
+        sqrt_frzdays, sst_max, standz, regn, YS, YE,
+        ndays_era, intgr_time, Tfrz,
+        order_fast="time", Mavrg=3, dxy=50,
+        PRED_MEAN = None, PRED_STDEV = None
+   ):
+  """
+    Construct predictors for 1 day forecast
+    PRED_NAMES - predictors used in this model
+    predictor array must have exactly the same columns, in exactly the same order,
+    as when RF was trained !!!
+
+    hlon, hlat - grid where prediction is done (GLORYS)
+    IG, JG - grid point indices where prediction is done
+    DIRS - dictionary with input / output directories
+    PREAD_NAMES - list of predictors in the right order
+    sqrt_frzdays - True: use sqrt of integrated freezing degree days
+    sst_max - max sst threshold for possible sea ice
+    standz - True: standardize predictors (False for RF)
+    regn - region of prediction
+    YS, YE - training period, start/end years
+    ndays_era - time step in ERA5 atm. fields subsets
+    intgr_time - for freeze degree days, integration period, days
+    dxy - ice length scale, used for calc. ice predictors and gird point subset
+
+  """
+  DNMB = np.asarray([dnmb0])
+  YR0, MM0, DD0 = mtime.datevec(dnmb0)[:3]
+  rdate = YR0*10000 + MM0*100 + DD0
+  Iconc = None
+  SST = None 
+
+  regions = {
+      "north": ("Arctic", 65.0),
+      "south": ("Antarctic", -60.0),
+  }
+  regn_name, _ = regions[regn]
+
+
+  raw = {} # predcitors with not stand. values, can be in any order
+  # Coord --> polar coord:
+  if 'Xcrd' in PRED_NAMES or 'Ycrd' in PRED_NAMES or 'Zcrd' in PRED_NAMES:
+    Xcrd, Ycrd, Zcrd = construct_coord_sphere(
+         hlon, hlat, IG, JG, len(DNMB), order_fast=order_fast
+         )
+
+    raw['Xcrd'] = Xcrd
+    raw['Ycrd'] = Ycrd
+    raw['Zcrd'] = Zcrd
+
+  # Time:
+  if 'cosD' in PRED_NAMES or 'sinD' in PRED_NAMES:
+    cosD, sinD = construct_ydays(DNMB, len(IG), order_fast=order_fast)
+
+    raw['cosD'] = cosD
+    raw['sinD'] = sinD
+
+  # Mean ice thickness over ice area during previous N months:
+  # Check Mavrg - should match train_linregr_ithkn.py
+  # Interannual trend: mean ice thickness previous N months:
+  if 'mnithkn' in PRED_NAMES:
+    pthout = DIRS["pthout"]
+    fltmp = f"GLORYS_monthly_icevol_ithknmn_{regn}_{YS}_{YE}.npz"
+    if YR0 > 2025:
+      fltmp = f"GLORYS_monthly_icevol_ithknmn_north_{YR0}_{YR0}.npz"
+    dflmni = os.path.join(pthout, fltmp)
+    assert os.path.isfile(dflmni), f"File is missing: {dflmni}"
+    mnithkn = construct_mean_ithkn(len(IG), DNMB, dflmni, order_fast=order_fast, Mavrg=Mavrg)
+
+    raw['mnithkn'] = mnithkn
+
+  # SST
+  SST = None
+  if 'sst' in PRED_NAMES:
+    print("\nDeriving GLORYS sst")
+    pthice = os.path.join(DIRS["pthsst"],f"{YR0}")
+    dflice = mglr.find_file(rdate, pthice)
+    if dflice is None:
+        raise FileNotFoundError(f"Not found {dflice}")
+    SST = subset_glorys_sst(dflice, IG, JG)
+
+    raw['sst'] = SST
+
+  # Ice conc
+  if 'iconc' in PRED_NAMES:
+    print("\nDeriving GLORYS iconc")
+    pthice = os.path.join(DIRS["pthiconc"],f"{YR0}")
+    dflice = mglr.find_file(rdate, pthice)
+    if dflice is None:
+        raise FileNotFoundError(f"Not found {dflice}")
+    Iconc = subset_glorys_iconc(dflice, IG, JG)
+
+    # Eliminate ice in the warm ocean:
+    if SST is not None:
+      Iconc[SST > sst_max] = 0.
+
+    raw['iconc'] = Iconc
+  # divU ice
+  if 'divu' in PRED_NAMES:
+    print("\nDeriving GLORYS divu ice")
+    pthu = os.path.join(DIRS["pthui"],f"{YR0}")
+    dfui = mglr.find_file(rdate, pthu)
+    pthv = os.path.join(DIRS["pthvi"],f"{YR0}")
+    dfvi = mglr.find_file(rdate, pthv)
+    divU = subset_glorys_divu(dfui, dfvi, IG, JG, hlon, hlat, dxy)
+
+    raw['divu'] = divU
+
+  # Freeze days
+  if 'frzdays' in PRED_NAMES:
+    print("\nDeriving GLORYS Freeze degree days")
+    ptht2m = DIRS['ptht2m']
+    pthgmapi = DIRS["pthgmapi"]
+    flout = f"gmapi_ERA5_to_GLORYS_{regn}.nc"
+    dfgmapi = os.path.join(pthgmapi, flout)
+
+    frzdays = subset_era_frzdays(IG, JG, dnmb0, intgr_time, ndays_era,
+                                        ptht2m, dfgmapi, regn, Tfrz=Tfrz)
+    if sqrt_frzdays:
+      frzdays = np.sqrt(frzdays)
+
+    raw['frzdays'] = frzdays
+
+  # SAT
+  if 'sat' in PRED_NAMES:
+    print("\nDeriving GLORYS SAT")
+    flt2m = f"era5_2mTemp_daily{ndays_era}day_{regn_name}_{YR0}.nc"
+    ptht2m = DIRS['ptht2m']
+    dflt2m = os.path.join(ptht2m, flt2m)
+
+    SAT = subset_era_sat(dflt2m, IG, JG, dfgmapi, dnmb0)
+
+    raw['sat'] = SAT
+
+  # Transform and Standardize predictors
+  # Use only active predictors
+  # Dict. with standardized arrays in the PRED_NAMES order:
+  std_arr = {}
+  if standz:
+    for name, mu, sigma in zip(PRED_NAMES, PRED_MEAN, PRED_STDEV):
+      if np.isnan(mu):
+        continue
+      std_arr[name] = (raw[name] - mu) / sigma
+
+  # Construct predictors dictionary where each
+  # predictor is linked to the standardized or raw array
+  # The order of the predictor should match the order in PRED_NAMES
+  # Will create dict like this:
+  #   'cosD'    : cosD,  # not standardized
+  #   'sinD'    : sinD,  # not standardized
+  #    ...
+  #    'Zcrd'    : std_arr['Zcrd'],  # standardized
+  #    'mnithkn' : std_arr['mnithkn'],  # standardized 
+  # OR:
+  #    'Zcrd'    : raw['Zcrd']  # not standardized
+  #     ...
+  #
+  pred_dict = {}
+  for name in PRED_NAMES:
+    if standz and name in std_arr:
+      pred_dict[name] = std_arr[name]
+    else:
+      pred_dict[name] = raw[name]
+
+  # Combine all standardized or not standardized predictors into a list:
+  PRED_FINAL = []
+  PRED_FINAL = [pred_dict[name] for name in PRED_NAMES]  
+
+  return PRED_FINAL, Iconc, SST
+
 

@@ -54,8 +54,10 @@ from mod_mom6 import dx_dy
 #from MyPython.mod_cice6_utils import change_base_template, flname_replace_date
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dxy", help=f"Min dist (km) between data points (~corr.scale), to skip close i,j points", 
-                    type=int, required=True)
+parser.add_argument("--dxy", 
+               help=f"Min dist (km) between data points (~corr.scale), to skip close i,j points", 
+               default=50,
+               type=int)
 parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=int)
 parser.add_argument("--ye", help="Year end, default=2025", default=2025, type=int)
 parser.add_argument("--regn", help="Region to process", choices=['north','south'], 

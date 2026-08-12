@@ -81,6 +81,7 @@ if regn == 'north':
 elif regn == 'south':
   lat0 = np.max(LAT_era)
 
+# Radians:
 LONR_era, LATR_era = np.meshgrid(LON_era * dgr2rad, LAT_era * dgr2rad)
 
 # Convert to spherical coord:

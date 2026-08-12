@@ -59,8 +59,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--rdate", help="Prediction date YYYYMMDD", required=True, type=int)
 parser.add_argument("--regn", help="Region to process", choices=['north','south'],
                     required=True, type=str)
-parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=int)
-parser.add_argument("--ye", help="Year end, default=2025", default=2025, type=int)
+parser.add_argument("--ys", help="Year start model training, default=1993", default=1993, type=int)
+parser.add_argument("--ye", help="Year end model traing, default=2025", default=2025, type=int)
 parser.add_argument("--save", help="Save predicted ice thickness in npz (0=no, 1=yes)",
                     choices=[0,1], default=0, type=int)
 args = parser.parse_args()
@@ -81,7 +81,13 @@ DNMB = np.asarray([dnmb0], dtype=int)
 
 # Training linregr params:
 # Model OLS_model1:
-model_name = "OLS_model1"
+if YE == 2002:
+  # Older version
+  model_name = "OLS_model1"
+else:
+  model_name = f"OLS_model1_{YS}_{YE}"
+
+
 # Read from saved params:
 #dxy = 50  # correlation spatial scale, km - distance btw sampled grd pnts
 #YS = 1993  # start of the training window
@@ -102,8 +108,8 @@ with open(fyaml) as ff:
 
 # Load linregr info:
 pthout = config_predictor["linregr"]["pthout"]
-#flinfo = f"{model_name}_info.npz"
-flinfo = f"{model_name}_{YS}_{YE}_info.npz"
+flinfo = f"{model_name}_info.npz"
+#flinfo = f"{model_name}_{YS}_{YE}_info.npz"
 dflinfo = os.path.join(pthout, flinfo)
 
 print(f"Reading: mean. stdev, predict. names --> {dflinfo}")
@@ -121,13 +127,13 @@ YE           = data["YE"].item()
 nparams = len(PRED_NAMES) + 1  # for intersept
 
 # Load regr. results / parameters
-#flstat = f"{model_name}.pkl"
-flstat = f"{model_name}_{YS}_{YE}.pkl"
+flstat = f"{model_name}.pkl"
+#flstat = f"{model_name}_{YS}_{YE}.pkl"
 dflstat = os.path.join(pthout, flstat)
 print(f"Reading stat model results {dflstat}")
 linregr = load_pickle(dflstat)
 
-COEF = results.params
+COEF = linregr.params
 assert len(COEF) == nparams, f"Expected N parameters {nparams} mismatches COEF {len(COEF)}"
 
 DIRS = {
@@ -140,6 +146,7 @@ DIRS = {
   "ptht2m"   : config_predictor["linregr"]["ptht2m"].format(regn_name=regn_name),
   "pthgmapi" : config_predictor["linregr"]["pthgmapi"],
   "pthout"   : config_predictor["linregr"]["pthout"],
+  "pthfcst"  : config_predictor["linregr"]["pthout"],
   "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconctmp" : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "ssttmp"   : config_predictor["linregr"]["ssttmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
@@ -193,6 +200,16 @@ Xcrd, Ycrd, Zcrd = micepr.construct_coord_sphere(hlon, hlat, IG, JG, len(DNMB), 
 # Time:
 cosD, sinD = micepr.construct_ydays(DNMB, len(IG), order_fast="time")
 
+# Mean ice thickness over ice area during previous N months:
+# Check Mavrg - should match train_linregr_ithkn.py
+# Interannual trend: mean ice thickness previous N months:
+pthout = DIRS["pthout"]
+fltmp = f"GLORYS_monthly_icevol_ithknmn_{regn}_{YS}_{YE}.npz"
+dflmni = os.path.join(pthout, fltmp)
+assert os.path.isfile(dflmni), f"File is missing: {dflmni}"
+
+mnithkn = micepr.construct_mean_ithkn(len(IG), DNMB, dflmni, order_fast="time", Mavrg = 3)
+
 # Ice conc
 YR = YR0
 print("\nDeriving GLORYS iconc")
@@ -242,7 +259,6 @@ SAT = micepr.subset_era_sat(dflt2m, IG, JG, dfgmapi, dnmb0)
 # Eliminate ice in the warm ocean:
 Iconc[SST>5.] = 0.
 
-
 # Transform and Standardize predictors
 raw = {
     "Zcrd": Zcrd,
@@ -251,6 +267,7 @@ raw = {
     "divu": divU,
     "frzdays": frzdays,
     "sat": SAT,
+    "mnithkn": mnithkn,
 }
 
 # Dict. with standardized arrays:
@@ -270,6 +287,7 @@ pred_dict = {
     'Xcrd'    : Xcrd,
     'Ycrd'    : Ycrd,
     'Zcrd'    : std_arr['Zcrd'],
+    'mnithkn' : std_arr['mnithkn'],
     'iconc'   : std_arr['iconc'],
     'sst'     : std_arr['sst'],
     'divu'    : std_arr['divu'],
@@ -308,8 +326,9 @@ Yfcst[Iconc < iconc_min] = 0
 Yfcst[SST > sst_max] = 0
 
 if save_fcst:
-  flfcst = f"{model_name}_{YS}_{YE}_ithkn_fcast_{rdate}.npz"
-  dflfcst = os.path.join(pthout, flfcst)
+  flfcst = f"{model_name}_ithkn_fcast_{rdate}.npz"
+  pthdump = os.path.join(DIRS["pthfcst"],f"{model_name}")
+  dflfcst = os.path.join(pthdump, flfcst)
   print(f"Saving fcst --> {dflfcst}")
   np.savez(dflfcst,
            Yfcst=Yfcst,

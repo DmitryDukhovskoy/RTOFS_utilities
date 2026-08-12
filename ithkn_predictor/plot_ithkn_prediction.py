@@ -37,6 +37,7 @@ sys.path.extend([
 ])
 import mod_time as mtime
 import mod_glorys as mglr
+import mod_icepredict as micepr
 from mod_utils_fig import bottom_text
 import mod_colormaps as mclrmps
 
@@ -44,17 +45,25 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--rdate", help="Prediction date YYYYMMDD", required=True, type=int)
 parser.add_argument("--regn", help="Region to process", choices=['north','south'],
                     required=True, type=str)
+parser.add_argument("--nmodel", help="Model number", choices=[0,1,2,3,4],
+                    required=True, type=int)
 args = parser.parse_args()
 
-rdate     = args.rdate
-regn      = args.regn
+nmodel   = args.nmodel
+rdate    = args.rdate
+regn     = args.regn
 
 syst_info = os.uname()
 machine = syst_info.nodename
 
 # Training linregr params:
-# Model OLS_model1:
-model_name = "OLS_model1"
+MODEL_NAMES = micepr.models_info()
+model_name = MODEL_NAMES[nmodel]
+YS = 1993
+YE = 2025
+
+if nmodel == 1:
+  YE = 2002
 
 regions = {
     "north": ("Arctic", 65.0),
@@ -66,28 +75,13 @@ fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
 
-# Load linregr info:
-pthout = config_predictor["linregr"]["pthout"]
-flinfo = f"{model_name}_info.npz"
-dflinfo = os.path.join(pthout, flinfo)
-
-print(f"Reading: mean. stdev, predict. names --> {dflinfo}")
-data = np.load(dflinfo)
-PRED_NAMES   = data["PRED_NAMES"]
-PRED_MEAN    = data["PRED_MEAN"]
-PRED_STDEV   = data["PRED_STDEV"]
-Tfrz         = data["Tfrz"].item()
-sqrt_frzdays = data["sqrt_frzdays"].item()
-intgr_time   = data["intgr_time"].item()
-ndays_era    = data["ndays_era"].item()
-dxy          = data["dxy"].item()
-YS           = data["YS"].item()
-YE           = data["YE"].item()
-nparams = len(PRED_NAMES) + 1  # for intersept
 
 # Load prediction and grid points:
-pthfcst = os.path.join(config_predictor["linregr"]["pthout"],f"{model_name}")
+pthfcst = os.path.join(config_predictor["linregr"]["pthfcst"],f"{model_name}")
 flfcst = f"{model_name}_ithkn_fcast_{rdate}.npz"
+if nmodel > 2:
+  flfcst = f"{model_name}_ithkn_fcast_{rdate}.npz"
+#flfcst = f"{model_name}_{YS}_{YE}_ithkn_fcast_{rdate}.npz"
 dflfcst = os.path.join(pthfcst, flfcst)
 print(f"Loading fcst {dflfcst}")
 data_fcst = np.load(dflfcst)
@@ -126,7 +120,6 @@ AP[JG,IG] = Ithkn
 if LMsk is not None:
   Jocn = (LMsk == 1) & (~np.isfinite(AP))   # open ocean
   AP[Jocn] = 0.
-
 
 # Plotting
 clrmp = mclrmps.colormap_ice_thkn()

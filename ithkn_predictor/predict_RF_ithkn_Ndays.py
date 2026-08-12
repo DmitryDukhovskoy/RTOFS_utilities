@@ -1,14 +1,11 @@
 """
+  Random Forest
+  model trained in
+  train_RF_ithkn.py
+
   Run N days predictions
   predictions will be performed from sdate to edate
   using available ERA5 daily SAT fields
-
-  As a first step in developing ice thickness predictor
-  train a linear reg. model to test different predictors
-  and check if the taks is feasable, e.g. if it can be treated
-  as linear problem
-
-  Test linear regr. derived in train_linregr_ithkn.py
 
   Use every N-days of daily data
   and subsample high-res. GLORYS fields: there is lots of spatial
@@ -34,9 +31,9 @@ import importlib
 import xarray as xr
 import matplotlib.colors as colors
 import argparse
-from pathlib import Path
 from yaml import safe_load
-from statsmodels.iolib.smpickle import load_pickle
+import joblib
+import json
 
 # Append custom module paths
 PPTHN = None
@@ -60,21 +57,20 @@ import mod_glorys as mglr
 import mod_icepredict as micepr
 
 parser = argparse.ArgumentParser()
+parser.add_argument("--rfmod", help="random forest model number",
+                    choices=[1,2], required=True, type=int)
 parser.add_argument("--sdate", help="Start prediction date YYYYMMDD", required=True, type=int)
 parser.add_argument("--edate", help="End prediction date YYYYMMDD", required=True, type=int)
 parser.add_argument("--regn", help="Region to process", choices=['north','south'],
                     required=True, type=str)
-parser.add_argument("--regrmod", help="Regression model", 
-                         choices=[1,2],
-                         required=True, type=int)
 parser.add_argument("--save", help="Save predicted ice thickness in npz (0=no, 1=yes)",
                     choices=[0,1], default=0, type=int)
 args = parser.parse_args()
 
+rfmod     = args.rfmod
 sdate     = args.sdate
 edate     = args.edate
 regn      = args.regn
-regrmod   = args.regrmod
 save_fcst = args.save == 1
 
 if not save_fcst:
@@ -84,6 +80,7 @@ f_plt = False
 iconc_min = 0.05  # Discard too low ice conc. predictions
 sst_max = 5.      # Discard ice in too warm ocean
 
+
 # Requested start / end time - those may change
 # based on saved ERA5 time
 dnmbS0 = mtime.rdate2datenum(sdate)
@@ -91,16 +88,8 @@ YRS0, MMS0, DDS0 = mtime.datevec(dnmbS0)[:3]
 dnmbE0 = mtime.rdate2datenum(edate)
 YRE0, MME0, DDE0 = mtime.datevec(dnmbE0)[:3]
 
-# Training linregr params:
-# Model OLS_model1:
-YS = 1993
-if regrmod == 1:
-  # Older version
-  model_name = "OLS_model1"
-  YE = 2002
-elif regrmod == 2:
-  YE = 2025
-  model_name = f"OLS_model1_{YS}_{YE}"
+model_name = f"RF_model{rfmod:02d}_{regn}"
+
 
 regions = {
     "north": ("Arctic", 65.0),
@@ -112,34 +101,6 @@ fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
 
-# Load linregr info:
-pthout = config_predictor["linregr"]["pthout"]
-flinfo = f"{model_name}_info.npz"
-dflinfo = os.path.join(pthout, flinfo)
-
-print(f"Reading: mean. stdev, predict. names --> {dflinfo}")
-data = np.load(dflinfo)
-PRED_NAMES   = data["PRED_NAMES"]
-PRED_MEAN    = data["PRED_MEAN"]
-PRED_STDEV   = data["PRED_STDEV"]
-Tfrz         = data["Tfrz"].item()
-sqrt_frzdays = data["sqrt_frzdays"].item()
-intgr_time   = data["intgr_time"].item()
-ndays_era    = data["ndays_era"].item() 
-dxy          = data["dxy"].item()
-#YS           = data["YS"].item()  # Year start for model training
-#YE           = data["YE"].item()  # year end for model training
-nparams = len(PRED_NAMES) + 1  # for intersept
-
-# Load regr. results / parameters
-flstat = f"{model_name}.pkl"
-dflstat = os.path.join(pthout, flstat)
-print(f"Reading stat model results {dflstat}")
-linregr_results = load_pickle(dflstat)
-
-COEF = linregr_results.params
-assert len(COEF) == nparams, f"Expected N parameters {nparams} mismatches COEF {len(COEF)}"
-
 DIRS = {
   "pthithkn" : config_predictor["linregr"]["pthithkn"],
   "pthiconc" : config_predictor["linregr"]["pthiconc"],
@@ -150,21 +111,37 @@ DIRS = {
   "ptht2m"   : config_predictor["linregr"]["ptht2m"].format(regn_name=regn_name),
   "pthgmapi" : config_predictor["linregr"]["pthgmapi"],
   "pthout"   : config_predictor["linregr"]["pthout"],
+  "pthrf"    : config_predictor["linregr"]["pthrf"],
   "pthfcst"  : config_predictor["linregr"]["pthfcst"],
-  "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
-  "iconctmp" : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
-  "ssttmp"   : config_predictor["linregr"]["ssttmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
-  "divutmp"  : config_predictor["linregr"]["divutmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
-  "sattmp"   : config_predictor["linregr"]["sattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
-  "dfrztmp"  : config_predictor["linregr"]["dfrztmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
-  "iconc"    : "iconctmp",
-  "sst"      : "ssttmp",
-  "divu"     : "divutmp",
-  "frzdays"  : "dfrztmp",
-  "sat"      : "sattmp",
-  "ithkn"    : "ithkntmp",
   }
 
+
+# Load model parameters and RF model:
+pthrf = config_predictor["linregr"]["pthrf"]
+model_file = os.path.join(pthrf, model_name + ".pkl")
+print(f"Reading RF object from {model_file}")
+rf = joblib.load(model_file)
+
+# Training period:
+info_file = os.path.join(pthrf, model_name + "_info.json")
+with open(info_file, "r") as f:
+  info = json.load(f)
+
+YS           = info["training_yrS"]
+YE           = info["training_yrE"]
+dxy          = info["dxy"]             # ice length scale
+Tfrz         = info["Tfrz"]
+sqrt_frzdays = info["sqrt_frzdays"]
+intgr_time   = info["intgr_time"]
+ndays_era    = info["ndays_era"] 
+
+
+print(f"Training period: {YS}-{YE}")
+
+# RF Predictors:
+pred_file = os.path.join(pthrf, model_name + "_predictors_trainidx.npz")
+data_pred = np.load(pred_file)
+PRED_NAMES = data_pred["PRED_NAMES"]
 
 # Construct time array of available ERA5 SAT fields
 # within requested time window for prediction ithkn
@@ -214,8 +191,8 @@ elif regn == 'south':
 
 JG, IG = np.where(DOMAIN)
 
+standz = False  # No standartization for RF !!!
 print(f"Start forecasts, N forecasts: {nfcst}")
-standz = True  # Standartization of predictors is required for regression
 for dnmb0 in DNMB_fcst:
   YR0, MM0, DD0 = mtime.datevec(dnmb0)[:3]
   rdate = YR0*10000 + MM0*100 + DD0
@@ -234,31 +211,17 @@ for dnmb0 in DNMB_fcst:
   # ndays_era - time step in ERA5 atm. fields subsets
   # intgr_time - for freeze degree days, integration period, days
   # dxy - ice length scale, used for calc. ice predictors and gird point subset
-  PRED_STDZ, Iconc, SST = micepr.construct_predictors_day(
-           hlon, hlat, IG, JG, dnmb0, DIRS, PRED_NAMES,
+  PRED, Iconc, SST = micepr.construct_predictors_day(
+           hlon, hlat, IG, JG, dnmb0, DIRS, PRED_NAMES, 
            sqrt_frzdays, sst_max, standz, regn, YS, YE,
-           ndays_era, intgr_time, Tfrz,
-           dxy=dxy, PRED_MEAN=PRED_MEAN, PRED_STDEV=PRED_STDEV
+           ndays_era, intgr_time, Tfrz, 
+           dxy=dxy
            )
-
   # Construct design / predictor matrix:
-  # Include intercept:
-  Astdz = np.column_stack((np.ones(len(JG)), *PRED_STDZ))
-
-  # Retrieve lin. regr coefficients:
-  X = linregr_results.params
-
-  assert len(X) == Astdz.shape[1], f"N of coeff does not match A shape {A.shape}"
-
-  # Check means of the predictors - not necess. be ~0
-  # because use mean and std from trained data !
-  print("Means and stdev of the standzd predictors (except: cosD, sinD, Xcrd, Ycrd)")
-  for ipred, (name, x) in enumerate(zip(PRED_NAMES, PRED_STDZ)):
-    print(f"x{ipred+1} {name}:   {x.mean()},   {x.std()}")
-
+  AA = np.column_stack(PRED)
 
   # Prediction:
-  Yfcst = Astdz @ X
+  Yfcst = rf.predict(AA)
 
   #Ierr = np.where(Yfcst < 0)[0]
   Yfcst[Yfcst < 0] = 0
