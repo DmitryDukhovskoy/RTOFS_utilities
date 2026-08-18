@@ -44,25 +44,30 @@ import mod_colormaps as mclrmps
 parser = argparse.ArgumentParser()
 parser.add_argument("--rdate", help="Prediction date YYYYMMDD", required=True, type=int)
 parser.add_argument("--regn", help="Region to process", choices=['north','south'],
+                    default='north', type=str)
+parser.add_argument("--model", help="Model name", 
+                    choices=['clim','ols1','ols2','rf1','rf2','rf3','gbr1','gbr2','gbr3'],
                     required=True, type=str)
-parser.add_argument("--nmodel", help="Model number", choices=[0,1,2,3,4],
-                    required=True, type=int)
+parser.add_argument("--iconc", help="Ice conc field used as a predictor",
+                    choices=['glorys','amsr2'],
+                    type=str,
+                    default="glorys")
 args = parser.parse_args()
 
-nmodel   = args.nmodel
+model   = args.model
 rdate    = args.rdate
 regn     = args.regn
-
+iconc_fld = args.iconc
 syst_info = os.uname()
 machine = syst_info.nodename
 
 # Training linregr params:
 MODEL_NAMES = micepr.models_info()
-model_name = MODEL_NAMES[nmodel]
+model_name = MODEL_NAMES[model]
 YS = 1993
 YE = 2025
 
-if nmodel == 1:
+if model == 'ols1':
   YE = 2002
 
 regions = {
@@ -79,8 +84,9 @@ with open(fyaml) as ff:
 # Load prediction and grid points:
 pthfcst = os.path.join(config_predictor["linregr"]["pthfcst"],f"{model_name}")
 flfcst = f"{model_name}_ithkn_fcast_{rdate}.npz"
-if nmodel > 2:
-  flfcst = f"{model_name}_ithkn_fcast_{rdate}.npz"
+if not iconc_fld == "glorys":
+  flfcst = f"{model_name}_ithkn_fcast_{iconc_fld}_{rdate}.npz" 
+
 #flfcst = f"{model_name}_{YS}_{YE}_ithkn_fcast_{rdate}.npz"
 dflfcst = os.path.join(pthfcst, flfcst)
 print(f"Loading fcst {dflfcst}")
@@ -166,7 +172,7 @@ m.drawmeridians(np.arange(-180, 180, 45), labels=[0,0,0,0])
 m.drawcoastlines()
 
 img = m.pcolormesh(xh,yh, AP_s, cmap=clrmp, vmin=rmin, vmax=rmax)
-ax1.set_title(f"ithkn prediction linregr {model_name} {YR0}/{MM0:02d}/{DD0:02d}")
+ax1.set_title(f"ithkn prediction {model_name} {YR0}/{MM0:02d}/{DD0:02d}")
 
 ax3 = fig1.add_axes([0.2, 0.1, 0.6, 0.02])
 clb = plt.colorbar(img, cax=ax3, orientation='horizontal', extend='max')

@@ -4,7 +4,7 @@
 
   Find mapping GLORYS(Jg,Ig) <--> mesh025(Jm,Im)
 
-  This is 2-way mapping, can be use for "interpolating"
+  This is 2-way mapping, can be used for "interpolating"
   from / to mesh025 to/from GLORYS
 
 """

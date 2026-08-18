@@ -10,13 +10,31 @@ from scipy.interpolate import interp1d
 import mod_glorys as mglr
 
 def models_info():
+  """
+    Linear regression models:
+      OLS 1: trained over 1993-2002, no predictor for interannual trend
+      OLS 2: trained 1993-2025, added predictor for interannual trend
+    Random Forest (all 1993-2025):
+      RF1:  Ntrees 100
+      RF2:  Ntrees 200
+      RF3:  Ntrees 5
+      RF4:  Ntrees 2
+    Hist. Grad Boost Regressor (decision tree)
+      GBR1: max_leaf = 8,  max_iter=500,  max_depth=8
+      GBR2: max_leaf = 31, max_iter=1000, max_depth=10
+      GBR3: max_leaf = 63, max_iter=1500, max_depth=15
+  """
+
   MODEL_NAMES = {
-    0  : "clim",
-    1  : "OLS_model1",
-    2  : "OLS_model1_1993_2025",
-    3  : "RF_model01_north",
-    4  : "RF_model02_north",
-    5  : "RF_model03_north"
+    "clim"  : "clim",
+    "ols1"  : "OLS_model1",
+    "ols2"  : "OLS_model1_1993_2025",
+    "rf1"   : "RF_model01_north",
+    "rf2"   : "RF_model02_north",
+    "rf3"   : "RF_model03_north",
+    "gbr1"  : "GradBoostRegr_model01_north",
+    "gbr2"  : "GradBoostRegr_model02_north",
+    "gbr3"  : "GradBoostRegr_model03_north",
     }
 
   return MODEL_NAMES
@@ -195,14 +213,14 @@ def check_dnmb_array(DNMB, print_months=True):
   return
 
 
-def subset_glorys_iconc(dflice, IG, JG):
+def subset_glorys_iconc(dflice, IG, JG, varnm='siconc'):
   """
     Subset ice conc fields for specified grid points 
-    GLORYS daily 
+    Can be any ice conc fields but interpolated onto GLORYS grid
     dflice - GLORYS dir/iconc_file_name.nc
   """
   with xr.open_dataset(dflice) as dsice:
-    A2d = dsice['siconc'].isel(time=0).values.squeeze()
+    A2d = dsice[varnm].isel(time=0).values.squeeze()
 
   # Treat nans as no ice grid cells
   A2d = np.nan_to_num(A2d, nan=0.0)
@@ -558,7 +576,7 @@ def construct_predictors_day(
         sqrt_frzdays, sst_max, standz, regn, YS, YE,
         ndays_era, intgr_time, Tfrz,
         order_fast="time", Mavrg=3, dxy=50,
-        PRED_MEAN = None, PRED_STDEV = None
+        PRED_MEAN = None, PRED_STDEV = None, iconc_fld="glorys"
    ):
   """
     Construct predictors for 1 day forecast
@@ -639,12 +657,22 @@ def construct_predictors_day(
 
   # Ice conc
   if 'iconc' in PRED_NAMES:
-    print("\nDeriving GLORYS iconc")
-    pthice = os.path.join(DIRS["pthiconc"],f"{YR0}")
-    dflice = mglr.find_file(rdate, pthice)
-    if dflice is None:
-        raise FileNotFoundError(f"Not found {dflice}")
-    Iconc = subset_glorys_iconc(dflice, IG, JG)
+    if iconc_fld == "glorys":
+      print("\nDeriving GLORYS iconc")
+      pthice = os.path.join(DIRS["pthiconc"],f"{YR0}")
+      dflice = mglr.find_file(rdate, pthice)
+      if dflice is None:
+          raise FileNotFoundError(f"Not found {dflice}")
+      Iconc = subset_glorys_iconc(dflice, IG, JG)
+    elif iconc_fld == "amsr2":
+      print("\nDeriving AMSR2 iconc")
+      pthice = DIRS["pthiconc"]
+      dflice = os.path.join(pthice, f"AMSR2_iconc_GLORYSgrid_{YR0}{MM0:02d}{DD0:02d}_north.nc")
+      if dflice is None:
+          raise FileNotFoundError(f"Not found {dflice}")
+      Iconc = subset_glorys_iconc(dflice, IG, JG, varnm='ice_conc')
+    else:
+      raise RuntimeError(f"iconc_fld {iconc_fld} not recosgnized")
 
     # Eliminate ice in the warm ocean:
     if SST is not None:

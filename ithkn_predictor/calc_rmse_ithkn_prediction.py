@@ -54,10 +54,10 @@ import calendar
 parser = argparse.ArgumentParser()
 parser.add_argument("--sdate", help="Start prediction date YYYYMMDD", required=True, type=int)
 parser.add_argument("--edate", help="End prediction date YYYYMMDD", required=True, type=int)
-parser.add_argument("--nmod", help="Model number(s) to analyze", 
-                    choices=[0,1,2,3,4],
-                    required=True,
-                    type=int,
+parser.add_argument("--model", help="Model names to analyze",
+                    choices=['clim','ols1','ols2','rf1','rf2','rf3','gbr1','gbr2','gbr3'],
+                    required=True, 
+                    type=str,
                     nargs="+")
 parser.add_argument("--regn", help="Region to process", choices=['north','south'],
                     required=True, type=str)
@@ -65,7 +65,7 @@ parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=
 parser.add_argument("--ye", help="Year end, default=2025", default=2025, type=int)
 args = parser.parse_args()
 
-MODELS = args.nmod
+MODELS = args.model
 sdate  = args.sdate
 edate  = args.edate
 regn   = args.regn
@@ -259,7 +259,6 @@ for ictr, model_name in enumerate(MODEL_NAMES):
       HIP = subset_ithkn_climatology(dnmb0, regn, LMsk, HIG)
     else:
       HIP, _, _ = read_prediction(dnmb0, model_name, LMsk)
-
 
     Atot = np.nansum(Acell[JG,IG])
     ErrSq = np.nansum(Acell[JG,IG] * (HIP[JG,IG] - HIG[JG,IG])**2) / Atot

@@ -12,6 +12,7 @@ linregr:
   pthgmapi : "/archive/Dmitry.Dukhovskoy/data/remap_indx"
   pthout   : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_linregr"
   pthrf    : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
+  pthgbr   : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
   pthfcst  : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ithkn_fcast"
   ithkntmp : "ithkn_IJpnts_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
   iconctmp : "iconc_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
@@ -19,4 +20,31 @@ linregr:
   divutmp  : "divu_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
   sattmp   : "sat_tser_ERA5_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
   dfrztmp  : "dayfrz_tser_ERA5_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
+
+ml:
+  glorys:
+    pthithkn : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/sithick/"
+    pthiconc : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/siconc/"
+    pthsst   : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/thetao/"
+    pthssh   : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/zos/"
+    pthui    : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/usi/"
+    pthvi    : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/vsi/"
+    ptht2m   : "/archive/Dmitry.Dukhovskoy/data/ERA5/{regn_name}"
+    pthgmapi : "/archive/Dmitry.Dukhovskoy/data/remap_indx"
+    pthfcst  : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ithkn_fcast"
+    pthout   : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_linregr"
+
+  amsr2:
+    pthiconc : "/work/Dmitry.Dukhovskoy/data/AMSR2_iconc_interp"
+
+  gbr1:
+    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
+  gbr2:
+    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
+  gbr3:
+    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
+  rf1:
+    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
+  rf2:
+    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
 
