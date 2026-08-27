@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import sys
 import importlib
 import matplotlib
-import xarray
+import xarray as xr
 import matplotlib.colors as colors
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
@@ -96,7 +96,7 @@ dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
 
 hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 
-with xarray.open_dataset(dftopo_mom) as dstopo:
+with xr.open_dataset(dftopo_mom) as dstopo:
   HH = dstopo['depth'].data.squeeze()
 
 HH = np.where(HH < 1.e-20, np.nan, HH)
@@ -110,13 +110,18 @@ if plot_init:
   flinp = f"iceh_ic.{yr0}-{mm0:02d}-{dd0:02d}-{nsec0:05d}.nc"
 else:
   flinp = f"iceh.{yr0}-{mm0:02d}-{dd0:02d}.nc"
-varnm = 'hi_d'
 
 dflice = os.path.join(pthoutp,flinp)
 
 print(f"Processing {YR}/{MM}/{DD} {hr0:02d}:00, SFS init {YRI}/{MMI:02d}/{DDI:02d} {hrI:02d}:00\n{dflice}")
-with xarray.open_dataset(dflice) as dcice:
-  A2d = dcice[varnm].data.squeeze()
+with xr.open_dataset(dflice) as dcice:
+  for varnm in ['hi_h', 'hi_d']:
+    if varnm in dcice:
+      A2d = dcice[varnm].values.squeeze()
+      break
+  else:
+    print(list(dcice.data_vars))
+    raise KeyError(f"No aice_h or aice_d in {dflice}")
 
 A2d[HH >= 0] = np.nan
 

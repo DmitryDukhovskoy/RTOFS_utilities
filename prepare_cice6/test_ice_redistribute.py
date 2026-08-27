@@ -50,7 +50,8 @@ ncat = len(ICAT)
 plt.ion()
 def plot_bar_diagr(fig1, ccat, hcat, vcat, hice, cice, sinfo, dltE, clr, clrln, stl):
   plt.clf()
-  ax1 = plt.axes([0.1, 0.4, 0.8, 0.5])
+  #ax1 = plt.axes([0.1, 0.4, 0.8, 0.5])
+  ax1 = plt.axes([0.1, 0.6, 0.8, 0.35])
 
   # Create secondary Y axis
   ax2 = ax1.twinx()
@@ -111,6 +112,8 @@ def plot_bar_diagr(fig1, ccat, hcat, vcat, hice, cice, sinfo, dltE, clr, clrln, 
              zorder=10)
     yup2 = 1.2 * np.nanmax(varadd)
     ax2.set_ylim([0, yup2])
+    if yup2 > 0.6:
+      ax2.set_yticks(np.arange(0, yup2 + 0.1, 0.1))
 
     if bplot == 'aice':
       ax2.set_ylabel('Ice Volume (m$^3$/m$^2$_cell)', color=clrln, fontsize=12)
@@ -140,15 +143,18 @@ CCn = np.zeros((nn,ncat))
 HCn = np.zeros((nn,ncat))
 print(f"Calling redistribute_hice")
 ifx = 10
-ck_min = 1.e-2     # approximate ice concentration used for filling thinner ice cats 
-#ck_min = 0.8e-1     # approximate ice concentration used for filling thinner ice cats 
+#ck_min = 1.e-2     # approximate ice concentration used for filling thinner ice cats 
+#ck_min = 0.95e-1     # approximate ice concentration used for filling thinner ice cats 
+ck_min = 0.05
 for ii in range(nn):
   cice = random.uniform(0.,1.)
   hice = random.uniform(0.,4.)
   # Fix values for comparison:
-  #if ii == ifx:
-  #  cice = 0.95
-  #  hice = 2.55
+  if ii == ifx:
+    #cice = 0.95
+    #hice = 2.55
+    cice = 0.55
+    hice = 2.55
   print(f"ii={ii}, hice={hice:.4f} cice={cice:.4f}")
   # Thick-to-thin algorithm
   #hcat, ccat = redistribute_hice(hice, cice, ICAT=ICAT, ck_min=ck_min)

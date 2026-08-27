@@ -1229,10 +1229,11 @@ def colormap_blue_yellow(Ncmp=200):
 
   return CMP
  
-def colormap_cold_warm(Ncmp=200, ins_white=False):
+def colormap_cold_warm(Ncmp=200, ins_white=False, n_white=3):
   """
     Colormap for showing temperatures etc.
     ins_white = True - white in the middle for showing -/+ values
+    n_white - width of the color region
   """
   CLR_thermal = np.array([
   [0.2, 0.0, 0.5],    # dark purple
@@ -1258,17 +1259,76 @@ def colormap_cold_warm(Ncmp=200, ins_white=False):
   nclrs, nCh = CLR_thermal.shape
   if ins_white:
     ins0 = nclrs // 2
-    if ins0*2 == nclrs:
-      CLR_thermal = np.insert(CLR_thermal, ins0, [1,1,1], axis=0)
-    else:
-      CLR_thermal[ins0,:] = [1,1,1]
+    white = np.ones((n_white, 3))
+    CLR_thermal = np.insert(
+        CLR_thermal,
+        ins0,
+        white,
+        axis=0
+    )
 
   CMP = create_colormap(CLR_thermal, Ncmp, cmp_obj=True, add_alpha=False)
 
   return CMP
 
+def colormap_difference_negpos(Ncmp=200, n_white=4):
+  """
+    Colormap for showing differences with positive and negative values centered around 0
+    transition - white
+    n_white - width of the color region
+  """
 
- 
+  CLR_thermal = np.array([
+      [0.20, 0.00, 0.50],   # dark purple
+      [0.30, 0.00, 0.60],   # purple
+      [0.10, 0.20, 0.70],   # indigo
+      [0.00, 0.30, 0.70],   # blue
+      [0.00, 0.45, 0.85],   # blue-cyan
+      [0.00, 0.60, 0.85],   # cyan
+      [0.20, 0.75, 0.85],   # light cyan
+      [0.65, 0.85, 0.90],   # pale blue
+      [1.00, 0.95, 0.60],   # pale yellow
+      [0.95, 0.85, 0.10],   # yellow
+      [0.90, 0.65, 0.00],   # yellow-orange
+      [0.95, 0.45, 0.00],   # orange
+      [0.98, 0.25, 0.00],   # red-orange
+      [1.00, 0.10, 0.00],   # red
+      [0.80, 0.00, 0.00],   # dark red
+  ])
+   
+  # Explicitly define the negative/positive transition
+  neg = CLR_thermal[:8]
+  pos = CLR_thermal[8:]
+
+  # Number of bins on each side
+  n_side = (Ncmp - n_white) // 2
+
+  # Interpolate each side independently
+  neg_cmap = create_colormap(neg, n_side, cmp_obj=True, add_alpha=False)
+  pos_cmap = create_colormap(
+      pos, Ncmp - n_white - n_side,
+      cmp_obj=True, add_alpha=False
+  )
+
+  neg_colors = neg_cmap(np.linspace(0, 1, n_side))[:, :3]
+  pos_colors = pos_cmap(np.linspace(0, 1, Ncmp - n_white - n_side))[:, :3]
+
+  white = np.ones((n_white, 3))
+
+  colors = np.vstack([
+      neg_colors,
+      white,
+      pos_colors
+  ])
+
+  CMP = create_colormap(
+      colors,
+      Ncmp,
+      cmp_obj=True,
+      add_alpha=False
+  )
+
+  return CMP
 
 
 

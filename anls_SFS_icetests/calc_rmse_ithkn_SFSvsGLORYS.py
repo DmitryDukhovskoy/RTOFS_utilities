@@ -1,17 +1,8 @@
 """
-  RMSE of ice conc. btw SFS experiments and NSIDC NRT fields
+  RMSE of ice thkcness btw SFS experiments and GLORYS reanalysis
 
-  NSIDC fields from 
-  https://noaadata.apps.nsidc.org/NOAA/G02202_V6/north/daily/2025/
-
-  example:
-  plot control run and "global" expt with inserted snow, show Arctic ocean (north)
-  show persistence scores for both control and expt 21 initial states:
-  run calc_rmse_iconc_NSIDC.py --regn north --enmb 1 21 --prst 1 21
-  
-  Show stat for twn expts (ai+hs+hsU) with old and new ("global") versions of the
-  insertion codes for S. Ocean and control + persistence
-  run calc_rmse_iconc_NSIDC.py --regn south --enmb 1 24 11 --prst 1 24    
+  GLORYS fields interpoalted onto UFS mesh025
+  see PPAN: interp_GLORYSithkn_to_mesh025_month.py
 
 """
 import os
@@ -20,7 +11,7 @@ import matplotlib.pyplot as plt
 import sys
 import importlib
 import matplotlib  
-import xarray
+import xarray as xr
 import datetime
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
@@ -61,10 +52,6 @@ parser.add_argument("--init", help=f"Start of the f/cast YYYYMMDD, default=f{ini
 parser.add_argument("--dend", help="End date to plot YYYYMMDD or provide --ndays", type=int)
 parser.add_argument("--ndays", help=f"Optional: N days to show from init, will override dend", type=int)
 parser.add_argument("--pinit", help="Show initial state if exists: 1=yes (default), 0=no", default=1, type=int)
-parser.add_argument("--icref", help="Iconc reference fields, default=nsidc",
-                   choices=['nsidc','amsr2'],
-                   default='nsidc',
-                   type=str)
 parser.add_argument(
     "--enmb",
     help="List of experiment numbers (e.g., 1 3 9 12)",
@@ -82,12 +69,11 @@ parser.add_argument(
 args = parser.parse_args()
 regn      = args.regn if args.regn else None
 init_date = args.init if args.init else init_date  
-end_date  = args.init if args.dend else None
+end_date  = args.dend if args.dend else None
 ndays     = args.ndays if args.ndays else None
 pinit     = args.pinit
 ENMBS     = args.enmb if args.enmb else None
 PRST      = args.prst if args.prst else []
-iconc_ref = args.icref
 plt_init = pinit == 1  # show RMSE for init state if init. state file exists and saved by CICE6
 
 if end_date is None and ndays is None:
@@ -103,9 +89,9 @@ YRS, MMS, DDS = mtime.datevec(dnmbS)[:3]
 
 if ndays is not None:
   # ndays overrides end_date
-  dnmbE = dnmbS + ndays
+  dnmbE = int(dnmbS + ndays)
 else:
-  dnmbE = mtime.rdate2datenum(end_date*100)
+  dnmbE = int(mtime.rdate2datenum(end_date*100))
 YRE, MME, DDE = mtime.datevec(dnmbE)[:3] 
 
  
@@ -132,7 +118,7 @@ dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
     
 hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 
-with xarray.open_dataset(dftopo_mom) as dstopo:
+with xr.open_dataset(dftopo_mom) as dstopo:
   HH = dstopo['depth'].data.squeeze()
 
 HH = np.where(HH < 1.e-20, np.nan, HH)
@@ -164,42 +150,21 @@ def rmse2d(AA, AI):
 
   return rmse_mo
 
-def read_nsidc(regn, dnmb):
-  # Error in NSIDC ice concentration fields:
-  if regn == 'north':
-    NSIDC_err = mtime.datenum_v2([[2024,7,12],[2025,7,27]], ref_day0=False)
-  else:
-    NSIDC_err = np.array([])
-   
-  YR, MM, DD = mtime.datevec(dnmb)[:3]
-  if int(dnmb) in NSIDC_err:
-    # Error ice conc fields
-    rmse_mo = np.nan
-  else:
-    # Interpolated NSIDC obs fields:
-    pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
-    fliceout = f'NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc'
-    dfliceout = os.path.join(pthnsidc,fliceout)
-    print(f'Loading interpolated ice conc {dfliceout}')
-    with xarray.open_dataset(dfliceout) as dsint:
-      AI = dsint['ice_conc'].isel(time=DD-1).squeeze()
+def read_glorys_icefld(rdate, dfglr, HH):
+  dnmbR = mtime.rdate2datenum(rdate*100)  # restart day nmb
+  YR, MM, DD = mtime.datevec(dnmbR, round_hrs=True)[:3]
+  with xr.open_dataset(dfglr) as dcice:
+    for varnm in ['hi_h', 'hi_d', 'ice_thkn']:
+      if varnm in dcice:
+        A2d = dcice[varnm].isel(time=DD-1).values.squeeze()
+        break
+    else:
+      print(list(dcice.data_vars))
+      raise KeyError(f"No hi_h or hi_d or ice_thkn in {dfglr}")
 
-  return AI
+  A2d[HH >= 0] = np.nan
 
-def read_amsr2(regn, dnmb):
-  YR, MM, DD = mtime.datevec(dnmb)[:3]
-  # AMSR2 ice conc interpolated onto mesh025
-  pthamsr = os.path.join(pthdata,f"AMSR2_OSISAF_L4/{regn}/{YR}")
-  fliceout = f'AMSR2_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc'
-  dfliceout = os.path.join(pthamsr,fliceout)
-  assert os.path.isfile(dfliceout), f"File not found {dfliceout}"
-  print(f'Loading interpolated ice conc {dfliceout}')
-  with xarray.open_dataset(dfliceout) as dsint:
-    AI = dsint['ice_conc'].isel(time=DD-1).squeeze()
-      
-  return AI
-
-
+  return A2d
 
 # Create an array of day numbers with 0hr = init cond, 12 hr - daily means
 # Assumed: runs start at 0 hr, if not - may need to change the logic 
@@ -227,15 +192,16 @@ for enmb in ENMBS:
   for nn in range(nrecs):
     dnmb = RECS[nn]
     YR,MM,DD,hr = mtime.datevec(dnmb, round_hrs=True)[:4] 
+    rdate = YR*10000 + MM*100 + DD
 
     track_prst = (nprst > 0) and np.isin(enmb, PRST)
     if hr == 0:
       # Initial state
       nsec0 = 0 
       flcice = f"iceh_ic.{YR}-{MM:02d}-{DD:02d}-{nsec0:05d}.nc"
-      dflcice = os.path.join(pthout_cice,flcice)
+      dflice = os.path.join(pthout_cice,flcice)
 
-      if not os.path.isfile(dflcice) or not plt_init:
+      if not os.path.isfile(dflice) or not plt_init:
         print(f"Initial state file is missing or not requested plt_init, proceed without it ...")
         irec += 1
         RMSE[irec, iens] = np.nan
@@ -243,29 +209,30 @@ for enmb in ENMBS:
     else:
       print(f"Processing {YR}/{MM}/{DD} expt{enmb:02d}...")
       flcice = f"iceh.{YR}-{MM:02d}-{DD:02d}.nc"
-      dflcice = os.path.join(pthout_cice,flcice)
+      dflice = os.path.join(pthout_cice,flcice)
 
-    print(f"Processing {dflcice}")
-    # Different ending is handled _d (daily mean) _h (N-hr means)
-    # Depending on specification in ice_in, daily mean may have _d or _h
-    with xarray.open_dataset(dflcice) as dcice:
-      for varnm in ['aice_h', 'aice_d']:
+    print(f"Processing {dflice}")
+    with xr.open_dataset(dflice) as dcice:
+      for varnm in ['hi_h', 'hi_d']:
         if varnm in dcice:
-          AA = dcice[varnm].data.squeeze()
+          AA = dcice[varnm].values.squeeze()
           break
       else:
-        raise KeyError(f"No aice_h or aice_d in {dflcice}")
+        print(list(dcice.data_vars))
+        raise KeyError(f"No aice_h or aice_d in {dflice}")
 
-    if iconc_ref == 'nsidc':
-      AI = read_nsidc(regn, dnmb)
-    elif iconc_ref == 'amsr2':
-      AI = read_amsr2(regn, dnmb)
-    else:
-      raise RuntimeError(f"Unrecognized reference iconc {iconc_ref}")
+    # Interpolated GLORYS ithkn fields:
+    pthglr = '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GLORYS_ithkn_interp_UFSmesh025'
+    flglr = f"GLORYS_ithkn_interp_mesh025_{YR}{MM:02d}_{regn}.nc"
+    dfglr = os.path.join(pthglr, flglr)
+    if not os.path.isfile(dfglr):
+      raise RuntimeError(f"File not found: {dfglr}")
+
+    AI = read_glorys_icefld(rdate, dfglr, HH)
 
     AA = np.where(RMsk == 0, np.nan, AA)
     AI = np.where(RMsk == 0, np.nan, AI)
-    rmse_mo = rmse2d(AA,AI)
+    rmse_mo = rmse2d(AA, AI)
 
     irec += 1
     if track_prst:
@@ -333,7 +300,7 @@ else:
 
 
 yticks = np.arange(0.,1.,0.05)
-sttl = f"RMSE btw iconc {iconc_ref} and SFS GFS expts, {regn}\n"
+sttl = f"RMSE btw ithkn GLORYS and SFS GFS expts, {regn}\n"
 sttl = sttl + f"{YR}/{MMS:02d}/{DDS:02d}-{YR}/{MME:02d}/{DDE:02d}"
 
 plt.ion()
@@ -384,6 +351,6 @@ ax3 = plt.axes([0.08, 0.1, 0.6, 0.2])
 lgd = plt.legend(handles=LNS, loc='lower left')
 ax3.axis('off')
 
-btx = 'calc_rmse_iconc_SFSvsNSIDC.py'
+btx = 'calc_rmse_ithkn_SFSvsGLORYS.py'
 bottom_text(btx, pos=[0.1,0.05])
 

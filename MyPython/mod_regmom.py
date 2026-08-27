@@ -68,19 +68,17 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
   """
   #import time
   #tt0 = time.perf_counter()
-  import mod_bilinear as mblnr
-  import mod_misc1 as mmisc1
 
-# Need 2D arrays for LON, LAT
-# if 1D array - Mercator grid is assumed
+  # Need 2D arrays for LON, LAT
+  # if 1D array - Mercator grid is assumed
   ndim = len(LAT.shape)
   if ndim == 1:
-    mm = len(LAT)
-    nn = len(LON0)
-    LON0 = np.tile(LON0,(mm,1))
-    LAT  = np.tile(LAT,(nn,1)).transpose()
+    jdm = len(LAT)
+    idm = len(LON0)
+    LON0 = np.tile(LON0,(jdm,1))
+    LAT  = np.tile(LAT,(idm,1)).transpose()
 
-  mm,nn = LAT.shape
+  jdm, idm = LAT.shape
 
   # dhstep should be > max grid spacing in latitudes:
   max_dlat = max(
@@ -158,6 +156,10 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
     print(f"ERR: Try increasing dhstep={dhstep}")
     raise RuntimeError("Subsample region around x0,y0 failed: Not enough points")
 
+  # Make sure selected pnts are not along the same I or J index:
+  assert not np.all(JJ == JJ[0]), f"All subsampled pnts around x0={x0}, y0={y0} have same Jindx = {JJ[0]}"
+  assert not np.all(II == II[0]), f"All subsampled pnts around x0={x0}, y0={y0} have same Iindx = {II[0]}"
+
   #tt3 = time.perf_counter()
   #print(f" dT3 = {tt3-tt2} sec")
 
@@ -178,6 +180,8 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
       cells that do not geometrically contain the target point.
       Try N closest point, if the 1st fails
 
+      Near the poles, closest points may all be along the lat. circle, i.e. have same J index
+
       Better approach - find closest centroid of the grid boxes
     """
     XX = LON[JJ, II]
@@ -185,61 +189,77 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
     DD = mmisc1.dist_sphcrd(y0, x0, YY, XX)
     idx = np.argsort(DD)[:N]
 
-    return JJ[idx], II[idx], DD[idx]  
+    JC = JJ[idx]
+    IC = II[idx]
+    DC = DD[idx]
+
+    return JC, IC, DC
 
 
   # Try finding N closest points and enclosing grid boxes for each of these
   # until find the right one
   # But better - find closest grid centroid not vertices
+  # keep min_npnts < 10, otherwise find box combinations will blow up - too many combinations
   JVX, IVX, _ = find_n_closest_points(y0, x0, LON, LAT, JJ, II, N=min_npnts)
 
-  jv1, iv1 = JVX[0], IVX[0]  # keep this in case the find_box approach fails
-  xv1 = LON[jv1,iv1]
-  yv1 = LAT[jv1,iv1]
-
-  #tt4 = time.perf_counter()
-  #print(f" dT4 = {tt4-tt3} sec")
-
   INp = False
+
+  # Keep closest vertex as fallback
+  jv1, iv1 = JVX[0], IVX[0]
+
+  # First try: find an enclosing box around each of the closest
+  # vertices individually
+  for jv, iv in zip(JVX, IVX):
+    # Southern boundary
+    if jv == 0:
+      print(
+          f'WARN: pnt x0/y0: {x0:.3f}/{y0:.3f} '
+          f'at S boundary: i/j={iv1}/{jv1}, skipping ...'
+      )
+      continue
+
+    # Northern boundary
+    if jv == jdm - 1:
+      if not ignore_north_lim:
+        print(
+            f'WARN: pnt x0/y0: {x0:.3f}/{y0:.3f} '
+            f'at N boundary: i/j={iv1}/{jv1}, skipping ...'
+        )
+        return [], []
+      else:
+        return IVX[:4], JVX[:4]
+
+    # E/W boundaries if longitude is not periodic
+    if not wrap_long and (iv == 0 or iv == idm - 1):
+      print(
+          f'WARN: pnt x0/y0: {x0:.3f}/{y0:.3f} '
+          f'outside/near E/W boundary: i/j={iv1}/{jv1}, skipping ...'
+      )
+      return [], []
+
+    IV, JV, INp = find_box_include([x0, y0], [iv, jv], LON, LAT,
+                                   wrap_long, eps_tol=1.e-8 )
+
+    if INp:
+      break
+
+  # Second try: combinations of the N closest vertices
   if not INp:
     IV, JV, INp = find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1.e-2)
 
-  # Not worked try i+/-1, j+/-1
-  for jv, iv in zip(JVX, IVX):
-    # skip boundaries
-    if jv == 0:
-      print(f'WARN: pnt x0/y0: {x0:.3f}/{y0:.3f} at the S boundary: i/j={iv1}/{jv1}, skipping ...')
-      return [],[] 
-
-    if jv == mm-1:
-      if not ignore_north_lim:
-        print(f'WARN: pnt x0/y0: {x0:.3f}/{y0:.3f} at N boundary: i/j={iv1}/{jv1}, skipping ...')
-        return [],[] 
-      else:
-        # For grid with Merc. porjections, i.e. where N. Polar region
-        # is split in halves and point on one side can be continued
-        # to the other side over the N Boundary, take 4 closest pnts:
-        ixx = IVX[:4]
-        jxx = JVX[:4]    
-        return ixx, jxx
-
-    if not wrap_long and (iv == 0 or iv == nn-1):
-      print(f'WARN: pnt x0/y0: {x0:.3f}/{y0:.3f} outside or near the E/W boundary: i/j={iv1}/{jv1}, skipping ...')
-      return [],[] 
-
-    if not INp:
-      IV, JV, INp = find_box_include([x0,y0], [iv,jv], LON, LAT, eps_tol=1.e-8)
-
-    if INp:
-      #print("Found")
-      #break
-      ixx = np.array(IV).astype(int)
-      jxx = np.array(JV).astype(int)
-      return ixx, jxx
+  if INp:
+    #print("Found")
+    #break
+    ixx = np.array(IV).astype(int)
+    jxx = np.array(JV).astype(int)
+    return ixx, jxx
 
   # If nothing worked, try another approach
   # The following code is probably not needed:
   print(" --> Find_box methods failed, trying point search")
+  xv1 = LON[jv1,iv1]
+  yv1 = LAT[jv1,iv1]
+
 
   # First guess for xv2: 
   # Find where the point lies wrt to the closest pnt:
@@ -460,7 +480,7 @@ def find_gridpnts_box(x0, y0, LON0, LAT, dhstep=0.5, \
     while Dv2 != Dp0:
       iv2 = int(iv2 + diri)
       jv2 = int(jv2 + dirj)
-      if iv2 < 0 or iv2 >= nn or jv2 < 0 or jv2 >= mm:
+      if iv2 < 0 or iv2 >= idm or jv2 < 0 or jv2 >= jdm:
         F_bndry = True
         break
       xv2 = LON[jv2,iv2]
@@ -635,6 +655,7 @@ def find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1e-3, eps0=1e-4):
   """
   from itertools import combinations
 
+  assert len(IVX) < 50, f"Too many N of points {len(IVX)} for combinations"
   AL=list(combinations(range(len(IVX)), 4))
   for cp in AL:
     IV = IVX[list(cp)]
@@ -670,42 +691,61 @@ def find_box_include_comb(x0, y0, IVX, JVX, LON, LAT, eps_tol=1e-3, eps0=1e-4):
 
   return [], [], False
 
-def find_box_include(XY0, IJ1, LON, LAT, eps_tol=1.e-8):
+def find_box_include(XY0, IJ1, LON, LAT, wrap_long, eps_tol=1.e-8):
   """
     Find a grid cell that encloses a pnt XY0
     given the first nearst vertex 
 
     Box #5 - larger box that inclues smaller 4 boxes
-  """
-  import mod_bilinear as mblnr
 
+    wrap_long = True: wrapping around long. allowed (i.e. idm --> 0, -1 ---> idm-1)
+  """
   x0, y0   = XY0 
   iv1, jv1 = IJ1
+  jdm, idm = LON.shape
+
+  # i-dir:
+  if wrap_long:
+    im1 = (iv1 - 1) % idm
+    ip1 = (iv1 + 1) % idm
+  else:
+    if iv1 == 0 or iv1 == idm - 1:
+        raise ValueError(f"iv1={iv1}: neighboring i index outside domain")
+    im1 = iv1 - 1
+    ip1 = iv1 + 1
+
+  # j-dir:
+  if jv1 == 0 or jv1 == jdm - 1:
+    raise ValueError(f"jv1={jv1}: neighboring j index outside domain")
+
+  jm1 = jv1 - 1
+  jp1 = jv1 + 1
+
   BX = np.array([
-      [[iv1,   jv1],
-       [iv1,   jv1-1],
-       [iv1-1, jv1-1],
-       [iv1-1, jv1]],
+    [[iv1, jm1],
+     [im1, jm1],
+     [im1, jv1],
+     [iv1, jv1]],
 
-      [[iv1,   jv1],
-       [iv1+1, jv1],
-       [iv1+1, jv1-1],
-       [iv1,   jv1-1]],
+    [[iv1, jv1],
+     [ip1, jv1],
+     [ip1, jm1],
+     [iv1, jm1]],
 
-      [[iv1,   jv1],
-       [iv1,   jv1+1],
-       [iv1+1, jv1+1],
-       [iv1+1, jv1]],
+    [[iv1, jv1],
+     [iv1, jp1],
+     [ip1, jp1],
+     [ip1, jv1]],
 
-      [[iv1,   jv1],
-       [iv1-1, jv1],
-       [iv1-1, jv1+1],
-       [iv1,   jv1+1]],
+    [[iv1, jv1],
+     [im1, jv1],
+     [im1, jp1],
+     [iv1, jp1]],
 
-      [[iv1-1, jv1-1],
-       [iv1-1, jv1+1],
-       [iv1+1, jv1+1],
-       [iv1+1, jv1-1]],
+    [[im1, jm1],
+     [im1, jp1],
+     [ip1, jp1],
+     [ip1, jm1]],
   ])
 
   def inside_box(ibox):
@@ -779,6 +819,7 @@ def fill_npole(A2d, HLON, HLAT, HH, Rpole = 2.5, bad_val = None, npnts_max=10):
             for interpolation
     bad_val - provide missing values if other than NaN otherwise N. Pole may not be detected
     npnts_max - max number of the closest points for averaging
+    HH - bathymetry (with land >= 0) or land mask: land >= 0, ocean < 0
   """
   import mod_utils as mutil
   import mod_bilinear as mblnr

@@ -56,6 +56,11 @@ DDE = 16
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help="hemisphere: north or south", type=str, required=True)
+parser.add_argument("--init", help=f"init date - check experiment number to match", 
+                    choices=[20240701, 20250704, 20250103], 
+                    required=True, type=int)
+parser.add_argument("--fday", help="Number of forecast days to show",required=True, type=int)
+
 parser.add_argument("--yr", help=f"year of model run, default={YR}", type=int)
 parser.add_argument("--ms", help=f"start month of data to plot, default={MM}", type=int)
 parser.add_argument("--me", help=f"end month of NSIDCS data to plot, default={MM}", type=int)
@@ -78,14 +83,18 @@ parser.add_argument(
 args = parser.parse_args()
   
 regn  = args.regn if args.regn else None
-YR    = args.yr if args.yr else YR
-MMS   = args.ms if args.ms else MM
-MME   = args.me if args.me else MMS
-DDS   = args.ds if args.ds else DD
-DDE   = args.de if args.de else DDE
+init_date = args.init
+fday  = args.fday
 ENMBS = args.enmb if args.enmb else None
 PRST  = args.prst if args.prst else []
+
 plt_init = True  # show RMSE for init state if init. state file exists and saved by CICE6
+init_hr = 0
+dnmbS = mtime.rdate2datenum(init_date*100+init_hr)  # init. day nmb
+YRS, MMS, DDS, hrS = mtime.datevec(dnmbS, round_hrs=True)[:4]
+
+dnmbE = dnmbS + fday - 1
+YRE, MME, DDE, hrE = mtime.datevec(dnmbE, round_hrs=True)[:4]
 
 
 # Error in NSIDC ice concentration fields Northern h/sphere:
@@ -93,6 +102,8 @@ if regn == 'north':
   NSIDC_err = mtime.datenum_v2([[2024,7,12],[2025,7,27]], ref_day0=False)
 else:
   NSIDC_err = None
+  
+#NSIDC_err = None
   
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -154,8 +165,8 @@ def rmse2d(AA,AI):
 # Create an array of day numbers with 0hr = init cond, 12 hr - daily means
 # Assumed: runs start at 0 hr, if not - may need to change the logic 
 # for finding the ic fields 
-dnmbS = int(mtime.datenum([YR,MMS,DDS]))
-dnmbE = int(mtime.datenum([YR,MME,DDE]))
+dnmbS = int(mtime.datenum([YRS, MMS, DDS]))
+dnmbE = int(mtime.datenum([YRE, MME, DDE]))
 RECS = [dnmbS] + [x + 0.5 for x in range(dnmbS, dnmbE + 1)]
 RECS = np.array(RECS)
 
@@ -199,7 +210,7 @@ for enmb in ENMBS:
     with xarray.open_dataset(dflcice) as dcice:
       AA = dcice['aice_d'].data.squeeze()
 
-    if int(dnmb) in NSIDC_err: 
+    if NSIDC_err is not None and int(dnmb) in NSIDC_err: 
       # Error ice conc fields
       rmse_mo = np.nan
     else:

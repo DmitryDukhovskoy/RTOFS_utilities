@@ -13,7 +13,6 @@ import sys
 import importlib
 import matplotlib  
 import xarray
-from copy import copy
 import matplotlib.colors as colors 
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
@@ -40,15 +39,8 @@ sys.path.extend([
 
 from mod_utils_fig import bottom_text
 import mod_time as mtime
-import mod_utils as mutil
-import mod_misc1 as mmisc
 import mod_colormaps as mclrmps
-import mod_anls_seas as manseas
-import mod_utils_ob as mutob
 import mod_mom6 as mmom6
-import mod_misc1 as mmisc
-import mod_sis2_relax as msisrlx
-importlib.reload(msisrlx)
 
 expt = 'ufs_datm_mx025_v02'
 #init_date = 20250103
@@ -167,6 +159,12 @@ sqerr = (AA-AI)**2
 abserr = np.abs(AA-AI)
 diff  = (AA-AI)
 
+# Info about experiments:
+import mod_gfs_cice_anls as mgfscice 
+importlib.reload(mgfscice)
+line_lbl = mgfscice.sens_tests_info(enmb)
+
+
 plt.ion()
 
 
@@ -198,14 +196,14 @@ m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 img1 = ax1.pcolormesh(xh,yh,AA, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,sqerr, cmap=clrmp, vmin=rmin, vmax=rmax)
 #img1 = ax1.pcolormesh(xh,yh,np.abs(AA-AI), cmap=clrmp, vmin=rmin, vmax=rmax)
-ax1.set_title(f'UFS expt{enmb:02d} iconc {YR}/{MM:02d}/{DD:02d}')
+ax1.set_title(f'iconc datmUFS expt{enmb:02d} {line_lbl}\n{YR}/{MM:02d}/{DD:02d} FDAY={fday}')
 
 # Interpolated iconc
 ax2 = plt.axes([0.55, 0.55, 0.4, 0.4])
 m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
 m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 img2 = ax2.pcolormesh(xh, yh, AI, cmap=clrmp, vmin=rmin, vmax=rmax)
-ax2.set_title('NSIDC iconc interp to mesh025')
+ax2.set_title(f'NRT NSIDC iconc {YR}/{MM:02d}/{DD:02d}')
 
 ax21 = plt.axes([0.05, 0.1, 0.4, 0.4])
 m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
@@ -217,7 +215,7 @@ ax22 = plt.axes([0.55, 0.1, 0.4, 0.4])
 m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
 m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 img2 = ax22.pcolormesh(xh,yh,(AA-AI), cmap=clrmp_dlt, vmin=dmin, vmax=dmax)
-ax22.set_title(f'diff iconc UFS vs NSIDC {YR}/{MM:02d}/{DD:02d}')
+ax22.set_title(f'diff iconc (UFS({line_lbl})-NSIDC) {YR}/{MM:02d}/{DD:02d}')
 
 
 # Colorbars

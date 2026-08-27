@@ -103,6 +103,8 @@ def sfs_tests_info(enmb):
 
   hsU - designates updated hsnow insertion code (see extp 11 in DATM UFS: ice freeboard + enthalpy)
   hsU = hs+qi+fbrd  - updated hsnow code
+  ALL = ai+hi+hsU+ITDrdg+snphys
+
   in all expts with sn. physics: thermo 
   SNPHYS = thermo+ITDrdg+snphys 
   radpar - changed parameters for dlt Eddington to increase snow albedo during melting
@@ -111,17 +113,22 @@ def sfs_tests_info(enmb):
   Switching to experiments with standard setup:
   ai+hi+hsU+ITDrdg+snphys+radpar with MOM6 Tfrz = radpar with tr_pond_lvl parameterization
 
+  SFSb2 - SFS beta2 parameters: pond topo, + ALL initializations
   """
   EXPTS = {
     "01" : "control 20240701",
     "02" : "ai+hi+hsU+ITDrdg+snphys+Tfrz",
     "03" : "control 20250701",
     "04" : "ai+hi",
-    "05" : "radpar+sealvl",      # sealvl pond  with tuned pond param: pndaspect=1.2, apnd_sl=0.2
-    "06" : "radpar+pondtopo",    # expt07 but pond parameterization topo
-    "07" : "radpar+pondlvl",     # pond_lvl with all other settings 
-    "08" : "radpar+pondtopo+newsnclim",     # pond_topo with updated summer snow clim
-    "09" : "radpar+nopond",
+    "05" : "ALL+radpar+sealvl",      # sealvl pond  with tuned pond param: pndaspect=1.2, apnd_sl=0.2
+    "06" : "ALL+radpar+pondtopo",    # expt07 but pond parameterization topo
+    "07" : "ALL+radpar+pondlvl",     # pond_lvl with all other settings 
+    "08" : "ALL+radpar+pondtopo+snclim",     # pond_topo with updated summer snow clim
+    "09" : "ALL+radpar+nopond",
+    "10" : "ALL+radpar+sealvl+snclim",        # sea level pond parameterization
+    "11" : "ALL+radpar+sealvl+drain+snclim",  # sea level pond + change tscale_pnd_drain = 0.5 (default=10)
+    "12" : "e11+MLgbr3-nsidc",         # similar to expt11 with ML derived ice thickness (iconc from NSIDC)
+    "13" : "SFSb2+MLgbr3-nsidc",         # SFSbeta2 params + ALL (similar to expt08)  with ML ice thickness (iconc from NSIDC)
     "61" : "ai+hi+hsU+ITDrdg+snphys_debug",   # cat. ice output for debugging
     "62" : "ai+hi+hsU+ITDrdg+snphys",            #  same as 61, every step output 1 day run
     "63" : "ai+hi+hsU+ITDrdg+snphys+pondpar",   #  tr_pond_lvl params changed, every step out 

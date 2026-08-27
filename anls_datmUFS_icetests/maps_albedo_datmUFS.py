@@ -120,9 +120,11 @@ yr0,mm0,dd0,hr0 = mtime.datevec(dnmb0, round_hrs=True)[:4]
 YR,MM,DD = mtime.datevec(dnmb0)[:3] 
 nsec0 = hr0*3600
 
+RMsk = np.where(HH>=0, 0, 1)
 if regn == 'south':
-  RMsk = np.where(HH>=0, 0, 1)
-  RMsk = np.where(hlat > -60., 0, RMsk)
+  RMsk = np.where(hlat > -30., 0, RMsk)
+else:
+  RMsk = np.where(hlat < 30., 0, RMsk)
 
 # Get ithkn monthly clim interpolated to mesh025
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
@@ -154,29 +156,32 @@ rmax = 1.
 
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
+
+# Info about experiments:
+import mod_gfs_cice_anls as mgfscice
+importlib.reload(mgfscice)
+line_lbl = mgfscice.sens_tests_info(enmb)
+
+
 if regn == 'south':
   m = Basemap(projection='spstere',boundinglat=-50,lon_0=180,resolution='l')
-#lons, lats = m.makegrid(idim, jdim) # get lat/lons of ny by nx evenly spaced grid.
-parallels = np.arange(-80,-10,10.)
-meridians = np.arange(-360,359.,45.)
-xl1 = -8.e6
-xl2 = -1.2e6
-yl1 = xl1
-yl2 = xl2 
+  parallels = np.arange(-80,-10,10.)
+  meridians = np.arange(-360,359.,45.)
+elif regn == 'north':
+  m = Basemap(projection='npstere', boundinglat=50, lon_0=-10, resolution='l')
+  parallels = np.arange(40, 89, 10.)
+  meridians = np.arange(-360, 359., 45.)
+
 
 xh, yh = m(hlon,hlat) 
 
 fig1 = plt.figure(1,figsize=(9,9))
 plt.clf()
 ax1 = plt.axes([0.1, 0.1, 0.8, 0.8])
-m.drawparallels(parallels,labels=[1,0,0,0],fontsize=10)
-m.drawmeridians(meridians,labels=[0,0,0,1],fontsize=10)
+m.drawparallels(parallels,labels=[0,0,0,0],fontsize=10)
+m.drawmeridians(meridians,labels=[0,0,0,0],fontsize=10)
 img1 = ax1.pcolormesh(xh,yh,AA, cmap=clrmp, vmin=rmin, vmax=rmax)
-ax1.set_title(f'UFS expt{enmb:02d} snow/ice albedo {YR}/{MM:02d}/{DD:02d}, FDAY: {fday}')
-ax1.set_xlim([xl1, xl2]) 
-ax1.set_ylim([yl1, yl2]) 
-ax1.invert_yaxis()
-ax1.invert_xaxis()
+ax1.set_title(f'datmUFS expt{enmb:02d} {line_lbl} snow/ice albedo \n{YR}/{MM:02d}/{DD:02d}, FDAY: {fday}')
 
 
 # Colorbars
@@ -185,7 +190,7 @@ clb = plt.colorbar(img1, cax=ax3, orientation='horizontal', extend='max')
 ax3.xaxis.set_ticks(list(np.linspace(rmin,rmax,11)))
 ax3.set_xticklabels(ax3.get_xticks())
 ticklabs = clb.ax.get_xticklabels()
-clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
+clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=14)
 clb.ax.tick_params(direction='in', length=12)
 
 btx = 'maps_albedo_datmUFS.py'
