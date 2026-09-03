@@ -47,6 +47,7 @@ def datenum(ldate0, ldate_ref=[1,1,1,0,0]):
   DD = int(DD)
   HR = int(HR)
   MN = int(MN)
+
   time0 = datetime.datetime(YR,MM,DD,HR,MN,0)
   timeR = datetime.datetime(YRr,MMr,DDr,HRr,MNr,0)
 
@@ -273,6 +274,9 @@ def rdate2datenum(rdate):
   Ldate = [YR,MM,DD,HR]
   dnmb = datenum(Ldate)
 
+  if HR == 0:
+    dnmb = int(dnmb)
+
   return dnmb
 
 def dateint2datenum(dateInt):
@@ -294,7 +298,7 @@ def dateint2datenum(dateInt):
     year = dateInt // 10000
     month = (dateInt % 10000) // 100
     day = dateInt % 100
-    dnmb = datenum([year,month,day])
+    dnmb = int(datenum([year,month,day]))
 
   return dnmb
 

@@ -1,0 +1,44 @@
+---
+MOM6:
+  pthgrid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
+  pthdata: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data'
+  pthcice: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/ufs_datm_mx025/expt{enmb:02d}/cice6'
+  pthrun:  '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS'
+  pthrest: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields' 
+
+CICE6:
+  pthgrid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
+  pthdata: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data'
+  pthcice: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/ufs_datm_mx025/expt{enmb:02d}/cice6'
+  pthrun:  '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS'
+  pthrest: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields' 
+
+GFS:
+  pthgrid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
+  pthcomroot: '/gpfs/f6/gfs-cpu/world-shared/role.glopara/RETRO_GFSv17/failureinfo/stream4/202507140600_gfs_fcst/comroot'
+  subdir_ice: 'gfs.{YR}{MM:02d}{DD:02d}/{hr:02d}/model/ice/history'
+  subdir_ocean: 'gfs.{YR}{MM:02d}{DD:02d}/{hr:02d}/model/ocean/history'
+
+GDAS:
+  pthdata: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data'
+  pthgdas: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/gdas.{YR}{MM:02d}{DD:02d}'
+  pthdaily: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GDAS_T2m/glob/daily_gdas_grid/{YR}'
+  pthit2m: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GDAS_T2m/{regn}/{YR}'
+  pthsoca_ice: "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ice.{YR}{MM:02d}{DD:02d}"
+  flsoca_ice: "{YR}{MM:02d}{DD:02d}.030000.cice_model.res.nc"
+  
+PRED:
+  # Predictor fields
+  pthprd: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/predictors"
+  flfrzdgr: "IFDD_GDAS_{Ndays:03d}days_dxy{dxy:03d}_{rdate}_{regn}"
+  fldivui: "divUice_CICE6_dxy{dxy:03d}_{rdate}_{regn}"
+  flmnice: "CICE6_mean_icevol_ithkn_mnthly_{YR}"
+
+north:
+  name: Arctic
+  lat0: 55.0
+
+south:
+  name: Antarctic
+  lat0: -55.0
+

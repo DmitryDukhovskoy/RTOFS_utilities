@@ -457,7 +457,7 @@ if not final:
   print("Finished without saving final netcdf")
 
 else:
-  fgmapi  = f'AMSR2_to_mesh025_gmapi_{idm}x{jdm}_{regn}.nc'
+  fgmapi  = f'GDASatm_reggrid_to_mesh025_gmapi_{idm}x{jdm}_{regn}.nc'
   dfgmapi = os.path.join(pthdump, fgmapi)
   print(f"Final saving NetCDF --> {dfgmapi}")
   save_netcdf(IMOM, JMOM, INDX_list, JNDX_list, LON, LAT, dfgmapi, flip_north) 

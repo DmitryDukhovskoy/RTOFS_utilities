@@ -1274,8 +1274,13 @@ def colormap_cold_warm(Ncmp=200, ins_white=False, n_white=3):
 def colormap_difference_negpos(Ncmp=200, n_white=4):
   """
     Colormap for showing differences with positive and negative values centered around 0
+    or (if no white) to show any other field from dark purple -> blue -> yellow -> dark red
+
+    For negative positive:
     transition - white
     n_white - width of the color region
+
+    n_white = 0 - no white
   """
 
   CLR_thermal = np.array([
@@ -1313,13 +1318,19 @@ def colormap_difference_negpos(Ncmp=200, n_white=4):
   neg_colors = neg_cmap(np.linspace(0, 1, n_side))[:, :3]
   pos_colors = pos_cmap(np.linspace(0, 1, Ncmp - n_white - n_side))[:, :3]
 
-  white = np.ones((n_white, 3))
+  if n_white > 0:
+    white = np.ones((n_white, 3))
+    colors = np.vstack([
+        neg_colors,
+        white,
+        pos_colors
+    ])
+  else:
+    colors = np.vstack([
+        neg_colors,
+        pos_colors
+    ])      
 
-  colors = np.vstack([
-      neg_colors,
-      white,
-      pos_colors
-  ])
 
   CMP = create_colormap(
       colors,
@@ -1329,6 +1340,46 @@ def colormap_difference_negpos(Ncmp=200, n_white=4):
   )
 
   return CMP
+
+def colormap_temperature_coldwarm(Ncmp=200):
+  """
+    Colormap for showing scalar fields from low to high
+    with contrast colormap: dark purple --> blue --> green --> orange --> red
+  """
+  CLR_thermal = np.array([
+      [0.12, 0.00, 0.35],   # very dark purple
+      [0.20, 0.00, 0.50],   # dark purple
+      [0.32, 0.00, 0.60],   # purple
+      [0.25, 0.08, 0.68],   # violet
+      [0.10, 0.20, 0.70],   # indigo
+      [0.00, 0.30, 0.70],   # blue
+      [0.00, 0.42, 0.78],   # blue
+      [0.00, 0.55, 0.82],   # blue-cyan
+      [0.00, 0.65, 0.80],   # cyan
+      [0.10, 0.72, 0.75],   # turquoise
+      [0.30, 0.78, 0.70],   # teal-green
+      [0.50, 0.83, 0.70],   # green
+      [0.68, 0.86, 0.72],   # pale green
+      [0.82, 0.89, 0.70],   # yellow-green
+      [0.95, 0.94, 0.65],   # pale yellow
+      [1.00, 0.90, 0.40],   # yellow
+      [0.95, 0.78, 0.15],   # yellow-orange
+      [0.90, 0.62, 0.00],   # orange
+      [0.95, 0.42, 0.00],   # orange-red
+      [0.98, 0.22, 0.00],   # red-orange
+      [1.00, 0.08, 0.00],   # red
+      [0.80, 0.00, 0.00],   # dark red
+  ])
+
+  CMP = create_colormap( 
+      CLR_thermal,
+      Ncmp,
+      cmp_obj=True, 
+      add_alpha=False
+  )      
+         
+  return CMP
+
 
 
 
