@@ -58,8 +58,10 @@ target_paths:
     file: "NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc"
 
   ithkn_north:
-    path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn"
-    file: "ML_gbr3_ithkn_iconc_nsidc_mesh025_{YR}{MM:02d}{DD:02d}_{regn}.nc"
+#    path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/ithkn_glorys_input_predictions"
+#    file: "ML_gbr3_ithkn_iconc_nsidc_mesh025_{YR}{MM:02d}{DD:02d}_{regn}.nc"
+    path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/ithkn_predictions"
+    file: "gbr3_ithkn_GFSv17anls_mesh025_{YR}{MM:02d}{DD:02d}_{regn}.nc"
 
   ithkn_south:
     path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/cice4_fcast/{rdate}/interp_mesh025"

@@ -85,14 +85,12 @@ hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 DX, DY = dx_dy(hlon, hlat)
 Acell = DX*DY
 
-  
 with xr.open_dataset(dftopo_mom) as dstopo:
-  HH = dstopo['depth'].values.squeeze()
-  
-HH = np.where(HH < 1.e-20, np.nan, HH)
-HH = -HH
-HH = np.where(np.isnan(HH), 1., HH)
-  
+  depth = dstopo['depth'].data.squeeze()
+
+# Convert all positive values -> land (100) and ocean (<0):
+HH = np.where(depth < 1.e-20, 100., -depth)
+ 
 jdm, idm = HH.shape
 LMsk = HH < 0
 

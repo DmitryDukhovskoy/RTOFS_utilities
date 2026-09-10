@@ -1,0 +1,1 @@
+../prepare_cice6/plot_GLORYS_ithkn_Nsbplt.py

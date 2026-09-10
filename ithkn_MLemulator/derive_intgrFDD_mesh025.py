@@ -326,7 +326,7 @@ JG, IG = np.where(LMsk == 1)
 assert np.all(~np.isnan(IFDDi[JG,IG])), "Unexpected nan values in IFDDi at active grid points, check LMsk"
 
 pthprd = pths_ml["PRED"]["pthprd"]
-flfrz0 = pths_ml["PRED"]["flfrzdgr"].format(Ndays=intgr_time, dxy=dxy, rdate=rdate, regn=regn)
+flfrz0 = pths_ml["PRED"]["flifdd"].format(Ndays=intgr_time, dxy=dxy, rdate=rdate, regn=regn)
 if save_nc:
   flfrz = f"{flfrz0}.nc"
   dfliceout = os.path.join(pthprd, flfrz)

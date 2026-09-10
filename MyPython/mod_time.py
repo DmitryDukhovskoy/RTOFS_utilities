@@ -589,6 +589,15 @@ def month_days(imo, YR):
 
   return ndays
 
+def year_days(YR):
+  """
+    Find the number of days in a year
+  """
+  ndays = datenum([YR,12,31]) - datenum([YR,1,1]) + 1
+  ndays = int(ndays)
+
+  return ndays
+
 def npdatetime_year(yrS, yrE=0, day_start=1, day_end=366, dlt_day=1, tprecis='D'):
   """
     Create np array of npdatetime for year yr0

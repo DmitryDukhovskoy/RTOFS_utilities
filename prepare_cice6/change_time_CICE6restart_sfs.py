@@ -29,9 +29,11 @@ sys.path.append(PPTHN + '/MyPython/mom6_utils')
 sys.path.append('./seasonal-workflow')
 import mod_time as mtime
 
+#flinp = '20250701.030000.cice_model.res.nc'
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--flinp", help="CICE restart original file to be modified", 
-                    required=True, type=str)
+                    required=True)
 parser.add_argument("--dateout", help="New restart date YYYYMMDD", type=int, required=True)
 #parser.add_argument("--hrin", help="Old Restart hour, deafult=0", default=0, type=int)
 parser.add_argument("--hrout", help="New Restart hour, default=0", default=0, type=int)
@@ -44,8 +46,13 @@ dstamp_new = args.dateout
 hr_new = args.hrout
 
 # Original restarts:
-pthinp = "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice"
+#pthinp = "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice"
+pthinp = "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ice.20250701"
 dfold = os.path.join(pthinp, flrst_old)
+
+# Output dir
+#pthout = pthinp
+pthout = "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields"
 
 # Get date in the original restat file
 with xarray.open_dataset(dfold) as ds:
@@ -64,7 +71,8 @@ dnmb_new = mtime.rdate2datenum(dstamp_new*100 + hr_new)
 yrN, mmN, ddN = mtime.datevec(dnmb_new, round_hrs=True)[:3]
 
 #flrst_old = f"{yrP}{mmP:02d}{ddP:02d}.{nsec:06d}.cice_model.res.nc"
-flrst_new = f"{yrN}{mmN:02d}{ddN:02d}.{hr_new:02d}.cice_model.res.nc"
+#flrst_new = f"{yrN}{mmN:02d}{ddN:02d}.{hr_new:02d}.cice_model.res.nc"
+flrst_new = f"{yrN}{mmN:02d}{ddN:02d}.{hr_new:02d}.soca.cice_model.res.nc"
 
 # For information only:
 print(f"Original CICE restart: {flrst_old} --> new: {flrst_new}")
@@ -72,7 +80,6 @@ print(f"Original time in the file: {dstamp_old} msec={msec}")
 print(f"New time in the file: {dstamp_new} msec={hr_new*3600}")
 
 # Modified restarts:
-pthout = pthinp
 os.makedirs(pthout, exist_ok=True)
 
 dfnew  = os.path.join(pthout, flrst_new)

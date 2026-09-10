@@ -35,6 +35,7 @@ from mod_utils_fig import bottom_text
 import mod_time as mtime
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
+import mod_gfs_cice_anls as mgfs
 
 init_date = 20250701
 init_hr = 0

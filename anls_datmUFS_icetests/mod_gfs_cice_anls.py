@@ -93,6 +93,8 @@ def sfs_tests_info(enmb):
 
     Tfrz - updated SST in MOM6 = Tfrz * aice 
 
+    control runs use SFS IC (from CPC: iconc, ithkn, etc.)
+
     2024/07/01 - for varying time period
     expt01 and expt02
 
@@ -116,9 +118,10 @@ def sfs_tests_info(enmb):
   SFSb2 - SFS beta2 parameters: pond topo, + ALL initializations
   """
   EXPTS = {
+    "00" : "Sat.clim",          # reserved field for satellite-derived climatology (ice thkn or snow)
     "01" : "control 20240701",
     "02" : "ai+hi+hsU+ITDrdg+snphys+Tfrz",
-    "03" : "control 20250701",
+    "03" : "control 20250701",    # init ice - from CPC used in SFS
     "04" : "ai+hi",
     "05" : "ALL+radpar+sealvl",      # sealvl pond  with tuned pond param: pndaspect=1.2, apnd_sl=0.2
     "06" : "ALL+radpar+pondtopo",    # expt07 but pond parameterization topo
@@ -127,8 +130,9 @@ def sfs_tests_info(enmb):
     "09" : "ALL+radpar+nopond",
     "10" : "ALL+radpar+sealvl+snclim",        # sea level pond parameterization
     "11" : "ALL+radpar+sealvl+drain+snclim",  # sea level pond + change tscale_pnd_drain = 0.5 (default=10)
-    "12" : "e11+MLgbr3-nsidc",         # similar to expt11 with ML derived ice thickness (iconc from NSIDC)
-    "13" : "SFSb2+MLgbr3-nsidc",         # SFSbeta2 params + ALL (similar to expt08)  with ML ice thickness (iconc from NSIDC)
+    "12" : "e11+MLgbr3-nsidc",    # similar to expt11 with ML ithkn (input: iconc NSIDC + GLORYS)
+    "13" : "SFSb2+MLgbr3-nsidc",  # SFSbeta2 params + ALL (similar to expt08),  ML ice thickness (iconc NSIDC + GLORYS)
+    "14" : "SFSb2+MLgbr3_20250701", # SFSbeta2 params + ALL,  ML ice thickness input: GDAS, lower R_snw (1.8)
     "61" : "ai+hi+hsU+ITDrdg+snphys_debug",   # cat. ice output for debugging
     "62" : "ai+hi+hsU+ITDrdg+snphys",            #  same as 61, every step output 1 day run
     "63" : "ai+hi+hsU+ITDrdg+snphys+pondpar",   #  tr_pond_lvl params changed, every step out 
@@ -188,3 +192,71 @@ def gfs_retro_runs(run_name, node_nm, model='ice'):
           raise Exception("Check inputs for gfs retro experiments")
 
   return RUNS
+
+
+def plot_polar2d(A2d, hlon, hlat, regn='north', fgn=1, clrname='ice_thkn', 
+                 rmin=None, rmax=None, sttl='Field A2d',
+                 btx="mod_gfs_cice_anls.py"):
+  """
+    Quick stereorgraphic map of a 2D field (A2d)
+    hlon, hlat - geogra coord, model grid
+
+  """
+  import mod_colormaps as mclrmps
+  from mod_utils_fig import minmax_clrmap, colorbar_horiz, bottom_text
+  from mpl_toolkits.basemap import Basemap, cm
+  
+  if clrname == 'ice_thkn':
+    clrmp = mclrmps.colormap_ice_thkn()
+  elif clrname == 'ice_conc':
+    clrmp = mclrmps.colormap_ice_conc()
+    
+  if rmin is None or rmax is None:
+    rmin, rmax = minmax_clrmap(A2d)
+
+  clrmp.set_bad(color=[0.1, 0.1, 0.1])
+  cntr_clr = [0.9,0.,1]
+    
+  if regn == 'south':
+    m = Basemap(projection='spstere',boundinglat=-55,lon_0=180,resolution='l')
+    parallels = np.arange(-80,-10,10.)
+    meridians = np.arange(-360,359.,45.)
+  elif regn == 'north': 
+    m = Basemap(projection='npstere',boundinglat=60,lon_0=-10,resolution='l')
+    parallels = np.arange(50, 90, 5)
+    meridians = np.arange(-360, 359., 45.)
+
+  xh, yh = m(hlon,hlat) # GFS coords
+
+  plt.ion()
+  
+  fig1 = plt.figure(fgn, figsize=(9,8))
+  plt.clf()        
+  ax1 = plt.axes([0.1, 0.12, 0.8, 0.8])
+                   
+  if regn == 'north':
+    m.drawparallels(np.arange(60, 90, 10), labels=[0,0,0,0])
+  elif regn == 'south':
+    m.drawparallels(np.arange(-80, -50, 10), labels=[0,0,0,0])
+                    
+  m.drawmeridians(np.arange(-180, 180, 45), labels=[0,0,0,0])
+  m.drawcoastlines()
+  
+  img = ax1.pcolormesh(xh, yh, A2d, cmap=clrmp, vmin=rmin, vmax=rmax)
+  
+  ax1.set_title(sttl, fontsize=12)
+
+  #Plot colrbar
+  clb = colorbar_horiz(fig1, ax1, img, rmin=rmin, rmax=rmax, decim=2, extd='max')
+
+  fig1.canvas.draw()
+
+  pos_clb = clb.ax.get_position()
+  bot_clb = pos_clb.y0 
+  pbtm = bot_clb - 0.05
+
+  bottom_text(btx, pos=[0.02,0.02], fsz=8)
+
+  return fig1, ax1, img, clb
+
+

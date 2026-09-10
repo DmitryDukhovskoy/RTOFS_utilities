@@ -70,7 +70,6 @@ if 'PPTHN' not in locals() or PPTHN is None:
 
 sys.path.extend([
     os.path.join(PPTHN, 'MyPython', 'hycom_utils'),
-    os.path.join(PPTHN, 'MyPython', 'draw_map'),
     os.path.join(PPTHN, 'MyPython'),
     os.path.join(PPTHN, 'MyPython', 'mom6_utils')
 ])

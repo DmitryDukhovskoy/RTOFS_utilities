@@ -26,19 +26,51 @@ GDAS:
   pthit2m: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GDAS_T2m/{regn}/{YR}'
   pthsoca_ice: "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ice.{YR}{MM:02d}{DD:02d}"
   flsoca_ice: "{YR}{MM:02d}{DD:02d}.030000.cice_model.res.nc"
-  
+  pthocean: "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ocean.{YR}{MM:02d}{DD:02d}"
+  flocean: "gdas.t18z.inst.f006.nc"  
+
 PRED:
   # Predictor fields
-  pthprd: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/predictors"
-  flfrzdgr: "IFDD_GDAS_{Ndays:03d}days_dxy{dxy:03d}_{rdate}_{regn}"
-  fldivui: "divUice_CICE6_dxy{dxy:03d}_{rdate}_{regn}"
-  flmnice: "CICE6_mean_icevol_ithkn_mnthly_{YR}"
+  pthprd:    "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/predictors"
+  pthifdd:   "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/predictors"
+  flifdd:    "IFDD_GDAS_{Ndays:03d}days_dxy{dxy:03d}_{rdate}_{regn}"
+  fldivui:   "divUice_CICE6_dxy{dxy:03d}_{rdate}_{regn}"
+  flmnice:   "CICE6_mean_icevol_ithkn_mnthly_{YR}"
+  pthglr:    "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GLORYS_ithkn_interp_UFSmesh025"
+  pthsst:    "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ocean.{mom_rdate}"
+  flsst:     "gdas.t{hr:02d}z.inst.f{fhr:03d}.nc"
+  pthiconc:  "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ice.{YR}{MM:02d}{DD:02d}"
+  fliconc:   "{YR}{MM:02d}{DD:02d}.030000.cice_model.res.nc"
+  pthui:     "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ice.{YR}{MM:02d}{DD:02d}"
+  flui:      "{YR}{MM:02d}{DD:02d}.030000.cice_model.res.nc"
+  pthit2m:   "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GDAS_T2m/{regn}/{YR}" 
+  flt2m:     "GDAS_t2m_interp_mesh025_1080x1440_{YR}{MM:02d}{DD:02d}_{regn}.nc"
+  pthdump:   "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/ithkn_predictions"
 
+ml:
+  gbr1:
+    mlname: "GradBoostRegr_model01_{regn}"
+    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_GradBoostRegr"
+  gbr2:
+    mlname: "GradBoostRegr_model02_{regn}"
+    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_GradBoostRegr"
+  gbr3:
+    mlname: "GradBoostRegr_model03_{regn}"
+    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_GradBoostRegr"
+  rf1:
+    mlname: "RF_model01_{regn}"
+    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_RF"
+  rf2:
+    mlname: "RF_model02_{regn}"
+    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_RF"
+  
 north:
   name: Arctic
   lat0: 55.0
+  lat_ml: 65.   # ML emulator boundary
 
 south:
   name: Antarctic
   lat0: -55.0
+  lat_ml: -60.  # ML emulator boundary
 

@@ -1380,6 +1380,34 @@ def colormap_temperature_coldwarm(Ncmp=200):
          
   return CMP
 
+def colors_discrete_contours():
+  """
+    Colors for showing distinct lines / contours
+    20 colors
+  """
+  CLRS      = np.array([
+      [0.00, 0.45, 0.70],  # blue
+      [0.90, 0.17, 0.31],  # red
+      [0.00, 0.62, 0.38],  # green
+      [0.90, 0.60, 0.00],  # orange
+      [0.95, 0.90, 0.25],  # yellow
+      [0.80, 0.47, 0.65],  # pink/violet
+      [0.35, 0.70, 0.90],  # light blue
+      [0.50, 0.39, 0.64],  # purple
+      [0.55, 0.63, 0.79],  # steel blue
+      [0.40, 0.60, 0.00],  # olive green
+      [0.70, 0.30, 0.00],  # brown
+      [0.70, 0.00, 0.30],  # wine red
+      [0.00, 0.55, 0.75],  # teal
+      [0.75, 0.75, 0.75],  # light gray
+      [0.30, 0.30, 0.30],  # dark gray
+      [0.10, 0.80, 0.60],  # aqua green
+      [0.55, 0.20, 0.60],  # plum purple
+      [0.20, 0.70, 0.30],  # jade green
+      [0.80, 0.55, 0.35],  # tan
+      [0.25, 0.25, 0.55]   # deep indigo
+  ])
+  return CLRS
 
 
 

@@ -54,7 +54,7 @@ parser.add_argument("--ndays", help=f"Optional: N days to show from init, will o
 parser.add_argument("--pinit", help="Show initial state if exists: 1=yes (default), 0=no", default=1, type=int)
 parser.add_argument(
     "--enmb",
-    help="List of experiment numbers (e.g., 1 3 9 12)",
+    help="List of experiment numbers (e.g., 1 3 9 12), 0 - satellite climatology",
     type=int,
     nargs="+",             # <-- allows one or more integers and will generate a list
     required=True
@@ -166,6 +166,24 @@ def read_glorys_icefld(rdate, dfglr, HH):
 
   return A2d
 
+def read_ithkn_climatology(pthdata, dnmb0, regn):
+  if regn == 'north':
+    pthice   = os.path.join(pthdata, 'ithkn_clim_combined')
+    fliceout = 'ithkn_mnthclim_cryo_avhrr_ices_1440x1080_north.nc'
+  elif regn == 'south':
+    pthice   = os.path.join(pthdata, 'CryoSat2_antarctic_ice_snow_thkn','clim')
+    fliceout = 'CryoSat_hice_mnthclim_2011_2020_mesh025_1440x1080_south.nc'
+
+  dfliceout = os.path.join(pthice,fliceout)
+  print(f"Reading {dfliceout}")
+  assert os.path.isfile(dfliceout), f"File not found: {dfliceout}"
+  YR, MM, DD = mtime.datevec(dnmb0, round_hrs=True)[:3]
+
+  with xr.open_dataset(dfliceout) as dsice:
+    hice = dsice['ice_thkn'].isel(time=MM-1).values.squeeze()
+
+  return hice
+
 # Create an array of day numbers with 0hr = init cond, 12 hr - daily means
 # Assumed: runs start at 0 hr, if not - may need to change the logic 
 # for finding the ic fields 
@@ -195,31 +213,37 @@ for enmb in ENMBS:
     rdate = YR*10000 + MM*100 + DD
 
     track_prst = (nprst > 0) and np.isin(enmb, PRST)
-    if hr == 0:
-      # Initial state
-      nsec0 = 0 
-      flcice = f"iceh_ic.{YR}-{MM:02d}-{DD:02d}-{nsec0:05d}.nc"
-      dflice = os.path.join(pthout_cice,flcice)
+    # Read climatology:
+    if enmb == 0:
+      print("Reading climatology")
+      AA = read_ithkn_climatology(pthdata, dnmb, regn)
 
-      if not os.path.isfile(dflice) or not plt_init:
-        print(f"Initial state file is missing or not requested plt_init, proceed without it ...")
-        irec += 1
-        RMSE[irec, iens] = np.nan
-        continue
     else:
-      print(f"Processing {YR}/{MM}/{DD} expt{enmb:02d}...")
-      flcice = f"iceh.{YR}-{MM:02d}-{DD:02d}.nc"
-      dflice = os.path.join(pthout_cice,flcice)
+      if hr == 0:
+        # Initial state
+        nsec0 = 0 
+        flcice = f"iceh_ic.{YR}-{MM:02d}-{DD:02d}-{nsec0:05d}.nc"
+        dflice = os.path.join(pthout_cice,flcice)
 
-    print(f"Processing {dflice}")
-    with xr.open_dataset(dflice) as dcice:
-      for varnm in ['hi_h', 'hi_d']:
-        if varnm in dcice:
-          AA = dcice[varnm].values.squeeze()
-          break
+        if not os.path.isfile(dflice) or not plt_init:
+          print(f"Initial state file is missing or not requested plt_init, proceed without it ...")
+          irec += 1
+          RMSE[irec, iens] = np.nan
+          continue
       else:
-        print(list(dcice.data_vars))
-        raise KeyError(f"No aice_h or aice_d in {dflice}")
+        print(f"Processing {YR}/{MM}/{DD} expt{enmb:02d}...")
+        flcice = f"iceh.{YR}-{MM:02d}-{DD:02d}.nc"
+        dflice = os.path.join(pthout_cice,flcice)
+
+      print(f"Processing {dflice}")
+      with xr.open_dataset(dflice) as dcice:
+        for varnm in ['hi_h', 'hi_d']:
+          if varnm in dcice:
+            AA = dcice[varnm].values.squeeze()
+            break
+        else:
+          print(list(dcice.data_vars))
+          raise KeyError(f"No aice_h or aice_d in {dflice}")
 
     # Interpolated GLORYS ithkn fields:
     pthglr = '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GLORYS_ithkn_interp_UFSmesh025'
@@ -233,6 +257,14 @@ for enmb in ENMBS:
     AA = np.where(RMsk == 0, np.nan, AA)
     AI = np.where(RMsk == 0, np.nan, AI)
     rmse_mo = rmse2d(AA, AI)
+
+    f_check = False
+    if f_check:
+      fig1, ax1, img, clb = mgfs.plot_polar2d(AA, hlon, hlat, rmin=0, rmax=3,
+                                  regn='north', sttl=f"ithkn expt{enmb} {rdate}")
+      fig1, ax1, img, clb = mgfs.plot_polar2d(AI, hlon, hlat, rmin=0, rmax=3,
+                                  regn='north', sttl=f"GLORYS ithkn {rdate}")
+      A = STOP
 
     irec += 1
     if track_prst:

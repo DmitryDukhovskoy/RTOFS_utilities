@@ -159,8 +159,12 @@ def rmse2d(AA, AI):
   Jice, Iice = np.where(((AA > 1.e-3) | (AI > 1.e-3)) & ~np.isnan(AA) & ~np.isnan(AI))
 
   Nice = len(Jice)
-  assert(Nice>0), f"No ice grid found at {YR}/{MM:02d}/{DD:02d}"
-  rmse_mo = np.sqrt(1./float(Nice)*np.sum(sqerr[Jice,Iice]))
+  #assert(Nice>0), f"No ice grid found at {YR}/{MM:02d}/{DD:02d}"
+  if Nice > 0:
+    rmse_mo = np.sqrt(1./float(Nice)*np.sum(sqerr[Jice,Iice]))
+  else:
+   # Corrupted NSIDC field:
+   rmse_mo = np.nan
 
   return rmse_mo
 
@@ -172,17 +176,18 @@ def read_nsidc(regn, dnmb):
     NSIDC_err = np.array([])
    
   YR, MM, DD = mtime.datevec(dnmb)[:3]
+
+  # Interpolated NSIDC obs fields:
+  pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
+  fliceout = f'NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc'
+  dfliceout = os.path.join(pthnsidc,fliceout)
+  print(f'Loading interpolated ice conc {dfliceout}')
+  with xarray.open_dataset(dfliceout) as dsint:
+    AI = dsint['ice_conc'].isel(time=DD-1).squeeze()
+
   if int(dnmb) in NSIDC_err:
     # Error ice conc fields
-    rmse_mo = np.nan
-  else:
-    # Interpolated NSIDC obs fields:
-    pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
-    fliceout = f'NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc'
-    dfliceout = os.path.join(pthnsidc,fliceout)
-    print(f'Loading interpolated ice conc {dfliceout}')
-    with xarray.open_dataset(dfliceout) as dsint:
-      AI = dsint['ice_conc'].isel(time=DD-1).squeeze()
+    AI = AI * np.nan
 
   return AI
 
@@ -265,7 +270,7 @@ for enmb in ENMBS:
 
     AA = np.where(RMsk == 0, np.nan, AA)
     AI = np.where(RMsk == 0, np.nan, AI)
-    rmse_mo = rmse2d(AA,AI)
+    rmse_mo = rmse2d(AA, AI)
 
     irec += 1
     if track_prst:
@@ -384,6 +389,6 @@ ax3 = plt.axes([0.08, 0.1, 0.6, 0.2])
 lgd = plt.legend(handles=LNS, loc='lower left')
 ax3.axis('off')
 
-btx = 'calc_rmse_iconc_SFSvsNSIDC.py'
+btx = 'calc_rmse_iconc_SFSvsNSIDC_AMSR2.py'
 bottom_text(btx, pos=[0.1,0.05])
 
