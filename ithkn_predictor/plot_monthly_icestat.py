@@ -26,7 +26,7 @@ import matplotlib.colors as colors
 from mpl_toolkits.basemap import Basemap, cm
 from yaml import safe_load
 import argparse
-from pathlib import Path
+#from pathlib import Path
 
 #ROOT = Path(__file__).resolve().parent
 

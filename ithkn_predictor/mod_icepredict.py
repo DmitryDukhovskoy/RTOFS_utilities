@@ -19,10 +19,16 @@ def models_info():
       RF2:  Ntrees 200
       RF3:  Ntrees 5
       RF4:  Ntrees 2
+   Added predictor: integrated Heat Degree Days (IHDD)
+      RF11: Ntrees 50
+      RF12: Ntrees 100
+      RF13: Ntrees 10
     Hist. Grad Boost Regressor (decision tree)
       GBR1: max_leaf = 8,  max_iter=500,  max_depth=8
       GBR2: max_leaf = 31, max_iter=1000, max_depth=10
       GBR3: max_leaf = 63, max_iter=1500, max_depth=15
+   Added predictor: integrated Heat Degree Days (IHDD)
+      GBR11: max_leaf = 63, max_iter=1500, max_depth=15 
   """
 
   MODEL_NAMES = {
@@ -32,12 +38,120 @@ def models_info():
     "rf1"   : "RF_model01_north",
     "rf2"   : "RF_model02_north",
     "rf3"   : "RF_model03_north",
+    "rf11"  : "RF_model11_north",
+    "rf12"  : "RF_model12_north",
+    "rf13"  : "RF_model13_north",
     "gbr1"  : "GradBoostRegr_model01_north",
     "gbr2"  : "GradBoostRegr_model02_north",
     "gbr3"  : "GradBoostRegr_model03_north",
+    "gbr11"  : "GradBoostRegr_model11_north",
     }
 
   return MODEL_NAMES
+
+def ML_parameters(ml):
+  """
+    Dictionary with ML parameters
+    for RF and Gradient Boost Regressor
+
+   yday   - year day represented as cos(yday) + sin(yday) 
+   gcoord - geogr. coord. in spherical coordinates 
+ Dynamic predictors: 
+   mnithkn - monthly mean ice thickness (over ice area!), to account for interann. trend 
+   iconc   - ice concentration 
+   sst     - ocean SST 
+   divu    - area-mean ice divergence 
+   frzdays - integrated freeze degree days 
+   sat     - atm. surf. temp 
+
+ Models > 10:
+   added predictor: integr. heat degree days IHDD 
+
+
+  """
+
+  if ml == "RF" or ml == "rf":
+    MLPAR = {
+      "1": {
+        "Ntrees": 100,
+        "MinLeaf": 5,
+        "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "sat"],
+      },
+      "2": {
+        "Ntrees": 200,
+        "MinLeaf": 5,
+        "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "sat"],
+      },
+      "3": {
+        "Ntrees": 5,
+        "MinLeaf": 5,
+        "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "sat"],
+      },
+      "4": {
+        "Ntrees": 2,
+        "MinLeaf": 5,
+        "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "sat"],
+      },
+      "11": {
+        "Ntrees": 50,
+        "MinLeaf": 5,
+        "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "heatdays", "sat"],
+      },
+      "12": {
+        "Ntrees": 100,
+        "MinLeaf": 5,
+        "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "heatdays", "sat"],
+      },
+      "13": {
+        "Ntrees": 10,
+        "MinLeaf": 5,
+        "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "heatdays", "sat"],
+      },
+    }
+
+  elif ml == "GBR" or ml == "gbr":
+    MLPAR = {
+      "1": {
+        "max_leaf"  :  8,
+        "learn_rt"  :  0.05,
+        "max_iter"  :  500,
+        "max_depth" :  8,       # keep decision trees realtively short
+        "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "sat"],
+      },
+      "2": {
+        "max_leaf"  :  31,
+        "learn_rt"  :  0.05,
+        "max_iter"  :  1000,
+        "max_depth" :  10,
+        "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "sat"],
+      },
+      "3": {
+        "max_leaf"  :  63,
+        "learn_rt"  :  0.05,
+        "max_iter"  :  1200,
+        "max_depth" :  15,
+        "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "sat"],
+      },
+      "4": {
+        "max_leaf"  :  100,
+        "learn_rt"  :  0.05,
+        "max_iter"  :  1500,
+        "max_depth" :  15,
+        "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "sat"], 
+      },
+      "11": {
+        "max_leaf"  :  63,
+        "learn_rt"  :  0.05,
+        "max_iter"  :  1200,
+        "max_depth" :  15,     
+        "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "heatdays", "sat"],
+      },
+    }
+  
+  else:
+    raise RuntimeError(f"ML name not defined: {ml}")
+
+  return MLPAR
 
 def construct_ydays(DNMB, npnts, order_fast="time"):
   """
@@ -392,6 +506,28 @@ def intgr_Tfrz(SATprv, intgr_time, Tfrz, days_frz):
 
   return intgrFDD
 
+def intgr_heat_dgr(SATprv, intgr_time, Tfrz, days_frz):
+  """
+    Integrate heat degree days, T>Tfrz 
+    sum(T-Tfrz), when T2m atm > Tfrz ocean
+    Linear interpolation is safer
+  """
+  Tintrp = np.arange(days_frz[-1] - intgr_time, days_frz[-1]+1)
+  #cs = CubicSpline(days_frz, SATprv, axis=1)
+  # SATs during the requested previous Ndays
+  #SATi = cs(Tintrp)
+
+  interp = interp1d(days_frz, SATprv,
+                  axis=1,
+                  kind='linear')
+  SATi = interp(Tintrp)
+
+  T2frz = np.where(SATi > Tfrz, SATi, np.nan)
+  intgrHDD = np.nansum(T2frz - Tfrz, axis=1)  # integrated Heat Dgr Days
+
+  return intgrHDD
+
+
 def subset_era_frzdays(IG, JG, dnmbS, intgr_time, ndays_era, ptht2m, dfgmapi, regn, Tfrz=-1.85):
   """
     Derive dynamic predictor: sqrt of the number of freeze degree days
@@ -485,12 +621,13 @@ def subset_era_frzdays(IG, JG, dnmbS, intgr_time, ndays_era, ptht2m, dfgmapi, re
 
   assert np.all(days_frz > 0), "days_frz not populated, there are 0s"
   assert np.all(np.diff(days_frz)>0), "days_frz not increasing, required for time interpolation"
-  fld_pnts = intgr_Tfrz(SAT, intgr_time, Tfrz, days_frz)
+  tfrz_pnts = intgr_Tfrz(SAT, intgr_time, Tfrz, days_frz)
+  theat_pnts = intgr_heat_dgr(SAT, intgr_time, Tfrz, days_frz)
 
   if ds_t2m is not None:
     ds_t2m.close()
 
-  return fld_pnts
+  return tfrz_pnts, theat_pnts
 
 def subset_era_sat(dflt2m, IG, JG, dfgmapi, dnmb0):
   """
@@ -603,6 +740,8 @@ def construct_predictors_day(
   rdate = YR0*10000 + MM0*100 + DD0
   Iconc = None
   SST = None 
+  frzdays = None
+  heatdays = None
 
   regions = {
       "north": ("Arctic", 65.0),
@@ -659,20 +798,21 @@ def construct_predictors_day(
   if 'iconc' in PRED_NAMES:
     if iconc_fld == "glorys":
       print("\nDeriving GLORYS iconc")
+      varnm = 'siconc'
       pthice = os.path.join(DIRS["pthiconc"],f"{YR0}")
       dflice = mglr.find_file(rdate, pthice)
-      if dflice is None:
-          raise FileNotFoundError(f"Not found {dflice}")
-      Iconc = subset_glorys_iconc(dflice, IG, JG)
-    elif iconc_fld == "amsr2":
-      print("\nDeriving AMSR2 iconc")
+    elif iconc_fld == "amsr2" or iconc_fld == "nsidc":
+      print(f"\nDeriving {iconc_fld} iconc")
+      varnm = 'ice_conc'
       pthice = DIRS["pthiconc"]
-      dflice = os.path.join(pthice, f"AMSR2_iconc_GLORYSgrid_{YR0}{MM0:02d}{DD0:02d}_north.nc")
-      if dflice is None:
-          raise FileNotFoundError(f"Not found {dflice}")
-      Iconc = subset_glorys_iconc(dflice, IG, JG, varnm='ice_conc')
+      ficonc = DIRS["fliconc"]
+      dflice = os.path.join(pthice, ficonc)
     else:
       raise RuntimeError(f"iconc_fld {iconc_fld} not recosgnized")
+
+    if dflice is None or not os.path.isfile(dflice):
+        raise FileNotFoundError(f"Not found {dflice}")
+    Iconc = subset_glorys_iconc(dflice, IG, JG, varnm=varnm)
 
     # Eliminate ice in the warm ocean:
     if SST is not None:
@@ -690,22 +830,34 @@ def construct_predictors_day(
 
     raw['divu'] = divU
 
-  # Freeze days
-  if 'frzdays' in PRED_NAMES:
+  # Freeze and heat days
+  need_frzdays  = 'frzdays'  in PRED_NAMES and 'frzdays'  not in raw
+  need_heatdays = 'heatdays' in PRED_NAMES and 'heatdays' not in raw
+
+  if need_frzdays or need_heatdays:
     print("\nDeriving GLORYS Freeze degree days")
+
     ptht2m = DIRS['ptht2m']
     pthgmapi = DIRS["pthgmapi"]
     flout = f"gmapi_ERA5_to_GLORYS_{regn}.nc"
     dfgmapi = os.path.join(pthgmapi, flout)
 
-    frzdays = subset_era_frzdays(IG, JG, dnmb0, intgr_time, ndays_era,
-                                        ptht2m, dfgmapi, regn, Tfrz=Tfrz)
+    frzdays, heatdays = subset_era_frzdays(
+        IG, JG, dnmb0, intgr_time, ndays_era,
+        ptht2m, dfgmapi, regn, Tfrz=Tfrz
+    )
+
     if sqrt_frzdays:
-      frzdays = np.sqrt(frzdays)
+        frzdays = np.sqrt(frzdays)
 
-    raw['frzdays'] = frzdays
+    if need_frzdays:
+      raw['frzdays'] = frzdays 
 
-  # SAT
+    if need_heatdays:
+      raw['heatdays'] = heatdays 
+
+
+  # SAT / T2m
   if 'sat' in PRED_NAMES:
     print("\nDeriving GLORYS SAT")
     flt2m = f"era5_2mTemp_daily{ndays_era}day_{regn_name}_{YR0}.nc"

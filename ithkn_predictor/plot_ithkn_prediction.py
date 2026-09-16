@@ -49,7 +49,7 @@ parser.add_argument("--model", help="Model name",
                     choices=['clim','ols1','ols2','rf1','rf2','rf3','gbr1','gbr2','gbr3'],
                     required=True, type=str)
 parser.add_argument("--iconc", help="Ice conc field used as a predictor",
-                    choices=['glorys','amsr2'],
+                    choices=['glorys','amsr2','nsidc'],
                     type=str,
                     default="glorys")
 args = parser.parse_args()
@@ -172,7 +172,7 @@ m.drawmeridians(np.arange(-180, 180, 45), labels=[0,0,0,0])
 m.drawcoastlines()
 
 img = m.pcolormesh(xh,yh, AP_s, cmap=clrmp, vmin=rmin, vmax=rmax)
-ax1.set_title(f"ithkn prediction {model_name} {YR0}/{MM0:02d}/{DD0:02d}")
+ax1.set_title(f"ithkn {model_name} iconc={iconc_fld}\n{YR0}/{MM0:02d}/{DD0:02d}")
 
 ax3 = fig1.add_axes([0.2, 0.1, 0.6, 0.02])
 clb = plt.colorbar(img, cax=ax3, orientation='horizontal', extend='max')

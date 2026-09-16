@@ -83,7 +83,7 @@ import mod_icepredict as micepr
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--gbrmod", help="Hist Gradient Boost random forest model number",
-                    choices=[1,2,3,4], required=True, type=int)
+                    choices=[1,2,3,4,11], required=True, type=int)
 parser.add_argument("--regn", help="Region to process, default=north", 
                     choices=['north','south'], 
                     default='north', 
@@ -115,18 +115,6 @@ regions = {
 }
 regn_name, lat0 = regions[regn]
 
-# Static predictors:
-#   yday   - year day represented as cos(yday) + sin(yday)
-#   gcoord - geogr. coord. in spherical coordinates
-# Dynamic predictors:
-#   mnithkn - monthly mean ice thickness (over ice area!), to account for interann. trend
-#   iconc   - ice concentration
-#   sst     - ocean SST
-#   divu    - area-mean ice divergence
-#   frzdays - integrated freeze degree days
-#   sat     - atm. surf. temp
-#
-PRED = ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "sat"]
 
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
@@ -150,13 +138,33 @@ DIRS = {
   "divutmp"  : config_predictor["linregr"]["divutmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "sattmp"   : config_predictor["linregr"]["sattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "dfrztmp"  : config_predictor["linregr"]["dfrztmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "heattmp"  : config_predictor["linregr"]["heattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconc"    : "iconctmp",
   "sst"      : "ssttmp",
   "divu"     : "divutmp",
   "frzdays"  : "dfrztmp",
   "sat"      : "sattmp",
   "ithkn"    : "ithkntmp",
+  "heatdays" : "heattmp",
   }
+
+# Model parameters:
+# Static predictors:
+#   yday   - year day represented as cos(yday) + sin(yday)
+#   gcoord - geogr. coord. in spherical coordinates
+# Dynamic predictors:
+#   mnithkn - monthly mean ice thickness (over ice area!), to account for interann. trend
+#   iconc   - ice concentration
+#   sst     - ocean SST
+#   divu    - area-mean ice divergence
+#   frzdays - integrated freeze degree days
+#   sat     - atm. surf. temp
+# Models: 11 
+#   added predictor: integr. heat degree days IHDD
+
+GBRPAR = micepr.ML_parameters("GBR")
+PRED  = GBRPAR[f"{gbrmod}"]["PRED"]
+
 
 # Read time array and J,I sample grid points:
 # Time array should match ERA5 extracted fields
@@ -397,34 +405,13 @@ RandState = 42
 # > 127 - likely overfitting
 # Max iter = max N of boosting stages = N of trees
 early_stop = True   # stop iterations if no improvement in validation score
-if gbrmod == 1:
-  #GBR train  R2 = 0.89349238
-  #GBR test   R2 = 0.89144996
-  max_leaf =  8
-  learn_rt = 0.05
-  max_iter = 500
-  max_depth = 8       # keep decision trees realtively short
-elif gbrmod == 2:
-  #GBR train  R2 = 0.92865735
-  #GBR test   R2 = 0.92268942
-  max_leaf = 31
-  learn_rt = 0.05
-  max_iter = 1000
-  max_depth = 10       
-elif gbrmod == 3:
-  #GBR train  R2 = 0.94177518
-  #GBR test   R2 = 0.93227908
-  max_leaf = 63
-  learn_rt = 0.05
-  max_iter = 1200
-  max_depth = 15       
-elif gbrmod == 4:
-  max_leaf = 100
-  learn_rt = 0.05
-  max_iter = 1500
-  max_depth = 15
+max_leaf  = GBRPAR[f"{gbrmod}"]["max_leaf"]
+learn_rt  = GBRPAR[f"{gbrmod}"]["learn_rt"]
+max_iter  = GBRPAR[f"{gbrmod}"]["max_iter"]
+max_depth = GBRPAR[f"{gbrmod}"]["max_depth"]
 
-print("Start training Gradient Boost Regressor (decision tree)")
+
+print(f"Start training Gradient Boost Regressor (decision tree), model={gbrmod}")
 # Split data
 print(f"  Splitting data --> Train ({(1-test_sz)*100:.1f}%) / Test ({test_sz*100:.1f}%)")
 INDX = np.arange(len(Y))

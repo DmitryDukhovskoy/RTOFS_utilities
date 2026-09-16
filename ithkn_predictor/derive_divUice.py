@@ -4,7 +4,7 @@
 
   Two approaches are possible (using divergence theorem)
   - average spatial integral of div(U) * dA
-  - average integra of U flux across the boundary: U*n*dl, n - is normal comp. to the segment
+  - average integral of U flux across the boundary: U*n*dl, n - is normal comp. to the segment
   boundary flux is prefereable (as it conserved divergence)
   1st approach is straight forward but not exact
 
@@ -143,6 +143,8 @@ def calc_divU(dltI, dltJ, ii, jj, U2d, V2d, Acell, DX, DY):
   """
     Compute average div u ice over specified region
     Assuming output fieds are at the cell centers
+    Units:
+    Acell = m2,  DX=m, DY=m
   """
   divU = 0
   jdm, idm = U2d.shape
@@ -280,7 +282,7 @@ for irec, dnmb0 in enumerate(DNMB):
            DNMB=DNMB)
 
 # Save:
-print(f"Final Saving ithkn time series and IG, JG --> {dfltmp}")
+print(f"Final Saving divUice time series and IG, JG --> {dfltmp}")
 np.savez(dfltmp,
        YY=YY,
        JG=JG,

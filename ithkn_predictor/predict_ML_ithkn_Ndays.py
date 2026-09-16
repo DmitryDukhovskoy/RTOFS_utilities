@@ -2,6 +2,8 @@
   General prediction using ML model
   and any input fields
 
+  Specify ice concentration fields used as an input for ML emulator
+
   Random Forest or 
   Hist Gradient Boost Regressor (decision trees) predictor
 
@@ -49,13 +51,21 @@ import mod_icepredict as micepr
 #      RF2:  Ntrees 200
 #      RF3:  Ntrees 5
 #      RF4:  Ntrees 2
+#   Added predictor: integrated Heat Degree Days (IHDD)
+#      RF11: Ntrees 50
+#      RF12: Ntrees 100
+#      RF13: Ntrees 10
+#
 #    Hist. Grad Boost Regressor (decision tree)
 #      GBR1: max_leaf = 8,  max_iter=500,  max_depth=8
 #      GBR2: max_leaf = 31, max_iter=1000, max_depth=10
 #      GBR3: max_leaf = 63, max_iter=1500, max_depth=15
+#   Added predictor: integrated Heat Degree Days (IHDD)
+#      GBR11: max_leaf = 63, max_iter=1500, max_depth=15 
+#
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", help="ML model to use",
-                   choices=['rf1','rf2','gbr2','gbr3'],
+                   choices=['rf1','rf2','rf11','rf12','rf13','gbr2','gbr3','gbr11'],
                    type=str,
                    required=True)
 parser.add_argument("--sdate", help="Start prediction date YYYYMMDD", required=True, type=int)
@@ -64,7 +74,7 @@ parser.add_argument("--edate", help="End prediction date YYYYMMDD, skip if edate
 parser.add_argument("--regn", help="Region to process", choices=['north','south'],
                     required=True, type=str)
 parser.add_argument("--iconc", help="Ice conc field used as a predictor",
-                    choices=['glorys','amsr2'],
+                    choices=['glorys','amsr2', 'nsidc'],
                     type=str,
                     required=True)
 parser.add_argument("--save", help="Save predicted ice thickness in npz (0=no, 1=yes)",
@@ -115,10 +125,9 @@ DIRS = {
   "pthgmapi" : config_predictor[emul][prdfld]["pthgmapi"],
   "pthfcst"  : config_predictor[emul][prdfld]["pthfcst"],
   "pthout"   : config_predictor[emul][prdfld]["pthout"],
+  "pthiconc" : config_predictor[emul][iconc_fld]["pthiconc"],
+  "pthmodel" : config_predictor[emul][ml_model]["pthmodel"],
   }
-
-DIRS["pthiconc"] = config_predictor[emul][iconc_fld]["pthiconc"]
-DIRS["pthmodel"] = config_predictor[emul][ml_model]["pthmodel"]
 
 model_name = micepr.models_info()[ml_model]
 
@@ -140,7 +149,6 @@ Tfrz         = info["Tfrz"]
 sqrt_frzdays = info["sqrt_frzdays"]
 intgr_time   = info["intgr_time"]
 ndays_era    = info["ndays_era"] 
-
 
 print(f"Training period: {YS}-{YE}")
 
@@ -207,6 +215,8 @@ for dnmb0 in DNMB_fcst:
   rdate = YR0*10000 + MM0*100 + DD0
   print(f"Day {YR0}/{MM0}/{DD0}")
 
+  DIRS["fliconc"] = config_predictor[emul][iconc_fld]["fliconc"].format(YR=f"{YR0}",MM=f"{MM0:02d}",DD=f"{DD0:02d}")
+  
   # Derive Predictors
   # hlon, hlat - grid where prediction is done (GLORYS)
   # IG, JG - grid point indices where prediction is done

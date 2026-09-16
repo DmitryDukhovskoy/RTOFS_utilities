@@ -63,12 +63,17 @@ parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=
 parser.add_argument("--ye", help="Year end, default=2025", default=2025, type=int)
 parser.add_argument("--regn", help="Region to process", choices=['north','south'], 
                     required=True, type=str)
+parser.add_argument("--lmodel", help="OLS_model 1 or 2",
+                   choices=[1,2],
+                   type=int,
+                   required=True)
 args = parser.parse_args()
 
 dxy   = args.dxy    
 YS    = args.ys
 YE    = args.ye
 regn  = args.regn
+lmodel= args.lmodel
 
 sqrt_frzdays = True   # use sqrt(integrated freeze days) to better fit Zubov relation
 intgr_time = 90  # Time for freeze degree days accumulation, back from current time
@@ -92,7 +97,13 @@ regn_name, lat0 = regions[regn]
 #   frzdays - integrated freeze degree days
 #   sat     - atm. surf. temp
 #
-PRED = ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "sat"]
+model_name = f"OLS_model{lmodel}"
+
+if model_name == "OLS_model1":
+  PRED = ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "sat"]
+elif model_name == "OLS_model2":
+  # Added heat dgr days
+  PRED = ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "heatdays", "sat"] 
 
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
@@ -114,12 +125,14 @@ DIRS = {
   "divutmp"  : config_predictor["linregr"]["divutmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "sattmp"   : config_predictor["linregr"]["sattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "dfrztmp"  : config_predictor["linregr"]["dfrztmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "heattmp"  : config_predictor["linregr"]["heattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconc"    : "iconctmp",
   "sst"      : "ssttmp",
   "divu"     : "divutmp",
   "frzdays"  : "dfrztmp",
   "sat"      : "sattmp",
   "ithkn"    : "ithkntmp",
+  "heatdays" : "heattmp",
   }
 
 # Read time array ad J,I sample grid points:
@@ -319,7 +332,6 @@ resid = results.resid
 
 f_save = True
 if f_save:
-  model_name = "OLS_model1"
   flstat = f"{model_name}_{YS}_{YE}.pkl"
   dflstat = os.path.join(pthout, flstat)
   print(f"Saving stat model --> {dflstat}")
@@ -343,21 +355,23 @@ if f_save:
            )
 
 
-plt.ion()
+f_check = False
+if f_check:
+  plt.ion()
 
-fld_plot = 'frzdays'
-idx = PRED_NAMES.index(fld_plot) + 1 # offset one's for intercept
-#PR = A[:,idx]
-PR = Astdz[:,idx]
+  fld_plot = 'frzdays'
+  idx = PRED_NAMES.index(fld_plot) + 1 # offset one's for intercept
+  #PR = A[:,idx]
+  PR = Astdz[:,idx]
 
-fig1 = plt.figure(1,figsize=(9,8))
-plt.clf()
-ax1 = plt.axes([0.1, 0.12, 0.8, 0.8])
-ax1.scatter(PR, Y, s=5, color=(0.5,0.6,0.9), marker='.')
-ax1.set_xlabel(fld_plot)
-ax1.set_ylabel('ithkn')
+  fig1 = plt.figure(1,figsize=(9,8))
+  plt.clf()
+  ax1 = plt.axes([0.1, 0.12, 0.8, 0.8])
+  ax1.scatter(PR, Y, s=5, color=(0.5,0.6,0.9), marker='.')
+  ax1.set_xlabel(fld_plot)
+  ax1.set_ylabel('ithkn')
 
-#ax1.contour(LMsk, [0.99], linestyles='solid', colors=[(0.5,0.8,1)])
-#ax1.scatter(IG, JG, s=5, color=(0.8,0.4,0), marker='.')
+  #ax1.contour(LMsk, [0.99], linestyles='solid', colors=[(0.5,0.8,1)])
+  #ax1.scatter(IG, JG, s=5, color=(0.8,0.4,0), marker='.')
 
 

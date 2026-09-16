@@ -20,6 +20,7 @@ linregr:
   divutmp  : "divu_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
   sattmp   : "sat_tser_ERA5_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
   dfrztmp  : "dayfrz_tser_ERA5_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
+  heattmp  : "heatdgr_tser_ERA5_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
 
 ml:
   glorys:
@@ -36,6 +37,11 @@ ml:
 
   amsr2:
     pthiconc : "/work/Dmitry.Dukhovskoy/data/AMSR2_iconc_interp"
+    fliconc  : "AMSR2_iconc_GLORYSgrid_{YR}{MM}{DD}_north.nc"
+
+  nsidc:
+    pthiconc : "/work/Dmitry.Dukhovskoy/data/NSIDC_iconc_interp"
+    fliconc  : "NSIDC_iconc_GLORYSgrid_{YR}{MM}{DD}_north.nc"
 
   gbr1:
     pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
@@ -43,8 +49,16 @@ ml:
     pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
   gbr3:
     pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
+  gbr11:
+    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
   rf1:
     pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
   rf2:
+    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
+  rf11:
+    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
+  rf12:
+    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
+  rf13:
     pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
 

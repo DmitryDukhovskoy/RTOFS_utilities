@@ -212,8 +212,9 @@ def save_netcdf(JM25, IM25, JGLR, IGLR, LONm025, LATm025, LONGLR, LATGLR, dfgmap
   dset["glorys_latit"].attrs["units"]       = "degrees_north"
 
   # Global attributes:
-  dset.attrs['title']    = 'Grid mapping from/to UFS 0.25-dgr grid to/from GLORYS, {regn}, closest neighbour'
-  dset.attrs['source']   = 'find_remap_indx_GLORYS_to_mesh025.py'
+  dset.attrs['title']    = 'Grid mapping from UFS 0.25-dgr grid to GLORYS, {regn}, closest neighbour'
+  #dset.attrs['source']   = 'find_remap_indx_GLORYS_to_mesh025.py'
+  dset.attrs['source']   = 'find_remap_indx_UFSmesh025_to_GLORYS.py'
   dset.attrs['region']   = regn
 
   print(f'Saving gmapi --> {dfgmapi}')

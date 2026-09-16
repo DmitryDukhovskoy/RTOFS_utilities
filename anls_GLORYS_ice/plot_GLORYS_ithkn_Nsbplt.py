@@ -48,7 +48,6 @@ import mod_mom6 as mmom6
 import mod_time as mtime
 
 regn = 'north'
-field_name = 'ithkn'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--rdate", help="Prediction date YYYYMMDD",

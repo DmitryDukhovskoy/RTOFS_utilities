@@ -58,7 +58,8 @@ import mod_icepredict as micepr
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--rfmod", help="random forest model number",
-                    choices=[1,2,3,4], required=True, type=int)
+                    choices=[1,2,3,4,11,12,13], 
+                    required=True, type=int)
 parser.add_argument("--regn", help="Region to process, default=north", 
                     choices=['north','south'], 
                     default='north', 
@@ -90,19 +91,6 @@ regions = {
 }
 regn_name, lat0 = regions[regn]
 
-# Static predictors:
-#   yday   - year day represented as cos(yday) + sin(yday)
-#   gcoord - geogr. coord. in spherical coordinates
-# Dynamic predictors:
-#   mnithkn - monthly mean ice thickness (over ice area!), to account for interann. trend
-#   iconc   - ice concentration
-#   sst     - ocean SST
-#   divu    - area-mean ice divergence
-#   frzdays - integrated freeze degree days
-#   sat     - atm. surf. temp
-#
-PRED = ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "sat"]
-
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
@@ -124,13 +112,34 @@ DIRS = {
   "divutmp"  : config_predictor["linregr"]["divutmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "sattmp"   : config_predictor["linregr"]["sattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "dfrztmp"  : config_predictor["linregr"]["dfrztmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "heattmp"  : config_predictor["linregr"]["heattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconc"    : "iconctmp",
   "sst"      : "ssttmp",
   "divu"     : "divutmp",
   "frzdays"  : "dfrztmp",
   "sat"      : "sattmp",
   "ithkn"    : "ithkntmp",
+  "heatdays" : "heattmp",
   }
+
+
+# Model parameters:
+# Static predictors:
+#   yday   - year day represented as cos(yday) + sin(yday)
+#   gcoord - geogr. coord. in spherical coordinates
+# Dynamic predictors:
+#   mnithkn - monthly mean ice thickness (over ice area!), to account for interann. trend
+#   iconc   - ice concentration
+#   sst     - ocean SST
+#   divu    - area-mean ice divergence
+#   frzdays - integrated freeze degree days
+#   sat     - atm. surf. temp
+# Models: 11 
+#   added predictor: integr. heat degree days IHDD
+
+RFPAR = micepr.ML_parameters("RF")
+PRED  = RFPAR[f"{rfmod}"]["PRED"]
+
 
 # Read time array and J,I sample grid points:
 # Time array should match ERA5 extracted fields
@@ -327,7 +336,7 @@ for predict in PRED:
     PRED_NAMES.extend(["mnithkn"])
 
   else:
-    # Construct dynamic predictors
+    # Construct dynamic predictors / input fields
     # Flatten 2D arrays into 1D ("row-major order (C): row1: col1, ..., colN, row2: col1, ..., colN, ...)
     print(f"Constructing {predict}")
     update_lists_predictor(
@@ -360,17 +369,10 @@ AA = np.column_stack(PRED_LIST)
 # Model parameters:
 test_sz = 0.2
 Ntrees = None    # N of trees
-MinLeaf = 5
 RandState = 42
+Ntrees  = RFPAR[f"{rfmod}"]["Ntrees"]
+MinLeaf = RFPAR[f"{rfmod}"]["MinLeaf"]
 
-if rfmod == 1:
-  Ntrees = 100
-elif rfmod == 2:
-  Ntrees = 200
-elif rfmod == 3:
-  Ntrees = 5
-elif rfmod == 4:
-  Ntrees = 2
 
 print("Start training RF")
 # Split data
@@ -448,12 +450,9 @@ print(f"{Ntrees} trees elapsed time: {telaps/60:.1f} min")
 # Predict
 Ypred = rf.predict(Xtest)
 
-# Score
-r2 = rf.score(Xtest, Ytest)
-print(f"Test prediction:  R2 = {r2:.8f}")
-
-f_modelinfo = False
+f_modelinfo = True
 if f_modelinfo:
+  print("\nModel Info")
   total_nodes = 0
   for i, tree in enumerate(rf.estimators_):
     n = tree.tree_.node_count
@@ -465,6 +464,10 @@ if f_modelinfo:
   depths = [t.tree_.max_depth for t in rf.estimators_]
   print("Mean depth =", np.mean(depths))
   print("Max depth  =", np.max(depths))
+
+# Score
+r2 = rf.score(Xtest, Ytest)
+print(f"Test prediction:  R2 = {r2:.8f}")
 
 
 metadata={
@@ -486,7 +489,7 @@ metadata={
 if f_save:
   model_name = f"RF_model{rfmod:02d}_{regn}"
   pthrf = DIRS['pthrf']
-  print(f"Saving stat model --> {pthrf}")
+  print(f"\nSaving stat model --> {pthrf}")
 
   save_random_forest(rf, pthrf, model_name=model_name,
                        predictor_names=PRED_NAMES,

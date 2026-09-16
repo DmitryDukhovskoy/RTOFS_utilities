@@ -1,11 +1,7 @@
 """
-  Interpolate / remap AMSR2 sea ice conc fields
-  or other similar fields (e.g. NRT NSIDC)
-  from mesh025 grid --> GLORYS for ML predictions
-
-  AMSR2 fields processed on gaea:
-  interp from AMSR2 grid --> mesh025:
-  interp_AMSR2_iconc_mesh025.py
+  Interpolate / remap 
+  ML predicted ithkn from GLORYS to mesh025 grid
+  see: predict_ML_ithkn_Ndays.py
 
 """
 import os
@@ -45,6 +41,8 @@ from mod_utils_fig import bottom_text
 import mod_time as mtime
 import mod_glorys as mglr
 import mod_colormaps as mclrmps
+import mod_icepredict as micepr
+import mod_mom6 as mmom6
 
 
 parser = argparse.ArgumentParser()
@@ -52,11 +50,14 @@ parser.add_argument("--regn",
       help="hemisphere: north or south",
       choices=['north', 'south'],
       required=True)
-parser.add_argument("--rdate", help="Date of AMSR2 interpolation, YYYYMMDD", type=int, required=True)
-parser.add_argument("--fname", help="iconc data name", 
-                   choices=['amsr2','nsidc'],
-                   required=True,
-                   type=str)
+parser.add_argument("--rdate", help="Date of ithkn interpolation, YYYYMMDD", type=int, required=True)
+parser.add_argument("--model", help="Model name",
+                    choices=['clim','ols1','ols2','rf1','rf2','rf3','gbr1','gbr2','gbr3'],
+                    required=True, type=str)
+parser.add_argument("--iconc", help="Ice conc field used as a predictor",
+                    choices=['glorys','amsr2','nsidc'],
+                    type=str,
+                    default="glorys")
 parser.add_argument("--fsave", help=f"Save final dataset with all days as netcdf, default=1",
                     choices=[0,1],
                     default=1,
@@ -67,10 +68,11 @@ parser.add_argument("--pcheck", help="=1: Plot to check interpolation, =0: no",
                     type=int)
 args = parser.parse_args()
 
+model   = args.model
 regn    = args.regn if args.regn else None
 rdate   = args.rdate
+iconc_fld = args.iconc
 fsave   = args.fsave
-fldname = args.fname
 plot_check = args.pcheck == 1
 
 dnmb = mtime.rdate2datenum(rdate)
@@ -89,7 +91,7 @@ with open(fyaml) as ff:
 
 # Load gmapi:
 pthgmapi = config_predictor["linregr"]["pthgmapi"]
-dfgmapi  = os.path.join(pthgmapi, "gmapi_closenghb_mesh025_to_GLORYS_north.nc")
+dfgmapi  = os.path.join(pthgmapi, "gmapi_closenghb_GLORYS_to_UFSmesh025_north.nc")
 with xr.open_dataset(dfgmapi) as ds:
   LONG  = ds["glorys_longit"].values
   LATG  = ds["glorys_latit"].values
@@ -100,99 +102,100 @@ with xr.open_dataset(dfgmapi) as ds:
 
 LONG = (LONG + 360) % 360
 
+# Read predicted ithkn:
+# Load prediction and grid points:
+# Training linregr params:
+MODEL_NAMES = micepr.models_info()
+model_name = MODEL_NAMES[model]
 
-# Find interp points on GLORYS grid:
-# GLORYS grid:
-# Read GLORYS grid:
-pthithkn = config_predictor["linregr"]["pthithkn"]
-pthice = os.path.join(pthithkn,f"{YR}")
+pthfcst = os.path.join(config_predictor["linregr"]["pthfcst"],f"{model_name}")
+flfcst = f"{model_name}_ithkn_fcast_{rdate}.npz"
+if not iconc_fld == "glorys":
+  flfcst = f"{model_name}_ithkn_fcast_{iconc_fld}_{rdate}.npz"
 
+#flfcst = f"{model_name}_{YS}_{YE}_ithkn_fcast_{rdate}.npz"
+dflfcst = os.path.join(pthfcst, flfcst)
+print(f"Loading fcst {dflfcst}")
+data_fcst = np.load(dflfcst)
+Ithkn = data_fcst['Yfcst']
+JGF    = data_fcst['JG']
+IGF    = data_fcst['IG']
+
+# Get GLORYS grid
 # Find file:
-dflglr = mglr.find_file(rdate, pthice)
-assert dflglr is not None, f"GLORYS file not found for {sdate} in {pthice}"
+pthice = os.path.join(config_predictor["linregr"]["pthithkn"], f"{YR}")
+dflice = mglr.find_file(rdate, pthice)
+assert dflice is not None, f"GLORYS file not found for {rdate} in {pthice}"
 
-with xr.open_dataset(dflglr) as dsice:
+with xr.open_dataset(dflice) as dsice:
+  A2d = dsice['sithick'].isel(time=0).data.squeeze()
   LON = dsice['longitude'].values
   LAT = dsice['latitude'].values
 
-# 0 <= lon < 360
-LON = (LON + 360) % 360
 hlon, hlat = np.meshgrid(LON, LAT)
 
-# Land mask:
-LMsk = None
-pthssh = os.path.join(config_predictor["linregr"]["pthssh"],f"{YR}")
-dflssh = mglr.find_file(rdate, pthssh)
-with xr.open_dataset(dflssh) as dszos:
-  SSH = dszos['zos'].isel(time=0).values.squeeze()
-
-LMsk = np.where(np.isfinite(SSH),1,0)
-
-# Points where ice thickness is predicted:
-# Define domain:
-if regn == 'north':
-  DOMAIN = (hlat > lat0) & (LMsk == 1)
-elif regn == 'south':
-  DOMAIN = (hlat < lat0) & (LMsk == 1)
-
-JG, IG = np.where(DOMAIN)
+# Replace glorys with predicted ithkn
+AP = A2d * np.nan
+AP[JGF,IGF] = Ithkn
 
 
 # Create a look-up table (dictonary) for matching 
 # every glorys indices JG,IG ---> mesh025 JM,IM
-gmapi = {(jg,ig):(jm,im)
-         for jg,ig,jm,im in zip(JGLR, IGLR, JM025, IM025)}
+gmapi = {(jm,im):(jg,ig)
+         for jm,im,jg,ig in zip(JM025, IM025, JGLR, IGLR)}
 
 # Read mesh025 grid
-pthdata = '/archive/Dmitry.Dukhovskoy/data'
-pthice    = os.path.join(pthdata, 'ithkn_clim_combined')
-fliceout  = 'ithkn_mnthclim_cryo_avhrr_ices_1440x1080_north.nc'
-dfliceout = os.path.join(pthice,fliceout)
+#pthdata = '/archive/Dmitry.Dukhovskoy/data'
+#pthice    = os.path.join(pthdata, 'ithkn_clim_combined')
+#fliceout  = 'ithkn_mnthclim_cryo_avhrr_ices_1440x1080_north.nc'
+#dfliceout = os.path.join(pthice,fliceout)
 
-with xr.open_dataset(dfliceout) as dsice:
-  LONM025 = dsice['lon'].data
-  LATM025 = dsice['lat'].data
+pthgrid = '/work/Dmitry.Dukhovskoy/GFSv17/mesh025_topo_grid'
+dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
+dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
 
-if fldname == 'amsr2':
-  pthiconc = '/work/Dmitry.Dukhovskoy/data/AMSR2_iconc_interp'
-  flnm = f"AMSR2_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc"
-  dflnm = os.path.join(pthiconc, flnm)
-  print(f"Reading {fldname} data from {dflnm}")
-  with xr.open_dataset(dflnm) as ds:
-    IC_m25 = ds['ice_conc'].isel(time=DD-1).values
-  
-  flice_out = f"AMSR2_iconc_GLORYSgrid_{rdate}_{regn}.nc"
-elif fldname == 'nsidc':
-  pthiconc = '/work/Dmitry.Dukhovskoy/data/NSIDC_iconc_interp'
-  flnm = f'NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc'
-  dflnm = os.path.join(pthiconc, flnm)
-  print(f"Reading {fldname} data from {dflnm}")
-  with xr.open_dataset(dflnm) as ds:
-    IC_m25 = ds['ice_conc'].isel(time=DD-1).values
+LON_m25, LAT_m25 = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 
-  flice_out = f"NSIDC_iconc_GLORYSgrid_{rdate}_{regn}.nc"
+with xr.open_dataset(dftopo_mom) as dstopo:
+  HH = dstopo['depth'].data.squeeze()
 
-  
-# Find mesh025 --> GLORYS i, j pairs:
+HH = np.where(HH < 1.e-20, np.nan, HH)
+HH = -HH
+HH = np.where(np.isnan(HH), 1., HH)
+
+jdm, idm = HH.shape
+LMsk = np.where(HH<0, 1, 0)
+
+# Ice thickness, mesh025
+ITm25 = np.where(LMsk == 0, np.nan, 0)
+
+DOMAIN = LMsk == 1
+if regn == 'north':
+  DOMAIN &= LAT_m25 > lat0
+elif regn == 'south':
+  DOMAIN &= LAT_m25 < lat0
+
+JM, IM = np.where(DOMAIN  )
+
+# Find GLORYS ----> mesh025 i, j pairs:
 # Alternative to distance-approach, build a lookup table:
 # every mesh025 JM,IM ---> glorys indices JG,IG
-print("Finding GLORYS I, J to match mesh025 I,J")
-JM = np.empty(len(JG), dtype=int)
-IM = np.empty(len(IG), dtype=int)
+print("Finding mesh025 I, J to match GLORYS I,J")
+JG = np.empty(len(JM), dtype=int)
+IG = np.empty(len(IM), dtype=int)
 
-for k, (jj, ii) in enumerate(zip(JG, IG)):
+for k, (jj, ii) in enumerate(zip(JM,IM)):
   if k > 0 and k % 10000 == 0:
     prc = k/len(JG)*100.
     print(f"  {prc:.2f}% processed")
   key = (int(jj), int(ii))
   if key not in gmapi:
     # mesh025 indices may be outside GLORYS subset region for ML 
-    #raise ValueError(f"Missing gmapi entry for GLORYS index {key}")
+    raise ValueError(f"Missing gmapi entry for GLORYS index {key}")
     continue
-  JM[k], IM[k] = gmapi[key]
+  JG[k], IG[k] = gmapi[key]
 
-ICgl = np.where(LMsk == 0, np.nan, 0)
-ICgl[JG,IG] = IC_m25[JM,IM]
+ITm25[JM,IM] = AP[JG,IG]
 
 def write_nc(dfliceout, time_dnmb, A2d):
   yr1, mm1, dd1 = mtime.datevec(dnmb)[:3]
@@ -207,29 +210,32 @@ def write_nc(dfliceout, time_dnmb, A2d):
                              "jdim": np.arange(jdim),\
                              "idim": np.arange(idim)})
     
-  dset = xr.Dataset({"ice_conc": darr_cice})
-  dset['ice_conc'].attrs['long_name'] = 'ice partial area'
+  dset = xr.Dataset({"ice_thkn": darr_cice})
+  dset['ice_thkn'].attrs['long_name'] = 'ice thickness'
   dset["time"].attrs = {
-       "long_name": f"days since {yr1}/01/01"
+       "long_name": f"days since {yr1}/01/01",
+       "units" : "meters",
   } 
   
   # Add global attributes:
-  dset.attrs['title']       = 'AMSR2 L4 OSI SAF EUMETSAT sea ice concentration daily interpolated onto mesh025 grid and then onto GLORYS grid'
+  dset.attrs['title']       = f'ML predicted ithkn, ML={model_name}, predictor iconc={iconc_fld}, '+\
+                               'interpolated GLORYS to mesh025 grid'
   dset.attrs['institution'] = 'NOAA NWS OMD'
-  dset.attrs['source']      = 'interp_iconc_mesh025_to_GLORYS.py'
+  dset.attrs['source']      = 'interp_predict_ithkn_GLORYS_to_mesh025.py'
   dset.attrs['region']      = regn
 
-  print(f'Dumping interpolated ice conc --> {dfliceout}')
+  print(f'Dumping interpolated ice thickness prediction --> {dfliceout}')
   dset.to_netcdf(dfliceout, format='NETCDF4', engine='netcdf4')
 
 if fsave:
-  dfliceout = os.path.join(pthiconc, flice_out)
-  write_nc(dfliceout, dnmb, ICgl)
+  flice_out = f"ML_{model}_ithkn_iconc_{iconc_fld}_mesh025_{rdate}_{regn}.nc"
+  dfliceout = os.path.join(pthfcst, flice_out)
+  write_nc(dfliceout, dnmb, ITm25)
 
 if plot_check:
-  clrmp = mclrmps.colormap_conc()
+  clrmp = mclrmps.colormap_ice_thkn()
   rmin = 0.
-  rmax = 1.
+  rmax = 3.
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
   clrmp.set_under(color=[1,1,1])
 
@@ -242,16 +248,16 @@ if plot_check:
   if regn == 'south':
     m = Basemap(projection='spstere',boundinglat=-55,lon_0=180,resolution='l', ax=ax1)
     # Subset region
-    JJ = np.where(hlat[:, 0] <= -50)[0]
+    JJ = np.where(LAT_m25[:, 0] <= -50)[0]
 
   elif regn == 'north':
     m = Basemap(projection='npstere',boundinglat=60,lon_0=-10,resolution='l', ax=ax1)
     # Subset region
-    JJ = np.where(hlat[:, 0] >= 50)[0]
+    JJ = np.where(LAT_m25[:, 0] >= 50)[0]
 
-  hlat_s = hlat[JJ, :]
-  hlon_s = hlon[JJ, :]
-  AP_s   = ICgl[JJ, :]
+  hlat_s = LAT_m25[JJ, :]
+  hlon_s = LON_m25[JJ, :]
+  AP_s   = ITm25[JJ, :]
 
   xh, yh = m(hlon_s, hlat_s)
 
@@ -264,7 +270,7 @@ if plot_check:
   m.drawcoastlines()
 
   img = ax1.pcolormesh(xh, yh, AP_s, cmap=clrmp, vmin=rmin, vmax=rmax)
-  ax1.set_title(f"AMSR2 OSI SAF iconc interp to GLORYS grid \n{YR}/{MM:02d}/{DD:02d}")
+  ax1.set_title(f"ithkn {model} inp iconc={iconc_fld} inrtp to mesh025\n{YR}/{MM:02d}/{DD:02d}")
 
   ax3 = fig1.add_axes([0.2, 0.1, 0.6, 0.02])
   clb = plt.colorbar(img, cax=ax3, orientation='horizontal', extend='max')
@@ -274,7 +280,7 @@ if plot_check:
   clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=12)
   clb.ax.tick_params(direction='in', length=12)
 
-  btx = 'interp_iconc_mesh025_to_GLORYS.py'
+  btx = 'interp_predict_ithkn_GLORYS_to_mesh025.py'
   bottom_text(btx)
 
 

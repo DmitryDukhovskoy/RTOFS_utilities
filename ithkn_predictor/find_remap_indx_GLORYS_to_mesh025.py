@@ -1,1 +1,0 @@
-../anls_GLORYS_ice/find_remap_indx_GLORYS_to_mesh025.py
