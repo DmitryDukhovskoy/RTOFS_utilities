@@ -30,7 +30,7 @@ GDAS:
   flocean: "gdas.t18z.inst.f006.nc"  
 
 PRED:
-  # Predictor fields
+  # Predictor / input fields
   pthprd:    "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/predictors"
   pthifdd:   "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/predictors"
   flifdd:    "IFDD_GDAS_{Ndays:03d}days_dxy{dxy:03d}_{rdate}_{regn}"

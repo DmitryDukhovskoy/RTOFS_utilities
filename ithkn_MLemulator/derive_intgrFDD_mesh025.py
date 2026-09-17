@@ -17,7 +17,7 @@
   use sbatch derive_dailyT2m_Ndays.sh --sdate 20250701 --edate 20250731 --dt 3
   This will save daily felds at 3 day intervals for 2025/07
 
-  ML models developed on PPAN
+  ML models developed / trained on PPAN
 
   GFSv17 status with HPSS / WCOSS directories:
   https://docs.google.com/spreadsheets/d/1N3isKTVmE4ITdiULDLP5lK1RoZOzkNlHFN-NFHwrH6o/edit?gid=492588212#gid=492588212
@@ -375,11 +375,11 @@ if f_chck:
   img = m.pcolormesh(xh,yh, AP, cmap=clrmp, vmin=rmin, vmax=rmax)
   ax1.set_title(f"IFDD from T2m GDAS on mesh025, {YR}/{MM:02d}/{DD:02d}")
 
-  ax3 = fig1.add_axes([0.2, 0.1, 0.6, 0.02])
+  ax3 = fig1.add_axes([0.1, 0.1, 0.8, 0.02])
   clb = plt.colorbar(img, cax=ax3, orientation='horizontal', extend='both')
   ticks = np.linspace(rmin, rmax, 11)
   clb.set_ticks(ticks)
-  clb.ax.set_xticklabels([f"{t:.2f}" for t in ticks])
+  clb.ax.set_xticklabels([f"{t:.0f}" for t in ticks])
   clb.ax.tick_params(direction='in', length=12)
 
   btx = 'derive_intgrFDD_mesh025.py'

@@ -465,7 +465,7 @@ def construct_predictors_day(
     flsst  = MLYAML["PRED"]["flsst"].format(hr=int(HRm), fhr=fhr)
     dflsst = os.path.join(pthsst, flsst)
 
-    if dflsst is None:
+    if not os.path.isfile(dflsst):
         raise FileNotFoundError(f"MOM6 analysis SST Not found {dflsst}")
     SST = subset_mom6anls_sst(dflsst, IG, JG, idim, jdim)
 

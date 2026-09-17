@@ -184,6 +184,31 @@ def read_ithkn_climatology(pthdata, dnmb0, regn):
 
   return hice
 
+
+def derive_ithkn_clim(pthdata, dnmb0, regn):
+  """
+    Derive daily value from monthly climatology
+    Interpolate into day dnmb0
+  """
+  YR0, MM0, DD0 = mtime.datevec(dnmb0, round_hrs=True)[:3]
+  dnmb_mday1 = mtime.datenum([YR0,MM0,1])
+  YRp, MMp   = mtime.datevec(dnmb_mday1-15)[:2]  # previous month
+  YRn, MMn   = mtime.datevec(dnmb_mday1+32)[:2]  # next month
+  dnmbM = mtime.datenum([YR0,MM0,15])
+  if dnmb0 <= dnmbM:
+    dnmbP = mtime.datenum([YRp,MMp,15])
+    dnmbN = dnmbM
+  else:
+    dnmbP = dnmbM
+    dnmbN = mtime.datenum([YRn,MMn,15])
+
+  AP = read_ithkn_climatology(pthdata, dnmbP, regn)
+  AN = read_ithkn_climatology(pthdata, dnmbN, regn)
+
+  A2d = AP * (dnmb0 - dnmbN)/(dnmbP - dnmbN)  + AN * (dnmb0 - dnmbP)/(dnmbN - dnmbP)
+
+  return A2d
+
 # Create an array of day numbers with 0hr = init cond, 12 hr - daily means
 # Assumed: runs start at 0 hr, if not - may need to change the logic 
 # for finding the ic fields 
@@ -216,7 +241,7 @@ for enmb in ENMBS:
     # Read climatology:
     if enmb == 0:
       print("Reading climatology")
-      AA = read_ithkn_climatology(pthdata, dnmb, regn)
+      AA = derive_ithkn_clim(pthdata, dnmb, regn)
 
     else:
       if hr == 0:
@@ -331,7 +356,7 @@ else:
       day0 = day0.replace(month=day0.month+1, day=1)
 
 
-yticks = np.arange(0.,1.,0.05)
+yticks = np.arange(0.,1.5,0.05)
 sttl = f"RMSE btw ithkn GLORYS and SFS GFS expts, {regn}\n"
 sttl = sttl + f"{YR}/{MMS:02d}/{DDS:02d}-{YR}/{MME:02d}/{DDE:02d}"
 
@@ -362,17 +387,20 @@ if nprst > 0:
     LNS.append(ln1)
  
 
+prc = 0.2
 yl1 = 0
-yl2 = np.nanmax(RMSE) * 1.05 
+yl1 = max(0, np.nanmin(RMSE) * (1-prc))
+yl2 = np.nanmax(RMSE) * (1+prc)
 #yl2 = 0.5
 
 if nprst > 0:
   ylP = np.nanmax(RMSEp) * 1.05
   yl2 = np.max([yl2, ylP])
- 
+
+dxl2 = XT[-1] - XT[-2] 
 ax1.set_yticks(yticks)
 ax1.set_ylim(yl1, yl2)
-#ax1.set_xlim(XT[0], XT[-1])
+ax1.set_xlim(XT[0]-dxl2, XT[-1]+dxl2)
 ax1.set_xticks(xticks)
 ax1.set_xticklabels(xtick_labels, rotation=60, ha='right')
 ax1.grid('on')

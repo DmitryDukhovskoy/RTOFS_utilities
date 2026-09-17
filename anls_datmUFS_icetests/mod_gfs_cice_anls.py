@@ -120,9 +120,9 @@ def sfs_tests_info(enmb):
   EXPTS = {
     "00" : "Sat.clim",          # reserved field for satellite-derived climatology (ice thkn or snow)
     "01" : "control 20240701",
-    "02" : "ai+hi+hsU+ITDrdg+snphys+Tfrz",
-    "03" : "control 20250701",    # init ice - from CPC used in SFS
-    "04" : "ai+hi",
+    "02" : "control CPC new exec",  # twin expt03 with new UFS g-w executable
+    "03" : "control CPC",           # init ice - from CPC used in SFS
+    "04" : "control GDAS",          # init ice - from GDAS, GFSv17 ICs
     "05" : "ALL+radpar+sealvl",      # sealvl pond  with tuned pond param: pndaspect=1.2, apnd_sl=0.2
     "06" : "ALL+radpar+pondtopo",    # expt07 but pond parameterization topo
     "07" : "ALL+radpar+pondlvl",     # pond_lvl with all other settings 

@@ -82,7 +82,7 @@ parser.add_argument(
 args = parser.parse_args()
 regn      = args.regn if args.regn else None
 init_date = args.init if args.init else init_date  
-end_date  = args.init if args.dend else None
+end_date  = args.dend if args.dend else None
 ndays     = args.ndays if args.ndays else None
 pinit     = args.pinit
 ENMBS     = args.enmb if args.enmb else None

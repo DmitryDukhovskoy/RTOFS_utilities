@@ -110,24 +110,30 @@ with open(fyaml) as ff:
   pths_ml = safe_load(ff)
 
 pthdata = pths_ml["GDAS"]["pthdata"]  # root dir for processed data
-pthdaily = pths_ml["GDAS"]["pthdaily"]  # daily GDAS fields
 
-def derive_time(dnmbS, dnmbE, ptht2m):
+def derive_time(dnmbS, dnmbE, pths_ml, flip_north):
   DNMB = []
   time_stmp = []
   for dnmb in range(dnmbS, dnmbE+1):
     YR, MM, DD = mtime.datevec(dnmb)[:3]
+    ptht2m = pths_ml["GDAS"]["pthdaily"].format(YR=YR)  # daily GDAS fields
     flnm = f"GDAS_flipN_T2m_{YR}{MM:02d}{DD:02d}.npy"
+    if flip_north:
+      flnm = f"GDAS_flipN_T2m_{YR}{MM:02d}{DD:02d}.npy"
+    else:
+      flnm = f"GDAS_notflipN_T2m_{YR}{MM:02d}{DD:02d}.npy"
+
     dflnm = os.path.join(ptht2m, flnm)
     if os.path.isfile(dflnm):
       DNMB.append(dnmb)
 
   return np.asarray(DNMB)
 
+
 # Dates to process:
 dnmbS = mtime.rdate2datenum(sdate)
 dnmbE = mtime.rdate2datenum(edate)
-DNMB = derive_time(dnmbS, dnmbE, pthdaily)
+DNMB = derive_time(dnmbS, dnmbE, pths_ml, flip_north)
 
 
 # Get MOM6 grid:
@@ -218,6 +224,7 @@ for iday, dnmb0 in enumerate(DNMB):
   time_dnmb = []
 
   YR, MM, DD = mtime.datevec(dnmb0)[:3]
+  pthdaily = pths_ml["GDAS"]["pthdaily"].format(YR=YR)  # daily GDAS fields
 
   # Read GDAS daily mean:
   if flip_north:
