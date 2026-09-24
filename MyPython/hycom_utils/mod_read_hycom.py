@@ -133,7 +133,9 @@ def read_grid_topo(pthtopo, ftopo, fgrid, grdpnt='ppnt', f_lon=180, \
   return LON,LAT,HH
 
 
-def read_topo(pthtopo,ftopo,IDM,JDM,dpth_neg=True):
+def read_topo(pthtopo, ftopo, IDM, JDM, dpth_neg=True):
+# binary *.a file
+#
 # Get topo only need to know I and J dimensions
 #
 # f_lon = 180 - convert lon to [-180, 180]
@@ -141,6 +143,14 @@ def read_topo(pthtopo,ftopo,IDM,JDM,dpth_neg=True):
 #       = else - leave as in the grid file
 #
 # read HYCOM grid and topo files *.[ab]
+  if ftopo.endswith('.nc'):
+    raise RuntimeError ("Expected unformatted binary *a, NetCDf not supported")
+
+  if ftopo.endswith('.a'):
+    ftopo = ftopo.removesuffix('.a')
+  elif ftopo.endswith('.b'):
+    ftopo = ftopo.removesuffix('.b')
+
   fltopoa = os.path.join(pthtopo,f"{ftopo}.a")
   fltopob = os.path.join(pthtopo,f"{ftopo}.b")
 

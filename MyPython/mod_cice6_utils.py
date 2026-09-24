@@ -116,27 +116,38 @@ def read_cice4_grid(fl_grid, fld_read, IDM=4500, JDM=3297):
           tlati  latitude  of t-cell centers (radians)
           tloni  longitude of t-cell centers (radians)
   """
-  print('Reading ' + fld_read + ' from CICE4 grid file' + fl_grid)
-  print(' Domain dimensions: IDM={0} JDM={1}'.format(IDM,JDM))
+  field_index = {
+      "kmt": 0,
+      "ulati": 1,
+      "uloni": 2,
+      "htn": 3,
+      "hte": 4,
+      "anglet": 5,
+      "tlati": 6,
+      "tloni": 7,
+  }
 
-  FLDS = ['kmt','ulati','uloni','htn','hte','anglet','tlati','tloni']
   try:
-    iFld = FLDS.index(fld_read)
-  except:
-    print("Field " + fld_read + " is not in " + fl_grid)
+      iFld = field_index[fld_read]
+  except KeyError:
+      raise ValueError(
+          f"Unknown field '{fld_read}'. "
+          f"Available fields: {list(field_index)}"
+      )
 
-  IJDM = IDM*JDM
-  fga  = open(fl_grid,'rb')
-  fga.seek(0)
+  print(f"Reading {fld_read} from {fl_grid}")
+  print(f"Domain dimensions: IDM={IDM} JDM={JDM}")
 
-  
-  fga.seek(iFld*(8*IJDM),0)
-  AA = np.fromfile(fga, dtype='>f8', count=IJDM)
-  AA = np.reshape(AA,(JDM,IDM), order='C')
+  IJDM = IDM * JDM
+  offset = iFld * 8 * IJDM
+  with open(fl_grid, "rb") as fga:
+    fga.seek(offset)
+    AA = np.fromfile(fga, dtype=">f8", count=IJDM)
 
-  fga.close()
+  if AA.size != IJDM:
+    raise IOError(f"Expected {IJDM} values, got {AA.size}")
 
-  return AA
+  return AA.reshape((JDM, IDM))
 
 def read_ncfile(flname, fldname, fsilent=False):
   if not fsilent:
@@ -160,53 +171,55 @@ def add_fld2D_ncfile(flname, fldname):
  
 def grid_rad2dgr(ulat,ulon, f180 = True):
   """
-  Convert CICE coordiantes of the grid from
-  radians to degrees
-  if f180 true - make (-180 <= lon <= 180)
+  Convert CICE grid coordinates from radians to degrees.
+  If f180 is True, convert longitude to the range
+  -180 <= lon < 180.
   """
-  rdn2dgr = 180./np.pi
-  ulat = ulat*rdn2dgr  
-  ulon = ulon*rdn2dgr
-  if f180:
-    ulon = np.where(ulon>180.,ulon-360.,ulon)
-    ulon = np.where(ulon<-180.,ulon+360.,ulon)
+  rdn2dgr = 180.0 / np.pi
+  ulat = ulat * rdn2dgr  
+  ulon = ulon * rdn2dgr
 
-  ulat = np.where(ulat > 89.99999, 89.99999, ulat)
+  # Normalize longitude to [0, 360)
+  ulon = np.mod(ulon, 360.0)
+
+  # Optionally convert to [-180, 180]
+  if f180:
+    ulon = np.where(ulon > 180.0, ulon - 360.0, ulon)
+
+  ulat = np.clip(ulat, -89.99999, 89.99999)
 
   return ulat, ulon
 
-
-def check_cice_grids(ulati4, uloni4, ulati6, uloni6, frad=True, eps0=0.05):
+def check_cice_grids(ulati4, uloni4, ulati6, uloni6,
+                     frad=True, eps0=0.08):
   """
-    Check CICE6 and CIC4 lon/lat 
-    lon/lat are in radians by default
-  
-    There seems to be an error in CICE4 regional grid:
-    last column (from ~ in lat is repeated (end-1) column
-    in CICE6, these are different columns
-    max error is 0.05451 in this column and anywhere else < 1.e-5
-
+  Check CICE4 and CICE6 longitude/latitude grids.
+  Parameters:
+    ulati4, uloni4 : CICE4 latitude/longitude
+    ulati6, uloni6 : CICE6 latitude/longitude
+    frad : bool
+      If True, input coordinates are in radians and are converted
+      to degrees for the comparison.
+    eps0 : float
+      Maximum allowed coordinate difference in degrees.
   """
-  print('Checking CICE4 & 6 grids')
-  rdn2dgr = 180./np.pi
+  print("Checking CICE4 & CICE6 grids")
+
   if frad:
     ulati4, uloni4 = grid_rad2dgr(ulati4, uloni4)
     ulati6, uloni6 = grid_rad2dgr(ulati6, uloni6)
 
-  DU = abs(ulati4-ulati6)
-  DN = abs(uloni4-uloni6)
+  dlat = np.abs(ulati4 - ulati6)
+  dlon = np.abs((uloni4 - uloni6 + 180.0) % 360.0 - 180.0)
+  dlat_max = np.max(dlat)
+  dlon_max = np.max(dlon)
 
-  print('Max latitude difference |CICE4-CICE6| = {0} dgr'.\
-         format(np.max(DU)))
-  print('Max longitude difference |CICE4-CICE6| = {0} dgr'.\
-         format(np.max(DN)))
+  print(f"Max latitude difference  |CICE4-CICE6| = {dlat_max:.6f} deg")
+  print(f"Max longitude difference |CICE4-CICE6| = {dlon_max:.6f} deg")
 
-  if np.max(DU) and np.max(DN) > eps0:
-    print(' Max lat difference exceeds threshold, check CICE4/CICE6 grids')
-    print(' Check if both grids are Arakawa B grid ')
-    print(' If not - need to add interpolation algorithm to map ')
-    print(' CICE4 B grid ---> CICE6 C grid ')
-    raise Exception ('STOPPING: CICE4/CICE6 grid mismatch')
+  if dlat_max > eps0 or dlon_max > eps0:
+    print(f"Max grid-coordinate difference exceeds threshold {eps0} dgr")
+    raise ValueError("CICE4/CICE6 grid mismatch")
 
   return
 

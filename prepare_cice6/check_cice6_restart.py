@@ -46,7 +46,8 @@ regn = 'north'
 #flrst = 'cice_restart.20250103.00.iconc_ithkn.hsnow.snphys.nc' 
 #flrst = 'cice_restart.20250704.00.iconc_ithkn.nc'
 #flrst ='cice_RTOFSres.20250704.00.iconc_ithkn.nc'
-flrst = '20260422.030000.analysis.cice_model.res.nc'  # SOCA file from Anna
+#flrst = '20260422.030000.analysis.cice_model.res.nc'  # SOCA file from Anna
+flrst = 'rtofs_glo.20001216_00000.restart_cice.nc'
 
 # ithkn - mean ice thkn per m2 of grid cell area
 # ithkn_ice - mean ice thkn per m2 of ice area
@@ -127,10 +128,11 @@ with open(fyaml) as ff:
 #flrst = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc.nc"
 #pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'new')
 #pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"])
-pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'cice6_global')
+#pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'cice6_global')
 #pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'cice6_north')
 
-pthrest = '/gpfs/f6/sfs-emc/world-shared/Dmitry.Dukhovskoy/restart_CICE6_SOCA/soca2cice/enkfgdas.20260422/06/mem001/analysis/ice'
+#pthrest = '/gpfs/f6/sfs-emc/world-shared/Dmitry.Dukhovskoy/restart_CICE6_SOCA/soca2cice/enkfgdas.20260422/06/mem001/analysis/ice'
+pthrest = '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/cice_restarts/cice6'
 dflrst = os.path.join(pthrest,flrst)
 
 print(f"Reading {dflrst}")

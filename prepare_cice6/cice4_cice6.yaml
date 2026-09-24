@@ -49,7 +49,7 @@ grid_topo:
       pthgrid:   '/work/Dmitry.Dukhovskoy/CICE6/topo_grid'
       filegrid:  'grid_cice_NEMS_mx008.nc'
       pthtopo:   '/work/Dmitry.Dukhovskoy/CICE6/topo_grid'
-      filedepth: 'depth_GLBb0.08_09m11.a'
+      filedepth: 'ocean_topog.nc'
   "gaea":
     "cice4":
       pthgrid:   '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/topo_grid'
@@ -60,7 +60,7 @@ grid_topo:
       pthgrid:   '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/topo_grid'
       filegrid:  'grid_cice_NEMS_mx008.nc'
       pthtopo:   '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/topo_grid'
-      filedepth: 'depth_GLBb0.08_09m11.a'
+      filedepth: 'ocean_topog.nc'
   "dtn":
     "cice4":
       pthgrid:   '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/topo_grid'
@@ -71,7 +71,7 @@ grid_topo:
       pthgrid:   '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/topo_grid'
       filegrid:  'grid_cice_NEMS_mx008.nc'
       pthtopo:   '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/topo_grid'
-      filedepth: 'depth_GLBb0.08_09m11.a'
+      filedepth: 'ocean_topog.nc'
 
 
 cice_params:
