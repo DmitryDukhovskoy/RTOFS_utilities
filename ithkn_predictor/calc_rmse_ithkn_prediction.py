@@ -55,10 +55,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--sdate", help="Start prediction date YYYYMMDD", required=True, type=int)
 parser.add_argument("--edate", help="End prediction date YYYYMMDD", required=True, type=int)
 parser.add_argument("--model", help="Model names to analyze",
-                    choices=['clim','ols1','ols2','rf1','rf2','rf3','gbr1','gbr2','gbr3'],
+                    choices=['clim','ols1','ols2','rf1','rf2','rf3','gbr1','gbr2','gbr3','gbr11'],
                     required=True, 
                     type=str,
                     nargs="+")
+parser.add_argument("--iconc", help="Ice conc field used as a predictor",
+                    choices=['glorys','amsr2', 'nsidc'],
+                    default='glorys')
 parser.add_argument("--regn", help="Region to process", choices=['north','south'],
                     required=True, type=str)
 parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=int)
@@ -69,6 +72,7 @@ MODELS = args.model
 sdate  = args.sdate
 edate  = args.edate
 regn   = args.regn
+iconc_fld = args.iconc
 
 ndays_era = 7   # freq. of saved era5 fields
 
@@ -162,8 +166,13 @@ def read_prediction(dnmb0, model_name, LMsk):
   # Load prediction and grid points:
   pthfcst = os.path.join(config_predictor["linregr"]["pthfcst"],f"{model_name}")
   flfcst = f"{model_name}_ithkn_fcast_{rdate}.npz"
-  #flfcst = f"{model_name}_{YS}_{YE}_ithkn_fcast_{rdate}.npz"
   dflfcst = os.path.join(pthfcst, flfcst)
+
+  if not os.path.isfile(dflfcst):
+    # Try new name:
+    flfcst = f"{model_name}_ithkn_fcast_{iconc_fld}_{rdate}.npz"
+    dflfcst = os.path.join(pthfcst, flfcst)
+
   print(f"Loading fcst {dflfcst}")
   data_fcst = np.load(dflfcst, allow_pickle=True)
   Ithkn = data_fcst['Yfcst']

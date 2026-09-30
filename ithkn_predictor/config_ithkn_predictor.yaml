@@ -1,6 +1,26 @@
 ---
-# Paths, filenames for ice thickness predictor
+# Paths, filenames, specifications for ice thickness predictor
 #
+regn:
+  north:
+    name    : Arctic
+    lat_bnd : 60.
+  south:
+    name    : Antarctic
+    lat_bnd : -55.
+
+params:
+  # dxy - Min dist (km) between data points (~corr.scale), to skip i,j points
+  # ys / ye - Start / end year of input / predictor fields for training
+  dxy     : 50
+  tstep   : 7    # time step in field sampling, days
+  ys      : 1993
+  ye      : 2025  
+  pthinfo : '/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ML_params'
+  fltime  : "time_array_{tstep}days_{regn}.npy"
+  flij    : "ij_GLORYS_{regn}.npz"
+  flgrid  : "GLORYS_grid.npz"
+ 
 linregr:
   pthithkn : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/sithick/"
   pthiconc : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/siconc/"
@@ -9,7 +29,9 @@ linregr:
   pthui    : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/usi/"
   pthvi    : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/vsi/"
   ptht2m   : "/archive/Dmitry.Dukhovskoy/data/ERA5/{regn_name}"
-  pthgmapi : "/archive/Dmitry.Dukhovskoy/data/remap_indx"
+  ptht2m_1hr: "/uda/ERA5/Hourly_Data_On_Single_Levels/reanalysis/global/1hr/annual_file-range/Temperature_and_Pressure/2m-temperature/0.25x0.25"
+  #pthgmapi : "/archive/Dmitry.Dukhovskoy/data/remap_indx"
+  pthgmapi : "/work/Dmitry.Dukhovskoy/tmp/gmapi"
   pthout   : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_linregr"
   pthrf    : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
   pthgbr   : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
@@ -34,6 +56,7 @@ ml:
     pthgmapi : "/archive/Dmitry.Dukhovskoy/data/remap_indx"
     pthfcst  : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ithkn_fcast"
     pthout   : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_linregr"
+    fliconc  : ~   # need to search in the dir
 
   amsr2:
     pthiconc : "/work/Dmitry.Dukhovskoy/data/AMSR2_iconc_interp"

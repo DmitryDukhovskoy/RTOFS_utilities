@@ -1,15 +1,19 @@
 """
-  Derive dynamic predictor: ERA5 surface air temperature
+  version 2
+
+  Derive dynamic predictor: ERA5 surface air temperature (T2m)
+  Antarctic or Arctic 
+
+  Use 1hr ERA5 fields on PPAN / uda 
+  Need to derive daily then map on GLORYS analysis indices J,I
 
   Need mapping indices gmapi to map ERA5 --> GLORYS grid
   find_remap_indx_era5_to_GLORYS.py
 
-  Use time stamps and J,I grid points from the response
-  variable (ithkn), that need to be run first
+  Use time stamps and J,I grid points defined in define_time_IJpnts.py 
 
-  Downloaded data from ERA5 website
-  Downloaded every 7-day daily mean 2m SAT for specified region from ERA5 website
-  https://cds.climate.copernicus.eu/datasets/derived-era5-single-levels-daily-statistics?tab=download
+  Data:
+/uda/ERA5/Hourly_Data_On_Single_Levels/reanalysis/global/1hr/annual_file-range/Temperature_and_Pressure/2m-temperature/0.25x0.25
 
 """
 import os
@@ -51,36 +55,35 @@ from mod_mom6 import dx_dy
 #from MyPython.mod_cice6_utils import change_base_template, flname_replace_date
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dxy", help=f"Min dist (km) between data points (~corr.scale), to skip close i,j points", 
-                    type=int, required=True)
-parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=int)
-parser.add_argument("--ye", help="Year end, default=2025", default=2025, type=int)
 parser.add_argument("--regn", help="Region to process", choices=['north','south'], 
-                    required=True, type=str)
-parser.add_argument("--load", help="Load saved sst tmp file, continue from last record (1), start from time 0 (0)", 
-                  choices=[0,1], required=True, type=int)
+                    default='south')
+parser.add_argument(
+    "--load", 
+    help="Load saved sst tmp file, continue from last record (1), start from time 0 (0)", 
+    choices=[0,1], 
+    required=True, 
+    type=int
+)
 args = parser.parse_args()
 
-dxy   = args.dxy    
-YS    = args.ys
-YE    = args.ye
 regn  = args.regn
 load_saved = args.load == 1
 
 dump_tstp = 10
 fld_name = 'SAT'
 
-regions = {
-    "north": ("Arctic", 65.0),
-    "south": ("Antarctic", -60.0),
-}
-regn_name, lat0 = regions[regn]
-varnmu = 'usi'
-varnmv = 'vsi'
 
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
+
+regn_name = config_predictor["regn"][regn]["name"]
+lat0      = config_predictor["regn"][regn]["lat_bnd"]
+tstep     = config_predictor["params"]["tstep"]
+dxy       = config_predictor["params"]["dxy"]
+YS        = config_predictor["params"]["ys"]
+YS        = config_predictor["params"]["ys"]
+YE        = config_predictor["params"]["ye"]
 
 DIRS = {
   "pthithkn" : config_predictor["linregr"]["pthithkn"],
@@ -89,7 +92,7 @@ DIRS = {
   "pthssh"   : config_predictor["linregr"]["pthssh"],
   "pthui"    : config_predictor["linregr"]["pthui"],
   "pthvi"    : config_predictor["linregr"]["pthvi"],
-  "ptht2m"   : config_predictor["linregr"]["ptht2m"].format(regn_name=regn_name),
+  "ptht2m"   : config_predictor["linregr"]["ptht2m_1hr"],
   "pthgmapi" : config_predictor["linregr"]["pthgmapi"],
   "pthout"   : config_predictor["linregr"]["pthout"],
   "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
@@ -100,68 +103,36 @@ DIRS = {
   }
 
 
-def derive_time(YS, YE, DIRS, regn_name):
-  DNMB = None
-  time_stmp = []
-  ndays_era = 7   # freq. of saved era5 fields
+# Get time steps, grid points:
+pthinfo = config_predictor["params"]["pthinfo"]
+fltime = config_predictor["params"]["fltime"].format(regn=regn, tstep=tstep)
+flij   = config_predictor["params"]["flij"].format(regn=regn)
+flgrid = config_predictor["params"]["flgrid"]
+dfltime = os.path.join(pthinfo, fltime)
+dflij   = os.path.join(pthinfo, flij)
+dflgrid = os.path.join(pthinfo, flgrid)
 
-  print(f"Deriving time array from ERA5 fields")
-  # Derive Time from saved atm. fields:
-  ptht2m = DIRS['ptht2m']
-  for YR in range(YS,YE+1):
-    flnm = f"era5_2mTemp_daily{ndays_era}day_{regn_name}_{YR}.nc"
-    dflnm = os.path.join(ptht2m, flnm)
-    assert os.path.isfile(dflnm), f"Missing ERA5: {dflnm}, check ndays flag"
+assert os.path.isfile(dfltime), f"Time steps file is missing: {dfltime}"
+assert os.path.isfile(dflij), f"Subsample grid points file is missing: {dflij}"
 
-    dnmb0 = mtime.datenum([YR,1,1])
-    with xr.open_dataset(dflnm, decode_times=False) as ds:
-      Time = ds["valid_time"].values
-      DYR = dnmb0 + Time
-    time_stmp.append(DYR)
+DNMB = np.load(dfltime)
+A = np.load(dflij)
+JG = A["JG"]
+IG = A["IG"]
+npnts = IG.shape
+nrecs = len(DNMB)
 
-  DNMB = np.concatenate(time_stmp)
-  return DNMB
+print(f"N of grid points: {npnts}, N time steps: {nrecs}")
 
-DNMB = derive_time(YS, YE, DIRS, regn_name)
-
-
-# Read time array ad J,I sample grid points:
-# Time array should match ERA5 extracted fields
-pthout = DIRS["pthout"]
-flithkn = DIRS["ithkntmp"]
-dflithkn = os.path.join(pthout, flithkn)
-  
-print(f"Loading saved {dflithkn}, will start from last saved record")
-if not os.path.isfile(dflithkn):
-  print(f"Missing tmp file {dflithkn}\n  start from time = 0")
-else:
-  data = np.load(dflithkn)
-  JG = data["JG"]
-  IG = data["IG"]
-  DNMB_check = data["DNMB"]
-  nrecs = len(DNMB)
-
-  # Check that this is the right time series:
-  dtmp = np.floor(np.abs(DNMB - DNMB_check))
-  assert np.max(dtmp) == 0, "Check DNMB - dates do not match with saved time series"
-
-
-# Read GLORYS grid:
-pthice = os.path.join(DIRS["pthsst"],f"{YS}")
-rdate = f"{YS*10000+100+1}"
-
-# Find file:
-dflglr = mglr.find_file(rdate, pthice)
-
-with xr.open_dataset(dflglr) as dsice:
-  LON = dsice['longitude'].values
-  LAT = dsice['latitude'].values
+# GLORYS grid:
+A = np.load(dflgrid)
+hlon = A["LON"]
+hlat = A["LAT"]
+LMsk = A["LMsk"]
 
 # 0 <= lon < 360
-LON = (LON + 360) % 360
-hlon, hlat = np.meshgrid(LON, LAT)
-#DX, DY = dx_dy(hlon, hlat)
-#Acell = DX*DY
+hlon = (hlon + 360) % 360
+
 
 # Load gmapi:
 pthindx = DIRS["pthgmapi"]
@@ -177,7 +148,7 @@ with xr.open_dataset(dflout) as ds:
 
 LONE = (LONE + 360) % 360
 
-# Construct predictor sst time series for all locations, 
+# Construct predictor T2m time series for all locations, 
 # Or load previously saved
 pthout = DIRS["pthout"]
 fltmp = DIRS["sattmp"]
@@ -218,16 +189,6 @@ def find_era_indx(jj, ii, JERA, IERA, JGLR, IGLR):
   
   return JERA[idx], IERA[idx]
 
-# Find GLORYS - ERA5 pairs:
-print("Finding JERA, IERA to match JGLR, IGLR")
-JE = np.empty(len(JG), dtype=int)
-IE = np.empty(len(IG), dtype=int)
-for k, (jj, ii) in enumerate(zip(JG, IG)):
-  if k > 0 and k % 500 == 0:
-    prc = k/len(JG)*100.
-    print(f"  {prc:.2f}% processed")
-  JE[k], IE[k] = find_era_indx(jj, ii, JERA, IERA, JGLR, IGLR)
-
 def check_era_glorys_coord(LATE, LONE, IE, JE, hlon, hlat, IG, JG, dmax=27e3):
   """
    Check that gmapi indices are correct
@@ -258,8 +219,32 @@ def check_era_glorys_coord(LATE, LONE, IE, JE, hlon, hlat, IG, JG, dmax=27e3):
 
   print(f"Checked gmapi: OK, overall max dist = {DD_max} m")
 
+# Find GLORYS - ERA5 pairs if not saved:
+flg2e = f"glorys2era_pairs_{regn}.npz"
+dflg2e = os.path.join(pthinfo, flg2e)
+if os.path.isfile(dflg2e):
+  print(f"Reading ERA5 indices corresponding GLORYS grid points")
+  A = np.load(dflg2e)
+  JE = A["JE"]
+  IE = A["IE"]
+  
+else:
+  print("Finding JERA, IERA to match JGLR, IGLR")
+  JE = np.empty(len(JG), dtype=int)
+  IE = np.empty(len(IG), dtype=int)
+
+  for k, (jj, ii) in enumerate(zip(JG, IG)):
+    if k > 0 and k % 500 == 0:
+      prc = k/len(JG)*100.
+      print(f"  {prc:.2f}% processed")
+    JE[k], IE[k] = find_era_indx(jj, ii, JERA, IERA, JGLR, IGLR)
+
+  print(f"Saving GLORYS --> ERA indices: {dflg2e}")
+  np.savez(dflg2e, JE=JE, IE=IE)  
+
 check_gmapi = True
 if check_gmapi:
+  # If failed - check IE, JE, may need to redefine those again
   check_era_glorys_coord(LATE, LONE, IE, JE, hlon, hlat, IG, JG)
 
 """
@@ -282,29 +267,46 @@ for irec, dnmb0 in enumerate(DNMB):
 
   rdate = int(YR*1e4 + MM*100 + DD)
 
-  flt2m = f"era5_2mTemp_daily7day_Arctic_{YR}.nc"
+  #flt2m = f"era5_2mTemp_daily7day_Arctic_{YR}.nc"
+  flt2m = f"ERA5_reanalysis_sLevels_1hr_0.25x0.25_2m-temperature_{YR}.nc"
   ptht2m = DIRS['ptht2m']
   dflt2m = os.path.join(ptht2m, flt2m)
+
+  # Read time coord for a new year
   if YR != YRold:
     YRold = YR
     with xr.open_dataset(dflt2m, decode_times=False) as ds:
-      Time = ds['valid_time'].values
-    dnmbS = mtime.datenum([YR,1,1])
-    TM = (Time + dnmbS).astype(int)
+      Time_hrs = ds['time'].values
+    dnmbS = mtime.datenum([1900,1,1])
+    TM = (dnmbS + Time_hrs / 24.0)
 
-  #idx = np.where(np.isclose(TM, dnmb0))[0]
-  idx = np.where(TM == int(dnmb0))[0]
+  # hourly ---> Daily
+  # Find hourly records in this day:
+  idx = np.flatnonzero((TM >= dnmb0) & (TM < dnmb0 + 1)) # indices where condition is True
   if len(idx) == 0:
-      raise ValueError(f"No matching day for {dnmb0} {YR}/{MM}/{DD}")
-  iday = idx[0]
+    print(f"WARNING: No hourly data found for {YR}/{MM:02d}/{DD:02d}")
+    continue
 
+  idx1 = idx[0]
+  idx2 = idx[-1]
+
+  # Average
+  icc = 0
+  T2d = None
   with xr.open_dataset(dflt2m) as dsice:
-    A2d = dsice['t2m'].isel(valid_time=iday).values.squeeze()
+    for ill in range(idx1, idx2+1): 
+      A2d = dsice['t2m'].isel(time=ill).values.squeeze()
 
-  T2d = A2d - 273.15  # K --> C
+      if T2d is None:
+        T2d = np.zeros_like(A2d, dtype=float)
 
+      icc += 1
+      T2d += A2d - 273.15  # K --> C
+
+  T2d /= icc
   YY[:,irec] = T2d[JE, IE]
 
+  # Temporary save:
   if (irec + 1) % dump_tstp == 0: 
     print(f"TMP step: Saving {fld_name} time series  --> {dfltmp}")
     np.savez(dfltmp,
@@ -313,6 +315,7 @@ for irec, dnmb0 in enumerate(DNMB):
            IG=IG,
            DNMB=DNMB)
 
+# Final save
 if irec_start < len(DNMB):
   # No need to save if already everything processed
   print(f"END TMP step: Saving {fld_name} time series and IG, JG --> {dfltmp}")

@@ -46,7 +46,7 @@ parser.add_argument("--rdate", help="Prediction date YYYYMMDD", required=True, t
 parser.add_argument("--regn", help="Region to process", choices=['north','south'],
                     default='north', type=str)
 parser.add_argument("--model", help="Model name", 
-                    choices=['clim','ols1','ols2','rf1','rf2','rf3','gbr1','gbr2','gbr3'],
+                    choices=['clim','ols1','ols2','rf1','rf2','rf3','gbr1','gbr2','gbr3','gbr11'],
                     required=True, type=str)
 parser.add_argument("--iconc", help="Ice conc field used as a predictor",
                     choices=['glorys','amsr2','nsidc'],

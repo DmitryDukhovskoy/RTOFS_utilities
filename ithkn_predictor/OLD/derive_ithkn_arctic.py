@@ -69,38 +69,41 @@ import mod_icepredict as micepr
 #from MyPython.mod_cice6_utils import change_base_template, flname_replace_date
 
 parser = argparse.ArgumentParser()
+#parser.add_argument("--dxy", help=f"Min dist (km) between data points (~corr.scale), to skip close i,j points", 
+#                    type=int, required=True)
+#parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=int)
+#parser.add_argument("--ye", help="Year end, default=2025", default=2025, type=int)
 parser.add_argument("--ndays", help="Use N-th day, 0, ndays, 2*ndays, ..., =0 - derive days from T2m ERA5", 
                     default=0, type=int)
-parser.add_argument("--dxy", help=f"Min dist (km) between data points (~corr.scale), to skip close i,j points", 
-                    type=int, required=True)
-parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=int)
-parser.add_argument("--ye", help="Year end, default=2025", default=2025, type=int)
 parser.add_argument("--regn", help="Region to process", choices=['north','south'], 
                     required=True, type=str)
 parser.add_argument("--load", help="Load saved ithkntmp, continue from last record (1), start from time 0 (0)", 
                   choices=[0,1], required=True, type=int)
 args = parser.parse_args()
 
+#dxy   = args.dxy    
+#YS    = args.ys
+#YE    = args.ye
 ndays = args.ndays
-dxy   = args.dxy    
-YS    = args.ys
-YE    = args.ye
 regn  = args.regn
 load_saved = args.load == 1
 
-ndays_era = 7   # freq. of saved era5 fields
-ithkn_max = 4.  # cap max ice thickness
-Ntime_avrg = 3 # for unrealistic (<0) values, use average values from previous records
-
-regions = {
-    "north": ("Arctic", 65.0),
-    "south": ("Antarctic", -60.0),
-}
-regn_name, lat0 = regions[regn]
 
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
+
+# Load parameters:
+regn_name = config_predictor["regn"][regn]["name"]
+lat0      = config_predictor["regn"][regn]["lat_bnd"]
+dxy  = config_predictor["params"]["dxy"]
+YS   = config_predictor["params"]["ys"]
+YE   = config_predictor["params"]["ye"]
+ndays_era = 7   # time interval of daily era5 fields
+ithkn_max = 4.  # cap max ice thickness
+Ntime_avrg = 3 # for unrealistic (<0) values, use average values from previous records
+
+
 
 DIRS = {
   "pthithkn" : config_predictor["linregr"]["pthithkn"],

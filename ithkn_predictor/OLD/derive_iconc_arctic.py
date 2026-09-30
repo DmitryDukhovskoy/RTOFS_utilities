@@ -43,33 +43,35 @@ import mod_glorys as mglr
 #from MyPython.mod_cice6_utils import change_base_template, flname_replace_date
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dxy", help=f"Min dist (km) between data points (~corr.scale), to skip close i,j points", 
-                    type=int, required=True)
-parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=int)
-parser.add_argument("--ye", help="Year end, default=2025", default=2025, type=int)
+#parser.add_argument("--dxy", help=f"Min dist (km) between data points (~corr.scale), to skip close i,j points", 
+#                    type=int, required=True)
+#parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=int)
+#parser.add_argument("--ye", help="Year end, default=2025", default=2025, type=int)
 parser.add_argument("--regn", help="Region to process", choices=['north','south'], 
                     required=True, type=str)
 parser.add_argument("--load", help="Load saved iconc tmp file, continue from last record (1), start from time 0 (0)", 
                   choices=[0,1], required=True, type=int)
 args = parser.parse_args()
 
-dxy   = args.dxy    
-YS    = args.ys
-YE    = args.ye
+#dxy   = args.dxy    
+#YS    = args.ys
+#YE    = args.ye
 regn  = args.regn
 load_saved = args.load == 1
 
 fld_name = 'iconc'
 
-regions = {
-    "north": ("Arctic", 65.0),
-    "south": ("Antarctic", -60.0),
-}
-regn_name, lat0 = regions[regn]
-
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
+
+
+# Load parameters:
+regn_name = config_predictor["regn"][regn]["name"]
+lat0      = config_predictor["regn"][regn]["lat_bnd"]
+dxy  = config_predictor["params"]["dxy"]
+YS   = config_predictor["params"]["ys"]
+YE   = config_predictor["params"]["ye"]
 
 DIRS = {
   "pthithkn" : config_predictor["linregr"]["pthithkn"],
@@ -83,7 +85,7 @@ DIRS = {
   }
 
 
-# Read time array ad J,I sample grid points:
+# Read time array ad J,I sample grid points from ithkn tmp:
 pthout = DIRS["pthout"]
 fltmp = DIRS["ithkntmp"]
 dfltmp = os.path.join(pthout, fltmp)
@@ -91,6 +93,8 @@ dfltmp = os.path.join(pthout, fltmp)
 print(f"Loading saved {dfltmp}, will start from last saved record")
 if not os.path.isfile(dfltmp):
   print(f"Missing tmp file {dfltmp}\n  start from time = 0")
+  raise FileNotFoundError(f"Need to create {fltmp} first with analysis grid points I,J and time")
+
 else:
   data = np.load(dfltmp)
   JG = data["JG"]

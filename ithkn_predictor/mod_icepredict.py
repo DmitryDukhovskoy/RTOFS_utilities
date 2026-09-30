@@ -326,6 +326,49 @@ def check_dnmb_array(DNMB, print_months=True):
 
   return
 
+def derive_time(YS, YE, tstep, start_month=True):
+  """
+  Derive array of date numbers 
+
+  YS, YE : int
+      Start and end year (inclusive).
+  tstep : int
+      Time interval in days.
+  start_month : bool
+      True  -> restart count each month.
+      False -> count continuously from Jan 1 each year.
+
+  Special case:
+      tstep=7 -> use [1, 7, 14, 21, 28] of each month.
+  """
+  time_stmp = []
+  print(f"Deriving time array, tstep={tstep}")
+
+  if start_month:
+    mdays = [1, 7, 14, 21, 28] if tstep == 7 else list(range(1, 31, tstep))
+
+    for YR in range(YS, YE+1):
+      for MM in range(1, 13):
+        day_last = mtime.month_days(MM, YR)
+
+        for DD in mdays:
+          if DD > day_last:
+            break
+
+          dnmb0 = int(mtime.datenum([YR,MM,DD]))
+          time_stmp.append(dnmb0)
+
+  else:
+    for YR in range(YS, YE+1):
+      ndays = 366 if mtime.months_days(2, YR) == 29 else 365
+
+      for jday in range(1, ndays+1, tstep):
+        dnmb0 = int(mtime.jday2dnmb(YR, jday))
+        time_stmp.append(dnmb0)
+
+  DNMB = np.asarray(time_stmp, dtype=int)
+  return DNMB
+
 
 def subset_glorys_iconc(dflice, IG, JG, varnm='siconc'):
   """
@@ -451,10 +494,11 @@ def subset_glorys_divu(dfui, dfvi, IG, JG, hlon, hlat, dxy):
 
   return fld_pnts
 
-def derive_time(YS, YE, ptht2m, regn_name, ndays_era):
+def derive_time_ERA5files (YS, YE, ptht2m, regn_name, ndays_era):
   """
     Derive time array of available ERA5 fields
     for the full year within YS - YE
+    Search for available ERA5 files
   """
   DNMB = None
   time_stmp = []
@@ -483,9 +527,6 @@ def intgr_Tfrz(SATprv, intgr_time, Tfrz, days_frz):
     Linear interpolation is safer
   """
   Tintrp = np.arange(days_frz[-1] - intgr_time, days_frz[-1]+1)
-  #cs = CubicSpline(days_frz, SATprv, axis=1)
-  # SATs during the requested previous Ndays
-  #SATi = cs(Tintrp)
 
   interp = interp1d(days_frz, SATprv,
                   axis=1,
@@ -506,24 +547,20 @@ def intgr_Tfrz(SATprv, intgr_time, Tfrz, days_frz):
 
   return intgrFDD
 
-def intgr_heat_dgr(SATprv, intgr_time, Tfrz, days_frz):
+def intgr_HeatDgr(SATprv, intgr_time, Tfrz, days_frz):
   """
     Integrate heat degree days, T>Tfrz 
     sum(T-Tfrz), when T2m atm > Tfrz ocean
     Linear interpolation is safer
   """
   Tintrp = np.arange(days_frz[-1] - intgr_time, days_frz[-1]+1)
-  #cs = CubicSpline(days_frz, SATprv, axis=1)
-  # SATs during the requested previous Ndays
-  #SATi = cs(Tintrp)
-
   interp = interp1d(days_frz, SATprv,
                   axis=1,
                   kind='linear')
   SATi = interp(Tintrp)
 
-  T2frz = np.where(SATi > Tfrz, SATi, np.nan)
-  intgrHDD = np.nansum(T2frz - Tfrz, axis=1)  # integrated Heat Dgr Days
+  T2heat = np.where(SATi > Tfrz, SATi, np.nan)
+  intgrHDD = np.nansum(T2heat - Tfrz, axis=1)  # integrated Heat Dgr Days
 
   return intgrHDD
 

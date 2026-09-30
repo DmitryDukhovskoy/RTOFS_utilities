@@ -82,12 +82,11 @@ import mod_icepredict as micepr
 #from MyPython.mod_cice6_utils import change_base_template, flname_replace_date
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--gbrmod", help="Hist Gradient Boost random forest model number",
+parser.add_argument("--gbrmod", help="Hist Gradient Boost decision tree model number",
                     choices=[1,2,3,4,11], required=True, type=int)
 parser.add_argument("--regn", help="Region to process, default=north", 
                     choices=['north','south'], 
-                    default='north', 
-                    type=str)
+                    required=True)
 parser.add_argument("--save", help="Save model object (=1)",
                     choices=[0,1],
                     required=True,

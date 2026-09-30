@@ -43,8 +43,9 @@ sys.path.extend([
 ])
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--regn", help="Region: north or south", choices=['north','south'], 
-                    required=True, type=str)
+parser.add_argument("--regn", help="Region: north or south", 
+                    choices=['north','south','glob'], 
+                    required=True)
 parser.add_argument("--debug", help="Run in debug mode to check cKDTRee method vs brute force nearest dist",
                     choices=[0,1], type=int, default=0)
 args = parser.parse_args()
@@ -52,16 +53,33 @@ run_debug = args.debug == 1
 regn = args.regn
 
 pthindx = '/archive/Dmitry.Dukhovskoy/data/remap_indx'
+pthindx = '/work/Dmitry.Dukhovskoy/tmp/gmapi'   # temporary dir archive is down
 
 f_save = True
 
 
 if regn == 'north':
   #lat0 = 60
+  lat0 = None  # derive min lat0 from downloaded regional ERA5
   pthera5 = '/archive/Dmitry.Dukhovskoy/data/ERA5/Arctic'
   flbase = 'era5_2mTemp_daily7day_Arctic_'
-else:
-  lat0 = -55
+
+elif regn == 'south':
+  pthera5 = (
+    '/uda/ERA5/Hourly_Data_On_Single_Levels/reanalysis/global/1hr/'
+    'annual_file-range/Temperature_and_Pressure/2m-temperature/0.25x0.25'
+  )
+  lat0 = -50
+  flbase = 'ERA5_reanalysis_sLevels_1hr_0.25x0.25_2m-temperature_'
+
+elif regn == 'glob':
+  pthera5 = (
+    '/uda/ERA5/Hourly_Data_On_Single_Levels/reanalysis/global/1hr/'
+    'annual_file-range/Temperature_and_Pressure/2m-temperature/0.25x0.25'
+  )
+  lat0 = 90
+  flbase = 'ERA5_reanalysis_sLevels_1hr_0.25x0.25_2m-temperature_'
+
 
 dgr2rad = np.pi/180.
 
@@ -76,10 +94,13 @@ with xr.open_dataset(dflera5) as ds:
 
 LON_era = (LON_era + 360) % 360
 
-if regn == 'north':
-  lat0 = np.min(LAT_era)
-elif regn == 'south':
-  lat0 = np.max(LAT_era)
+if lat0 is None:
+  if regn == 'north':
+    lat0 = np.min(LAT_era)
+  elif regn == 'south':
+    lat0 = np.max(LAT_era)
+  elif regn == 'glob':
+    lat0 = 90.
 
 # Radians:
 LONR_era, LATR_era = np.meshgrid(LON_era * dgr2rad, LAT_era * dgr2rad)
@@ -88,7 +109,6 @@ LONR_era, LATR_era = np.meshgrid(LON_era * dgr2rad, LAT_era * dgr2rad)
 Z_era = np.sin(LATR_era)
 X_era = np.cos(LATR_era) * np.cos(LONR_era)
 Y_era = np.cos(LATR_era) * np.sin(LONR_era)
-
 
 
 # Read GLORYS grid:
@@ -136,8 +156,9 @@ if use_lmask:
 # Regional domain:
 if regn == 'north':
   Ireg = hlat >= lat0
-elif regn == 'south':
+elif regn == 'south' or regn == 'glob':
   Ireg = hlat <= lat0
+
 
 J, I = np.where(Ireg)
 Npnts = np.shape(J)[0]

@@ -215,8 +215,15 @@ for dnmb0 in DNMB_fcst:
   rdate = YR0*10000 + MM0*100 + DD0
   print(f"Day {YR0}/{MM0}/{DD0}")
 
-  DIRS["fliconc"] = config_predictor[emul][iconc_fld]["fliconc"].format(YR=f"{YR0}",MM=f"{MM0:02d}",DD=f"{DD0:02d}")
-  
+  if emul == "ml":
+    DIRS["fliconc"] = None # Search for the appropriate file in the directory
+  else:
+    DIRS["fliconc"] = fliconc.format(
+        YR=f"{YR0}",
+        MM=f"{MM0:02d}",
+        DD=f"{DD0:02d}"
+    ) 
+ 
   # Derive Predictors
   # hlon, hlat - grid where prediction is done (GLORYS)
   # IG, JG - grid point indices where prediction is done

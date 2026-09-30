@@ -80,12 +80,6 @@ intgr_time = 90  # Time for freeze degree days accumulation, back from current t
 Tfrz = -1.85    # ocea freezing T
 ndays_era = 7   # freq. of saved era5 fields
 
-regions = {
-    "north": ("Arctic", 65.0),
-    "south": ("Antarctic", -60.0),
-}
-regn_name, lat0 = regions[regn]
-
 # Static predictors:
 #   yday   - year day represented as cos(yday) + sin(yday)
 #   gcoord - geogr. coord. in spherical coordinates
@@ -108,6 +102,9 @@ elif model_name == "OLS_model2":
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
+
+regn_name = config_predictor["regn"]["north"]["name"]
+lat0 = config_predictor["regn"]["north"]["lat_bnd"]
 
 DIRS = {
   "pthithkn" : config_predictor["linregr"]["pthithkn"],

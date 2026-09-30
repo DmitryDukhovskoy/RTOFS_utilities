@@ -1,12 +1,18 @@
 """
-  Derive dynamic predictor: the number of heat degree days
+Version 2.:
+  Calculate integrated Heat Degree Days or Freeze Degree Days
+  Use hourly ERA5 --> daily
+
+Code for both regions Arctic / Antarctic
+  Grid points and time steps are prepared in define_time_IJpnts.py
+  Grid points with no ice cover during multiple years are eliminated
+
+  Heat degree days
   in analogy to Zubov's IFDD, but opposite
   which may be important for melt season
 
-
   For faster processing, run unstaging script before this:
   /home/Dmitry.Dukhovskoy/scripts/GLORYS_anls/unstage_glorys.sh
-
 """
 import os
 import numpy as np
@@ -19,7 +25,6 @@ from mpl_toolkits.basemap import Basemap, cm
 from yaml import safe_load
 import argparse
 from pathlib import Path
-from scipy.interpolate import CubicSpline
 from scipy.interpolate import interp1d
 
 #ROOT = Path(__file__).resolve().parent
@@ -43,43 +48,63 @@ sys.path.extend([
 ])
 import mod_time as mtime
 import mod_glorys as mglr 
+import mod_icepredict as micpr
 from mod_misc1 import dist_sphcrd
 from mod_mom6 import dx_dy
 
 #from MyPython.mod_cice6_utils import change_base_template, flname_replace_date
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dxy", help=f"Min dist (km) between data points (~corr.scale), to skip close i,j points", 
-                    type=int, required=True)
-parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=int)
-parser.add_argument("--ye", help="Year end, default=2025", default=2025, type=int)
-parser.add_argument("--regn", help="Region to process", choices=['north','south'], 
-                    required=True, type=str)
-parser.add_argument("--load", help="Load saved sst tmp file, continue from last record (1), start from time 0 (0)", 
-                  choices=[0,1], required=True, type=int)
+parser.add_argument(
+  "--regn", 
+  help="Region to process", 
+  choices=['north','south'], 
+  required=True
+)
+parser.add_argument(
+  "--field",
+  help="Output field: ifdd (Freeze Degr. Days) or ihdd (Heat Degr. Days)",
+  choices=['ifdd','ihdd'],
+  required=True
+)
+parser.add_argument(
+  "--load", 
+  help="Load saved ifdd/ihdd tmp file, continue from last record (1), start from time 0 (0 default)", 
+  choices=[0,1], 
+  default=0, 
+  type=int
+)
+parser.add_argument(
+  "--debug", 
+  help="1 - run in debug mode, nothing saved, default = 0",
+  default=0,
+  type=int
+)
+
 args = parser.parse_args()
 
-dxy   = args.dxy    
-YS    = args.ys
-YE    = args.ye
-regn  = args.regn
+regn       = args.regn
+fld_name   = args.field
 load_saved = args.load == 1
-
-intgr_time = 90  # Time for freeze degree days accumulation, back from current time
-dump_tstp = 20
-fld_name = 'intgrHeatDgrDays'
-Tfrz = -1.85    # ocea freezing T
-ndays_era = 7   # freq. of saved era5 fields
-
-regions = {
-    "north": ("Arctic", 65.0),
-    "south": ("Antarctic", -60.0),
-}
-regn_name, lat0 = regions[regn]
+run_debug  = args.debug == 1
 
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
+
+# Load parameters:
+regn_name = config_predictor["regn"][regn]["name"]
+lat0      = config_predictor["regn"][regn]["lat_bnd"]
+tstep     = config_predictor["params"]["tstep"]
+dxy       = config_predictor["params"]["dxy"]
+YS        = config_predictor["params"]["ys"]
+YS        = config_predictor["params"]["ys"]
+YE        = config_predictor["params"]["ye"]
+tstep_era = config_predictor["params"]["tstep"]
+
+intgr_time = 90  # Time for freeze degree days accumulation, back from current time
+dump_tstp = 50
+Tfrz = -1.85    # ocea freezing T
 
 DIRS = {
   "pthithkn" : config_predictor["linregr"]["pthithkn"],
@@ -88,7 +113,7 @@ DIRS = {
   "pthssh"   : config_predictor["linregr"]["pthssh"],
   "pthui"    : config_predictor["linregr"]["pthui"],
   "pthvi"    : config_predictor["linregr"]["pthvi"],
-  "ptht2m"   : config_predictor["linregr"]["ptht2m"].format(regn_name=regn_name),
+  "ptht2m"   : config_predictor["linregr"]["ptht2m_1hr"],
   "pthgmapi" : config_predictor["linregr"]["pthgmapi"],
   "pthout"   : config_predictor["linregr"]["pthout"],
   "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
@@ -98,39 +123,49 @@ DIRS = {
   "sattmp"   : config_predictor["linregr"]["sattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "dfrztmp"  : config_predictor["linregr"]["dfrztmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "heattmp"  : config_predictor["linregr"]["heattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "dfrztmp"  : config_predictor["linregr"]["dfrztmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   }
 
+# Get time steps, grid points:
+pthinfo = config_predictor["params"]["pthinfo"]
+fltime = config_predictor["params"]["fltime"].format(regn=regn, tstep=tstep)
+flij   = config_predictor["params"]["flij"].format(regn=regn)
+flgrid = config_predictor["params"]["flgrid"]
+dfltime = os.path.join(pthinfo, fltime)
+dflij   = os.path.join(pthinfo, flij)
+dflgrid = os.path.join(pthinfo, flgrid)
 
-def derive_time(YS, YE, DIRS, regn_name, ndays_era):
-  DNMB = None
-  time_stmp = []
+assert os.path.isfile(dfltime), f"Time steps file is missing: {dfltime}"
+assert os.path.isfile(dflij), f"Subsample grid points file is missing: {dflij}"
 
-  print(f"Deriving time array from ERA5 fields")
-  # Derive Time from saved atm. fields:
-  ptht2m = DIRS['ptht2m']
-  for YR in range(YS,YE+1):
-    flnm = f"era5_2mTemp_daily{ndays_era}day_{regn_name}_{YR}.nc"
-    dflnm = os.path.join(ptht2m, flnm)
-    assert os.path.isfile(dflnm), f"Missing ERA5: {dflnm}, check ndays flag"
+# Read saved date numbers and 
+# Read time array ad J,I sample grid points
+DNMB = np.load(dfltime)
+A = np.load(dflij)
+JG = A["JG"]
+IG = A["IG"]
+npnts = IG.shape
+nrecs = len(DNMB)
 
-    dnmb0 = mtime.datenum([YR,1,1])
-    with xr.open_dataset(dflnm, decode_times=False) as ds:
-      Time = ds["valid_time"].values
-      DYR = dnmb0 + Time
-    time_stmp.append(DYR)
+print(f"N of grid points: {npnts}, N time steps: {nrecs}")
 
-  DNMB = np.concatenate(time_stmp)
-  return DNMB
+# GLORYS grid:
+A = np.load(dflgrid)
+hlon = A["LON"]
+hlat = A["LAT"]
+LMsk = A["LMsk"]
 
-DNMB = derive_time(YS, YE, DIRS, regn_name, ndays_era)
-dnmbStart = DNMB[0]
+# 0 <= lon < 360
+hlon = (hlon + 360) % 360
+
+
 # Add previous days for integrating SAT
 # integrating heat deegre days
 # Previous (to start) year should exist !
 dnmbS = DNMB[0]   # actual start day
 dnmbP = dnmbS - intgr_time - 1  # previous intgr time preiod, start day
 Ypr, Mpr, Dpr = mtime.datevec(dnmbP)[:3]
-DNMBprv = derive_time(Ypr, Ypr, DIRS, regn_name, ndays_era)
+DNMBprv = micpr.derive_time(Ypr, Ypr, tstep_era)
 
 # Find closest time:
 idx0 = max(np.argmin(abs(DNMBprv - dnmbP)) - 2, 0) # add extra index
@@ -139,42 +174,7 @@ nrec_prev = len(DNMBprv) - idx0     # how many records to keep for intgr Tfrz
 DNMB_run = DNMB.copy()
 DNMB = np.concatenate((DNMBprv[idx0:], DNMB))
 
-# Read time array ad J,I sample grid points:
-# Time array should match ERA5 extracted fields
-pthout = DIRS["pthout"]
-flithkn = DIRS["ithkntmp"]
-dflithkn = os.path.join(pthout, flithkn)
-  
-print(f"Loading saved {dflithkn}, will start from last saved record")
-if not os.path.isfile(dflithkn):
-  print(f"Missing tmp file {dflithkn}\n  start from time = 0")
-else:
-  data = np.load(dflithkn)
-  JG = data["JG"]
-  IG = data["IG"]
-  DNMB_check = data["DNMB"]
 
-  # Check that this is the right time series:
-  dtmp = np.floor(np.abs(DNMB_run - DNMB_check))
-  assert np.max(dtmp) == 0, "Check DNMB - dates do not match with saved time series"
-
-
-# Read GLORYS grid:
-pthice = os.path.join(DIRS["pthsst"],f"{YS}")
-rdate = f"{YS*10000+100+1}"
-
-# Find file:
-dflglr = mglr.find_file(rdate, pthice)
-
-with xr.open_dataset(dflglr) as dsice:
-  LON = dsice['longitude'].values
-  LAT = dsice['latitude'].values
-
-# 0 <= lon < 360
-LON = (LON + 360) % 360
-hlon, hlat = np.meshgrid(LON, LAT)
-#DX, DY = dx_dy(hlon, hlat)
-#Acell = DX*DY
 
 # Load gmapi:
 pthindx = DIRS["pthgmapi"]
@@ -190,11 +190,51 @@ with xr.open_dataset(dflout) as ds:
 
 LONE = (LONE + 360) % 360
 
+def debug_ifdd(ipp, Tsurf, hlat, hlon, SATprv, Tfrz, fld_pnts):
+  """
+  Debugging Intgr Freeze Dgr Days
+  """
+  T2m_ij = np.asarray(Tsurf)
+  LATI = hlat[JG,IG]
+  LONI = hlon[JG,IG]
+  xpp = LONI[ipp]
+  ypp = LATI[ipp]
+  t2m_prv = SATprv[ipp,:]  
+  ndays_frz = np.count_nonzero(t2m_prv < Tfrz)
+  ihdd = np.nansum(Tfrz - t2m_prv[t2m_prv < Tfrz])
+  print(f"  Check pnt: x={xpp:.2f}W, y={ypp:.2f}N, N integr. days: {intgr_time}")
+  print(f"  N days T < {Tfrz:.2f}: {ndays_frz}, min/max T: {np.min(t2m_prv):.2f} / {np.max(t2m_prv):.2f}"
+        f" IntgrFreeze: {ihdd:.2f}") 
+  print(f"  ALL: Min / max T2m: {np.min(T2m_ij):.2f} / {np.max(T2m_ij):.2f}")
+  print(f"  ALL: min/max IFDD: {np.min(fld_pnts):.1f} / {np.max(fld_pnts):.1f}")    
+
+
+def debug_ihdd(ipp, Tsurf, hlat, hlon, SATprv, Tfrz, fld_pnts):
+  """
+  Debugging Intgr Heat Dgr Days
+  """
+  T2m_ij = np.asarray(Tsurf)
+  LATI = hlat[JG,IG]
+  LONI = hlon[JG,IG]
+  xpp = LONI[ipp]
+  ypp = LATI[ipp]
+  t2m_prv = SATprv[ipp,:]  
+  ndays_pos = np.count_nonzero(t2m_prv > Tfrz)
+  ihdd = np.nansum(t2m_prv[t2m_prv > Tfrz] - Tfrz)
+  print(f"  Check pnt: x={xpp:.2f}W, y={ypp:.2f}N, N integr. days: {intgr_time}")
+  print(f"  N days T > {Tfrz:.2f}: {ndays_pos}, min/max T: {np.min(t2m_prv):.2f} / {np.max(t2m_prv):.2f}"
+        f" IntgrHeat: {ihdd:.2f}") 
+  print(f"  ALL: Min / max T2m: {np.min(T2m_ij):.2f} / {np.max(T2m_ij):.2f}")
+  print(f"  ALL: min/max IHDD: {np.min(fld_pnts):.1f} / {np.max(fld_pnts):.1f}")    
+
+
 # Construct predictor sst time series for all locations, 
 # Or load previously saved
 pthout = DIRS["pthout"]
-fltmp = DIRS["heattmp"]
+fltmp = DIRS["dfrztmp"] if fld_name == 'ifdd' else DIRS["heattmp"]
 dfltmp = os.path.join(pthout, fltmp)
+
+print(f"\n   Deriving {fld_name} \n")
 
 irec_start = 0
 YY = None
@@ -221,36 +261,32 @@ if load_saved:
     print(f"Next record to start {irec_start}")
 
 
-def find_era_indx(jj, ii, JERA, IERA, JGLR, IGLR):
-  """
-    Given glorys grid pnt (ii,jj) 
-    Find corresponding ERA grd pnt
-    using gmapi 
-  """
-  DD = (JGLR-jj)**2 + (IGLR-ii)**2
-  idx = np.argmin(DD)
-  assert np.floor(DD[idx]) == 0, f"Could not match GLORYS index jj={jj} ii={ii}"
-  
-  return JERA[idx], IERA[idx]
-
 # Find GLORYS - ERA5 pairs:
-print("Finding JERA, IERA to match JGLR, IGLR")
-assert len(JG)==len(IG)
-JE = np.empty(len(JG), dtype=int)
-IE = np.empty(len(IG), dtype=int)
-# Alternative to distance-approach, build a lookup table:
-gmapi = {(jg,ig):(je,ie)
-         for jg,ig,je,ie in zip(JGLR,IGLR,JERA,IERA)}
+flg2e = f"glorys2era_pairs_{regn}.npz"
+dflg2e = os.path.join(pthinfo, flg2e)
+if os.path.isfile(dflg2e):
+  print(f"Reading ERA5 indices corresponding GLORYS grid points")
+  A = np.load(dflg2e)
+  JE = A["JE"]
+  IE = A["IE"]
 
-for k, (jj, ii) in enumerate(zip(JG, IG)):
-  if k > 0 and k % 500 == 0:
-    prc = k/len(JG)*100.
-    print(f"  {prc:.2f}% processed")
-  #JE[k], IE[k] = find_era_indx(jj, ii, JERA, IERA, JGLR, IGLR)
-  key = (int(jj), int(ii))
-  if key not in gmapi:
-    raise ValueError(f"Missing gmapi entry for GLORYS index {key}")
-  JE[k], IE[k] = gmapi[key]
+else:
+  print("Finding JERA, IERA to match JGLR, IGLR")
+  assert len(JG)==len(IG)
+  JE = np.empty(len(JG), dtype=int)
+  IE = np.empty(len(IG), dtype=int)
+  # Alternative to distance-approach, build a lookup table:
+  gmapi = {(jg,ig):(je,ie)
+           for jg,ig,je,ie in zip(JGLR,IGLR,JERA,IERA)}
+
+  for k, (jj, ii) in enumerate(zip(JG, IG)):
+    if k > 0 and k % 500 == 0:
+      prc = k/len(JG)*100.
+      print(f"  {prc:.2f}% processed")
+    key = (int(jj), int(ii))
+    if key not in gmapi:
+      raise ValueError(f"Missing gmapi entry for GLORYS index {key}")
+    JE[k], IE[k] = gmapi[key]
 
 
 def check_era_glorys_coord(LATE, LONE, IE, JE, hlon, hlat, IG, JG, dmax=27e3):
@@ -283,36 +319,6 @@ def check_era_glorys_coord(LATE, LONE, IE, JE, hlon, hlat, IG, JG, dmax=27e3):
 
   print(f"Checked gmapi: OK, overall max dist = {DD_max} m")
 
-def intgr_HeatDgr(SATprv, intgr_time, Tfrz, days_frz):
-  """
-    Opposite to Zubov definition of accumulated freeze degree days
-    compute integrated heat degree days (when T > Tfrz)
-    sum(T-Tfrz), when SAT < Tfrz
-    Linear interpolation is safer
-  """
-  Tintrp = np.arange(days_frz[-1] - intgr_time, days_frz[-1]+1)
-  #cs = CubicSpline(days_frz, SATprv, axis=1)
-  # SATs during the requested previous Ndays
-  #SATi = cs(Tintrp)
-
-  interp = interp1d(days_frz, SATprv,
-                  axis=1,
-                  kind='linear')
-  SATi = interp(Tintrp)
-
-  T2heat = np.where(SATi > Tfrz, SATi, np.nan) 
-  intgrHDD = np.nansum(T2heat-Tfrz, axis=1)  # integrated Freeze degree days
- 
-  f_chck = False
-  if f_chck:
-    iC=15
-    Ti = SATi[iC,:]
-    T0 = SATprv[iC,:]
-    ax1.cla()
-    ax1.plot(Tintrp, Ti)
-    ax1.plot(days_frz, T0,'.-')
-
-  return intgrHDD 
 
 check_gmapi = True
 if check_gmapi:
@@ -325,9 +331,9 @@ days_frz = np.zeros(nrec_prev)    # time stamps of saved SAT
   2D: locations x time
 
   First N records will be skipped before actual start date
-  To populate SAT array with temp for integrating Freez. days
+  To populate SAT array with temp for integrating Heat Dgr Days
 """
-iStart = np.where(DNMB == dnmbStart)[0][0]
+iStart = np.where(DNMB == dnmbS)[0][0]
 npnts = len(JG)
 nrecs = len(DNMB_run)
 irec = 0
@@ -342,27 +348,44 @@ for irec0, dnmb0 in enumerate(DNMB):
   rdate = int(YR*1e4 + MM*100 + DD)
 
   #flt2m = f"era5_2mTemp_daily7day_Arctic_{YR}.nc"
-  flt2m = f"era5_2mTemp_daily{ndays_era}day_{regn_name}_{YR}.nc"
+  #flt2m = f"era5_2mTemp_daily{tstep_era}day_{regn_name}_{YR}.nc"
+  flt2m = f"ERA5_reanalysis_sLevels_1hr_0.25x0.25_2m-temperature_{YR}.nc"
   ptht2m = DIRS['ptht2m']
   dflt2m = os.path.join(ptht2m, flt2m)
+
+  # Read time coord for a new year
   if YR != YRold:
-    if YRold != 1900:
-        ds_t2m.close()
     YRold = YR
-    ds_t2m = xr.open_dataset(dflt2m, decode_times=False)
-    Time = ds_t2m['valid_time'].values
-    dnmb_day1 = mtime.datenum([YR,1,1])
-    TM = (Time + dnmb_day1).astype(int)
+    with xr.open_dataset(dflt2m, decode_times=False) as ds:
+      Time_hrs = ds['time'].values
+    dnmbRef = mtime.datenum([1900,1,1])
+    TM = (dnmbRef + Time_hrs / 24.0)
 
-  #idx = np.where(np.isclose(TM, dnmb0))[0]
-  idx = np.where(TM == int(dnmb0))[0]
+  # hourly ---> Daily
+  # Find hourly records in this day:
+  idx = np.flatnonzero((TM >= dnmb0) & (TM < dnmb0 + 1)) # indices where condition is True
   if len(idx) == 0:
-    raise ValueError(f"No matching day for {dnmb0} {YR}/{MM}/{DD}")
-  iday = idx[0]
-  A2d = ds_t2m['t2m'].isel(valid_time=iday).values.squeeze()
-  T2d = A2d - 273.15  # K --> C
+    print(f"WARNING: No hourly data found for {YR}/{MM:02d}/{DD:02d}")
+    continue
 
-  fld_pnts = []
+  idx1 = idx[0]
+  idx2 = idx[-1]
+
+  # Average
+  icc = 0
+  T2d = None
+  with xr.open_dataset(dflt2m) as dsice:
+    for ill in range(idx1, idx2+1):
+      A2d = dsice['t2m'].isel(time=ill).values.squeeze()
+
+      if T2d is None:
+        T2d = np.zeros_like(A2d, dtype=float)
+
+      icc += 1
+      T2d += A2d - 273.15  # K --> C
+
+  T2d /= icc
+
   Tsurf = []
   for jje, iie in zip(JE, IE):
     Tsurf.append(T2d[jje,iie])
@@ -374,22 +397,36 @@ for irec0, dnmb0 in enumerate(DNMB):
   days_frz[:-1] = days_frz[1:]
   days_frz[-1] = dnmb0
 
+  # Cycle over N previous days 
+  # Until the start date
   if dnmb0 < dnmbS:
     continue
 
   irec = irec0 - iStart
-  assert irec >= 0
+  assert irec >= 0, f"ERROR irec0={irec0} should be > {iStart}"
   assert irec < YY.shape[1]
   if irec < irec_start:
     continue
-
+  
+  fld_pnts = []
   assert np.all(days_frz > 0), "days_frz not populated, there are 0s"
   assert np.all(np.diff(days_frz)>0), "days_frz not increasing" 
-  fld_pnts = intgr_HeatDgr(SATprv, intgr_time, Tfrz, days_frz)
+  
+  if fld_name == 'ifdd':
+    fld_pnts = micpr.intgr_Tfrz(SATprv, intgr_time, Tfrz, days_frz)
+  else:
+    fld_pnts = micpr.intgr_HeatDgr(SATprv, intgr_time, Tfrz, days_frz)
 
   YY[:,irec] = np.asarray(fld_pnts)
 
-  if (irec + 1) % dump_tstp == 0: 
+  if run_debug:
+    ipp = 2085 if regn == 'north' else 6726
+    if fld_name == 'ifdd':
+      debug_ifdd(ipp, Tsurf, hlat, hlon, SATprv, Tfrz, fld_pnts)
+    else:
+      debug_ihdd(ipp, Tsurf, hlat, hlon, SATprv, Tfrz, fld_pnts)
+
+  if (irec + 1) % dump_tstp == 0 and not run_debug: 
     print(f"TMP step: Saving {fld_name} time series  --> {dfltmp}")
     np.savez(dfltmp,
            YY=YY,
@@ -400,7 +437,7 @@ for irec0, dnmb0 in enumerate(DNMB):
            DNMBprv=DNMB[:iStart],
            DNMB=DNMB[iStart:])
 
-if irec_start < len(DNMB):
+if irec_start < len(DNMB) or run_debug:
   # No need to save if already everything processed
   print(f"END TMP step: Saving {fld_name} time series and IG, JG --> {dfltmp}")
   np.savez(dfltmp,
@@ -412,26 +449,16 @@ if irec_start < len(DNMB):
          DNMBprv=DNMB[:iStart],
          DNMB=DNMB[iStart:])
 
-ds_t2m.close()
 
 
 f_check = False
 if f_check:
-  # Land mask:
-  LMsk = None
-  YR = rdate // 10000
-  pthssh = os.path.join(DIRS["pthssh"],f"{YR}")
-  dflssh = mglr.find_file(rdate, pthssh)
-  with xr.open_dataset(dflssh) as dszos:
-    SSH = dszos['zos'].isel(time=0).values.squeeze()
-
-  LMsk = np.where(np.isfinite(SSH),1,0)
   DNMB_saved = DNMB[iStart:]
 
   plt.ion()
 
   # Plot ERA5 SAT at the sample locations:
-  ir0 = 1900
+  ir0 = 1920    # Jan 1 2025
   dnmbP = DNMB_saved[ir0]
   YRp, MMp, DDp = mtime.datevec(dnmbP)[:3]
 
@@ -458,10 +485,11 @@ if f_check:
 
   # Check time series for 1 point:
   xp = 120
-  yp = 85
-  LATI = LAT[JG]
-  LONI = LON[IG]
-  ipp = np.argmin((LATI-yp)**2 + (LONI-xp)**2)
+  yp = -58
+  LATI = LAT[JG,IG]
+  LONI = LON[JG,IG]
+  #ipp = np.argmin((LATI-yp)**2 + (LONI-xp)**2)
+  ipp = np.argmin((LATI-yp)**2)
 
   tser = YY[ipp,:]
   ax1.cla()
