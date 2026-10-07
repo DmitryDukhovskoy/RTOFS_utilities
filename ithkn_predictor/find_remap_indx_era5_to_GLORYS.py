@@ -53,7 +53,7 @@ run_debug = args.debug == 1
 regn = args.regn
 
 pthindx = '/archive/Dmitry.Dukhovskoy/data/remap_indx'
-pthindx = '/work/Dmitry.Dukhovskoy/tmp/gmapi'   # temporary dir archive is down
+#pthindx = '/work/Dmitry.Dukhovskoy/tmp/gmapi'   # temporary dir archive is down
 
 f_save = True
 

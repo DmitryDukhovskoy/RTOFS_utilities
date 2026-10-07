@@ -52,8 +52,13 @@ parser.add_argument(
         choices=['north','south'], 
         required=True
 )
-parser.add_argument("--load", help="Load saved iconc tmp file, continue from last record (1), start from time 0 (0)", 
-                  choices=[0,1], required=True, type=int)
+parser.add_argument(
+    "--load", 
+    help="Load saved iconc tmp file, continue from last record (1), start from time 0 (0)", 
+    choices=[0,1], 
+    required=True, 
+    type=int
+)
 args = parser.parse_args()
 
 regn  = args.regn
@@ -80,7 +85,7 @@ DIRS = {
   "pthiconc" : config_predictor["linregr"]["pthiconc"],
   "pthsst"   : config_predictor["linregr"]["pthsst"],
   "pthssh"   : config_predictor["linregr"]["pthssh"],
-  "ptht2m"   : config_predictor["linregr"]["ptht2m"].format(regn_name=regn_name),
+  "ptht2m"   : config_predictor["linregr"]["ptht2m_1hr"],
   "pthout"   : config_predictor["linregr"]["pthout"],
   "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconctmp" : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),

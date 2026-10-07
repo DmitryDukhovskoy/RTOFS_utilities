@@ -543,12 +543,7 @@ def derive_time_ERA5files (YS, YE, ptht2m, regn_name, ndays_era):
 
     dnmb0 = mtime.datenum([YR,1,1])
     with xr.open_dataset(dflnm, decode_times=False) as ds:
-      if "valid_time" in dsice:
-        Time = dsice["valid_time"].values
-      elif "time" in dsice:
-        Time = dsice["time"].values
-      else:
-        raise KeyError("Neither 'valid_time' nor 'time' found in the NetCDF file")
+      Time = ds["valid_time"].values
       DYR = dnmb0 + Time
     time_stmp.append(DYR)
 
@@ -582,91 +577,6 @@ def intgr_Tfrz(SATprv, intgr_time, Tfrz, days_frz):
 
   return intgrFDD
 
-def read_era5_T2m(dflt2m, dnmb0, dsice=None, vart2m="t2m"):
-  """
-  Read surface T2m (SAT) fields for 1 day
-  from daily or hourly ERA5 fields
-  Input:
-    dflt2m : ERA5 NetCDF filename.
-    dnmb0 : Date number for the requested day.
-    dsice : xarray.Dataset, optional
-        Already-open ERA5 dataset. If None, dflt2m is opened.
-    vart2m : var. name in netcdf for T2m field
-  Output:
-    T2d : 2D Daily mean T2m, converted from K to deg C. 
-  """
-  close_ds = False
-
-  if dsice is None:
-    # Open if not opened era5 file
-    dsice = xr.open_dataset(dflt2m, decode_times=False)
-    close_ds = True
-  try:
-    if "valid_time" in dsice:
-      time_var = "valid_time"
-    elif "time" in dsice:
-      time_var = "time"
-    else:
-      raise KeyError(
-          "Neither 'valid_time' nor 'time' was found in the NetCDF file"
-      )
-
-    units = dsice[time_var].attrs.get("units", "").lower()
-
-    if "hour" in units:
-      temp_res = "hourly"
-    elif "day" in units:
-      temp_res = "daily"
-    else:
-      raise ValueError(f"Unknown time units: '{units}'")
-
-    Time = dsice[time_var].values
-
-    dnmbRef = mtime.datenum([1900, 1, 1])
-
-    if temp_res == "hourly":
-      TM = dnmbRef + Time / 24.0
-    elif temp_res == "daily":
-      TM = dnmbRef + Time
-
-    idx = np.flatnonzero((TM >= dnmb0) & (TM < dnmb0 + 1))
-
-    if len(idx) == 0:
-      raise RuntimeError(f"No {temp_res} data found for {YR}/{MM:02d}/{DD:02d}")
-
-    idx1 = idx[0]
-    idx2 = idx[-1]
-
-    # Average
-    # Should also work for daily data idx2=idx1, no averaging then
-    icc = 0
-    T2d = None
-
-    # Check units, expected Kelvin or K:
-    temp_units = dsice[vart2m].attrs.get("units", "").lower()
-    assert ("k" in temp_units or "kelvin" in temp_units), \
-      f"Check T2m units: expected Kelvin, got '{temp_units}'"
-
-    for ill in range(idx1, idx2+1):
-      #A2d = dsice['t2m'].isel(time=ill).values.squeeze()
-      A2d = dsice[vart2m].isel({time_var: ill}).values.squeeze()
-
-      if T2d is None:
-        T2d = np.zeros_like(A2d, dtype=float)
-
-      icc += 1
-      T2d += A2d - 273.15  # K --> C
-
-    T2d /= icc
-
-    return T2d
-
-  finally:
-    # Close opened netcdf if opened here or failed to read
-    # This wont close already opened netcdf
-    if close_ds:
-      dsice.close()
-
 def intgr_HeatDgr(SATprv, intgr_time, Tfrz, days_frz):
   """
     Integrate heat degree days, T>Tfrz 
@@ -685,15 +595,19 @@ def intgr_HeatDgr(SATprv, intgr_time, Tfrz, days_frz):
   return intgrHDD
 
 
-def subset_era_frzdays(IG, JG, dnmbS, intgr_time, tstep_era, ptht2m, dfgmapi, regn, Tfrz=-1.85):
+def subset_era_frzdays(IG, JG, dnmbS, intgr_time, ndays_era, ptht2m, dfgmapi, regn, Tfrz=-1.85):
   """
     Derive dynamic predictor: sqrt of the number of freeze degree days
     Following Zubov's relation: h2 + 50h = 8 IFDD, 
     IFDD = sum of (Tfrz - Tair), when Tair < Tfrz
     For 1 day = dnmbS: integrate (Tfrz-SAT) back to dnmbS-intgr_time
-
-    Also derive IHDD - integrated heat degree days
   """
+  regions = {
+      "north": ("Arctic", 65.0),
+      "south": ("Antarctic", -60.0),
+  }
+  regn_name, lat0 = regions[regn]
+
   # Load gmapi:
   with xr.open_dataset(dfgmapi) as ds:
     LONE = ds["era_longit"].values
@@ -728,10 +642,9 @@ def subset_era_frzdays(IG, JG, dnmbS, intgr_time, tstep_era, ptht2m, dfgmapi, re
   # Construct days for integrating Freeze deegre days
   # Note that not every daily fields may be saved
   YR0, MM0, DD0 = mtime.datevec(dnmbS)[:3]
-  dnmbP = dnmbS - intgr_time - (tstep_era // 2)  # previous intgr time preiod, start day, add extra
+  dnmbP = dnmbS - intgr_time - (ndays_era // 2)  # previous intgr time preiod, start day, add extra
   Ypr, Mpr, Dpr = mtime.datevec(dnmbP)[:3]
-  #DNMBall = derive_time(Ypr, YR0, ptht2m, regn_name, tstep_era)
-  DNMBall = derive_time(Ypr, YR0, tstep_era)
+  DNMBall = derive_time(Ypr, YR0, ptht2m, regn_name, ndays_era)
 
   # Find closest time to start - end the integration:
   idxS = max(np.argmin(abs(DNMBall - dnmbP)) - 1, 0)
@@ -749,23 +662,26 @@ def subset_era_frzdays(IG, JG, dnmbS, intgr_time, tstep_era, ptht2m, dfgmapi, re
   SAT = np.zeros((len(IE), len(DNMB)))
   days_frz = np.zeros(len(DNMB))
   print("Deriving SAT for integration ...")
-
   for irec0, dnmb0 in enumerate(DNMB):
     YR, MM, DD = mtime.datevec(dnmb0)[:3]
-    
-    #flt2m = f"era5_2mTemp_daily{tstep_era}day_{regn_name}_{YR}.nc"
-    flt2m = f"ERA5_reanalysis_sLevels_1hr_0.25x0.25_2m-temperature_{YR}.nc"
+    rdate = int(YR*1e4 + MM*100 + DD)
+    flt2m = f"era5_2mTemp_daily{ndays_era}day_{regn_name}_{YR}.nc"
     dflt2m = os.path.join(ptht2m, flt2m)
-
     if YR != YRold:
       if ds_t2m is not None:
           ds_t2m.close()
-
       YRold = YR
       ds_t2m = xr.open_dataset(dflt2m, decode_times=False)
+      Time = ds_t2m['valid_time'].values
+      dnmb_day1 = mtime.datenum([YR,1,1])
+      TM = (Time + dnmb_day1).astype(int)
 
-    # Read 1 day SAT from ERA5 hourly or daily data from open netcdf
-    T2d = read_era5_T2m(dflt2m, dnmb0, dsice=ds_t2m)
+    idx = np.where(TM == int(dnmb0))[0]
+    if len(idx) == 0:
+      raise ValueError(f"No matching day for {dnmb0} {YR}/{MM}/{DD}")
+    iday = idx[0]
+    A2d = ds_t2m['t2m'].isel(valid_time=iday).values.squeeze()
+    T2d = A2d - 273.15  # K --> C
 
     SAT[:, irec0] = T2d[JE, IE]
     days_frz[irec0] = dnmb0
@@ -773,7 +689,7 @@ def subset_era_frzdays(IG, JG, dnmbS, intgr_time, tstep_era, ptht2m, dfgmapi, re
   assert np.all(days_frz > 0), "days_frz not populated, there are 0s"
   assert np.all(np.diff(days_frz)>0), "days_frz not increasing, required for time interpolation"
   tfrz_pnts = intgr_Tfrz(SAT, intgr_time, Tfrz, days_frz)
-  theat_pnts = intgr_HeatDgr(SAT, intgr_time, Tfrz, days_frz)
+  theat_pnts = intgr_heat_dgr(SAT, intgr_time, Tfrz, days_frz)
 
   if ds_t2m is not None:
     ds_t2m.close()
@@ -816,12 +732,22 @@ def subset_era_sat(dflt2m, IG, JG, dfgmapi, dnmb0):
       raise ValueError(f"Missing gmapi entry for GLORYS index {key}")
     JE[k], IE[k] = gmapi[key]
 
-  # Read 1 day SAT from ERA5 hourly or daily data
-  T2d = read_era5_T2m(dflt2m, dnmb0)
+  with xr.open_dataset(dflt2m, decode_times=False) as dsice:
+    Time = dsice['valid_time'].values
+    dnmbJ1 = mtime.datenum([YR,1,1])
+    TM = (Time + dnmbJ1).astype(int)
+    idx = np.where(TM == int(dnmb0))[0]
+    if len(idx) == 0:
+      raise ValueError(f"No matching day for {dnmb0} {YR}/{MM}/{DD}")
+    iday = idx[0]
+    A2d = dsice['t2m'].isel(valid_time=iday).values.squeeze()
+
+  T2d = A2d - 273.15  # K --> C
 
   fld_pnts = T2d[JE,IE]
 
   return fld_pnts
+
 
 def sens_tests_colors():
   # Line colors:
@@ -851,8 +777,10 @@ def sens_tests_colors():
 
 def construct_predictors_day(
         hlon, hlat, IG, JG, dnmb0, DIRS, PRED_NAMES, 
-        order_fast="time", Mavrg=3,
-        PRED_MEAN = None, PRED_STDEV = None
+        sqrt_frzdays, sst_max, standz, regn, YS, YE,
+        ndays_era, intgr_time, Tfrz,
+        order_fast="time", Mavrg=3, dxy=50,
+        PRED_MEAN = None, PRED_STDEV = None, iconc_fld="glorys"
    ):
   """
     Construct predictors for 1 day forecast
@@ -869,23 +797,11 @@ def construct_predictors_day(
     standz - True: standardize predictors (False for RF)
     regn - region of prediction
     YS, YE - training period, start/end years
-    tstep_era - time step in ERA5 atm. fields subsets
+    ndays_era - time step in ERA5 atm. fields subsets
     intgr_time - for freeze degree days, integration period, days
     dxy - ice length scale, used for calc. ice predictors and gird point subset
 
   """
-  sqrt_frzdays = DIRS["sqrt_frzdays"]
-  sst_max      = DIRS["sst_max"]
-  standz       = DIRS["standz"]
-  dxy          = DIRS["dxy"]
-  iconc_fld    = DIRS["iconc_fld"]
-  regn         = DIRS["regn"]
-  YS           = DIRS["YS"]
-  YE           = DIRS["YE"]
-  tstep_era    = DIRS["tstep_era"]
-  intgr_time   = DIRS["intgr_time"]
-  Tfrz         = DIRS["Tfrz"]
-
   DNMB = np.asarray([dnmb0])
   YR0, MM0, DD0 = mtime.datevec(dnmb0)[:3]
   rdate = YR0*10000 + MM0*100 + DD0
@@ -893,6 +809,13 @@ def construct_predictors_day(
   SST = None 
   frzdays = None
   heatdays = None
+
+  regions = {
+      "north": ("Arctic", 65.0),
+      "south": ("Antarctic", -60.0),
+  }
+  regn_name, _ = regions[regn]
+
 
   raw = {} # predcitors with not stand. values, can be in any order
   # Coord --> polar coord:
@@ -919,7 +842,7 @@ def construct_predictors_day(
     pthout = DIRS["pthout"]
     fltmp = f"GLORYS_monthly_icevol_ithknmn_{regn}_{YS}_{YE}.npz"
     if YR0 > 2025:
-      fltmp = f"GLORYS_monthly_icevol_ithknmn_{regn}_{YR0}_{YR0}.npz"
+      fltmp = f"GLORYS_monthly_icevol_ithknmn_north_{YR0}_{YR0}.npz"
     dflmni = os.path.join(pthout, fltmp)
     assert os.path.isfile(dflmni), f"File is missing: {dflmni}"
     mnithkn = construct_mean_ithkn(len(IG), DNMB, dflmni, order_fast=order_fast, Mavrg=Mavrg)
@@ -987,7 +910,7 @@ def construct_predictors_day(
     dfgmapi = os.path.join(pthgmapi, flout)
 
     frzdays, heatdays = subset_era_frzdays(
-        IG, JG, dnmb0, intgr_time, tstep_era,
+        IG, JG, dnmb0, intgr_time, ndays_era,
         ptht2m, dfgmapi, regn, Tfrz=Tfrz
     )
 
@@ -1004,8 +927,7 @@ def construct_predictors_day(
   # SAT / T2m
   if 'sat' in PRED_NAMES:
     print("\nDeriving GLORYS SAT")
-    #flt2m = f"era5_2mTemp_daily{tstep_era}day_{regn_name}_{YR0}.nc"
-    flt2m = f"ERA5_reanalysis_sLevels_1hr_0.25x0.25_2m-temperature_{YR0}.nc"
+    flt2m = f"era5_2mTemp_daily{ndays_era}day_{regn_name}_{YR0}.nc"
     ptht2m = DIRS['ptht2m']
     dflt2m = os.path.join(ptht2m, flt2m)
 

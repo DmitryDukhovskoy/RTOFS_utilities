@@ -57,23 +57,25 @@ import mod_icepredict as micepr
 #from MyPython.mod_cice6_utils import change_base_template, flname_replace_date
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dxy", help=f"Min dist (km) between data points (~corr.scale), to skip close i,j points", 
-                    type=int, required=True)
-parser.add_argument("--ys", help="Year start, default=1993", default=1993, type=int)
-parser.add_argument("--ye", help="Year end, default=2025", default=2025, type=int)
 parser.add_argument("--regn", help="Region to process", choices=['north','south'], 
                     required=True, type=str)
-parser.add_argument("--lmodel", help="OLS_model 1 or 2",
-                   choices=[1,2],
-                   type=int,
-                   required=True)
 args = parser.parse_args()
 
-dxy   = args.dxy    
-YS    = args.ys
-YE    = args.ye
 regn  = args.regn
-lmodel= args.lmodel
+lmodel = 2
+
+fyaml = 'config_ithkn_predictor.yaml'
+with open(fyaml) as ff:
+  config_predictor = safe_load(ff)
+
+# Load parameters:
+regn_name = config_predictor["regn"][regn]["name"]
+lat0      = config_predictor["regn"][regn]["lat_bnd"]
+tstep     = config_predictor["params"]["tstep"]
+dxy       = config_predictor["params"]["dxy"]
+YS        = config_predictor["params"]["ys"]
+YS        = config_predictor["params"]["ys"]
+YE        = config_predictor["params"]["ye"]
 
 sqrt_frzdays = True   # use sqrt(integrated freeze days) to better fit Zubov relation
 intgr_time = 90  # Time for freeze degree days accumulation, back from current time
@@ -98,13 +100,6 @@ if model_name == "OLS_model1":
 elif model_name == "OLS_model2":
   # Added heat dgr days
   PRED = ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "heatdays", "sat"] 
-
-fyaml = 'config_ithkn_predictor.yaml'
-with open(fyaml) as ff:
-  config_predictor = safe_load(ff)
-
-regn_name = config_predictor["regn"]["north"]["name"]
-lat0 = config_predictor["regn"]["north"]["lat_bnd"]
 
 DIRS = {
   "pthithkn" : config_predictor["linregr"]["pthithkn"],
@@ -132,45 +127,47 @@ DIRS = {
   "heatdays" : "heattmp",
   }
 
+# Get time steps, grid points:
+pthinfo = config_predictor["params"]["pthinfo"]
+fltime = config_predictor["params"]["fltime"].format(regn=regn, tstep=tstep)
+flij   = config_predictor["params"]["flij"].format(regn=regn)
+flgrid = config_predictor["params"]["flgrid"]
+dfltime = os.path.join(pthinfo, fltime)
+dflij   = os.path.join(pthinfo, flij)
+dflgrid = os.path.join(pthinfo, flgrid)
+
+assert os.path.isfile(dfltime), f"Time steps file is missing: {dfltime}"
+assert os.path.isfile(dflij), f"Subsample grid points file is missing: {dflij}"
+
+DNMB = np.load(dfltime)
+A = np.load(dflij)
+JG = A["JG"]
+IG = A["IG"]
+npnts = IG.shape
+nrecs = len(DNMB)
+
+# GLORYS grid:
+A = np.load(dflgrid)
+hlon = A["LON"]
+hlat = A["LAT"]
+LMsk = A["LMsk"]
+
+# 0 <= lon < 360
+hlon = (hlon + 360) % 360
+
+# check DNMB array:
+check_dnmb = True
+if check_dnmb:
+  micepr.check_dnmb_array(DNMB, print_months=False)
+
+Npnts = len(IG)
+print(f"For dxy={dxy} km and lat0={lat0:.2f}, Selected N pnts={Npnts}")
+
 # Read time array ad J,I sample grid points:
 # Time array should match ERA5 extracted fields
 pthout = DIRS["pthout"]
 flithkn = DIRS["ithkntmp"]
 dflithkn = os.path.join(pthout, flithkn)
-
-# Sample locations on GLORYS grid and time (date numbers):
-print(f"Loading saved {dflithkn}")
-assert os.path.isfile(dflithkn), f"Missing tmp file {dflithkn}\n First, create all predictors derive_*py"
-data = np.load(dflithkn)
-JG   = data["JG"]
-IG   = data["IG"]
-DNMB = data["DNMB"]
-
-
-# Read GLORYS grid:
-pthice = os.path.join(DIRS["pthithkn"],f"{YS}")
-rdate = f"{YS*10000+100+1}"
-
-# Find file:
-dflglr = mglr.find_file(rdate, pthice)
-
-with xr.open_dataset(dflglr) as dsice:
-  LON = dsice['longitude'].values
-  LAT = dsice['latitude'].values
-
-# 0 <= lon < 360
-LON = (LON + 360) % 360
-hlon, hlat = np.meshgrid(LON, LAT)
-
-# Land mask:
-LMsk = None
-pthssh = os.path.join(DIRS["pthssh"],f"{YS}")
-dflssh = mglr.find_file(rdate, pthssh)
-with xr.open_dataset(dflssh) as dszos:
-  SSH = dszos['zos'].isel(time=0).values.squeeze()
-
-LMsk = np.where(np.isfinite(SSH),1,0)
-
 
 def load_predictor(predict, DIRS, DNMB):
   """

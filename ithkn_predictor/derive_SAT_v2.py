@@ -51,6 +51,9 @@ import mod_time as mtime
 import mod_glorys as mglr 
 from mod_misc1 import dist_sphcrd
 from mod_mom6 import dx_dy
+import mod_icepredict as micepr
+importlib.reload(micepr)
+
 
 #from MyPython.mod_cice6_utils import change_base_template, flname_replace_date
 
@@ -272,38 +275,8 @@ for irec, dnmb0 in enumerate(DNMB):
   ptht2m = DIRS['ptht2m']
   dflt2m = os.path.join(ptht2m, flt2m)
 
-  # Read time coord for a new year
-  if YR != YRold:
-    YRold = YR
-    with xr.open_dataset(dflt2m, decode_times=False) as ds:
-      Time_hrs = ds['time'].values
-    dnmbS = mtime.datenum([1900,1,1])
-    TM = (dnmbS + Time_hrs / 24.0)
+  T2d = micepr.read_era5_T2m(dflt2m, dnmb0)
 
-  # hourly ---> Daily
-  # Find hourly records in this day:
-  idx = np.flatnonzero((TM >= dnmb0) & (TM < dnmb0 + 1)) # indices where condition is True
-  if len(idx) == 0:
-    print(f"WARNING: No hourly data found for {YR}/{MM:02d}/{DD:02d}")
-    continue
-
-  idx1 = idx[0]
-  idx2 = idx[-1]
-
-  # Average
-  icc = 0
-  T2d = None
-  with xr.open_dataset(dflt2m) as dsice:
-    for ill in range(idx1, idx2+1): 
-      A2d = dsice['t2m'].isel(time=ill).values.squeeze()
-
-      if T2d is None:
-        T2d = np.zeros_like(A2d, dtype=float)
-
-      icc += 1
-      T2d += A2d - 273.15  # K --> C
-
-  T2d /= icc
   YY[:,irec] = T2d[JE, IE]
 
   # Temporary save:

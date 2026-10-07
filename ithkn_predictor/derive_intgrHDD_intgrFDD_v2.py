@@ -48,9 +48,9 @@ sys.path.extend([
 ])
 import mod_time as mtime
 import mod_glorys as mglr 
-import mod_icepredict as micpr
 from mod_misc1 import dist_sphcrd
 from mod_mom6 import dx_dy
+import mod_icepredict as micepr
 
 #from MyPython.mod_cice6_utils import change_base_template, flname_replace_date
 
@@ -163,9 +163,10 @@ hlon = (hlon + 360) % 360
 # integrating heat deegre days
 # Previous (to start) year should exist !
 dnmbS = DNMB[0]   # actual start day
+#YRS, MMS, DDS = mtime.datevec(dnmbS)[:3]
 dnmbP = dnmbS - intgr_time - 1  # previous intgr time preiod, start day
 Ypr, Mpr, Dpr = mtime.datevec(dnmbP)[:3]
-DNMBprv = micpr.derive_time(Ypr, Ypr, tstep_era)
+DNMBprv = micepr.derive_time(Ypr, Ypr, tstep_era)
 
 # Find closest time:
 idx0 = max(np.argmin(abs(DNMBprv - dnmbP)) - 2, 0) # add extra index
@@ -353,38 +354,7 @@ for irec0, dnmb0 in enumerate(DNMB):
   ptht2m = DIRS['ptht2m']
   dflt2m = os.path.join(ptht2m, flt2m)
 
-  # Read time coord for a new year
-  if YR != YRold:
-    YRold = YR
-    with xr.open_dataset(dflt2m, decode_times=False) as ds:
-      Time_hrs = ds['time'].values
-    dnmbRef = mtime.datenum([1900,1,1])
-    TM = (dnmbRef + Time_hrs / 24.0)
-
-  # hourly ---> Daily
-  # Find hourly records in this day:
-  idx = np.flatnonzero((TM >= dnmb0) & (TM < dnmb0 + 1)) # indices where condition is True
-  if len(idx) == 0:
-    print(f"WARNING: No hourly data found for {YR}/{MM:02d}/{DD:02d}")
-    continue
-
-  idx1 = idx[0]
-  idx2 = idx[-1]
-
-  # Average
-  icc = 0
-  T2d = None
-  with xr.open_dataset(dflt2m) as dsice:
-    for ill in range(idx1, idx2+1):
-      A2d = dsice['t2m'].isel(time=ill).values.squeeze()
-
-      if T2d is None:
-        T2d = np.zeros_like(A2d, dtype=float)
-
-      icc += 1
-      T2d += A2d - 273.15  # K --> C
-
-  T2d /= icc
+  T2d = read_era5_T2m(dflt2m, dnmb0)
 
   Tsurf = []
   for jje, iie in zip(JE, IE):
@@ -413,9 +383,9 @@ for irec0, dnmb0 in enumerate(DNMB):
   assert np.all(np.diff(days_frz)>0), "days_frz not increasing" 
   
   if fld_name == 'ifdd':
-    fld_pnts = micpr.intgr_Tfrz(SATprv, intgr_time, Tfrz, days_frz)
+    fld_pnts = micepr.intgr_Tfrz(SATprv, intgr_time, Tfrz, days_frz)
   else:
-    fld_pnts = micpr.intgr_HeatDgr(SATprv, intgr_time, Tfrz, days_frz)
+    fld_pnts = micepr.intgr_HeatDgr(SATprv, intgr_time, Tfrz, days_frz)
 
   YY[:,irec] = np.asarray(fld_pnts)
 

@@ -5,52 +5,58 @@ import datetime
 import time
 import numpy as np
 
-def datenum(ldate0,ldate_ref=[1,1,1,0,0]):
+
+def datenum(ldate0, ldate_ref=[1, 1, 1, 0, 0]):
   """
-  Given list [YY,MM,DD] - current date 
-  compute days wrt to reference date - optional
-  Hours and Minutes  - optional
-  [YY,MM,DD,HR]
-  [YY,MM,DD,HR,MN]
+  Compute the number of days between a date/time and a reference date/time.
+
+  Input:
+  ldate0 : list
+      Current date/time:
+          [YY, MM, DD]
+          [YY, MM, DD, HR]
+          [YY, MM, DD, HR, MN]
+
+  ldate_ref : list, optional
+      Reference date/time:
+          [YY, MM, DD]
+          [YY, MM, DD, HR]
+          [YY, MM, DD, HR, MN]
+
+      Default: [1, 1, 1, 0, 0]
+
+  Returns:  float  MATLAB-style serial date number.
+      If HR and MN = 0: return int date number
+      The reference date corresponds to 1.0.
   """
 
-  ll = len(ldate0)
-  YR = ldate0[0]
-  MM = ldate0[1]
-  DD = ldate0[2]
-  HR = 0
-  MN = 0
-  if ll == 4:
-    HR = ldate0[3]
-    MN = 0
-  elif ll == 5:
-    HR = ldate0[3]
-    MN = ldate0[4]
+  # Current date/time
+  YR, MM, DD = map(int, ldate0[:3])
 
-  lr = len(ldate_ref)
-  YRr = ldate_ref[0]
-  MMr = ldate_ref[1]
-  DDr = ldate_ref[2]
-  HRr = 0
-  MNr = 0
-  if lr == 4:
-    HRr = ldate_ref[3]
-    MNr = 0
-  elif lr == 5:
-    HRr = ldate_ref[3]
-    MNr = ldate_ref[4]
+  HR = int(ldate0[3]) if len(ldate0) >= 4 else 0
+  MN = int(ldate0[4]) if len(ldate0) >= 5 else 0
 
-  YR = int(YR)
-  MM = int(MM)
-  DD = int(DD)
-  HR = int(HR)
-  MN = int(MN)
-  time0 = datetime.datetime(YR,MM,DD,HR,MN,0)
-  timeR = datetime.datetime(YRr,MMr,DDr,HRr,MNr,0)
+  # Reference date/time
+  YRr, MMr, DDr = map(int, ldate_ref[:3])
 
-  dnmb = float((time0-timeR).days)+1.+(HR-HRr)/24.+(MN-MNr)/1440.
+  HRr = int(ldate_ref[3]) if len(ldate_ref) >= 4 else 0
+  MNr = int(ldate_ref[4]) if len(ldate_ref) >= 5 else 0
+
+  # Create datetime objects
+  time0 = datetime.datetime(YR, MM, DD, HR, MN, 0)
+  timeR = datetime.datetime(YRr, MMr, DDr, HRr, MNr, 0)
+
+  # Elapsed time in days
+  elapsed_days = (time0 - timeR).total_seconds() / 86400.0
+
+  # MATLAB-style datenum
+  dnmb = elapsed_days + 1.0
+
+  if HR == 0 and MN == 0:
+    dnmb = int(dnmb)
 
   return dnmb
+
 
 def adddays_date(rdate,ndays):
   """
