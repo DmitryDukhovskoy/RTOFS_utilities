@@ -59,10 +59,14 @@ f_save = True
 
 
 if regn == 'north':
-  #lat0 = 60
-  lat0 = None  # derive min lat0 from downloaded regional ERA5
-  pthera5 = '/archive/Dmitry.Dukhovskoy/data/ERA5/Arctic'
-  flbase = 'era5_2mTemp_daily7day_Arctic_'
+  lat0 = 50  
+  #pthera5 = '/archive/Dmitry.Dukhovskoy/data/ERA5/Arctic'
+  #flbase = 'era5_2mTemp_daily7day_Arctic_'
+  pthera5 = (
+    '/uda/ERA5/Hourly_Data_On_Single_Levels/reanalysis/global/1hr/'
+    'annual_file-range/Temperature_and_Pressure/2m-temperature/0.25x0.25'
+  )
+  flbase = 'ERA5_reanalysis_sLevels_1hr_0.25x0.25_2m-temperature_'
 
 elif regn == 'south':
   pthera5 = (

@@ -88,23 +88,24 @@ fld_name   = args.field
 load_saved = args.load == 1
 run_debug  = args.debug == 1
 
+dump_tstp = 100  # temporary saving frequency
+
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
 
 # Load parameters:
-regn_name = config_predictor["regn"][regn]["name"]
-lat0      = config_predictor["regn"][regn]["lat_bnd"]
-tstep     = config_predictor["params"]["tstep"]
-dxy       = config_predictor["params"]["dxy"]
-YS        = config_predictor["params"]["ys"]
-YS        = config_predictor["params"]["ys"]
-YE        = config_predictor["params"]["ye"]
-tstep_era = config_predictor["params"]["tstep"]
-
-intgr_time = 90  # Time for freeze degree days accumulation, back from current time
-dump_tstp = 50
-Tfrz = -1.85    # ocea freezing T
+regn_name    = config_predictor["regn"][regn]["name"]
+lat0         = config_predictor["regn"][regn]["lat_bnd"]
+tstep_era    = config_predictor["params"]["tstep"]     # ERA5 daily fields, skipping days
+dxy          = config_predictor["params"]["dxy"]
+YS           = config_predictor["params"]["ys"]
+YS           = config_predictor["params"]["ys"]
+YE           = config_predictor["params"]["ye"]
+davrg        = config_predictor["params"]["davrg"]
+sqrt_frzdays = config_predictor["params"]["sqrt_frz"]   # use sqrt(IFDD) to better fit Zubov relation
+intgr_time   = config_predictor["params"]["intgr_frz"]  # Time for freeze degree days accumulation
+Tfrz         = config_predictor["params"]["Tfrz"]       # ocean freezing T
 
 DIRS = {
   "pthithkn" : config_predictor["linregr"]["pthithkn"],
@@ -119,7 +120,7 @@ DIRS = {
   "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconctmp" : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "ssttmp"   : config_predictor["linregr"]["ssttmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
-  "divutmp"  : config_predictor["linregr"]["divutmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "divutmp"  : config_predictor["linregr"]["divutmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn, davrg=davrg),
   "sattmp"   : config_predictor["linregr"]["sattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "dfrztmp"  : config_predictor["linregr"]["dfrztmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "heattmp"  : config_predictor["linregr"]["heattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
@@ -128,7 +129,7 @@ DIRS = {
 
 # Get time steps, grid points:
 pthinfo = config_predictor["params"]["pthinfo"]
-fltime = config_predictor["params"]["fltime"].format(regn=regn, tstep=tstep)
+fltime = config_predictor["params"]["fltime"].format(regn=regn, tstep=tstep_era)
 flij   = config_predictor["params"]["flij"].format(regn=regn)
 flgrid = config_predictor["params"]["flgrid"]
 dfltime = os.path.join(pthinfo, fltime)
@@ -354,7 +355,7 @@ for irec0, dnmb0 in enumerate(DNMB):
   ptht2m = DIRS['ptht2m']
   dflt2m = os.path.join(ptht2m, flt2m)
 
-  T2d = read_era5_T2m(dflt2m, dnmb0)
+  T2d = micepr.read_era5_T2m(dflt2m, dnmb0)
 
   Tsurf = []
   for jje, iie in zip(JE, IE):

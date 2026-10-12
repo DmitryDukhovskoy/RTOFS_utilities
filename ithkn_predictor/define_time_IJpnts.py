@@ -36,9 +36,10 @@ sys.path.extend([
 ])
 import mod_time as mtime
 import mod_glorys as mglr
-import mod_icepredict as micpr
+import mod_icepredict as micepr
 from mod_misc1 import dist_sphcrd
 from mod_mom6 import dx_dy
+from mod_utils_fig import bottom_text
 
 #from MyPython.mod_cice6_utils import change_base_template, flname_replace_date
 
@@ -83,7 +84,7 @@ def update_icepnts(YY, JG, IG, hice_min=0.1, nprc=0.1):
 
   return YY, JG, IG
 
-DNMB = micpr.derive_time(YS, YE, tstep)
+DNMB = micepr.derive_time(YS, YE, tstep)
 
 # Derive I,J grid points from GLORYS grid
 # Read GLORYS grid:
@@ -128,9 +129,8 @@ dltx_dgr = np.diff(LON)[0]
 if regn == 'north':
   DOMAIN = (hlat >= lat0) & (LMsk == 1)
   # Exclude N. Atlantic and Barents Sea:
-  DOMAIN[:1893,2154:2795] = False
-  DOMAIN[:1764,:258] = False   # N. Bering 
-  DOMAIN[:1807,1991:2243] = False # Iceland Sea
+  #DOMAIN[:1893,2154:2795] = False
+  #DOMAIN[:1807,1991:2243] = False # Iceland Sea
 
 elif regn == 'south':
   DOMAIN = (hlat <= lat0) & (LMsk == 1)
@@ -162,7 +162,7 @@ JG = np.asarray(JG, dtype=int)
 # Use N last years to eliminate grid point 
 # that are ice-free
 if f_adjice:
-  DNMBT = derive_time(YE-4, YE, tstep)
+  DNMBT = micepr.derive_time(YE-4, YE, tstep)
   npnts = len(JG)
   nrecs = len(DNMB)
   YY = np.zeros((npnts, nrecs), dtype=float)*np.nan
@@ -233,18 +233,28 @@ if f_check:
   fig1 = plt.figure(1,figsize=(9,8))
   plt.clf()
   ax1 = plt.axes([0.1, 0.12, 0.8, 0.8])
-  ax1.contour(LMsk, [0.99], linestyles='solid', colors=[(0.5,0.8,1)])
+  ax1.contour(LMsk, [0.99], linestyles='solid', colors=[(0.4,0.4,0.4)])
 
   sc = ax1.scatter(
     IG, JG,
     c=SSH[JG,IG],
     cmap='jet',
     s=20,          # marker size
-    vmin=-1,        # optional color scale limits
-    vmax=1
+    vmin=-0.5,        # optional color scale limits
+    vmax=0.5
  )
 
-  plt.colorbar(sc, ax=ax1, label='SSH, m')
+  jdim, idim = LMsk.shape
+  ax1.axis('scaled')
+  ax1.set_ylim(jdim // 2, jdim)
+
+  ax1.set_title(f"Grid points for ML training\n region={regn} N pnts={len(JG)}")
+
+
+  plt.colorbar(sc, ax=ax1, label='SSH, m', orientation='horizontal')
+
+  btx = f' @{machine}: define_time_IJpnts.py'
+  bottom_text(btx, pos=[0.1,0.1], fsz=10)
 
 
 

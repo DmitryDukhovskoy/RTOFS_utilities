@@ -9,7 +9,7 @@ from scipy.interpolate import interp1d
 
 import mod_glorys as mglr
 
-def models_info():
+def full_model_name(ml_model):
   """
     Linear regression models:
       OLS 1: trained over 1993-2002, no predictor for interannual trend
@@ -30,24 +30,19 @@ def models_info():
    Added predictor: integrated Heat Degree Days (IHDD)
       GBR11: max_leaf = 63, max_iter=1500, max_depth=15 
   """
+  if ml_model[:4] == 'clim':
+    mname = "clim"
+  elif ml_model[:3] == 'gbr':
+    nmb = int(ml_model[3:])
+    mname = f"GradBoostRegr_model{nmb:02d}"
+  elif ml_model[:2] == 'rf':
+    nmb = int(ml_model[2:])
+    mname = f"RF_model{nmb:02d}"
+  else:
+    print(f"Unrecognized ML model: {ml_model}")
+    return None
 
-  MODEL_NAMES = {
-    "clim"  : "clim",
-    "ols1"  : "OLS_model1",
-    "ols2"  : "OLS_model1_1993_2025",
-    "rf1"   : "RF_model01_north",
-    "rf2"   : "RF_model02_north",
-    "rf3"   : "RF_model03_north",
-    "rf11"  : "RF_model11_north",
-    "rf12"  : "RF_model12_north",
-    "rf13"  : "RF_model13_north",
-    "gbr1"  : "GradBoostRegr_model01_north",
-    "gbr2"  : "GradBoostRegr_model02_north",
-    "gbr3"  : "GradBoostRegr_model03_north",
-    "gbr11"  : "GradBoostRegr_model11_north",
-    }
-
-  return MODEL_NAMES
+  return mname
 
 def ML_parameters(ml):
   """
@@ -127,6 +122,24 @@ def ML_parameters(ml):
         "MinLeaf": 20,
         "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "heatdays", "sat"],
       },
+      "20": {
+        "Ntrees": 50,
+        "MinLeaf": 5,
+        "PRED": [
+          "yday", "gcoord", "btmtopo", "mnithkn", 
+          "iconc", "sst", "divu", "frzdays", 
+          "heatdays", "sat"
+        ],
+      },
+      "21": {
+        "Ntrees": 100,
+        "MinLeaf": 20,
+        "PRED": [
+          "yday", "gcoord", "btmtopo", "mnithkn", 
+          "iconc", "sst", "divu", "frzdays", 
+          "heatdays", "sat"
+        ],
+      },
     }
 
   elif ml == "GBR" or ml == "gbr":
@@ -175,6 +188,26 @@ def ML_parameters(ml):
         "max_iter"  :  1200,
         "max_depth" :  15,     
         "PRED": ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "heatdays", "sat"],
+      },
+      "20": {
+        "max_leaf"  :  50,
+        "learn_rt"  :  0.05,
+        "max_iter"  :  1200,
+        "max_depth" :  10,     
+        "PRED": [
+          "yday", "gcoord", "btmtopo", "mnithkn", "iconc", 
+          "sst", "divu", "frzdays", "heatdays", "sat"
+        ],
+      },
+      "21": {
+        "max_leaf"  :  63,
+        "learn_rt"  :  0.05,
+        "max_iter"  :  1200,
+        "max_depth" :  15,     
+        "PRED": [
+          "yday", "gcoord", "btmtopo", "mnithkn", "iconc", 
+          "sst", "divu", "frzdays", "heatdays", "sat"
+        ],
       },
     }
   
@@ -267,6 +300,59 @@ def construct_coord_sphere(hlon, hlat, IG, JG, nrecs, order_fast="time"):
     raise ValueError(f"Unknown order: {order}")
 
   return Xcrd, Ycrd, Zcrd
+
+def construct_bottom_topo(IG, JG, nrecs, dfltopo, normlz=True, 
+                          order_fast="time", Hmin=-5000, varnm="deptho" ):
+  """
+  Derive GLORYS bottom depth at training points (IG,JG)
+
+  Assumed:
+    - Ocean depth is positive downward in the source file.
+    - Land and missing points are NaN.
+    - Output ocean depths are negative.
+    - Land is assigned +1.
+
+  order_fast="coord": coordinates vary fastest in the record sequence.
+  order_fast="time":  time varies fastest in the record sequence.
+
+  Depth are normalized to vary -1 <= h <= 1
+  """
+  assert os.path.isfile(dfltopo), f"GLORYS topo not found {dfltopo}"
+
+  if order_fast not in ("coord", "time"):
+      raise ValueError("order_fast must be 'coord' or 'time'.")
+
+  with xr.open_dataset(dfltopo) as dstopo:
+    A2d = dstopo[varnm].values.squeeze()
+
+  # Convert ocean depths to negative values.
+  finite = np.isfinite(A2d)
+
+  if np.any(finite):
+    if np.nanmin(A2d) >= 0:
+      HH = -A2d
+    else:
+      HH = A2d.copy()
+  else:
+    raise ValueError("Bathymetry contains no finite values.")
+
+  # Ocean points must have negative depth.
+  LMocn = np.isfinite(HH) & (HH < 0)
+
+  topo_pnts = HH[JG, IG]
+
+  if normlz:
+    topo_norm = np.maximum(topo_pnts / abs(Hmin), -1.0)
+  else:
+    topo_norm = topo_pnts
+
+  # Expand over records according to record ordering.
+  if order_fast == "coord":
+    Btopo = np.tile(topo_norm, nrecs)
+  else:
+    Btopo = np.repeat(topo_norm, nrecs)
+
+  return Btopo
 
 def construct_mean_ithkn(npnts, DNMB, dflmni, order_fast="time", Mavrg=3, fld='ithkm'):
   """
@@ -911,6 +997,14 @@ def construct_predictors_day(
 
     raw['cosD'] = cosD
     raw['sinD'] = sinD
+
+  if 'btmtopo' in PRED_NAMES:
+    pthtopo = DIRS["pthtopo"]
+    fltopo  = DIRS["fltopo"]
+    dfltopo = os.path.join(pthtopo, fltopo)
+    Btopo = construct_bottom_topo(IG, JG, len(DNMB), dfltopo, 
+                                  normlz=True, order_fast=order_fast)  
+    raw['btmtopo'] = Btopo
 
   # Mean ice thickness over ice area during previous N months:
   # Check Mavrg - should match train_linregr_ithkn.py

@@ -62,18 +62,40 @@ importlib.reload(micepr)
 #      GBR11: max_leaf = 63, max_iter=1200, max_depth=15 
 #
 parser = argparse.ArgumentParser()
-parser.add_argument("--model", help="ML model to use",
-                   choices=['rf6','rf7','rf8','rf9','rf10','rf11','rf12','gbr10','gbr11'],
-                   required=True)
+parser.add_argument(
+  "--model", 
+  help="ML model to use",
+  choices=[
+    'rf6', 'rf7', 'rf8', 'rf9', 'rf10',
+    'rf11', 'rf12', 'rf20', 'rf21',
+    'gbr10', 'gbr11', 'gbr20', 'gbr21'
+  ],
+  required=True)
 parser.add_argument("--sdate", help="Start prediction date YYYYMMDD", required=True, type=int)
-parser.add_argument("--edate", help="End prediction date YYYYMMDD, skip if edate=sdate", 
-                    type=int)
-parser.add_argument("--regn", help="Region to process", choices=['north','south'],
-                    required=True, type=str)
-parser.add_argument("--iconc", help="Ice conc field used as a predictor",
-                    choices=['glorys','amsr2', 'nsidc'],
-                    type=str,
-                    required=True)
+parser.add_argument(
+  "--edate", 
+  help="End prediction date YYYYMMDD, skip if edate=sdate", 
+  type=int
+)
+parser.add_argument(
+  "--skipdays", 
+  help="Optional: skipdays from sdate ... edate, default=use tstep_era for constructing input for training",
+  type=int,
+  default=None
+)
+parser.add_argument(
+  "--regn", 
+  help="Region to process", 
+  choices=['north','south'],
+  required=True
+)
+parser.add_argument(
+  "--iconc", 
+  help="Ice conc field used as a predictor",
+  choices=['glorys','amsr2', 'nsidc'],
+  type=str,
+  required=True
+)
 parser.add_argument("--save", help="Save predicted ice thickness in npz (0=no, 1=yes)",
                     choices=[0,1], default=0, type=int)
 args = parser.parse_args()
@@ -83,7 +105,11 @@ iconc_fld = args.iconc
 sdate     = args.sdate
 edate     = args.edate if args.edate is not None else args.sdate
 regn      = args.regn
+skip_days = args.skipdays if args.skipdays is not None else 0
 save_fcst = args.save == 1
+
+
+assert skip_days < 60, f"skip_days={skip_days} is too large"
 
 if not save_fcst:
   print(" \n!!!!   PREDICTIONS WILL NOT BE SAVED !!!\n")
@@ -120,7 +146,9 @@ with open(fyaml) as ff:
   config_predictor = safe_load(ff)
 
 
-model_name = micepr.models_info()[ml_model]
+#model_name = micepr.models_info()[ml_model]
+ml_name = micepr.full_model_name(ml_model)
+model_name = f"{ml_name}_{regn}"
 
 # Get time steps, grid points:
 pthinfo = config_predictor["params"]["pthinfo"]
@@ -175,8 +203,10 @@ DIRS = {
   "pthgmapi"  : config_predictor[emul][prdfld]["pthgmapi"],
   "pthfcst"   : config_predictor[emul][prdfld]["pthfcst"],
   "pthout"    : config_predictor[emul][prdfld]["pthout"],
+  "pthtopo"  : config_predictor["linregr"]["pthgltopo"],
   "pthiconc"  : config_predictor[emul][iconc_fld]["pthiconc"],
   "pthmodel"  : config_predictor[emul][ml_model]["pthmodel"],
+  "fltopo"   : config_predictor["linregr"]["gltopo"],
   "regn"      : regn,
   "dxy"       : dxy,
   "YS"        : YS,
@@ -197,13 +227,16 @@ PRED_NAMES = data_pred["PRED_NAMES"]
 
 # Construct time array of ERA5 SAT fields with tstep_era skipping
 # within requested time window for prediction ithkn
-DNMB_full = micepr.derive_time(YS, YE, tstep_era)
+if skip_days == 0:
+  skip_days = tstep_era
+
+DNMB_full = micepr.derive_time(YS, YE, skip_days)
 
 ixS = np.argmin(abs(DNMB_full - dnmbS0))
 ixE = np.argmin(abs(DNMB_full - dnmbE0))
 
-assert abs(DNMB_full[ixS] - dnmbS0) <= tstep_era, f"Check ixS={ixS} in ERA DNMB"
-assert abs(DNMB_full[ixE] - dnmbE0) <= tstep_era, f"Check ixE={ixE} in ERA DNMB"
+assert abs(DNMB_full[ixS] - dnmbS0) <= skip_days, f"Check ixS={ixS} in ERA DNMB"
+assert abs(DNMB_full[ixE] - dnmbE0) <= skip_days, f"Check ixE={ixE} in ERA DNMB"
 
 DNMB_fcst = DNMB_full[ixS:ixE+1].astype(int)
 nfcst = len(DNMB_fcst)

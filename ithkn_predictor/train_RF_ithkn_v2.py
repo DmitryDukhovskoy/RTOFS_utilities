@@ -60,12 +60,11 @@ importlib.reload(micepr)
 # RF 1 - 4: 11 predictors (no IHDD)
 parser = argparse.ArgumentParser()
 parser.add_argument("--rfmod", help="random forest model number",
-                    choices=[1,2,3,4,6,7,8,9,10,11,12], 
-                    required=True, type=int)
+  choices=[1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 20, 21],
+  required=True, type=int)
 parser.add_argument("--regn", help="Region to process, default=north", 
-                    choices=['north','south'], 
-                    default='north', 
-                    type=str)
+  choices=['north','south'], 
+  default='north')
 parser.add_argument("--save", help="Save model object (=1)",
                     choices=[0,1],
                     required=True,
@@ -105,6 +104,7 @@ DIRS = {
   "ptht2m"   : config_predictor["linregr"]["ptht2m_1hr"],
   "pthgmapi" : config_predictor["linregr"]["pthgmapi"],
   "pthout"   : config_predictor["linregr"]["pthout"],
+  "pthtopo"  : config_predictor["linregr"]["pthgltopo"],
   "pthrf"    : config_predictor["linregr"]["pthrf"],
   "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconctmp" : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
@@ -113,6 +113,7 @@ DIRS = {
   "sattmp"   : config_predictor["linregr"]["sattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "dfrztmp"  : config_predictor["linregr"]["dfrztmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "heattmp"  : config_predictor["linregr"]["heattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "fltopo"   : config_predictor["linregr"]["gltopo"],
   "iconc"    : "iconctmp",
   "sst"      : "ssttmp",
   "divu"     : "divutmp",
@@ -163,6 +164,7 @@ print(f"For dxy={dxy} km and lat0={lat0:.2f}, Selected N pnts={Npnts}")
 # Static predictors:
 #   yday   - year day represented as cos(yday) + sin(yday)
 #   gcoord - geogr. coord. in spherical coordinates
+#   btmtopo - bottom depth (normalized -1 <= h <= 1)
 # Dynamic predictors:
 #   mnithkn - monthly mean ice thickness (over ice area!), to account for interann. trend
 #   iconc   - ice concentration
@@ -356,6 +358,18 @@ for predict in PRED:
     PRED_MEAN.extend([np.nan, np.nan, Zcrd.mean()])
     PRED_STDEV.extend([np.nan, np.nan, Zcrd.std()])
     PRED_NAMES.extend(["Xcrd", "Ycrd", "Zcrd"])
+
+  elif predict == "btmtopo":
+    print("Constructing bottom depth predictor btmtopo")
+    pthtopo = DIRS["pthtopo"]
+    fltopo  = DIRS["fltopo"]
+    dfltopo = os.path.join(pthtopo, fltopo)
+    Btopo = micepr.construct_bottom_topo(IG, JG, len(DNMB), dfltopo, normlz=True, order_fast="time")
+    PRED_LIST.extend([Btopo])
+    PRED_STDZ.extend([Btopo])
+    PRED_MEAN.extend([np.nan])
+    PRED_STDEV.extend([np.nan])
+    PRED_NAMES.extend(["btmtopo"])
 
   elif predict == "mnithkn":
     pthout = DIRS["pthout"]

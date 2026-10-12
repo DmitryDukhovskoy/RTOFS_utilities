@@ -80,13 +80,18 @@ fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
 
-regn_name = config_predictor["regn"][regn]["name"]
-lat0      = config_predictor["regn"][regn]["lat_bnd"]
-tstep     = config_predictor["params"]["tstep"]
-dxy       = config_predictor["params"]["dxy"]
-YS        = config_predictor["params"]["ys"]
-YS        = config_predictor["params"]["ys"]
-YE        = config_predictor["params"]["ye"]
+# Load parameters:
+regn_name    = config_predictor["regn"][regn]["name"]
+lat0         = config_predictor["regn"][regn]["lat_bnd"]
+tstep        = config_predictor["params"]["tstep"]     # ERA5 daily fields, skipping days
+dxy          = config_predictor["params"]["dxy"]
+YS           = config_predictor["params"]["ys"]
+YS           = config_predictor["params"]["ys"]
+YE           = config_predictor["params"]["ye"]
+davrg        = config_predictor["params"]["davrg"]
+sqrt_frzdays = config_predictor["params"]["sqrt_frz"]   # use sqrt(IFDD) to better fit Zubov relation
+intgr_time   = config_predictor["params"]["intgr_frz"]  # Time for freeze degree days accumulation
+Tfrz         = config_predictor["params"]["Tfrz"]       # ocean freezing T
 
 DIRS = {
   "pthithkn" : config_predictor["linregr"]["pthithkn"],
@@ -101,7 +106,6 @@ DIRS = {
   "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconctmp" : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "ssttmp"   : config_predictor["linregr"]["ssttmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
-  "divutmp"  : config_predictor["linregr"]["divutmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "sattmp"   : config_predictor["linregr"]["sattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   }
 

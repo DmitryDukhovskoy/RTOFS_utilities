@@ -4,7 +4,7 @@
 regn:
   north:
     name    : Arctic
-    lat_bnd : 60.
+    lat_bnd : 55.
   south:
     name    : Antarctic
     lat_bnd : -55.
@@ -32,6 +32,7 @@ linregr:
   pthssh   : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/zos/"
   pthui    : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/usi/"
   pthvi    : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/vsi/"
+  pthgltopo: "/archive/Dmitry.Dukhovskoy/data/GLORYS_0.08/topo_grid/"
   ptht2m   : "/archive/Dmitry.Dukhovskoy/data/ERA5/{regn_name}"
   ptht2m_1hr: "/uda/ERA5/Hourly_Data_On_Single_Levels/reanalysis/global/1hr/annual_file-range/Temperature_and_Pressure/2m-temperature/0.25x0.25"
   pthgmapi : "/archive/Dmitry.Dukhovskoy/data/remap_indx"
@@ -39,6 +40,7 @@ linregr:
   pthrf    : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
   pthgbr   : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
   pthfcst  : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ithkn_fcast"
+  gltopo   : "GLO-MFC_001_030_mask_bathy.nc"
   ithkntmp : "ithkn_IJpnts_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
   iconctmp : "iconc_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
   ssttmp   : "sst_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
@@ -46,6 +48,7 @@ linregr:
   sattmp   : "sat_tser_ERA5_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
   dfrztmp  : "dayfrz_tser_ERA5_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
   heattmp  : "heatdgr_tser_ERA5_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
+  topotmp  : "glorys_bottom_depth_{regn}.npz"
 
 ml:
   glorys:
@@ -69,22 +72,147 @@ ml:
     pthiconc : "/work/Dmitry.Dukhovskoy/data/NSIDC_iconc_interp"
     fliconc  : "NSIDC_iconc_GLORYSgrid_{YR}{MM}{DD}_north.nc"
 
-  gbr1:
+ml_specs:
+  predictor_sets:
+    PRED1: &PRED1 [yday, gcoord, mnithkn, iconc, sst, divu, frzdays, sat]
+    PRED2: &PRED2 [yday, gcoord, mnithkn, iconc, sst, divu, frzdays, heatdays, sat]
+    PRED3: &PRED3 [yday, gcoord, btmtopo, mnithkn, iconc, sst, divu, frzdays, heatdays, sat]
+
+  rf:
+    # Ntrees specifies number of random trees, complexity of the model
+    # MinLeaf constrains the complexity of each tree, the smaller the value
+    # the more nodes a tree might have, the better it fits the training
+    # data but the risk of overfitting increases (fitting random noise)
+
+    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
+
+    "1":
+      Ntrees  : 100
+      MinLeaf : 5
+      PRED    : *PRED1
+
+    "2":
+      Ntrees  : 200
+      MinLeaf : 5
+      PRED    : *PRED1 
+
+    "3":
+      Ntrees  : 5
+      MinLeaf : 5
+      PRED    : *PRED1 
+
+    "4":
+      Ntrees  : 2
+      MinLeaf : 5
+      PRED    : *PRED1 
+
+    "6":
+      Ntrees  : 5
+      MinLeaf : 15
+      PRED    : *PRED2
+
+    "7":
+      Ntrees  : 8
+      MinLeaf : 15
+      PRED    : *PRED2
+     
+    "8":
+      Ntrees  : 10
+      MinLeaf : 15
+      PRED    : *PRED2
+
+    "9":
+      Ntrees  : 20
+      MinLeaf : 15
+      PRED    : *PRED2
+
+    "10":
+      Ntrees  : 25
+      MinLeaf : 15
+      PRED    : *PRED2
+
+    "11":
+      Ntrees  : 50
+      MinLeaf : 20
+      PRED    : *PRED2
+
+    "12":
+      Ntrees  : 100
+      MinLeaf : 20
+      PRED    : *PRED2
+
+    "20":
+      Ntrees  : 50
+      MinLeaf : 5
+      PRED    : *PRED3
+
+    "21":
+      Ntrees  : 100
+      MinLeaf : 20
+      PRED    : *PRED3
+
+  gbr:
+    # For gradient-boosting decision trees
+    # Keeping shallow trees usually works better (unlike RF)
+    # max leaf is important for controlling complexity and overfitting
+
     pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
-  gbr2:
-    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
-  gbr3:
-    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
-  gbr11:
-    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
-  rf1:
-    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
-  rf2:
-    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
-  rf11:
-    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
-  rf12:
-    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
-  rf13:
-    pthmodel : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
+
+    "1":
+      max_leaf  : 8
+      learn_rt  : 0.05
+      max_iter  : 500
+      max_depth : 8
+      PRED      : *PRED1
+
+    "2":
+      max_leaf  : 31
+      learn_rt  : 0.05
+      max_iter  : 1000
+      max_depth : 10
+      PRED      : *PRED1
+
+    "3":
+      max_leaf  : 63
+      learn_rt  : 0.05
+      max_iter  : 1200
+      max_depth : 15
+      PRED      : *PRED1
+
+    "4":
+      max_leaf  : 100
+      learn_rt  : 0.05
+      max_iter  : 1500
+      max_depth : 15
+      PRED      : *PRED1
+
+    "10":
+      max_leaf  : 50
+      learn_rt  : 0.05
+      max_iter  : 1200
+      max_depth : 10
+      PRED      : *PRED2
+
+    "11":
+      max_leaf  : 63
+      learn_rt  : 0.05
+      max_iter  : 1200
+      max_depth : 15
+      PRED      : *PRED2
+
+    "20":
+      max_leaf  : 50
+      learn_rt  : 0.05
+      max_iter  : 1200
+      max_depth : 10
+      PRED      : *PRED3
+
+    "21":
+      max_leaf  : 63
+      learn_rt  : 0.05
+      max_iter  : 1200
+      max_depth : 15
+      PRED      : *PRED3
+
+
 

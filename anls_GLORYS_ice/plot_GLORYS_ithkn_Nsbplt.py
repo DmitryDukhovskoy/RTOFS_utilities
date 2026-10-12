@@ -54,7 +54,12 @@ parser.add_argument("--rdate", help="Prediction date YYYYMMDD",
                     required=True,
                     nargs="+",
                     type=int)
-parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str, default='north')
+parser.add_argument(
+  "--regn", 
+  help=f"hemisphere: north or south, default={regn}",
+  choices=['north','south'],
+  default='north'
+)
 parser.add_argument("--ncol", help=f"N of columns for subplots, default=N dates", type=int)
 parser.add_argument("--nrow", help=f"N of rows for subplots, default=1", type=int)
 args = parser.parse_args()

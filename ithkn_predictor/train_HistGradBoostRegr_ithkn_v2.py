@@ -80,8 +80,13 @@ import mod_icepredict as micepr
 importlib.reload(micepr)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--gbrmod", help="Hist Gradient Boost decision tree model number",
-                    choices=[1, 2, 3, 4, 10, 11], required=True, type=int)
+parser.add_argument(
+  "--gbrmod", 
+  help="Hist Gradient Boost decision tree model number",
+  choices=[1, 2, 3, 4, 10, 11, 20, 21], 
+  required=True, 
+  type=int
+)
 parser.add_argument("--regn", help="Region to process, default=north", 
                     choices=['north','south'], 
                     required=True)
@@ -130,13 +135,16 @@ DIRS = {
   "pthout"   : config_predictor["linregr"]["pthout"],
   "pthrf"    : config_predictor["linregr"]["pthrf"],
   "pthgbr"   : config_predictor["linregr"]["pthgbr"],
+  "pthtopo"  : config_predictor["linregr"]["pthgltopo"],
   "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconctmp" : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "ssttmp"   : config_predictor["linregr"]["ssttmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
-  "divutmp"  : config_predictor["linregr"]["divutmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn, davrg=davrg),
+  "divutmp"  : config_predictor["linregr"]["divutmp"].format(YS=YS, YE=YE, 
+                                                             dxy=dxy, regn=regn, davrg=davrg),
   "sattmp"   : config_predictor["linregr"]["sattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "dfrztmp"  : config_predictor["linregr"]["dfrztmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "heattmp"  : config_predictor["linregr"]["heattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "fltopo"   : config_predictor["linregr"]["gltopo"],
   "iconc"    : "iconctmp",
   "sst"      : "ssttmp",
   "divu"     : "divutmp",
@@ -246,7 +254,7 @@ def update_lists_predictor(predict, sqrt_frzdays, PRED_LIST, PRED_STDZ, PRED_MEA
   return 
 
 
-def save_gradboost(gbr, outdir, model_name="gradient_boost_regressor",
+def save_gradboost(gbr, outdir, model_name, regn,
                        predictor_names=None,
                        train_idx=None, test_idx=None,
                        metadata=None):
@@ -254,10 +262,9 @@ def save_gradboost(gbr, outdir, model_name="gradient_boost_regressor",
   Save trained Random Forest model and related information.
   gbr : trained HistGradientBoostingRegressor
       Trained GradBoostRegress estimator
-  outdir : 
-      Directory where files will be saved.
-  model_name : 
-      Prefix for output files.
+  outdir :      Directory where files will be saved.
+  model_name :  Prefix for output files.
+  regn:         north / south
   predictor_names : list, optional
       Names of predictors in the same order as columns in X.
   train_idx, test_idx : array-like, optional
@@ -269,12 +276,12 @@ def save_gradboost(gbr, outdir, model_name="gradient_boost_regressor",
   os.makedirs(outdir, exist_ok=True)
 
   # Save trained model
-  model_file = os.path.join(outdir, model_name + ".pkl")
+  model_file = os.path.join(outdir, f"{model_name}_{regn}.pkl")
   print(f"Saving trained model ---> {model_file}")
   joblib.dump(gbr, model_file)
 
   # Save estimator parameters
-  params_file = os.path.join(outdir, model_name + "_params.json")
+  params_file = os.path.join(outdir, f"{model_name}_{regn}_params.json")
   print(f"Saving model parameters ---> {params_file}")
   with open(params_file, "w") as f:
     json.dump(gbr.get_params(), f, indent=4, default=str)
@@ -287,7 +294,7 @@ def save_gradboost(gbr, outdir, model_name="gradient_boost_regressor",
     if test_idx is None:
       test_idx = []
 
-    pred_file = os.path.join(outdir, model_name + "_predictors_trainidx.npz")
+    pred_file = os.path.join(outdir, f"{model_name}_{regn}_predictors_trainidx.npz")
     print(f"Saving predictors, train/test indx ---> {pred_file}")
     np.savez(
       pred_file,
@@ -305,7 +312,7 @@ def save_gradboost(gbr, outdir, model_name="gradient_boost_regressor",
   if metadata is not None:
       info.update(metadata)
 
-  info_file = os.path.join(outdir, model_name + "_info.json")
+  info_file = os.path.join(outdir, f"{model_name}_{regn}_info.json")
 
   print(f"Saving model info ---> {info_file}")
   with open(info_file, "w") as f:
@@ -341,6 +348,18 @@ for predict in PRED:
     PRED_MEAN.extend([np.nan, np.nan, Zcrd.mean()])
     PRED_STDEV.extend([np.nan, np.nan, Zcrd.std()])
     PRED_NAMES.extend(["Xcrd", "Ycrd", "Zcrd"])
+
+  elif predict == "btmtopo":
+    print("Constructing bottom depth predictor btmtopo")
+    pthtopo = DIRS["pthtopo"]
+    fltopo  = DIRS["fltopo"]
+    dfltopo = os.path.join(pthtopo, fltopo)
+    Btopo = micepr.construct_bottom_topo(IG, JG, len(DNMB), dfltopo, normlz=True, order_fast="time")
+    PRED_LIST.extend([Btopo])
+    PRED_STDZ.extend([Btopo])
+    PRED_MEAN.extend([np.nan])
+    PRED_STDEV.extend([np.nan])
+    PRED_NAMES.extend(["btmtopo"])
 
   elif predict == "mnithkn":
     pthout = DIRS["pthout"]
@@ -501,11 +520,12 @@ metadata={
 
 
 if f_save:
-  model_name = f"GradBoostRegr_model{gbrmod:02d}_{regn}"
+  model_name = micepr.full_model_name(f"gbr{gbrmod:02d}")
+
   pthgbr = DIRS['pthgbr']
   print(f"Saving stat model --> {pthgbr}")
 
-  save_gradboost(gbr, pthgbr, model_name=model_name,
+  save_gradboost(gbr, pthgbr, model_name, regn,
                        predictor_names=PRED_NAMES,
                        train_idx=train_idx, test_idx=test_idx,
                        metadata=metadata)

@@ -60,13 +60,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help="Region to process", choices=['north','south'], 
                     required=True, type=str)
 parser.add_argument("--lmodel", help="Linear Model default=2",
-                    choices=[1,2],
+                    choices=[1,2,3],
                     default=2,
                     type=int)
 args = parser.parse_args()
 
 regn  = args.regn
-lmodel = 2
+lmodel = args.lmodel
 
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
@@ -103,6 +103,9 @@ if model_name == "OLS_model1":
 elif model_name == "OLS_model2":
   # Added heat dgr days
   PRED = ["yday", "gcoord", "mnithkn", "iconc", "sst", "divu", "frzdays", "heatdays", "sat"] 
+elif model_name == "OLS_model3":
+  # Added heat dgr days
+  PRED = ["yday", "gcoord", "btmtopo", "mnithkn", "iconc", "sst", "divu", "frzdays", "heatdays", "sat"] 
 
 DIRS = {
   "pthithkn" : config_predictor["linregr"]["pthithkn"],
@@ -114,6 +117,7 @@ DIRS = {
   "ptht2m"   : config_predictor["linregr"]["ptht2m_1hr"],
   "pthgmapi" : config_predictor["linregr"]["pthgmapi"],
   "pthout"   : config_predictor["linregr"]["pthout"],
+  "pthtopo"  : config_predictor["linregr"]["pthgltopo"],
   "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconctmp" : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "ssttmp"   : config_predictor["linregr"]["ssttmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
@@ -121,6 +125,7 @@ DIRS = {
   "sattmp"   : config_predictor["linregr"]["sattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "dfrztmp"  : config_predictor["linregr"]["dfrztmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "heattmp"  : config_predictor["linregr"]["heattmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
+  "fltopo"   : config_predictor["linregr"]["gltopo"],
   "iconc"    : "iconctmp",
   "sst"      : "ssttmp",
   "divu"     : "divutmp",
@@ -164,7 +169,7 @@ if check_dnmb:
   micepr.check_dnmb_array(DNMB, print_months=False)
 
 Npnts = len(IG)
-print(f"For dxy={dxy} km and lat0={lat0:.2f}, Selected N pnts={Npnts}")
+print(f"\n  regn={regn} dxy={dxy} km and lat0={lat0:.2f}, Selected N pnts={Npnts}\n")
 
 # Read time array ad J,I sample grid points:
 # Time array should match ERA5 extracted fields
@@ -228,6 +233,7 @@ PRED_NAMES = []
 for predict in PRED:
   # Construct static predictors:
   if predict == "yday":
+    print("Constructing year day predictor yday")
     cosD, sinD = micepr.construct_ydays(DNMB, len(IG), order_fast="time") 
 
     PRED_LIST.extend([cosD, sinD])
@@ -237,6 +243,7 @@ for predict in PRED:
     PRED_NAMES.extend(["cosD", "sinD"])
 
   elif predict == "gcoord":
+    print("Constructing geogr. coord. predictor gcoord")
     Xcrd, Ycrd, Zcrd = micepr.construct_coord_sphere(hlon, hlat, IG, JG, len(DNMB), order_fast="time")
 
     # Standardize only Zcrd because it is >0.9 (mean is not ~0)
@@ -247,6 +254,18 @@ for predict in PRED:
     PRED_MEAN.extend([np.nan, np.nan, Zcrd.mean()])
     PRED_STDEV.extend([np.nan, np.nan, Zcrd.std()])
     PRED_NAMES.extend(["Xcrd", "Ycrd", "Zcrd"])
+
+  elif predict == "btmtopo":
+    print("Constructing bottom depth predictor btmtopo")
+    pthtopo = DIRS["pthtopo"]
+    fltopo  = DIRS["fltopo"]
+    dfltopo = os.path.join(pthtopo, fltopo)
+    Btopo = micepr.construct_bottom_topo(IG, JG, len(DNMB), dfltopo, normlz=True, order_fast="time")
+    PRED_LIST.extend([Btopo])
+    PRED_STDZ.extend([Btopo])
+    PRED_MEAN.extend([np.nan])
+    PRED_STDEV.extend([np.nan])
+    PRED_NAMES.extend(["btmtopo"])
 
   elif predict == "mnithkn":
     pthout = DIRS["pthout"]
@@ -279,6 +298,7 @@ for predict in PRED:
     )
 
 # Response variable:
+print("\n Loading predicted field: ithkn")
 hice_max = 5.
 Ithkn = load_predictor("ithkn", DIRS, DNMB)
 Ithkn[Ithkn > hice_max] = hice_max

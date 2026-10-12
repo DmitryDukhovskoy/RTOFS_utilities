@@ -88,13 +88,17 @@ with open(fyaml) as ff:
   config_predictor = safe_load(ff)
 
 # Load parameters:
-regn_name = config_predictor["regn"][regn]["name"]
-lat0      = config_predictor["regn"][regn]["lat_bnd"]
-tstep     = config_predictor["params"]["tstep"]
-dxy       = config_predictor["params"]["dxy"]
-YS        = config_predictor["params"]["ys"]
-YS        = config_predictor["params"]["ys"]
-YE        = config_predictor["params"]["ye"]
+regn_name    = config_predictor["regn"][regn]["name"]
+lat0         = config_predictor["regn"][regn]["lat_bnd"]
+tstep        = config_predictor["params"]["tstep"]     # ERA5 daily fields, skipping days
+dxy          = config_predictor["params"]["dxy"]
+YS           = config_predictor["params"]["ys"]
+YS           = config_predictor["params"]["ys"]
+YE           = config_predictor["params"]["ye"]
+davrg        = config_predictor["params"]["davrg"]
+sqrt_frzdays = config_predictor["params"]["sqrt_frz"]   # use sqrt(IFDD) to better fit Zubov relation
+intgr_time   = config_predictor["params"]["intgr_frz"]  # Time for freeze degree days accumulation
+Tfrz         = config_predictor["params"]["Tfrz"]       # ocean freezing T
 
 ithkn_max = 4.  # cap max ice thickness
 Ntime_avrg = 3 # for unrealistic (<0) values, use average values from previous records

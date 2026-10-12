@@ -43,49 +43,52 @@ import mod_colormaps as mclrmps
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--rdate", help="Prediction date YYYYMMDD", required=True, type=int)
-parser.add_argument("--regn", help="Region to process", choices=['north','south'],
-                    default='north', type=str)
-parser.add_argument("--model", help="Model name", 
-                    choices=['clim','ols1','ols2','rf1','rf2','rf3','gbr1','gbr2','gbr3','gbr11'],
-                    required=True, type=str)
-parser.add_argument("--iconc", help="Ice conc field used as a predictor",
-                    choices=['glorys','amsr2','nsidc'],
-                    type=str,
-                    default="glorys")
+parser.add_argument(
+  "--regn", 
+  help="Region to process",
+  choices=['north','south'],
+  default='north'
+)
+parser.add_argument(
+  "--model", 
+  help="ML model name, not all ML models exist for S. Ocean", 
+  choices=['clim','ols1','ols2','rf11','rf12','rf20','rf21',
+           'gbr1','gbr10','gbr11','gbr20','gbr21'],
+  required=True
+)
+parser.add_argument(
+  "--iconc", help="Ice conc field used as a predictor",
+  choices=['glorys','amsr2','nsidc'],
+  default="glorys"
+)
 args = parser.parse_args()
 
-model   = args.model
-rdate    = args.rdate
-regn     = args.regn
+ml_model  = args.model
+rdate     = args.rdate
+regn      = args.regn
 iconc_fld = args.iconc
 syst_info = os.uname()
-machine = syst_info.nodename
+machine   = syst_info.nodename
 
 # Training linregr params:
-MODEL_NAMES = micepr.models_info()
-model_name = MODEL_NAMES[model]
-YS = 1993
-YE = 2025
+ml_name = micepr.full_model_name(ml_model)
+model_name = f"{ml_name}_{regn}"
 
-if model == 'ols1':
-  YE = 2002
-
-regions = {
-    "north": ("Arctic", 65.0),
-    "south": ("Antarctic", -60.0),
-}
-regn_name, lat0 = regions[regn]
 
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
 
+pthinfo = config_predictor["params"]["pthinfo"]
+flij   = config_predictor["params"]["flij"].format(regn=regn)
+flgrid = config_predictor["params"]["flgrid"]
+dflij   = os.path.join(pthinfo, flij)
+dflgrid = os.path.join(pthinfo, flgrid)
 
 # Load prediction and grid points:
 pthfcst = os.path.join(config_predictor["linregr"]["pthfcst"],f"{model_name}")
-flfcst = f"{model_name}_ithkn_fcast_{rdate}.npz"
-if not iconc_fld == "glorys":
-  flfcst = f"{model_name}_ithkn_fcast_{iconc_fld}_{rdate}.npz" 
+#flfcst = f"{model_name}_ithkn_fcast_{rdate}.npz"
+flfcst = f"{model_name}_ithkn_fcast_{iconc_fld}_{rdate}.npz" 
 
 #flfcst = f"{model_name}_{YS}_{YE}_ithkn_fcast_{rdate}.npz"
 dflfcst = os.path.join(pthfcst, flfcst)
@@ -95,32 +98,14 @@ Ithkn = data_fcst['Yfcst']
 JG    = data_fcst['JG']
 IG    = data_fcst['IG']
 
-# Get GLORYS grid
-dnmb0 = mtime.rdate2datenum(rdate)
-YR0, MM0, DD0 = mtime.datevec(dnmb0)[:3]
-
-# Find file:
-pthice = os.path.join(config_predictor["linregr"]["pthithkn"], f"{YR0}")
-dflice = mglr.find_file(rdate, pthice)
-assert dflice is not None, f"GLORYS file not found for {rdate} in {pthice}"
-
-with xr.open_dataset(dflice) as dsice:
-  A2d = dsice['sithick'].isel(time=0).data.squeeze()
-  LON = dsice['longitude'].values
-  LAT = dsice['latitude'].values
-
-hlon, hlat = np.meshgrid(LON, LAT)
-
-LMsk = None
-pthssh = f"/uda/Global_Ocean_Physics_Reanalysis/global/daily/zos/{YR0}"
-dflssh = mglr.find_file(rdate, pthssh)
-with xr.open_dataset(dflssh) as dszos:
-  SSH = dszos['zos'].isel(time=0).values.squeeze()
-
-LMsk = np.where(np.isfinite(SSH),1,0)
+# GLORYS grid:
+A = np.load(dflgrid)
+hlon = A["LON"]
+hlat = A["LAT"]
+LMsk = A["LMsk"]
 
 # Replace glorys with predicted ithkn
-AP = A2d * np.nan
+AP = LMsk * np.nan
 AP[JG,IG] = Ithkn
 
 if LMsk is not None:
@@ -133,6 +118,10 @@ rmin = 0.
 rmax = 3.
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 clrmp.set_under(color=[1,1,1])
+
+
+dnmb = mtime.rdate2datenum(rdate)
+YR0, MM0, DD0 = mtime.datevec(dnmb)[:3]
 
 plt.ion()
 fig1 = plt.figure(1,figsize=(9,9))
