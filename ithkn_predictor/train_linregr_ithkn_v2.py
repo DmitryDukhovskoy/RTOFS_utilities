@@ -261,10 +261,16 @@ for predict in PRED:
     fltopo  = DIRS["fltopo"]
     dfltopo = os.path.join(pthtopo, fltopo)
     Btopo = micepr.construct_bottom_topo(IG, JG, len(DNMB), dfltopo, normlz=True, order_fast="time")
+
+    # Normalize bottom for lin regr (mean=0, std=1)
+    btopo_stdz = (Btopo - Btopo.mean()) / Btopo.std()
     PRED_LIST.extend([Btopo])
-    PRED_STDZ.extend([Btopo])
-    PRED_MEAN.extend([np.nan])
-    PRED_STDEV.extend([np.nan])
+    #PRED_STDZ.extend([Btopo])  # keep not standardized (mean != 0, std != 1)
+    #PRED_MEAN.extend([np.nan])
+    #PRED_STDEV.extend([np.nan])
+    PRED_STDZ.extend([btopo_stdz])
+    PRED_MEAN.extend([Btopo.mean()])
+    PRED_STDEV.extend([Btopo.std()])
     PRED_NAMES.extend(["btmtopo"])
 
   elif predict == "mnithkn":
@@ -274,9 +280,9 @@ for predict in PRED:
     assert os.path.isfile(dflmni), f"File is missing: {dflmni}"
 
     mnithkn = micepr.construct_mean_ithkn(len(IG), DNMB, dflmni, order_fast="time", Mavrg = 3)
-    mnithkn_std = (mnithkn - mnithkn.mean()) / mnithkn.std()
+    mnithkn_stdz = (mnithkn - mnithkn.mean()) / mnithkn.std()
     PRED_LIST.extend([mnithkn])
-    PRED_STDZ.extend([mnithkn_std])
+    PRED_STDZ.extend([mnithkn_stdz])
     PRED_MEAN.extend([mnithkn.mean()])
     PRED_STDEV.extend([mnithkn.std()])
     PRED_NAMES.extend(["mnithkn"])

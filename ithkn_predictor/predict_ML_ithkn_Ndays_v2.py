@@ -49,27 +49,11 @@ import mod_glorys as mglr
 import mod_icepredict as micepr
 importlib.reload(micepr)
 
-# See mod_icepredict.py for more info about the models
-#    Random Forest (all 1993-2025):
-#   Added predictor: integrated Heat Degree Days (IHDD)
-#      RF10: Ntrees 25  Max leaf: 15
-#      RF11: Ntrees 50  Max leaf: 5
-#      RF12: Ntrees 100 Max leaf: 20
-#
-#    Hist. Grad Boost Regressor (decision tree)
-#   Added predictor: integrated Heat Degree Days (IHDD)
-#      GBR10: max_leaf = 50, max_iter=1200, max_depth=10
-#      GBR11: max_leaf = 63, max_iter=1200, max_depth=15 
-#
+# See config_ithkn_predictor.yaml for more info about the models
 parser = argparse.ArgumentParser()
 parser.add_argument(
   "--model", 
-  help="ML model to use",
-  choices=[
-    'rf6', 'rf7', 'rf8', 'rf9', 'rf10',
-    'rf11', 'rf12', 'rf20', 'rf21',
-    'gbr10', 'gbr11', 'gbr20', 'gbr21'
-  ],
+  help="ML model to use: e.g. rf6, rf7, gbr10, gbr11, ... see YAML for existing models",
   required=True)
 parser.add_argument("--sdate", help="Start prediction date YYYYMMDD", required=True, type=int)
 parser.add_argument(
@@ -135,16 +119,38 @@ fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
 
+# Split model into model short name and number:
+ml_model = ml_model.lower()
+
+if ml_model.startswith("gbr") and ml_model[3:].isdigit():
+  ml_short = "gbr"
+  ml_nmb = int(ml_model[3:])
+elif ml_model.startswith("rf") and ml_model[2:].isdigit():
+  ml_short = "rf"
+  ml_nmb = int(ml_model[2:])
+else:
+  raise ValueError(f"Model name / number cannot be identified: {ml_model}")
+
 # Load parameters:
 regn_name    = config_predictor["regn"][regn]["name"]
 lat0         = config_predictor["regn"][regn]["lat_bnd"]
 davrg        = config_predictor["params"]["davrg"]
 tstep_era    = config_predictor["params"]["tstep"]     # ERA5 daily fields, skipping days
 
-fyaml = 'config_ithkn_predictor.yaml'
-with open(fyaml) as ff:
-  config_predictor = safe_load(ff)
+# Check if specified model number exists:
+rf_specs = config_predictor['ml_specs'][ml_short]
 
+# Keep only numeric model IDs, exclude pthmodel and other settings
+valid_models = [
+  int(key) for key in rf_specs
+  if key.isdigit()
+]
+
+if ml_nmb not in valid_models:
+  raise ValueError(
+    f"Invalid model '{ml_short}' number: {ml_nmb},  "
+    f"Choose one of: {valid_models}"
+  )
 
 #model_name = micepr.models_info()[ml_model]
 ml_name = micepr.full_model_name(ml_model)
@@ -173,7 +179,7 @@ hlon = (hlon + 360) % 360
 
 
 # Load model parameters and ML model:
-pthmodel = config_predictor[emul][ml_model]["pthmodel"]
+pthmodel = config_predictor["ml_specs"][ml_short]["pthmodel"]
 model_file = os.path.join(pthmodel, model_name + ".pkl")
 print(f"Reading {ml_model} object from {model_file}")
 mlem = joblib.load(model_file)
@@ -201,12 +207,12 @@ DIRS = {
   "pthvi"     : config_predictor[emul][prdfld]["pthvi"],
   "ptht2m"    : config_predictor["linregr"]["ptht2m_1hr"],
   "pthgmapi"  : config_predictor[emul][prdfld]["pthgmapi"],
-  "pthfcst"   : config_predictor[emul][prdfld]["pthfcst"],
+  "pthfcst"   : config_predictor[emul]["pthfcst"],
   "pthout"    : config_predictor[emul][prdfld]["pthout"],
-  "pthtopo"  : config_predictor["linregr"]["pthgltopo"],
+  "pthtopo"   : config_predictor["linregr"]["pthgltopo"],
   "pthiconc"  : config_predictor[emul][iconc_fld]["pthiconc"],
-  "pthmodel"  : config_predictor[emul][ml_model]["pthmodel"],
-  "fltopo"   : config_predictor["linregr"]["gltopo"],
+  "pthmodel"  : config_predictor["ml_specs"][ml_short]["pthmodel"],
+  "fltopo"    : config_predictor["linregr"]["gltopo"],
   "regn"      : regn,
   "dxy"       : dxy,
   "YS"        : YS,
@@ -229,6 +235,9 @@ PRED_NAMES = data_pred["PRED_NAMES"]
 # within requested time window for prediction ithkn
 if skip_days == 0:
   skip_days = tstep_era
+else:
+  # Use user requested time stepping
+  DIRS["tstep_era"] = skip_days
 
 DNMB_full = micepr.derive_time(YS, YE, skip_days)
 

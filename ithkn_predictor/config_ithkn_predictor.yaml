@@ -37,8 +37,6 @@ linregr:
   ptht2m_1hr: "/uda/ERA5/Hourly_Data_On_Single_Levels/reanalysis/global/1hr/annual_file-range/Temperature_and_Pressure/2m-temperature/0.25x0.25"
   pthgmapi : "/archive/Dmitry.Dukhovskoy/data/remap_indx"
   pthout   : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_linregr"
-  pthrf    : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_RF"
-  pthgbr   : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_GradBoostRegr"
   pthfcst  : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ithkn_fcast"
   gltopo   : "GLO-MFC_001_030_mask_bathy.nc"
   ithkntmp : "ithkn_IJpnts_tser_{YS}-{YE}_dxy{dxy:03d}_{regn}.npz"
@@ -51,6 +49,8 @@ linregr:
   topotmp  : "glorys_bottom_depth_{regn}.npz"
 
 ml:
+  pthfcst  : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ithkn_fcast"
+
   glorys:
     pthithkn : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/sithick/"
     pthiconc : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/siconc/"
@@ -60,7 +60,6 @@ ml:
     pthvi    : "/uda/Global_Ocean_Physics_Reanalysis/global/daily/vsi/"
     ptht2m   : "/archive/Dmitry.Dukhovskoy/data/ERA5/{regn_name}"
     pthgmapi : "/archive/Dmitry.Dukhovskoy/data/remap_indx"
-    pthfcst  : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ithkn_fcast"
     pthout   : "/work/Dmitry.Dukhovskoy/anls_output/GLORYS_anls/ice_linregr"
     fliconc  : ~   # need to search in the dir
 
@@ -73,6 +72,17 @@ ml:
     fliconc  : "NSIDC_iconc_GLORYSgrid_{YR}{MM}{DD}_north.nc"
 
 ml_specs:
+#   yday   - year day represented as cos(yday) + sin(yday) 
+#   gcoord - geogr. coord. in spherical coordinates 
+#   btmtopo - nomralized bottom depth < 0, -1 <= h <= 1 (land)
+# Dynamic predictors: 
+#   mnithkn - monthly mean ice thickness (over ice area!), to account for interann. trend 
+#   iconc   - ice concentration 
+#   sst     - ocean SST 
+#   divu    - area-mean ice divergence 
+#   frzdays - integrated freeze degree days 
+#   heatdays - integrated heat degree days
+#   sat     - atm. surf. temp 
   predictor_sets:
     PRED1: &PRED1 [yday, gcoord, mnithkn, iconc, sst, divu, frzdays, sat]
     PRED2: &PRED2 [yday, gcoord, mnithkn, iconc, sst, divu, frzdays, heatdays, sat]

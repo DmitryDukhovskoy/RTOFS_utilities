@@ -62,7 +62,7 @@ parser.add_argument("--regn", help="Region to process", choices=['north','south'
                     default='south')
 parser.add_argument(
     "--load", 
-    help="Load saved sst tmp file, continue from last record (1), start from time 0 (0)", 
+    help="Load saved T2m tmp file, continue from last record (1), start from time 0 (0)", 
     choices=[0,1], 
     required=True, 
     type=int

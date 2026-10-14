@@ -60,7 +60,6 @@ importlib.reload(micepr)
 # RF 1 - 4: 11 predictors (no IHDD)
 parser = argparse.ArgumentParser()
 parser.add_argument("--rfmod", help="random forest model number",
-  choices=[1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 20, 21],
   required=True, type=int)
 parser.add_argument("--regn", help="Region to process, default=north", 
   choices=['north','south'], 
@@ -80,6 +79,21 @@ fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
 
+# Check if specified model number exists:
+rf_specs = config_predictor['ml_specs']['rf']
+
+# Keep only numeric model IDs, exclude pthmodel and other settings
+valid_models = [
+  int(key) for key in rf_specs
+  if key.isdigit()
+]
+
+if rfmod not in valid_models:
+  raise ValueError(
+    f"Invalid RF model number: {rfmod},  "
+    f"Choose one of: {valid_models}"
+  )
+
 # Load parameters:
 regn_name    = config_predictor["regn"][regn]["name"]
 lat0         = config_predictor["regn"][regn]["lat_bnd"]
@@ -93,7 +107,6 @@ sqrt_frzdays = config_predictor["params"]["sqrt_frz"]   # use sqrt(IFDD) to bett
 intgr_time   = config_predictor["params"]["intgr_frz"]  # Time for freeze degree days accumulation
 Tfrz         = config_predictor["params"]["Tfrz"]       # ocean freezing T
 
-
 DIRS = {
   "pthithkn" : config_predictor["linregr"]["pthithkn"],
   "pthiconc" : config_predictor["linregr"]["pthiconc"],
@@ -105,7 +118,7 @@ DIRS = {
   "pthgmapi" : config_predictor["linregr"]["pthgmapi"],
   "pthout"   : config_predictor["linregr"]["pthout"],
   "pthtopo"  : config_predictor["linregr"]["pthgltopo"],
-  "pthrf"    : config_predictor["linregr"]["pthrf"],
+  "pthrf"    : config_predictor["ml_specs"]["rf"]["pthmodel"],
   "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconctmp" : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "ssttmp"   : config_predictor["linregr"]["ssttmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
@@ -175,8 +188,10 @@ print(f"For dxy={dxy} km and lat0={lat0:.2f}, Selected N pnts={Npnts}")
 # Models:  >= 11 
 #   added predictor: integr. heat degree days IHDD
 
-RFPAR = micepr.ML_parameters("RF")
-PRED  = RFPAR[f"{rfmod}"]["PRED"]
+# Retrieve the selected model specifications
+#RFPAR = micepr.ML_parameters("RF")
+RFPAR = rf_specs[f"{rfmod}"]
+PRED  = RFPAR["PRED"]
 
 
 # Read time array and J,I sample grid points:
@@ -420,8 +435,8 @@ AA = np.column_stack(PRED_LIST)
 test_sz = 0.2
 Ntrees = None    # N of trees
 RandState = 42
-Ntrees  = RFPAR[f"{rfmod}"]["Ntrees"]
-MinLeaf = RFPAR[f"{rfmod}"]["MinLeaf"]
+Ntrees  = RFPAR["Ntrees"]
+MinLeaf = RFPAR["MinLeaf"]
 
 
 print("Start training RF")

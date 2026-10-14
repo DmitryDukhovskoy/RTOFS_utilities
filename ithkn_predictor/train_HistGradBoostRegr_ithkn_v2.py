@@ -82,8 +82,7 @@ importlib.reload(micepr)
 parser = argparse.ArgumentParser()
 parser.add_argument(
   "--gbrmod", 
-  help="Hist Gradient Boost decision tree model number",
-  choices=[1, 2, 3, 4, 10, 11, 20, 21], 
+  help="Hist Gradient Boost decision tree model number, check YAML for existing models",
   required=True, 
   type=int
 )
@@ -105,6 +104,22 @@ f_save = args.save == 1
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
+
+# Check if specified model number exists:
+ml_specs = config_predictor['ml_specs']['gbr']
+
+# Keep only numeric model IDs, exclude pthmodel and other settings
+valid_models = [
+  int(key) for key in ml_specs
+  if key.isdigit()
+]
+
+if gbrmod not in valid_models:
+  raise ValueError(
+    f"Invalid RF model number: {gbrmod},  "
+    f"Choose one of: {valid_models}"
+  )
+
 
 # Load parameters:
 regn_name    = config_predictor["regn"][regn]["name"]
@@ -133,8 +148,7 @@ DIRS = {
   "ptht2m"   : config_predictor["linregr"]["ptht2m_1hr"],
   "pthgmapi" : config_predictor["linregr"]["pthgmapi"],
   "pthout"   : config_predictor["linregr"]["pthout"],
-  "pthrf"    : config_predictor["linregr"]["pthrf"],
-  "pthgbr"   : config_predictor["linregr"]["pthgbr"],
+  "pthgbr"   : config_predictor["ml_specs"]["gbr"]["pthmodel"],
   "pthtopo"  : config_predictor["linregr"]["pthgltopo"],
   "ithkntmp" : config_predictor["linregr"]["ithkntmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
   "iconctmp" : config_predictor["linregr"]["iconctmp"].format(YS=YS, YE=YE, dxy=dxy, regn=regn),
@@ -204,8 +218,8 @@ print(f"For dxy={dxy} km and lat0={lat0:.2f}, Selected N pnts={Npnts}")
 #   sat     - atm. surf. temp
 # Models: 11 
 #   added predictor: integr. heat degree days IHDD
-GBRPAR = micepr.ML_parameters("GBR")
-PRED   = GBRPAR[f"{gbrmod}"]["PRED"]
+GBRPAR = ml_specs[f"{gbrmod}"]
+PRED  = GBRPAR["PRED"]
 
 def load_predictor(predict, DIRS, DNMB):
   """
@@ -418,10 +432,10 @@ RandState = 42
 # > 127 - likely overfitting
 # Max iter = max N of boosting stages = N of trees
 early_stop = True   # stop iterations if no improvement in validation score
-max_leaf  = GBRPAR[f"{gbrmod}"]["max_leaf"]
-learn_rt  = GBRPAR[f"{gbrmod}"]["learn_rt"]
-max_iter  = GBRPAR[f"{gbrmod}"]["max_iter"]
-max_depth = GBRPAR[f"{gbrmod}"]["max_depth"]
+max_leaf  = GBRPAR["max_leaf"]
+learn_rt  = GBRPAR["learn_rt"]
+max_iter  = GBRPAR["max_iter"]
+max_depth = GBRPAR["max_depth"]
 
 
 print(f"Start training Gradient Boost Regressor (decision tree), model={gbrmod}")
