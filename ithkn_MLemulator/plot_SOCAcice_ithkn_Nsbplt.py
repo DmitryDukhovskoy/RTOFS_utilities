@@ -72,19 +72,15 @@ elif 'an' in machine:
 else:
   print("Unknown machine:", machine)
 
-fyaml = 'paths_ufs.yaml'
+fyaml = 'config_ML.yaml'
 with open(fyaml) as ff:
-  pths_ufs = safe_load(ff)
+  config_ml = safe_load(ff)
 
-fyaml = 'paths_ML.yaml'
-with open(fyaml) as ff:
-  pths_ml = safe_load(ff)
-
-pthdata   = pths_ml["GDAS"]["pthdata"]  # root dir for processed data
+pthdata   = config_ml["GDAS"]["pthdata"]  # root dir for processed data
 
 
 # Get MOM6 grid
-pthgrid = pths_ufs[node_nm]["MOM6"]["pthgrid"]
+pthgrid = config_ml["MOM6"]["pthgrid"]
 dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
 dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
 
@@ -170,8 +166,8 @@ for iplt, rdate in enumerate(RDATES):
   YR, MM, DD = mtime.datevec(dnmbR, round_hrs=True)[:3]
 
   # Read SOCA ice fields:
-  pthice    = pths_ml["GDAS"]["pthsoca_ice"].format(YR=YR, MM=MM, DD=DD)
-  flice = pths_ml["GDAS"]["flsoca_ice"].format(YR=YR, MM=MM, DD=DD)
+  pthice    = config_ml["GDAS"]["pthsoca_ice"].format(YR=YR, MM=MM, DD=DD)
+  flice = config_ml["GDAS"]["flsoca_ice"].format(YR=YR, MM=MM, DD=DD)
   dflice = os.path.join(pthice, flice)
   print(f"Reading {YR}/{MM}/{DD}: {dflice}")
 

@@ -100,6 +100,7 @@ def read_rest_cice4(fid, nx, ny):
     A     = np.fromfile(fid, dtype='>f8', count=nx*ny)
     A     = np.reshape(A,(ny,nx), order='C')
     recE = np.fromfile(fid, dtype='>i4', count=1)[0]
+    #print(f"Record length in file: recE={recE}")
     if recS != recE:
        raise ValueError(f"Record length mismatch: {recS} != {recE}")
     
@@ -224,7 +225,6 @@ fgrdin4 = os.path.join(pthgrd4, grdfl4)
 # Create object with CICE4 grid parameters.
 nx    = PATHS["cice_params"]["cice4"]["nx"]
 ny    = PATHS["cice_params"]["cice4"]["ny"]
-ny = 3298
 ncat  = PATHS["cice_params"]["cice4"]["ncat"]
 nilyr = PATHS["cice_params"]["cice4"]["nilyr"]
 nslyr = PATHS["cice_params"]["cice4"]["nslyr"]
@@ -404,7 +404,7 @@ pthgrd  = PATHS["grid_topo"]["cice6"]["pthgrid"]
 grdfl   = PATHS["grid_topo"]["cice6"]["filegrid"]
 fgrdin  = os.path.join(pthgrd, grdfl)
 pthtopo = PATHS["grid_topo"]["cice6"]["pthtopo"]
-fldepth = PATHS["grid_topo"]["cice6"]["filedepth"]
+fldepth = PATHS["grid_topo"]["cice4"]["filedepth"]
 
 hlat, hlon = grid_rad2dgr(hlat_rad, hlon_rad, f180 = True)
 
@@ -416,7 +416,7 @@ fldptha, fldpthb, topo_nc, topo_ab = check_depth_file(pthtopo, fldepth)
 if topo_ab:
   ftopo = fldptha.removesuffix('.a')
 elif topo_nc:
-  ftopo = topo_nc
+  ftopo = fldepth
 
 # Read RTOFS topo:
 # Note that RTOFS grid has +1 row at the top compared to CICE6
@@ -425,7 +425,7 @@ HH = HH[:-1,:]     # discard the extra row
 
 match varnc:
   case 'aicen' | 'alvl' | 'vlvl' | 'apnd' | 'hpnd' | 'ipnd' | 'dhs' | 'iceumask':
-    clrmp = mclrmps.colormap_conc()
+    clrmp = mclrmps.colormap_conc_blue()
     rmin = 0.
     rmax = 1.
   case 'vicen':
@@ -447,6 +447,11 @@ match varnc:
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
 sttl = f"{varnc} cat={icat}:  CICE4 restart {flrst_in}"
+
+
+# Apply land mask:
+A2d[HH >= 0] = np.nan
+aice[HH >= 0] = np.nan
 
 # Subset fields to avoid inifinity in projected coordinates:
 jsub = 1650
@@ -503,7 +508,7 @@ ticklabs = clb.ax.get_xticklabels()
 clb.ax.set_xticklabels(["{:.2f}".format(i) for i in clb.get_ticks()], fontsize=10)
 clb.ax.tick_params(direction='in', length=12)
 
-btx = 'plot_cicerestart.py'
+btx = 'plot_cice4restart.py'
 bottom_text(btx, pos=[0.1,0.01])
 
 

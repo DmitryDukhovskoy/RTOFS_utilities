@@ -105,18 +105,19 @@ fyaml = 'paths_ufs.yaml'
 with open(fyaml) as ff:
   pths_ufs = safe_load(ff)
 
-fyaml = 'paths_ML.yaml'
+fyaml = 'config_ML.yaml'
 with open(fyaml) as ff:
-  pths_ml = safe_load(ff)
+  config_ml = safe_load(ff)
 
-pthdata = pths_ml["GDAS"]["pthdata"]  # root dir for processed data
+pthdata   = config_ml["GDAS"]["pthdata"]  # root dir for processed data
+regn_lat0 = config_ml["regn"][regn]["lat_bnd"]
 
-def derive_time(dnmbS, dnmbE, pths_ml, flip_north):
+def derive_time(dnmbS, dnmbE, config_ml, flip_north):
   DNMB = []
   time_stmp = []
   for dnmb in range(dnmbS, dnmbE+1):
     YR, MM, DD = mtime.datevec(dnmb)[:3]
-    ptht2m = pths_ml["GDAS"]["pthdaily"].format(YR=YR)  # daily GDAS fields
+    ptht2m = config_ml["GDAS"]["pthdaily"].format(YR=YR)  # daily GDAS fields
     flnm = f"GDAS_flipN_T2m_{YR}{MM:02d}{DD:02d}.npy"
     if flip_north:
       flnm = f"GDAS_flipN_T2m_{YR}{MM:02d}{DD:02d}.npy"
@@ -133,7 +134,7 @@ def derive_time(dnmbS, dnmbE, pths_ml, flip_north):
 # Dates to process:
 dnmbS = mtime.rdate2datenum(sdate)
 dnmbE = mtime.rdate2datenum(edate)
-DNMB = derive_time(dnmbS, dnmbE, pths_ml, flip_north)
+DNMB = derive_time(dnmbS, dnmbE, config_ml, flip_north)
 
 
 # Get MOM6 grid:
@@ -154,9 +155,9 @@ LMsk = np.where(HH<0, 1, 0)
     
 # Mask out not needed latitudes:
 if regn == 'south':
-  LMsk = np.where(hlat > -55, 0, LMsk)
+  LMsk = np.where(hlat > regn_lat0, 0, LMsk)
 elif regn == 'north':
-  LMsk = np.where(hlat < 55, 0, LMsk)
+  LMsk = np.where(hlat < regn_lat0, 0, LMsk)
 
 
 def read_gdas(dflgdas, k2c=True, flip_north=True):
@@ -173,12 +174,11 @@ def read_gdas(dflgdas, k2c=True, flip_north=True):
 
   return A2d
 
-
 # Get gmapi 4 GDAS grid points for interpolation
-pthdata = pths_ml["GDAS"]["pthdata"]
-pthdump = os.path.join(pthdata,'gmapi_mapping2mesh025')
-fgmapi = f'GDASatm_reggrid_to_mesh025_gmapi_1440x1080_{regn}.nc'
-dfgmapi = os.path.join(pthdump, fgmapi)
+pthdump = config_ml["GDAS"]["pthgmapi"]
+#flgmapi = f'GDASatm_reggrid_to_mesh025_gmapi_1440x1080_{regn}.nc'
+flgmapi = config_ml["GDAS"]["flgmapi"].format(regn=regn)
+dfgmapi = os.path.join(pthdump, flgmapi)
 print(f'Loading gmapi --> {dfgmapi}')
 
 with xr.open_dataset(dfgmapi) as dgmapi:
@@ -224,7 +224,7 @@ for iday, dnmb0 in enumerate(DNMB):
   time_dnmb = []
 
   YR, MM, DD = mtime.datevec(dnmb0)[:3]
-  pthdaily = pths_ml["GDAS"]["pthdaily"].format(YR=YR)  # daily GDAS fields
+  pthdaily = config_ml["GDAS"]["pthdaily"].format(YR=YR)  # daily GDAS fields
 
   # Read GDAS daily mean:
   if flip_north:
@@ -250,7 +250,8 @@ for iday, dnmb0 in enumerate(DNMB):
   A3d = np.asarray(A3d)
   time_dnmb = np.asarray(time_dnmb)
 
-  pthintrp = pths_ml["GDAS"]["pthit2m"].format(regn=regn, YR=YR)
+  pthintrp = config_ml["GDAS"]["pthit2m"].format(regn=regn, YR=YR)
+  os.makedirs(pthintrp, exist_ok=True)
   if save_nc:
     flt2m_out = f"GDAS_t2m_interp_mesh025_1080x1440_{YR}{MM:02d}{DD:02d}_{regn}.nc"
     dfliceout = os.path.join(pthintrp, flt2m_out)

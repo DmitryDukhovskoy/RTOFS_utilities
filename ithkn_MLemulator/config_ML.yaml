@@ -1,4 +1,26 @@
 ---
+# Paths, filenames, specifications for ice thickness predictor
+#
+regn:
+  north:
+    name    : Arctic
+    lat_bnd : 55.
+  south:
+    name    : Antarctic
+    lat_bnd : -55.
+
+params:
+  # dxy - Min dist (km) between data points (~corr.scale), to skip i,j points
+  # ys / ye - Start / end year of input / predictor fields for training
+  dxy       : 50
+  ys        : 1993
+  ye        : 2025
+  davrg     : 1     # averaging time (days) for divUice
+  sqrt_frz  : True      # apply sq. root of freeze degree days
+  intgr_frz : 90       # integration days for IFDD
+  Tfrz      : -1.85    # ocean freezing T for IFDD
+  Hbtm_min  : -5000    # min depth for topo normalization, btmtopo pred. check training param on PPAN
+
 MOM6:
   pthgrid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
   pthdata: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data'
@@ -22,18 +44,22 @@ GFS:
 GDAS:
   pthdata: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data'
   pthgdas: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/gdas.{YR}{MM:02d}{DD:02d}'
+  pthgmapi: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/gmapi_mapping2mesh025'
   pthdaily: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GDAS_T2m/glob/daily_gdas_grid/{YR}'
   pthit2m: '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GDAS_T2m/{regn}/{YR}'
   pthsoca_ice: "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ice.{YR}{MM:02d}{DD:02d}"
   flsoca_ice: "{YR}{MM:02d}{DD:02d}.030000.cice_model.res.nc"
   pthocean: "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ocean.{YR}{MM:02d}{DD:02d}"
   flocean: "gdas.t18z.inst.f006.nc"  
+  flgmapi: "GDASatm_reggrid_to_mesh025_gmapi_1440x1080_{regn}.nc"
 
 PRED:
   # Predictor / input fields
   pthprd:    "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/predictors"
   pthifdd:   "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/predictors"
+  pthihdd:   "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/predictors"
   flifdd:    "IFDD_GDAS_{Ndays:03d}days_dxy{dxy:03d}_{rdate}_{regn}"
+  flihdd:    "IHDD_GDAS_{Ndays:03d}days_dxy{dxy:03d}_{rdate}_{regn}"
   fldivui:   "divUice_CICE6_dxy{dxy:03d}_{rdate}_{regn}"
   flmnice:   "CICE6_mean_icevol_ithkn_mnthly_{YR}"
   pthglr:    "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GLORYS_ithkn_interp_UFSmesh025"
@@ -47,30 +73,65 @@ PRED:
   flt2m:     "GDAS_t2m_interp_mesh025_1080x1440_{YR}{MM:02d}{DD:02d}_{regn}.nc"
   pthdump:   "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/ithkn_predictions"
 
-ml:
-  gbr1:
-    mlname: "GradBoostRegr_model01_{regn}"
-    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_GradBoostRegr"
-  gbr2:
-    mlname: "GradBoostRegr_model02_{regn}"
-    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_GradBoostRegr"
-  gbr3:
-    mlname: "GradBoostRegr_model03_{regn}"
-    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_GradBoostRegr"
-  rf1:
-    mlname: "RF_model01_{regn}"
+ml_specs:
+#   yday   - year day represented as cos(yday) + sin(yday) 
+#   gcoord - geogr. coord. in spherical coordinates 
+#   btmtopo - nomralized bottom depth < 0, -1 <= h <= 1 (land)
+# Dynamic predictors: 
+#   mnithkn - monthly mean ice thickness (over ice area!), to account for interann. trend 
+#   iconc   - ice concentration 
+#   sst     - ocean SST 
+#   divu    - area-mean ice divergence 
+#   frzdays - integrated freeze degree days 
+#   heatdays - integrated heat degree days
+#   sat     - atm. surf. temp 
+  predictor_sets:
+    PRED1: &PRED1 [yday, gcoord, mnithkn, iconc, sst, divu, frzdays, sat]
+    PRED2: &PRED2 [yday, gcoord, mnithkn, iconc, sst, divu, frzdays, heatdays, sat]
+    PRED3: &PRED3 [yday, gcoord, btmtopo, mnithkn, iconc, sst, divu, frzdays, heatdays, sat]
+
+  rf:
+    # Random Forest
+    # Ntrees specifies number of random trees, complexity of the model
+    # MinLeaf constrains the complexity of each tree, the smaller the value
+    # the more nodes a tree might have, the better it fits the training
+    # data but the risk of overfitting increases (fitting random noise)
     pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_RF"
-  rf2:
-    mlname: "RF_model02_{regn}"
-    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_RF"
+
+    "1":
+      Ntrees  : 100
+      MinLeaf : 5
+      PRED    : *PRED1
+
+    "12":
+      Ntrees  : 100
+      MinLeaf : 20
+      PRED    : *PRED2
+
+    "21":
+      Ntrees  : 100
+      MinLeaf : 20
+      PRED    : *PRED3
+
+  gbr:
+    # Gradient Boosting Decisigion Tree
+    # Keeping shallow trees usually works better (unlike RF)
+    # max leaf is important for controlling complexity and overfitting
+
+    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_GradBoostRegr"
+
+    "11":
+      max_leaf  : 63
+      learn_rt  : 0.05
+      max_iter  : 1200
+      max_depth : 15
+      PRED      : *PRED2
+
+    "21":
+      max_leaf  : 63
+      learn_rt  : 0.05
+      max_iter  : 1200
+      max_depth : 15
+      PRED      : *PRED3
+
   
-north:
-  name: Arctic
-  lat0: 55.0
-  lat_ml: 65.   # ML emulator boundary
-
-south:
-  name: Antarctic
-  lat0: -55.0
-  lat_ml: -60.  # ML emulator boundary
-

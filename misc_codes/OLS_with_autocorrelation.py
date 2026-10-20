@@ -208,4 +208,21 @@ regr_stat(Ydsz, X, B)
 regr_stat(Ydsz, X, B, hac=True)
 
 
+plt.ion()
+
+fig1 = plt.figure(1,figsize=(9,9))
+plt.clf()
+ax1 = plt.axes([0.1, 0.4, 0.8, 0.5])
+ax1.plot(Ydsz)
+ax1.plot(trend)
+
+f_dump = False
+if f_dump:
+  np.savetxt('Ydsz.txt',Ydsz)
+  np.savetxt('Yts.txt',Yts)
+  
+
+
+
+
 

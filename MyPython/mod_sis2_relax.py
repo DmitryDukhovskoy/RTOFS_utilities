@@ -44,8 +44,8 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
   importlib.reload(mblnr)
 
   # Find basis functions for a reference rectangle:
-  phi1,phi2,phi3,phi4 = mblnr.basisFn_RectRef()
-  phi_basis           = np.array([phi1, phi2, phi3, phi4]).transpose() # basis funs in columns
+  phi1, phi2, phi3, phi4 = mblnr.basisFn_RectRef()
+  phi_basis = np.array([phi1, phi2, phi3, phi4]).transpose() # basis funs in columns
 
   npnts = INDX.shape[0]
   jdm, idm = LMsk.shape

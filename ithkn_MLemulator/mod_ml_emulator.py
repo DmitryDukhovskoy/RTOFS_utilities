@@ -8,6 +8,41 @@ from scipy.interpolate import interp1d
 #import matplotlib.pyplot as plt
 #import importlib
 
+def full_model_name(ml_model):
+  """
+    Linear regression models:
+      OLS 1: trained over 1993-2002, no predictor for interannual trend
+      OLS 2: trained 1993-2025, added predictor for interannual trend
+    Random Forest (all 1993-2025):
+      RF1:  Ntrees 100
+      RF2:  Ntrees 200
+      RF3:  Ntrees 5
+      RF4:  Ntrees 2
+   Added predictor: integrated Heat Degree Days (IHDD)
+      RF11: Ntrees 50
+      RF12: Ntrees 100
+      RF13: Ntrees 10
+    Hist. Grad Boost Regressor (decision tree)
+      GBR1: max_leaf = 8,  max_iter=500,  max_depth=8
+      GBR2: max_leaf = 31, max_iter=1000, max_depth=10
+      GBR3: max_leaf = 63, max_iter=1500, max_depth=15
+   Added predictor: integrated Heat Degree Days (IHDD)
+      GBR11: max_leaf = 63, max_iter=1500, max_depth=15 
+  """
+  if ml_model[:4] == 'clim':
+    mname = "clim"
+  elif ml_model[:3] == 'gbr':
+    nmb = int(ml_model[3:])
+    mname = f"GradBoostRegr_model{nmb:02d}"
+  elif ml_model[:2] == 'rf':
+    nmb = int(ml_model[2:])
+    mname = f"RF_model{nmb:02d}"
+  else:
+    print(f"Unrecognized ML model: {ml_model}")
+    return None
+
+  return mname
+
 def construct_ydays(DNMB, npnts, order_fast="time"):
   """
     Predictor year day represent as
@@ -218,6 +253,9 @@ def subset_cice6_divu(dflui, IG, JG, hlon, hlat, dxy):
     IG, JG:  grid points where divU is computed
     dxy:     distance between the subsampled grid points used 
              for deriving linear regr. parameters (km)
+
+    Note no time averaging here, 
+    see model training scripts if averaging is needed
   """
   from mod_mom6 import dx_dy
 
@@ -328,42 +366,49 @@ def subset_cice6_iconc(dflice, IG, JG, idim, jdim, varnm='aicen'):
   return Iconc
 
 
-def subset_gdas_frzdays(dfifdd, IG, JG, idim, jdim):
+def subset_gdas_ifdd_ihdd(dfifdd, IG, JG, idim, jdim):
   """
-  Extract IFDD at selected mesh025 grid points.
+  Extract IFDD or IHDD at selected mesh025 grid points.
 
-  IFDD fields are derived from daily-averaged GDAS T2m fields
+  dfifdd - dir/file_name.npz of IFDD or IHDD fields
+  IFDD and IHDD fields are derived from daily-averaged GDAS T2m fields
   and interpolated onto the mesh025 grid.
 
   See: derive_intgrFDD_mesh025
   """
+  # Find out if requested IFDD or IHDD
+  ifdd_case = 'ifdd' in dfifdd.lower()
+  varname = "IFDD" if ifdd_case else "IHDD"
 
   DATA = np.load(dfifdd)
-
-  IFDDs = DATA["IFDD"]   # IFDD at selected grid points in polar region
-  JP    = DATA["JG"]
-  IP    = DATA["IG"]
+  IDD = DATA[varname]
+  JP  = DATA["JG"]
+  IP  = DATA["IG"]
 
   jdim_saved = DATA["jdim"]
   idim_saved = DATA["idim"]
 
   assert idim_saved == idim and jdim_saved == jdim, (
-      f"IFDD grid {jdim_saved} x {idim_saved} "
+      f"{varnm} grid {jdim_saved} x {idim_saved} "
       f"does not match jdim={jdim}, idim={idim}"
   )
 
-  # Insert saved IFDD values back onto the full mesh025 grid
+  # Check dims:
+  assert np.all((JP >= 0) & (JP < jdim)), "Saved JP indices out of bounds"
+  assert np.all((IP >= 0) & (IP < idim)), "Saved IP indices out of bounds"
+
+  # Insert saved IFDD / IHDD values back onto the full mesh025 grid
   A2d = np.full((jdim, idim), np.nan)
-  A2d[JP, IP] = IFDDs
+  A2d[JP, IP] = IDD
 
   # Extract the requested ML grid points
-  IFDD = A2d[JG, IG]
+  IDD = A2d[JG, IG]
 
-  assert np.all(np.isfinite(IFDD)), (
-      "Some requested points are outside the saved IFDD domain or contain NaN"
+  assert np.all(np.isfinite(IDD)), (
+    "Some requested points are outside the saved {varnm} domain or contain NaN"
   )
 
-  return IFDD
+  return IDD
 
 def subset_gdas_t2m(dflt2m, IG, JG, idim, jdim):
   """
@@ -378,20 +423,60 @@ def subset_gdas_t2m(dflt2m, IG, JG, idim, jdim):
   T2m = A2d[JG,IG]
 
   return T2m 
- 
+
+def construct_bottom_topo(
+    HH, IG, JG, nrecs, order_fast="time", Hmin=-5000
+  ):
+  """
+  Derive bottom depth at training points (IG,JG)
+
+  Assumed:
+    - Ocean depth is negative downward in the source file.
+    - Land is >= 0
+
+  order_fast="coord": coordinates vary fastest in the record sequence.
+  order_fast="time":  time varies fastest in the record sequence.
+
+  Depth are normalized to vary -1 <= h <= 1
+  using min depth Hmin, which should match Hmin
+  in the training setup 
+  Depth < Hmin, truncated to Hmin (to have -1 as the lower bound)
+  """
+  if order_fast not in ("coord", "time"):
+    raise ValueError("order_fast must be 'coord' or 'time'.")
+
+  if Hmin is not None and abs(Hmin) < 1.e-10:
+    Hmin = None
+
+  normlz = Hmin is not None
+
+  assert np.nanmin(HH) < 0, f"Bottom depths: Ocean points mush have negative depths"
+  LMocn = np.isfinite(HH) & (HH < 0)
+
+  topo_pnts = HH[JG, IG]
+
+  if normlz:
+    topo_norm = np.maximum(topo_pnts / abs(Hmin), -1.0)
+  else:
+    topo_norm = topo_pnts
+
+  # Expand over records according to record ordering.
+  if order_fast == "coord":
+    Btopo = np.tile(topo_norm, nrecs)
+  else:
+    Btopo = np.repeat(topo_norm, nrecs)
+
+  return Btopo
 
 def construct_predictors_day(
-        hlon, hlat, IG, JG, dnmb0, fyaml, PRED_NAMES,
-        sqrt_frzdays, sst_max, standz, regn,
-        intgr_time, Tfrz,
-        order_fast="time", Mavrg=3, dxy=50, 
-        PRED_MEAN = None, PRED_STDEV = None
-   ):
+    dnmb0, fyaml, MLPARAM, PRED_NAMES, regn,
+    order_fast="time", Mavrg=3
+  ):
   """
     Construct predictors for 1 day forecast
     PRED_NAMES - predictors used in this model
     predictor array must have exactly the same columns, in exactly the same order,
-    as when RF was trained !!!
+    as when ML was trained.
     
     hlon, hlat - grid where prediction is done (mesh025)
     IG, JG - grid point indices where prediction is done
@@ -399,12 +484,22 @@ def construct_predictors_day(
     PREAD_NAMES - list of predictors in the right order
     sqrt_frzdays - True: use sqrt of integrated freezing degree days
     sst_max - max sst threshold for possible sea ice
-    standz - True: standardize predictors (False for RF)
     regn - region of prediction
-    intgr_time - for freeze degree days, integration period, days
+    intgr_frz - for freeze degree days, integration period, days
     dxy - ice length scale, used for calc. ice predictors and gird point subset
   
   """
+  hlon      = MLPARAM["LON"]
+  hlat      = MLPARAM["LAT"]
+  IG        = MLPARAM["IG"]
+  JG        = MLPARAM["JG"]
+  HH        = MLPARAM["topo"]
+  sst_max   = MLPARAM["sst_max"]
+  intgr_frz = MLPARAM["intgr_frz"]
+  Tfrz      = MLPARAM["Tfrz"]  
+  sqrt_frzdays = MLPARAM["sqrt_frzdays"]
+  dxy       = MLPARAM["dxy"]
+  Hbtm_min  = MLPARAM["Hbtm_min"]
 
   with open(fyaml) as ff:
     MLYAML = safe_load(ff)
@@ -435,16 +530,24 @@ def construct_predictors_day(
     raw['cosD'] = cosD
     raw['sinD'] = sinD
 
+  if 'btmtopo' in PRED_NAMES:
+    Btopo = construct_bottom_topo(
+      HH, IG, JG, len(DNMB), Hmin=Hbtm_min, order_fast=order_fast
+    )
+    raw['btmtopo'] = Btopo
+
   # Mean ice thickness over ice area during previous N months:
+  # The predictor accounts for the long-term trend in ice thicknesses
   # Check Mavrg - should match train_linregr_ithkn.py
   # Interannual trend: mean ice thickness previous N months
-  # Use GLORYS mean ice thicknesses, SOCA ithkn is too bad
+  # Use GLORYS mean ice thicknesses (prepared on PPAN), SOCA ithkn is unrealistically thin
+  # which results in very biased ice thickness prediction
   if 'mnithkn' in PRED_NAMES:
     pthglr = MLYAML["PRED"]["pthglr"]
     if YR0 < 2026:
       fltmp = f"GLORYS_monthly_icevol_ithknmn_{regn}_1993_2025.npz"
     elif YR0 == 2026: 
-      fltmp = f"GLORYS_monthly_icevol_ithknmn_north_{YR0}_{YR0}.npz"
+      fltmp = f"GLORYS_monthly_icevol_ithknmn_{regn}_{YR0}_{YR0}.npz"
 
     dflmni = os.path.join(pthglr, fltmp)
     assert os.path.isfile(dflmni), f"File is missing: {dflmni}"
@@ -474,13 +577,13 @@ def construct_predictors_day(
   # Ice conc
   if 'iconc' in PRED_NAMES:
     print("\nDeriving SOCA CICE6 iconc")
-    varnm = 'aicen'
-    pthice = MLYAML["PRED"]["pthiconc"].format(YR=YR0, MM=MM0, DD=DD0)
-    ficonc = MLYAML["PRED"]["fliconc"].format(YR=YR0, MM=MM0, DD=DD0)
-    dflice = os.path.join(pthice, ficonc)
+    varnm   = 'aicen'
+    pthice  = MLYAML["PRED"]["pthiconc"].format(YR=YR0, MM=MM0, DD=DD0)
+    fliconc = MLYAML["PRED"]["fliconc"].format(YR=YR0, MM=MM0, DD=DD0)
+    dflice  = os.path.join(pthice, fliconc)
 
     if dflice is None or not os.path.isfile(dflice):
-        raise FileNotFoundError(f"Not found {dflice}")
+      raise FileNotFoundError(f"Not found {dflice}")
 
     Iconc = subset_cice6_iconc(dflice, IG, JG, idim, jdim)
 
@@ -498,29 +601,47 @@ def construct_predictors_day(
     dflui = os.path.join(pthui, flui)
 
     if not os.path.isfile(dflui):
-        raise FileNotFoundError(f"Not found {dflui}")
+      raise FileNotFoundError(f"Not found {dflui}")
 
     divU = subset_cice6_divu(dflui, IG, JG, hlon, hlat, dxy)
 
     raw['divu'] = divU
 
-  # Freeze days
-  if 'frzdays' in PRED_NAMES:
-    print("\nDeriving GDAS GFSv17 Freeze degree days")
+  # Freeze days and heat days
+  need_frzdays  = 'frzdays'  in PRED_NAMES and 'frzdays'  not in raw
+  need_heatdays = 'heatdays' in PRED_NAMES and 'heatdays' not in raw
+
+  if need_frzdays:
+    print("\nDeriving GDAS GFSv17 IFDD ")
     pthifdd = MLYAML["PRED"]["pthifdd"]
-    flifdd  = MLYAML["PRED"]["flifdd"].format(Ndays=intgr_time, dxy=dxy, rdate=rdate, regn=regn)
+    flifdd  = MLYAML["PRED"]["flifdd"].format(Ndays=intgr_frz, dxy=dxy, rdate=rdate, regn=regn)
     flnpz = f"{flifdd}.npz"
     dfifdd = os.path.join(pthifdd, flnpz)
-
+  
     if not os.path.isfile(dfifdd):
         raise FileNotFoundError(f"Not found {dfifdd}")
-
-    frzdays = subset_gdas_frzdays(dfifdd, IG, JG, idim, jdim)
-
+    
+    frzdays = subset_gdas_ifdd_ihdd(dfifdd, IG, JG, idim, jdim)
+  
     if sqrt_frzdays:
       frzdays = np.sqrt(frzdays)
 
     raw['frzdays'] = frzdays
+
+  if need_heatdays:
+    print("\nDeriving GDAS GFSv17 IHDD ")
+
+    pthihdd = MLYAML["PRED"]["pthihdd"]
+    flihdd  = MLYAML["PRED"]["flihdd"].format(Ndays=intgr_frz, dxy=dxy, rdate=rdate, regn=regn)
+    flnpz = f"{flihdd}.npz"
+    dfihdd = os.path.join(pthihdd, flnpz)
+
+    if not os.path.isfile(dfihdd):
+        raise FileNotFoundError(f"Not found {dfihdd}")
+
+    heatdays = subset_gdas_ifdd_ihdd(dfihdd, IG, JG, idim, jdim)
+
+    raw['heatdays'] = heatdays
 
   # SAT
   if 'sat' in PRED_NAMES:
@@ -532,6 +653,7 @@ def construct_predictors_day(
     if not os.path.isfile(dflt2m):
       raise FileNotFoundError(f"Not found {dflt2m}")
 
+    # Derive SAT from already interpolated daily fields, on mesh025 grid
     SAT = subset_gdas_t2m(dflt2m, IG, JG, idim, jdim)
 
     raw['sat'] = SAT
@@ -540,31 +662,19 @@ def construct_predictors_day(
   # Use only active predictors
   # Dict. with standardized arrays in the PRED_NAMES order:
   std_arr = {}
-  if standz:
-    for name, mu, sigma in zip(PRED_NAMES, PRED_MEAN, PRED_STDEV):
-      if np.isnan(mu):
-        continue
-      std_arr[name] = (raw[name] - mu) / sigma
-
   # Construct predictors dictionary where each
-  # predictor is linked to the standardized or raw array
+  # predictor is linked to the raw array
   # The order of the predictor should match the order in PRED_NAMES
   # Will create dict like this:
   #   'cosD'    : cosD,  # not standardized
   #   'sinD'    : sinD,  # not standardized
   #    ...
-  #    'Zcrd'    : std_arr['Zcrd'],  # standardized
-  #    'mnithkn' : std_arr['mnithkn'],  # standardized 
-  # OR:
   #    'Zcrd'    : raw['Zcrd']  # not standardized
   #     ...
   #
   pred_dict = {}
   for name in PRED_NAMES:
-    if standz and name in std_arr:
-      pred_dict[name] = std_arr[name]
-    else:
-      pred_dict[name] = raw[name]
+    pred_dict[name] = raw[name]
 
   # Combine all standardized or not standardized predictors into a list:
   PRED_FINAL = []

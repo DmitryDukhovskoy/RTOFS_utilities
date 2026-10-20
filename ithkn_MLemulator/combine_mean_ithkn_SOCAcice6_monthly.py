@@ -1,14 +1,14 @@
 """
-  from GDAS / SOCA sea ice fields
-  Combine temporary mean ice volume and ice thickness / over sea ice 
-  daily fields into monthly
+from GDAS / SOCA sea ice fields
+Combine temporary mean ice volume and ice thickness / over sea ice 
+daily fields into monthly
 
-  called from derive_monthly_meanithkn.sh
+called from derive_monthly_meanithkn.sh
 
-  after deriving daily values:
-  Daily: calc_mean_ithkn_SOCAcice6.py
-  The script is called from 
-  derive_monthly_meanithkn.sh
+after deriving daily values:
+Daily: calc_mean_ithkn_SOCAcice6.py
+The script is called from 
+derive_monthly_meanithkn.sh
 
 """
 import os
@@ -59,7 +59,7 @@ regn  = args.regn
 YR    = args.yr
 MMl   = args.mm
 
-fyaml = 'paths_ML.yaml'
+fyaml = 'config_ML.yaml'
 with open(fyaml) as ff:
   pths_ml = safe_load(ff)
 

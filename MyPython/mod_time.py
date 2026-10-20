@@ -1,5 +1,5 @@
 """
-  Functions computing calendar days, time conversions 
+Functions computing calendar days, time conversions 
 """
 import datetime
 import time
@@ -35,10 +35,18 @@ def datenum(ldate0, ldate_ref=None):
   YR, MM, DD, HR, MN = [int(x) for x in ldate0[:5]]
   YRr, MMr, DDr, HRr, MNr = [int(x) for x in ldate_ref[:5]]
 
+  # Create datetime objects
   time0 = datetime.datetime(YR, MM, DD, HR, MN)
   timeR = datetime.datetime(YRr, MMr, DDr, HRr, MNr)
 
-  dnmb = (time0 - timeR).total_seconds() / 86400.0 + 1.0
+  # Elapsed time in days
+  elapsed_days = (time0 - timeR).total_seconds() / 86400.0
+
+  # MATLAB-style datenum
+  dnmb = elapsed_days + 1.0
+
+  if HR == 0 and MN == 0:
+    dnmb = int(dnmb)
 
   return dnmb
 
@@ -233,38 +241,43 @@ def rdate2date(rdate):
   Ldate = [YR,MM,DD,HR]
   return Ldate
 
-def rdate2datenum(rdate):
+def rdate2datenum(rdate_inp):
   """
   Convert rtofs date string YYYYMMDD or YYYYMMDDHR to
   matlab-type datenum
+
+  Inputs:
+    rdate : str, int, list, or np.ndarray
+        A single date or a collection of dates.
+
+  Output: (float or np.ndarray)  MATLAB datenum for a single date, or an array of datenums
+        for multiple dates
   """
-  if not isinstance(rdate, str):
+  def _convert_one(rdate):
     rdate = str(rdate)
 
-  YR     = int(rdate[0:4])
-  MM     = int(rdate[4:6])
-  DD     = int(rdate[6:8])
-
-  if len(rdate) == 8:
+    if len(rdate) == 8:
       YR = int(rdate[0:4])
       MM = int(rdate[4:6])
       DD = int(rdate[6:8])
       HR = 0  # default hour
-  elif len(rdate) == 10:
+    elif len(rdate) == 10:
       YR = int(rdate[0:4])
       MM = int(rdate[4:6])
       DD = int(rdate[6:8])
       HR = int(rdate[8:10])
-  else:
-      raise ValueError("Unsupported date format: must be YYYYMMDD or YYYYMMDDhh")
+    else:
+      raise ValueError(f"Unsupported date format: {rd} "
+                        "must be YYYYMMDD or YYYYMMDDhh")
 
-  Ldate = [YR,MM,DD,HR]
-  dnmb = datenum(Ldate)
+    dnmb = datenum([YR,MM,DD,HR])
 
-  if HR == 0:
-    dnmb = int(dnmb)
+    return dnmb
 
-  return dnmb
+  if isinstance(rdate_inp, (list, tuple, np.ndarray)):
+    return np.array([_convert_one(rd) for rd in rdate_inp])
+
+  return _convert_one(rdate_inp)
 
 def dateint2datenum(dateInt):
   """

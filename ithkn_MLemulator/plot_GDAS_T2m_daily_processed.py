@@ -60,7 +60,7 @@ args     = parser.parse_args()
 regn     = args.regn if args.regn else None
 gdas_date = args.rdate
 
-fyaml = 'paths_ML.yaml'
+fyaml = 'config_ML.yaml'
 with open(fyaml) as ff:
   pths_ml = safe_load(ff)
 

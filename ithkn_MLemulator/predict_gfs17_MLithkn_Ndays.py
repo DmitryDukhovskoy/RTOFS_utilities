@@ -49,28 +49,26 @@ import mod_time as mtime
 import mod_mom6 as mmom6
 import mod_ml_emulator as mml
 
-# See mod_icepredict.py for more info about the models
+# See config_ML.yaml for more info about the models
 #    Random Forest (all 1993-2025):
-#      RF1:  Ntrees 100
-#      RF2:  Ntrees 200
+#      rf21: btmtopo, IHDD + other predictors, 100 trees, 20 MinLeaf
 #    Hist. Grad Boost Regressor (decision tree)
-#      GBR1: max_leaf = 8,  max_iter=500,  max_depth=8
-#      GBR2: max_leaf = 31, max_iter=1000, max_depth=10
-#      GBR3: max_leaf = 63, max_iter=1500, max_depth=15
+#      gbr21: btmtopo, IHDD + other predictors, max_leaf = 63, mad_depth=15
+#
 parser = argparse.ArgumentParser()
-parser.add_argument("--model", help="ML model to use",
-                   choices=['rf1','rf2','gbr2','gbr3'],
-                   type=str,
-                   required=True)
+parser.add_argument(
+  "--model", 
+  help="ML model to use, see config_ML.yaml for options, e.g. gbr21", 
+  required=True
+)
 parser.add_argument("--sdate", help="Start prediction date YYYYMMDD", required=True, type=int)
-parser.add_argument("--edate", help="End prediction date YYYYMMDD, skip if edate=sdate",
-                    type=int)
+parser.add_argument("--edate", help="End prediction date YYYYMMDD, skip if edate=sdate", type=int)
 parser.add_argument("--regn", help="Region to process", choices=['north','south'],
-                    required=True, type=str)
+                    required=True)
 parser.add_argument("--sinput", help="=1: Save created input fields for inspection (default)",
                     choices=[0,1], type=int)
 parser.add_argument("--save", 
-  help="Save predicted ithkn: 0=no (default), 1=npz (grid pnts), 2=netcdf (whole domain))",
+  help="Save predicted ithkn: 0=no (default), 1=npz (prediction grid pnts), 2=netcdf (whole domain))",
   choices=[0,1,2], 
   default=0, 
   type=int)
@@ -96,23 +94,67 @@ standz = False    # standardized predictors only for lin. regr
 iconc_min = 0.05  # Discard too low ice conc. predictions
 sst_max = 5.      # Discard ice in too warm ocean
 
-fyaml = "paths_ML.yaml"
+fyaml = "config_ML.yaml"
 with open(fyaml) as ff:
   config_ml = safe_load(ff)
 
-# Requested start / end time - those may change
-# based on saved ERA5 time
+# Define ML model to use, check if it has been trained:
+# Split model into model short name and number:
+ml_model = ml_model.lower()
+
+if ml_model.startswith("gbr") and ml_model[3:].isdigit():
+  ml_short = "gbr"
+  ml_nmb = int(ml_model[3:])
+elif ml_model.startswith("rf") and ml_model[2:].isdigit():
+  ml_short = "rf"
+  ml_nmb = int(ml_model[2:])
+else:
+  raise ValueError(f"Model name / number cannot be identified: {ml_model}")
+
+# Check if specified model number exists:
+rf_specs = config_ml['ml_specs'][ml_short]
+
+# Keep only numeric model IDs, exclude pthmodel and other settings
+valid_models = [
+  int(key) for key in rf_specs
+  if key.isdigit()
+]
+
+if ml_nmb not in valid_models:
+  raise ValueError(
+    f"Invalid model '{ml_short}' number: {ml_nmb},  "
+    f"Choose one of: {valid_models}"
+  )
+
+# Model params
+# Training period:
+YS        = config_ml["params"]["ys"]
+YE        = config_ml["params"]["ye"]
+lat0      = config_ml["regn"][regn]["lat_bnd"]
+dxy       = config_ml["params"]["dxy"]             # ice length scale
+divavrg   = config_ml["params"]["davrg"]           # divU time averaging, days
+Tfrz      = config_ml["params"]["Tfrz"]
+sqrt_frz  = config_ml["params"]["sqrt_frz"]
+intgr_frz = config_ml["params"]["intgr_frz"]
+Hbtm_min  = config_ml["params"]["Hbtm_min"]   # for btmtopo predictor, normalization
+
+if divavrg > 1:
+  print(f"GDAS / SOCA version does not have divU averaging, divavrg = 1")
+  print("Change divavrg or add averaging, see training scripts on PPAN")
+  raise ValueError(f"Requested divavrg > 1: {divavrg}")
+
+# Requested start / end time 
 dnmbS = mtime.rdate2datenum(sdate)
 YRS, MMS, DDS = mtime.datevec(dnmbS)[:3]
 dnmbE = mtime.rdate2datenum(edate)
 YRE, MME, DDE = mtime.datevec(dnmbE)[:3]
 
-# ML emulator lat boundaries:
-lat0 = config_ml[regn]["lat0"]
-
 # Load model parameters and RF model:
-model_name = config_ml["ml"][ml_model]["mlname"].format(regn=regn)
-pthmodel = config_ml["ml"][ml_model]["pthmodel"]
+ml_long = mml.full_model_name(ml_model)
+model_name = f"{ml_long}_{regn}"
+
+pthmodel = config_ml["ml_specs"][ml_short]["pthmodel"]
+
 model_file = os.path.join(pthmodel, model_name + ".pkl")
 print(f"Reading {ml_model} object from {model_file}")
 mlem = joblib.load(model_file)
@@ -122,19 +164,29 @@ info_file = os.path.join(pthmodel, model_name + "_info.json")
 with open(info_file, "r") as f:
   info = json.load(f)
 
-YS           = info["training_yrS"]
-YE           = info["training_yrE"]
-dxy          = info["dxy"]             # ice length scale
-Tfrz         = info["Tfrz"]
-sqrt_frzdays = info["sqrt_frzdays"]
-intgr_time   = info["intgr_time"]
-ndays_era    = info["ndays_era"]
-
+# check that the model is the right one
+assert YS == info["training_yrS"], \
+  f"Training start year YS={YS} does not match saved value {info['training_yrS']} in {info_file}"
+assert YE == info["training_yrE"], \
+  f"Training end year YE={YE} does not match saved value {info['training_yrE']} in {info_file}"
+assert np.isclose(dxy, info["dxy"]), \
+  f"Length scale dxy={dxy:.2f} does not match saved value {info['dxy']:.2f} in {info_file}"
+assert Tfrz == info["Tfrz"], \
+  f"Tfrz={dxy:.3f} does not match saved value {info['Tfrz']:.3f} in {info_file}"
+assert sqrt_frz == info["sqrt_frzdays"],\
+  f"Square root of IFDD = {sqrt_frzdays} does not match saved value {info['sqrt_frzdays']} in {info_file}"
+assert intgr_frz  == info["intgr_time"],\
+  f"IFDD/IHDD integr. time={intgr_frz} does not match saved value {info['intgr_time']} in {info_file}"
 
 # ML Predictors / Input fields used for training:
 pred_file = os.path.join(pthmodel, model_name + "_predictors_trainidx.npz")
 data_pred = np.load(pred_file)
 PRED_NAMES = data_pred["PRED_NAMES"]
+npred = len(PRED_NAMES)
+
+print("Predictor Names:")
+for f in PRED_NAMES:
+  print(f"  {f}")
 
 # Prediction grid points:
 # Get MOM6 grid:
@@ -161,6 +213,28 @@ elif regn == 'south':
   DOMAIN = (hlat < lat0) & (LMsk)
 
 JG, IG = np.where(DOMAIN)
+
+# Combine all ML information:
+MLPARAM = {
+  "topo"      : HH,
+  "LON"       : hlon,
+  "LAT"       : hlat,
+  "LMsk"      : LMsk,
+  "IG"        : IG,
+  "JG"        : JG,
+  "regn"      : regn,
+  "dxy"       : dxy,
+  "YS"        : YS,
+  "YE"        : YE,
+  "Tfrz"      : Tfrz,
+  "sst_max"   : sst_max,
+  "sqrt_frzdays" : sqrt_frz,
+  "intgr_frz"   : intgr_frz,
+  "dxy"       : dxy,
+  "Hbtm_min"  : Hbtm_min,
+  }
+  
+
 
 def write_nc(dfliceout, time_dnmb, A3d, regn, nctitle):
   yr1, mm1, dd1 = mtime.datevec(time_dnmb[0])[:3]
@@ -207,13 +281,10 @@ for dnmb0 in DNMB_fcst:
   # sst_max - max sst threshold for possible sea ice
   # standz - True: standardize predictors (False for RF)
   # regn - region of prediction
-  # intgr_time - for freeze degree days, integration period, days
+  # intgr_frz - for freeze degree days, integration period, days
   # dxy - ice length scale, used for calc. ice predictors and gird point subset
-  PRED, Iconc, SST = mml.construct_predictors_day(
-           hlon, hlat, IG, JG, dnmb0, fyaml, PRED_NAMES,
-           sqrt_frzdays, sst_max, standz, regn,
-           intgr_time, Tfrz, dxy=dxy
-           )
+  PRED, Iconc, SST = mml.construct_predictors_day(dnmb0, fyaml, MLPARAM, PRED_NAMES, regn)
+
   # Construct design / predictor matrix:
   AA = np.column_stack(PRED)
 

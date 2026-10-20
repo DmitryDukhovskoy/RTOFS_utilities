@@ -194,9 +194,6 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
   elif regn_wrk == 'north':
     RMsk[LAT < 50.] = 0  
 
-  #pthiconc = config_rest["target_paths"]["ice_conc"]["path"].format(YR=yrN)
-  #fliconc  = config_rest["target_paths"]["ice_conc"]["file"].format(YR=yrN, MM=mmN, regn=regn_wrk)
-  #dfliconc = os.path.join(pthiconc, fliconc)
   dfliconc = yaml_path(config_rest["target_paths"]["ice_conc"], **fmt)
   print(f'Loading target ice conc {dfliconc}')
   with xarray.open_dataset(dfliconc) as dsint:
@@ -207,12 +204,8 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
   # Read ice thickness data if thickness is inserted:
   if ins_thkn:
     if regn_wrk == 'south':
-      #pthithkn = config_rest["target_paths"]["ithkn_south"]["path"]
-      #flithkn  = config_rest["target_paths"]["ithkn_south"]["file"]
       dflithkn = yaml_path(config_rest["target_paths"]["ithkn_south"], **fmt)
     elif regn_wrk == 'north':
-      #pthithkn = config_rest["target_paths"]["ithkn_north"]["path"]
-      #flithkn  = config_rest["target_paths"]["ithkn_north"]["file"]
       dflithkn = yaml_path(config_rest["target_paths"]["ithkn_north"], **fmt)
 
     #dflithkn = os.path.join(pthithkn,flithkn)

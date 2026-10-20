@@ -58,30 +58,60 @@ importlib.reload(msisrlx)
 
 regn = 'north'
 YRS = 2015
-YRE = 2025
 field_name = 'ithkn' 
-avrg = 1  # 1 - derive climatology and interp, 0 - interpolate monthly data by years and save
-tmpf = 1  # for climatology, save temporary monthly and start from last saved
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--field", help=f"Field to interpolate, default={field_name}",
-                    choices=['hsnow','rhosn','ithkn','iconc','rhoice'], type=str)
-parser.add_argument("--yrs", help=f"Start year of data, default={YRS}", type=int)
-parser.add_argument("--yre", help=f"End year of data, default={YRE}", type=int)
-parser.add_argument("--avrg", help=f"1 = average to produce climatology, default={avrg}",
-                   choices=[0,1], type=int)
-parser.add_argument("--tmpf", choices=[0,1],
-                    help=f"1: Save, start from last processed field, default={tmpf}", type=int)
+parser.add_argument(
+  "--field", 
+  help=f"Field to interpolate, default={field_name}",
+  choices=['hsnow', 'rhosn', 'ithkn', 'iconc', 'rhoice'], 
+  default=field_name
+)
+parser.add_argument(
+  "--yrs", 
+  help=f"Start year of data, default={YRS}", 
+  default=YRS,
+  type=int
+)
+parser.add_argument(
+  "--yre", 
+  help=f"End year of data, default=YRS", 
+  type=int
+)
+parser.add_argument(
+  "--mm",
+  help=f"Month(s) to process (list), default=Jan-Apr, Nov-Dec",
+  type=int,
+  nargs="+",
+  default=[1, 2, 3, 4, 11, 12]
+)
+parser.add_argument(
+  "--avrg", 
+  help=f"=1: average over YRS-YRE to produce climatology (default), =0: no averaging, interpolate monthly data",
+  choices=[0,1], 
+  default=1,
+  type=int
+)
+parser.add_argument(
+  "--tmpf", 
+  help=f"1: For climatology, save temp monthly and start from last processed field, default=0 (no)", 
+  choices=[0,1],
+  default=0,
+  type=int
+)
 args = parser.parse_args()
   
-field_name = args.field if args.field else field_name
-YRS = args.yrs if args.yrs else YRS
-YRE = args.yre if args.yre else YRE
-avrg = args.avrg if args.avrg is not None else avrg
-tmpf = args.tmpf if args.tmpf is not None else tmpf
+field_name = args.field 
+YRS = args.yrs
+YRE = args.yre if args.yre is not None else args.yrs
+avrg = args.avrg 
+tmpf = args.tmpf
+MONTHS = args.mm
 
 mnthly_clim = avrg == 1  # True - produce monthly climatologies by averaging over years YRS-YRE and intrp
 save_tmp = tmpf == 1
+
+assert YRE>=YRS, f"Check start / end years: {YRS} / {YRE}"
 
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -215,11 +245,11 @@ def write_nc(A3d, time_out, field_name, dfliceout, attr_str ):
   return
 
 mnth_keep = []   # some months are missing for ice thickness
-for imo in range(12):
-  MM = imo + 1
+for imo, MM in enumerate(MONTHS):
 
   if MM > 4 and MM < 10:
     # only winter months
+    print(f"There are no summer AWI ice thikcness, MM={MM} skipped ...")
     continue
 
   mnth_keep.append(MM)

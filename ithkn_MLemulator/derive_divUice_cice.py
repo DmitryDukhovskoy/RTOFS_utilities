@@ -51,33 +51,29 @@ import mod_regmom as mrmom
 from mod_mom6 import dx_dy
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dxy", 
-  help=f"Min dist (km) between data points (~corr.scale), to skip close i,j points, default=50",
-  type=int, 
-  default=50)
 parser.add_argument("--regn", help="Region to process", choices=['north','south'],
                     required=True, type=str)
 parser.add_argument("--rdate", help="Date of ithkn prediction YYYMMDD", type=int, required=True)
 args  = parser.parse_args()
 
-dxy        = args.dxy
 regn       = args.regn
 rdate      = args.rdate
 
-fyaml = 'paths_ML.yaml'
+fyaml = 'config_ML.yaml'
 with open(fyaml) as ff:
-  pths_ml = safe_load(ff)
+  config_ml = safe_load(ff)
 
 dnmbR = mtime.rdate2datenum(rdate)
 YRr, MMr, DDr = mtime.datevec(dnmbR)[:3]
 
-pthdata   = pths_ml["GDAS"]["pthdata"]  # root dir for processed data
-pthice    = pths_ml["GDAS"]["pthsoca_ice"].format(YR=YRr, MM=MMr, DD=DDr)
-regn_name = pths_ml[regn]["name"]
-regn_lat0 = pths_ml[regn]["lat0"]  # bounding lat for ML emulator
+pthdata   = config_ml["GDAS"]["pthdata"]  # root dir for processed data
+regn_lat0 = config_ml["regn"][regn]["lat_bnd"]
+pthice    = config_ml["GDAS"]["pthsoca_ice"].format(YR=YRr, MM=MMr, DD=DDr)
+dxy       = config_ml["params"]["dxy"]             # ice length scale
+
 
 # Get MOM6 grid:
-pthgrid    = pths_ml["MOM6"]["pthgrid"]
+pthgrid = config_ml["MOM6"]["pthgrid"]
 dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
 dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
      
@@ -158,7 +154,7 @@ def calc_divU(dltI, dltJ, ii, jj, U2d, V2d, Acell, DX, DY):
 
 
 # Read SOCA ice fields:
-flice = pths_ml["GDAS"]["flsoca_ice"].format(YR=YRr, MM=MMr, DD=DDr)
+flice = config_ml["GDAS"]["flsoca_ice"].format(YR=YRr, MM=MMr, DD=DDr)
 dflice = os.path.join(pthice, flice)
 
 assert os.path.isfile(dflice), "File not found: {dflice}"
@@ -171,14 +167,13 @@ U2d = np.nan_to_num(U2d, nan=0.0)
 V2d = np.nan_to_num(V2d, nan=0.0)
 
 assert U2d.shape == V2d.shape, (
-    f"U/V shape mismatch: U2d={U2d.shape}, V2d={V2d.shape}"
+  f"U/V shape mismatch: U2d={U2d.shape}, V2d={V2d.shape}"
 )
 
 assert U2d.shape == Acell.shape == DX.shape == DY.shape, (
-    f"Grid shape mismatch: U2d={U2d.shape}, "
-    f"Acell={Acell.shape}, DX={DX.shape}, DY={DY.shape}"
+  f"Grid shape mismatch: U2d={U2d.shape}, "
+  f"Acell={Acell.shape}, DX={DX.shape}, DY={DY.shape}"
 )
-
 
 fld_pnts = []
 icc = 0
@@ -203,8 +198,8 @@ DIVUI = np.asarray(fld_pnts)
 assert DIVUI.shape[0] == npnts, f"Check DIVUI shape does not match IG {DIVUI.shape}"
 
 # Save numpy binary
-pthprd   = pths_ml["PRED"]["pthprd"]
-flnm0    = pths_ml["PRED"]["fldivui"].format(dxy=dxy, rdate=rdate, regn=regn)
+pthprd   = config_ml["PRED"]["pthprd"]
+flnm0    = config_ml["PRED"]["fldivui"].format(dxy=dxy, rdate=rdate, regn=regn)
 
 fldivui = f"{flnm0}.npz"
 dfliceout = os.path.join(pthprd, fldivui)
@@ -224,8 +219,8 @@ if f_check:
   
 
   clrmp = mclrmps.colormap_temperature_coldwarm()
-  rmin = -5. 
-  rmax = 5.
+  rmin = -3. 
+  rmax = 3.
   clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
 

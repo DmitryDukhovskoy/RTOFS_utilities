@@ -1,6 +1,6 @@
 """
-  Plot ML preidcted ithkn fields
-  for N specified dates
+Plot ML preidcted ithkn fields
+for N specified dates
 """
 import os
 import numpy as np
@@ -13,7 +13,6 @@ import matplotlib.colors as colors
 from yaml import safe_load
 from mpl_toolkits.basemap import Basemap, cm
 import argparse
-from mpl_toolkits.basemap import Basemap, cm
 
 PPTHN = None
 if 'PPTHN' not in locals() or PPTHN is None:
@@ -35,6 +34,7 @@ from mod_utils_fig import bottom_text, colorbar_horiz
 import mod_time as mtime
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
+import mod_ml_emulator as mml
 
 regn = 'north'
 
@@ -44,10 +44,14 @@ parser.add_argument("--rdate", help="Prediction date YYYYMMDD",
                     nargs="+",
                     type=int)
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str, default='north')
+parser.add_argument("--save",
+  help="Save predicted ithkn: 0=no (default), 1=npz (prediction grid pnts), 2=netcdf (whole domain))",
+  choices=[1,2],
+  default=2,
+  type=int)
 parser.add_argument("--ncol", help=f"N of columns for subplots, default=N dates", type=int)
 parser.add_argument("--nrow", help=f"N of rows for subplots, default=1", type=int)
 parser.add_argument("--model", help="ML model to use",
-                   choices=['rf1','rf2','gbr2','gbr3'],
                    required=True)
 args = parser.parse_args()
 
@@ -56,10 +60,50 @@ regn  = args.regn
 ncol    = args.ncol if args.ncol is not None else len(args.rdate)
 nrow    = args.nrow if args.nrow is not None else 1
 ml_model  = args.model
+save_npz   = args.save == 1      # save numpy binary
+save_nc    = args.save == 2      # save netcdf
 
-fyaml = "paths_ML.yaml"
+
+fyaml = "config_ML.yaml"
 with open(fyaml) as ff:
   config_ml = safe_load(ff)
+
+# Split model into model short name and number:
+ml_model = ml_model.lower()
+
+if ml_model.startswith("gbr") and ml_model[3:].isdigit():
+  ml_short = "gbr"
+  ml_nmb = int(ml_model[3:])
+elif ml_model.startswith("rf") and ml_model[2:].isdigit():
+  ml_short = "rf"
+  ml_nmb = int(ml_model[2:])
+else:
+  raise ValueError(f"Model name / number cannot be identified: {ml_model}")
+
+# Load parameters:
+lat0         = config_ml["regn"][regn]["lat_bnd"]
+davrg        = config_ml["params"]["davrg"]
+
+# Check if specified model number exists:
+rf_specs = config_ml['ml_specs'][ml_short]
+
+# Keep only numeric model IDs, exclude pthmodel and other settings
+valid_models = [
+  int(key) for key in rf_specs
+  if key.isdigit()
+]
+
+if ml_nmb not in valid_models:
+  raise ValueError(
+    f"Invalid model '{ml_short}' number: {ml_nmb},  "
+    f"Choose one of: {valid_models}"
+  )
+
+#model_name = micepr.models_info()[ml_model]
+ml_name = mml.full_model_name(ml_model)
+model_name = f"{ml_name}_{regn}"
+
+
 
 # Prediction grid points:
 # Get MOM6 grid:
@@ -133,27 +177,41 @@ for iplt, rdate in enumerate(RDATES):
 
   # Load prediction:
   pthdump = config_ml["PRED"]["pthdump"]
-  flfcst = f"{ml_model}_ithkn_fcast_GFSv17anls_{rdate}_{regn}.npz"
-  dflfcst = os.path.join(pthdump, flfcst)
-  print(f"Loading fcst: {dflfcst}")
+  
+  if save_npz:
+    flfcst = f"{ml_model}_ithkn_fcast_GFSv17anls_{rdate}_{regn}.npz"
+    dflfcst = os.path.join(pthdump, flfcst)
+    print(f"Loading fcst: {dflfcst}")
 
-  FCST = np.load(dflfcst)
-  Yfcst = FCST["Yfcst"]
-  JG    = FCST["JG"]
-  IG    = FCST["IG"]
-  idim_s = FCST["idim"]
-  jdim_s = FCST["jdim"]
+    FCST = np.load(dflfcst)
+    Yfcst = FCST["Yfcst"]
+    JG    = FCST["JG"]
+    IG    = FCST["IG"]
+    idim_s = FCST["idim"]
+    jdim_s = FCST["jdim"]
 
-  assert HH.shape == (jdim_s,idim_s), (
-    f"ML field for different grid? expected j x i: {jdim_s} {idim_s}"
+    assert HH.shape == (jdim_s,idim_s), (
+      f"ML field for different grid? expected j x i: {jdim_s} {idim_s}"
+    )
+
+    A2d = np.zeros_like(HH) * np.nan
+    A2d[LMsk] = 0
+    A2d[JG,IG] = Yfcst
+
+  elif save_nc:
+    flfcst = f"{ml_model}_ithkn_GFSv17anls_mesh025_{rdate}_{regn}.nc"
+    dflfcst = os.path.join(pthdump, flfcst)
+    print(f"Loading fcst --> {dflfcst}")
+
+    assert os.path.isfile(dflfcst), f"Missing f/cast: {dflfcst}"
+
+    with xr.open_dataset(dflfcst) as ds:
+      A2d = ds["ice_thkn"].values.squeeze()
+
+  sttl = (
+    f"ML {ml_model} ithkn (predict from GDAS/CICE6) {YR}/{MM:02d}/{DD:02d}\n"
+    f"{dflfcst}"
   )
-
-  A2d = np.zeros_like(HH) * np.nan
-  A2d[LMsk] = 0
-  A2d[JG,IG] = Yfcst
-
-
-  sttl = f"ML {ml_model} ithkn using SOCA CICE6\n{YR}/{MM:02d}/{DD:02d}"
 
   irow = iplt // ncol
   icol = iplt % ncol

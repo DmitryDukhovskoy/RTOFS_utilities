@@ -114,7 +114,7 @@ fyaml = 'paths_ufs.yaml'
 with open(fyaml) as ff:
   pths_ufs = safe_load(ff)
 
-fyaml = 'paths_ML.yaml'
+fyaml = 'config_ML.yaml'
 with open(fyaml) as ff:
   pths_ml = safe_load(ff)
 

@@ -351,6 +351,7 @@ def save_netcdf(IMOM, JMOM, INDX_list, JNDX_list, LON, LAT, dfgmapi, flip_north)
     dset.attrs['info']      = 'Original GDAS grid has North pole at the bottom'
 
   dset.attrs['institution'] = 'NOAA NWS OMD'
+  #dset.attrs['source']      = 'get_gmapi_GDAS_osisaf_to_mesh025.py'
   dset.attrs['source']      = 'get_gmapi_GDAS_osisaf_to_mesh025.py'
   dset.attrs['region']      = regn
 

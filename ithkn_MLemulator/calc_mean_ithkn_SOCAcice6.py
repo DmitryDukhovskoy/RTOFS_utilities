@@ -1,4 +1,11 @@
 """
+  This predictor accounts for the long-term trend in ice thickness
+  mainly in the Arctic Ocean
+  However, GFSv17 and SFS have unrealistically thin ice
+  which  will confuses the ML emulator and causes biased ice thickness prediction
+  Use GLORYS to evaluate the current year trend value. 
+
+
   Calc mean ice volume and ice thickness / over sea ice 
   from GDAS / SOCA sea ice fields
   Process 1 day
@@ -52,20 +59,18 @@ args  = parser.parse_args()
 regn       = args.regn
 rdate      = args.rdate
 
-fyaml = 'paths_ML.yaml'
+fyaml = 'config_ML.yaml'
 with open(fyaml) as ff:
-  pths_ml = safe_load(ff)
+  config_ml = safe_load(ff)
 
 dnmbR = mtime.rdate2datenum(rdate)
 YRr, MMr, DDr = mtime.datevec(dnmbR)[:3]
 
-pthdata   = pths_ml["GDAS"]["pthdata"]  # root dir for processed data
-pthice    = pths_ml["GDAS"]["pthsoca_ice"].format(YR=YRr, MM=MMr, DD=DDr)
-regn_name = pths_ml[regn]["name"]
-regn_lat0 = pths_ml[regn]["lat0"]  # bounding lat for region
+pthdata   = config_ml["GDAS"]["pthdata"]  # root dir for processed data
+pthice    = config_ml["GDAS"]["pthsoca_ice"].format(YR=YRr, MM=MMr, DD=DDr)
 
 # Get MOM6 grid:
-pthgrid    = pths_ml["MOM6"]["pthgrid"]
+pthgrid    = config_ml["MOM6"]["pthgrid"]
 dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
 dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
      
@@ -96,7 +101,7 @@ elif regn == 'south':
 
 
 # Read SOCA ice fields:
-flice = pths_ml["GDAS"]["flsoca_ice"].format(YR=YRr, MM=MMr, DD=DDr)
+flice = config_ml["GDAS"]["flsoca_ice"].format(YR=YRr, MM=MMr, DD=DDr)
 dflice = os.path.join(pthice, flice)
 
 assert os.path.isfile(dflice), f"File not found: {dflice}"
@@ -137,7 +142,7 @@ ITHKN = IVOL / iarea if iarea > 0 else np.nan
 print(f"{rdate}: Mean ice volume = {IVOL*1e-9:.3f} km3, ice thickness = {ITHKN:.2f}m")
 
 # Save numpy binary to be combined later
-pthprd  = os.path.join(pths_ml["PRED"]["pthprd"],'tmp')
+pthprd  = os.path.join(config_ml["PRED"]["pthprd"],'tmp')
 os.makedirs(pthprd, exist_ok=True)
 fltmp   = f"cice6_mean_ivol_ithkn_{rdate}_{regn}.npz"
 dfliceout = os.path.join(pthprd, fltmp)

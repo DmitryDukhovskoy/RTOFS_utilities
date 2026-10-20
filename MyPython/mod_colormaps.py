@@ -208,6 +208,31 @@ def colormap_conc():
   
   return CMP
 
+def colormap_conc_blue():
+  """
+  ice conc map: blue (open water) --> cyan --> light blue --> white
+  """
+  CLR = [
+      [5,   25,  80],    # 0.0
+      [5,   60, 140],    # 0.1
+      [5,  100, 185],    # 0.2
+      [10, 145, 210],    # 0.3
+      [30, 180, 225],    # 0.4
+      [70, 205, 235],    # 0.5
+      [115, 220, 240],   # 0.6
+      [155, 230, 242],   # 0.7
+      [185, 235, 240],   # 0.8
+      [210, 235, 235],   # 0.9
+      [235, 240, 240],   # 0.95
+      [255, 255, 255],   # 1.0
+  ]
+
+  CLR = np.array(CLR) / 255.
+  CMP = create_colormap(CLR, 200)
+
+  return CMP
+
+
 def colormap_ice_thkn():
   """
    Prepare colormap for sea ice thickness

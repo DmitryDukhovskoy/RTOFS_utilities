@@ -210,8 +210,9 @@ elif topo_nc:
   with xr.open_dataset(os.path.join(pthtopo, ftopo)) as dset:
     HH = dset["depth"].values
 
-  # Convert to negative depths:
-  LMsk = HH < 1e-10
+# Convert to negative depths, land assigned arbitrary positive value
+if np.nanmin(HH) >= 0.:
+  LMsk = (HH < 1e-10) | np.isnan(HH)
   HH = -HH
   HH[LMsk] = 100
 
@@ -220,7 +221,7 @@ assert HH.shape == hlon.shape, f"Topo shape {HH.shape} and lon shape mismatch {h
 
 match varnc:
   case 'aicen' | 'alvl' | 'vlvl' | 'apnd' | 'hpnd' | 'ipnd' | 'dhs' | 'iceumask':
-    clrmp = mclrmps.colormap_conc()
+    clrmp = mclrmps.colormap_conc_blue()
     rmin = 0.
     rmax = 1.
   case 'vicen':
@@ -242,6 +243,10 @@ match varnc:
 clrmp.set_bad(color=[0.2, 0.2, 0.2])
 
 sttl = f"{varnc} cat={icat}:  CICE6 restart {flrst_in}"
+
+# Apply land mask:
+A2d[HH >= 0] = np.nan
+aice[HH >= 0] = np.nan
 
 # Subset fields to avoid inifinity in projected coordinates:
 jsub = 1650

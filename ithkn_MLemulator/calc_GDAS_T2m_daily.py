@@ -74,7 +74,7 @@ HRS        = args.hr if args.hr is not None else [0,6,12,18]
 flip_north = args.flipN == 1
 
     
-fyaml = 'paths_ML.yaml'
+fyaml = 'config_ML.yaml'
 with open(fyaml) as ff:
   pths_ml = safe_load(ff)
 
