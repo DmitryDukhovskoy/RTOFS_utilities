@@ -8,17 +8,32 @@
 # no need to specify
 restart_time:
   rdate_in:  20250701   # input restart date, if ~ will be derived from flrst_in file
-  rhr_in:    0          # input restart hour
-  rdate_out: ~          # output restart date if different from input
-  rhr_out:   ~          # output restart hour if different from input
+  rhr_in:    3          # input restart hour
+  rdate_out: 20250701   # output restart date if different from input
+  rhr_out:   0          # output restart hour if different from input
+
+params:
+  # What fields to insert:
+  # iconc    insert iconc
+  # ithkn    insert ithkn 
+  # hsnow    insert snow depth clim
+  # snitd    snow redistribution over ice (ITDrdg - requires extra tracers in restart) 
+  # sstmom   adjust MOM6 SST to bring closer to Tfreeze(S) under sea ice, will modify MOM.r
+  # enmb     None, only used for ensemble runs to find ensemb. paths, restart filenames
+  iconc  : 0
+  ithkn  : 1
+  hsnow  : 1
+  snitd  : 1  
+  sstmom : 1 
+  enmb   : ~ 
 
 cice_paths:
-  pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice/cice6_north_MLithkn'
-  pth_out: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice/cice6_north_MLithkn'
+  pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ocean.20250629'
+  pth_out: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice/cice6_global_MLithkn_GDAS'
 
 mom6_paths:
-  pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ocean'
-  pth_out: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ocean/mom6_Tfrz_RTOFSice'
+  pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ocean.20250630'
+  pth_out: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ocean/mom6_Tfrz_ML_GDAS'
   pth_grid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
 
 rest_names:
@@ -35,16 +50,20 @@ rest_names:
 #  e.g. flrst_in: 20250704.030000.cice_restart.iconc_ithkn.n
 # flrst_tmp: "cice_restart.YYYYMMDD.HH"  --> cice_restart.20250704.00.iconc_ithkn.nc
 #
-  flrst_in: "20250701.00.cice_model.res.nc"  # IC from GDAS SOCA no changes
-  #flrst_in: "cice_restart.20250701.00.nc"
+  flrst_in: "20250701.030000.cice_model.res.nc"  # IC from GDAS SOCA no changes
   flrst_out: ~
   flrst_tmp: "cice_restart.YYYYMMDD.HH"
 
 mom6_names:
 #  flmom_in: MOM6 restart file name, e.g.: 20240701.000000.MOM.res.nc
-# varnm_temp - temperature Variable name in the MOM restart file
-  flrst_in: ~
-  varnm_temp: "Temp"
+# varnm_temp - 3D temp  var name in the MOM restart if not "Temp","temp"
+# varnm_intrf: - interface depth, var. name in restart, can be "eta" - intrf depths, or "h" - lr thicknesses
+# varnm_sal  - 3D sal field
+  rhr_in      :   ~
+  flrst_in    : "20250629.210000.MOM.res.nc"
+  varnm_temp  : "Temp"
+  varnm_intrf : "h"
+  varnm_sal   : "Salt" 
 
 grid_topo:
   pthgrid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
@@ -54,18 +73,16 @@ target_paths:
 # Target fields directories and filenames to use in the IC
 # For RTOFS - check version, it has changed in July 2025 to 2.5
   ice_conc:
-    path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{YR}"
-    file: "NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc"
+    path: ~
+    file: ~
 
   ithkn_north:
-#    path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/ithkn_glorys_input_predictions"
-#    file: "ML_gbr3_ithkn_iconc_nsidc_mesh025_{YR}{MM:02d}{DD:02d}_{regn}.nc"
     path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/ithkn_predictions"
-    file: "gbr3_ithkn_GFSv17anls_mesh025_{YR}{MM:02d}{DD:02d}_{regn}.nc"
+    file: "gbr21_ithkn_GFSv17anls_mesh025_20250701_north.nc"
 
   ithkn_south:
-    path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/cice4_fcast/{rdate}/interp_mesh025"
-    file: "ithkn_RTOFSv2.4_{rdate}_fhr000_1080x1440.nc"
+    path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/ithkn_predictions"
+    file: "gbr21_ithkn_GFSv17anls_mesh025_20250701_south.nc"
 
   hsnow_south:
     path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/snow_nasa/monthly_clim"

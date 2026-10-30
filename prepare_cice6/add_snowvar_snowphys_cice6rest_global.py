@@ -39,20 +39,20 @@ def main():
 
   parser = argparse.ArgumentParser()
   parser.add_argument("--rdate", help=f"restart date input file", required=True, type=int)
-  parser.add_argument("--rhr", help=f"input file, restart hour = 0, ..., 23", type=int)
+  parser.add_argument("--rhr", help=f"input file, restart hour = 0, ..., 23", default=0, type=int)
   parser.add_argument("--rdate_out", help="output file, restart date if different from rdate", type=int)
   parser.add_argument("--rhr_out", help="output file, restart hour if different from rhr", type=int)
-  parser.add_argument("--pth_in", help="input restart directory with original file", type=str, required=True)
-  parser.add_argument("--flrst_in", help=f"rest file in", required=True, type=str)
+  parser.add_argument("--pth_in", help="input restart directory with original file", required=True)
+  parser.add_argument("--flrst_in", help=f"rest file in", required=True)
   parser.add_argument("--pth_out", help="output restart directory where new file be dumped", 
-                      type=str, required=True)
-  parser.add_argument("--flrst_out", help="new rest file name", required=True, type=str)
+                      required=True)
+  parser.add_argument("--flrst_out", help="new rest file name", required=True)
   args = parser.parse_args()
 
   rest_date     = args.rdate
   rest_hr       = args.rhr
-  rest_date_out = args.rdate_out if args.rdate_out else rest_date
-  rest_hr_out   = args.rhr_out   if args.rhr_out   else rest_hr
+  rest_date_out = args.rdate_out if args.rdate_out is not None else args.rdate
+  rest_hr_out   = args.rhr_out   if args.rhr_out is not None   else args.rhr
   flrst_in      = args.flrst_in  
   flrst_out     = args.flrst_out 
   pthrst_in     = args.pth_in    

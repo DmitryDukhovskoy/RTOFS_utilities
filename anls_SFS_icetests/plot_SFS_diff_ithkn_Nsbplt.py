@@ -146,7 +146,7 @@ def plot_field(ax1, m, xh, yh, AP_s, clrmp, rmin, rmax, regn, dnmb, sttl):
 
   return img
 
-clrmp = mclrmps.colormap_difference_negpos(n_white=8)
+clrmp = mclrmps.colormap_difference_negpos()
 rmin = -2.
 rmax = 2.
 

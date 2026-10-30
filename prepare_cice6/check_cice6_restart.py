@@ -47,8 +47,12 @@ regn = 'north'
 #flrst = 'cice_restart.20250704.00.iconc_ithkn.nc'
 #flrst ='cice_RTOFSres.20250704.00.iconc_ithkn.nc'
 #flrst = '20260422.030000.analysis.cice_model.res.nc'  # SOCA file from Anna
-flrst = 'rtofs_glo.20001216_00000.restart_cice.nc'
+#flrst = 'rtofs_glo.20001216_00000.restart_cice.nc'
+flrst = 'cice_restart.20250701.00.ithkn.hsnow.snphys.nc'  # ML ice thickness based on GDAS
+#flrst = '20250701.030000.cice_model.res.nc'  # GDAS field
 
+pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice/cice6_global_MLithkn_GDAS/'
+#pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ice.20250701'  # GDAS
 # ithkn - mean ice thkn per m2 of grid cell area
 # ithkn_ice - mean ice thkn per m2 of ice area
 # hsnow - mean snow depth per grid cell area
@@ -58,6 +62,8 @@ parser.add_argument("--flrst", help=f"restart file name, default={flrst}", type=
 parser.add_argument("--regn", help=f"region to plot, default={regn}", type=str)
 parser.add_argument("--fplt", help="Field to plot", 
                    choices=['iconc','ithkn','ithkn_ice','hsnow','hsnow_ice','none'], type=str)
+parser.add_argument("--lmsk", help="=1: mask land(default), =0: keep land 0",
+  choices=[0,1], default=1, type=int)
 args = parser.parse_args()
 
 flrst = args.flrst if args.flrst else flrst
@@ -65,6 +71,8 @@ regn  = args.regn if args.regn else regn
 fld_plt = args.fplt if args.fplt else None
 if fld_plt == 'none':
   fld_plt = None
+
+mask_land = args.lmsk == 1
 
 #rest_date     = args.rdate if args.rdate else rest_date
 #rest_hr       = args.rhr if args.rhr else rest_hr
@@ -130,9 +138,9 @@ with open(fyaml) as ff:
 #pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"])
 #pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'cice6_global')
 #pthrest = os.path.join(pths_ufs[node_nm]["MOM6"]["pthrest"],'cice6_north')
-
 #pthrest = '/gpfs/f6/sfs-emc/world-shared/Dmitry.Dukhovskoy/restart_CICE6_SOCA/soca2cice/enkfgdas.20260422/06/mem001/analysis/ice'
-pthrest = '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/cice_restarts/cice6'
+#pthrest = '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/RTOFS/cice_restarts/cice6'
+
 dflrst = os.path.join(pthrest,flrst)
 
 print(f"Reading {dflrst}")
@@ -145,10 +153,10 @@ dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
 with xarray.open_dataset(dftopo_mom) as dstopo:
   HH = dstopo['depth'].data.squeeze()
 
-HH = np.where(HH < 1.e-20, np.nan, HH)
-HH = -HH
-HH = np.where(np.isnan(HH), 1., HH)
+HH = np.where(HH < 1.e-20, 1, -HH)
 jdm, idm = HH.shape
+
+LMsk = HH >= 0
 
 LON, LAT = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 
@@ -281,6 +289,8 @@ if f_plt:
 
   hlon = LON
   hlat = LAT
+  if mask_land:
+    A2d[LMsk] = np.nan
 
   if regn == 'south':
     m = Basemap(projection='spstere',boundinglat=-55,lon_0=180,resolution='l')

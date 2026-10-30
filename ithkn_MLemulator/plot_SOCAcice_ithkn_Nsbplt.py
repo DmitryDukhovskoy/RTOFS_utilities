@@ -186,6 +186,7 @@ for iplt, rdate in enumerate(RDATES):
   aice = np.nansum(aicen, axis=0)
   aice[aice > 1] = 1.
   vice_cell = np.nansum(aicen * vicen, axis=0)  # m3/m2_cell
+  vice_cell[HH>=0] = np.nan
   
   sttl = f"ithkn SOCA CICE6\n{YR}/{MM:02d}/{DD:02d}"
 

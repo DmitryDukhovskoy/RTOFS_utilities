@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import sys
 import importlib
 import matplotlib
-import xarray
+import xarray as xr
 from copy import copy
 import matplotlib.colors as colors
 from yaml import safe_load
@@ -52,9 +52,23 @@ importlib.reload(mc6util)
 
 # YAML is used if input file name or vartmp is None
 #flmom_in = '20240701.000000.MOM.res.nc'  # MOM restart file or specify in YAML 
-flmom_in = '20240701.000000.MOM.res.iconc.nc'  # MOM restart file or specify in YAML 
+#flmom_in = '20240701.000000.MOM.res.iconc.nc'  # MOM restart file or specify in YAML 
+pthrest_in = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ocean'
+flmom_in = '20250701.000000.MOM.res.nc'
+
+#pthrest_in = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ocean/mom6_Tfrz_ML_GDAS'
+#flmom_in = 'gdas.t18z.inst.f006.snphys.20250701.Tfrz.nc'
+#pthrest_in = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ocean.20250630'
+#flmom_in = 'gdas.t18z.inst.f006.nc'
+
+
 fyaml = 'cice6rest_files_SFS.yaml'
 vartmp = 'Temp'      # variable name in the restart file
+
+# 3D fields to check in restart file:
+#varlr  = 'eta'   # interface depth
+#varsal = 'Salt'  # salinity
+VARS = ['u','v','h','Salt','Temp']
 
 
 print(f"Reading YAML with restart info: {fyaml}\n")
@@ -71,19 +85,18 @@ if flmom_in is None:
 
 
 # MOM restart path: input and output restart dir
-pthrest_in  = config_rest["mom6_paths"]["pth_in"]
+if pthrest_in is None:
+  pthrest_in  = config_rest["mom6_paths"]["pth_in"]
 
 # Get MOM6 grid
 pthgrid = config_rest["mom6_paths"]["pth_grid"]
 dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
 dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
 
-with xarray.open_dataset(dftopo_mom) as dstopo:
+with xr.open_dataset(dftopo_mom) as dstopo:
   HH = dstopo['depth'].data.squeeze()
 
-HH = np.where(HH < 1.e-20, np.nan, HH)
-HH = -HH
-HH = np.where(np.isnan(HH), 1., HH)
+HH = np.where(HH < 1.e-20, 1., -HH)
 jdm, idm = HH.shape 
 
 LON, LAT = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
@@ -92,17 +105,17 @@ LON, LAT = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 # MOM input restart:
 dflmom_in = os.path.join(pthrest_in, flmom_in) 
 print(f"Reading restart: {dflmom_in}")
-ds_in = xarray.open_dataset(dflmom_in, decode_times=False)
 
-# 3D fields:
-varlr  = 'eta'   # interface depth
-varsal = 'Salt'  # salinity
 
-T3d  = ds_in[vartmp].isel(Time=0).data  # 3D pot temp
-L3d  = ds_in[varlr].isel(Time=0).data  # interf. depths, lr0 = surf interf
-S3d  = ds_in[varsal].isel(Time=0).data  
+#ds_in = xarray.open_dataset(dflmom_in, decode_times=False)
 
-ds_in.close()
+FLD3D = []
+with xr.open_dataset(dflmom_in, decode_times=False) as ds_in: 
+  for varnm in VARS:
+    A3d = ds_in[varnm].values.squeeze()
+    FLD3D.append(A3d)
+
+#ds_in.close()
 
 
 def check_lrs(A3d, fname):
@@ -117,28 +130,15 @@ def check_lrs(A3d, fname):
 
 print(f"MOM6 restart: {dflmom_in}")
 # Check for NaNs:
-fname="T3d"
-if np.isnan(T3d).any():
-  print(f"{fname} NaNs, checking layers ...")
-  check_lrs(T3d, fname)
-else:
-  print(f"{fname} is ok")
-print(" ")
+for icc, varnm in enumerate(VARS):
+  A3d = FLD3D[icc]
+  if np.isnan(A3d).any():
+    print(f"{varnm} NaNs, checking layers ...")
+    check_lrs(A3d, varnm)
+  else:
+    print(f"{varnm} is ok")
+  print(" ")
 
-fname="S3d"
-if np.isnan(S3d).any():
-  print(f"{fname} NaNs, checking layers ...")
-  check_lrs(S3d, fname)
-else:
-  print(f"{fname} is ok")
-print(" ")
-
-fname="L3d"
-if np.isnan(L3d).any():
-  print(f"{fname} NaNs, checking layers ...")
-  check_lrs(L3d, fname)
-else:
-  print(f"{fname} is ok")
 
 
 
@@ -225,6 +225,49 @@ if f_chck:
   bottom_text(btx, pos=[0.2, 0.01])
 
 
+  # ======= DEBUG =======
+  with xr.open_dataset(dflmom_in, decode_times=False) as ds_in:
+    lrh = ds_in["h"].values.squeeze()
+    if "ave_ssh" in ds_in:
+      ssh = ds_in["ave_ssh"].values.squeeze()
+    else:
+      ssh = ds_in["sfc"].values.squeeze()
+    U = ds_in["u"].values.squeeze()
+    T = ds_in["Temp"].values.squeeze()
+    S = ds_in["Salt"].values.squeeze()
+
+  # Deep
+  i0 = 500
+  j0 = 1050
+  
+  # Shallow:
+  i0=261
+  j0=958
+
+  kdm = lrh.shape[0]
+  dLr = lrh[:,j0,i0]
+  temp = T[:,j0,i0]
+  sal = S[:,j0,i0] 
+
+  zz = np.zeros((kdm+1))
+  zm = np.zeros((kdm))
+  zz[0] = ssh[j0,i0]
+  zz[1:] = zz[0] - np.cumsum(dLr)
+  zm = zz[:kdm] - dLr/2
+
+  for kk in range(kdm):
+      print(f"lrh: {dLr[kk]:.7f} u: {U[kk,j0,i0]:.7f}")
+
+  print(f"Sum lr thkn: {np.nansum(-lrh[:,j0,i0]):.7f}, btm depth: {HH[j0,i0]:.7f}, ssh={ssh[j0,i0]:.7f}")
+  #print(f"Sum lr thkn + ssh = {(np.nansum(-lrh[:,j0,i0]) + ssh[j0,i0]):.7f}")
+
+  plt.clf()
+  ax1 = plt.axes([0.08, 0.1, 0.4, 0.8])
+  ax1.plot(temp, zm, '.-')
+  
+  ax2 = plt.axes([0.5, 0.1, 0.4, 0.8])
+  ax2.plot(sal, zm, '.-')
+  
 
 
 

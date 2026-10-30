@@ -183,7 +183,8 @@ for iplt, rdate in enumerate(RDATES):
   # Derive aggregated ice conc and ice volume in m3/m2_ice
   aice = np.nansum(aicen, axis=0)
   aice[aice > 1] = 1.
-  
+  aice[HH>=0] = np.nan 
+ 
   sttl = f"iconc SOCA CICE6\n{YR}/{MM:02d}/{DD:02d}"
 
   irow = iplt // ncol

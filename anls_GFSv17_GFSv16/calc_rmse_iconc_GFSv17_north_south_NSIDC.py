@@ -185,12 +185,8 @@ Xplt_N = XTn-0.5            # dayly avrg
 XTs = (TM_S - TM_S[0]) + 1    # lead time, days
 Xplt_S = XTs-0.5            # dayly avrg
 
-xticks = np.arange(np.floor(XTn[0]),np.ceil(XTn[-1]+1))
-yticks = np.arange(0.,1,0.05)
-sttl = f"RMSE iconc NRT NSIDC GFSv17 north: {init_north}, south: {init_south}\n"
-
-clrN = [0., 0.6, 1]
-clrS = [1, 0.3, 0]
+clrN = [0., 0.3, 0.8]
+clrS = [0.2, 0.8, 0]
 
 yl1 = 0
 if track_prst:
@@ -203,6 +199,15 @@ if yl2 > 0.5:
   yl2 = 0.8
 else:
   yl2 = 0.35
+
+xticks = np.arange(np.floor(XTn[0]),np.ceil(XTn[-1]+1))
+if yl2 - yl1 < 0.6:
+  yticks = np.arange(0.,1,0.05)
+else: 
+  yticks = np.arange(0.,1,0.1)
+
+sttl = f"RMSE iconc NRT NSIDC GFSv17 north: {init_north}, south: {init_south}\n"
+
 
 plt.ion()
 fig1 = plt.figure(1,figsize=(9,9))

@@ -1,20 +1,18 @@
 """
-  Insert ice concentration (sea ice partial area) and 
-  (optionally) ice thickness 
+  Updated version
+  Insert ice concentration (sea ice partial area) and / or 
+  ice thickness 
   into CICE6 aice fields 
-  Using NSIDC interpoalted fields for iconc
-  and CryoSat for ice thickness
+  The version allows insertion of ice thickness only
+  Using target interpoalted fields for iconc
+  and  ice thickness
 
   The insertion is performed for both Arctic and Antarctic or only one of these regions
-  older version: insert_iconc_ithkn_cice6_restart.py performs this for 1 region only
-
-  if ice thickness is opted out, this should be idential to
-  insert_iconc_cice6_restart.py
 
   See python/prepare_cice6/interp_NSIDC_iconc_mesh025.py
                     interp_CryoSat_ithkn_antarct_mesh025.py
 
-  author: Dmitry Dukhovskoy, NOAA NWS EMC 2025
+  author: Dmitry Dukhovskoy, NOAA NWS OMD 2026
 """
 import os
 import numpy as np
@@ -117,7 +115,6 @@ def check_print(aice, aicen_new, vicen_new, vsnon_new, ncat):
     print(f"         j={jmax}, i={imax}, max hsnow(n): {np.nanmax(hsno_n)}, "+\
           f"aice(n): {aice_n[jmax,imax]}, vsno(n): {vsno_n[jmax,imax]}")
 
-
   return
 
 def find_varnm(dflithkn, var_opt):
@@ -137,7 +134,7 @@ def yaml_path(cfg, **fmt):
   return os.path.join(path, file)
 
 def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN,\
-                       ins_thkn, pthrest, flrst_in):
+                       ins_ithkn, ins_iconc, pthrest, flrst_in):
   """
     regn_wrk - region name in this loop: north, south 
     ds_out   - xarray data_set: empty or not if cycled over 2 regions
@@ -146,7 +143,8 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
     LAT, LON    - long/ latit arrays
     dnmbR       - input restart date datenumb format
     dnmbN       - output restart date datenumb format
-    ins_thkn    - flag: insert thickness  or not with iconc 
+    ins_ithkn    - flag: insert thickness
+    ins_iconc   - flag: insert iconc
     flrst_in    - input restart file to be modified
   """  
  
@@ -187,22 +185,26 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
       "regn": regn_wrk
   }
 
-  # Interpolated NSIDC ice conc:
+  # Interpolated ice conc:
   RMsk = np.where(HH>=0, 0, 1)
   if regn_wrk == 'south':
     RMsk[LAT > -60.] = 0
   elif regn_wrk == 'north':
     RMsk[LAT < 50.] = 0  
 
-  dfliconc = yaml_path(config_rest["target_paths"]["ice_conc"], **fmt)
-  print(f'Loading target ice conc {dfliconc}')
-  with xarray.open_dataset(dfliconc) as dsint:
-    AICEint = dsint['ice_conc'].isel(time=ddN-1).squeeze()
+  if ins_iconc:
+    dfliconc = yaml_path(config_rest["target_paths"]["ice_conc"], **fmt)
+    print(f'Loading target ice conc {dfliconc}')
+    with xarray.open_dataset(dfliconc) as dsint:
+      AICEint = dsint['ice_conc'].isel(time=ddN-1).squeeze()
 
-  AICEint = np.where(RMsk == 0, np.nan, AICEint)
+    AICEint = np.where(RMsk == 0, np.nan, AICEint)
+  else:
+    # No ice conc insertion:
+    AICEint = np.full_like(RMsk, np.nan, dtype=float)
 
   # Read ice thickness data if thickness is inserted:
-  if ins_thkn:
+  if ins_ithkn:
     if regn_wrk == 'south':
       dflithkn = yaml_path(config_rest["target_paths"]["ithkn_south"], **fmt)
     elif regn_wrk == 'north':
@@ -229,10 +231,9 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
 
   else:
     # No ice thickness insertion
-    ITHKN = np.full_like(HH, np.nan)
+    ITHKN = np.full_like(HH, np.nan, dtype=float)
 
   if flrst_in is None:
-    #flrst_in = f"cice_model.res.{yrR}{mmR:02d}{ddR:02d}.{nsecR:06d}.nc"
     raise RuntimeError("insert_iconc_ithkn: input restart filename is missing ...")
 
   if ds_out is None:
@@ -245,7 +246,7 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
     print(f"Input restart is skipped, continue with existing ds_out")
 
 
-  # Insert aice and distribute/reduce proportionally over ice cats.:
+  # If needed: Insert aice and distribute/reduce proportionally over ice cats.:
   assert nslyr == 1, f"Code needs to be modified for nslyr>1, nslyr={nslyr}"
   aicen = ds_out['aicen'].data  # partial area by cats
   vicen = ds_out['vicen'].data  # ice vol per m2 of grid cell by cats
@@ -265,22 +266,29 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
   # Aggregated ice partial area:
   aice = np.sum(aicen, axis=0).squeeze()
 
-  # Select points to insert:
-  mask = (RMsk > 0) & np.isfinite(AICEint)
+  # Select iconc or ithkn points to insert:
+  if ins_iconc:
+    mask = (RMsk > 0) & np.isfinite(AICEint)
+  elif ins_ithkn:
+   # if only ins_ithkn
+    mask = (RMsk > 0) & np.isfinite(ITHKN)
+
   Jins, Iins = np.where(mask)
   Xins = LON[Jins, Iins]
   Yins = LAT[Jins, Iins]
   npnts = Jins.size
 
   npnts_ithkn = 0
-  if ins_thkn:
+  if ins_iconc:
+    print(f"iconc insertion: {npnts} pnts, min/max lat={np.min(Yins):.1f}/{np.max(Yins):.1f}"
+         f" lon={np.min(Xins):.1f}/{np.max(Xins):.1f}")
+  elif ins_ithkn and ins_iconc:
     mask_ithkn = (RMsk > 0) & np.isfinite(ITHKN)
     npnts_ithkn = np.count_nonzero(mask_ithkn)
-
-  print(f"iconc insertion: {npnts} pnts, min/max lat={np.min(Yins):.1f}/{np.max(Yins):.1f}"
-         f" lon={np.min(Xins):.1f}/{np.max(Xins):.1f}")
-  if ins_thkn:
     print(f"ithkn insertion: {npnts_ithkn} pnts ")
+  elif ins_ithkn:
+    print(f"ithkn insertion: {npnts} pnts, min/max lat={np.min(Yins):.1f}/{np.max(Yins):.1f}"
+         f" lon={np.min(Xins):.1f}/{np.max(Xins):.1f}")
 
   # Ice thickness cats
   # for kitd = 1 - linear remapping
@@ -312,10 +320,13 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
   hsnow_min = 0.01   # min snow thickness for noice --> ice case, this is m3/m2_ice 
   hsnow_max = 500.   # to avoid very thick hsnow / ice_area which will cause picard iteration crush
 
-  if ins_thkn:
+  if ins_ithkn and ins_iconc:
     print("Ice concentration and ice thickness insertion ...")
-  else:
+  elif ins_iconc and not ins_ithkn:
     print("Ice concentration insertion ...")
+  elif ins_ithkn and not ins_iconc:
+    print("Ice thickness insertion ...")
+
   for ipp in range(npnts):
     if ipp%10000 == 0:
       print(f"   {ipp/npnts*100.:.2f}% done ...")
@@ -331,25 +342,31 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
     tsfcn_old = Tsfcn[:,j0,i0]  # surf T
 
     # Distribute new iconc proportionally by cats in snow vol m3/m2:
-    ai_new = AICEint[j0,i0]
-    if ai_new <= puny:
-      ai_new = 0.
-   
-    if ai_new > 1.:
-      ai_new = 1.
+    if ins_iconc:
+      ai_new = AICEint[j0,i0]
 
-    # iconc change:
-    if ai_new < puny:
-      ain_new = ain_old * 0.
-    else:
-      if ai_old < puny:
-        # all new iconc in cat 1:
+      if ai_new <= puny:
+        ai_new = 0.
+     
+      if ai_new > 1.:
+        ai_new = 1.
+
+      # iconc change by cats:
+      if ai_new < puny:
         ain_new = ain_old * 0.
-        ain_new[0] = ai_new
       else:
-        cff = ai_new/ai_old
-        ain_new = ain_old * cff
-        
+        if ai_old < puny:
+          # all new iconc in cat 1:
+          ain_new = ain_old * 0.
+          ain_new[0] = ai_new
+        else:
+          cff = ai_new/ai_old
+          ain_new = ain_old * cff
+    else:
+      # No iconc insertion
+      ai_new = ai_old
+      ain_new = ain_old.copy()
+          
     # Adjust small truncation errors:
     sum_ain = np.sum(ain_new)
     if (sum_ain > 1.0) and (sum_ain - 1.0 < 1e-12):
@@ -435,7 +452,7 @@ def insert_iconc_ithkn(regn_wrk, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN
     ain_min = 1.e-8    # lower bound of ain(n) to avoid zeros
     vice_clim = 0.     # ice vol / m2_cell from clim (CryoSat is cell mean ice thickn)
     vice_old = 0.      # ice vol / m2 _cell from old restart
-    if ins_thkn:
+    if ins_ithkn:
       vice_clim = ITHKN[j0,i0] 
       if np.isnan(vice_clim):
         vice_clim = 0.
@@ -559,8 +576,10 @@ def main():
   yrN = mmN = ddN = hrN = None
 
   parser = argparse.ArgumentParser()
-  parser.add_argument("--ithkn", type=int, default=1,
-      help="insert ice thickn climatology, 0=no, 1=yes (default 1)", choices=[0,1])
+  parser.add_argument("--ithkn", type=int, required=True,
+    help="insert ice thickn, 0=no, 1=yes", choices=[0,1])
+  parser.add_argument("--iconc", type=int, required=True,
+    help="insert ice concentration, 0=no, 1=yes", choices=[0,1])
   parser.add_argument("--rdate", help=f"restart date input file", required=True, type=int)
   parser.add_argument("--rhr", help=f"input file, restart hour = 0, ..., 23, default={rest_hr}", type=int)
   parser.add_argument("--rdate_out", help="output file, restart date", required=True, type=int)
@@ -576,7 +595,8 @@ def main():
                       type=str, required=True)
   args = parser.parse_args()
 
-  ins_thkn      = bool(args.ithkn)
+  ins_ithkn      = bool(args.ithkn)
+  ins_iconc     = bool(args.iconc)
   flrst_in      = args.flrst_in  
   flrst_out     = args.flrst_out 
   regn          = args.regn      
@@ -590,10 +610,12 @@ def main():
 
   print(f"Restart date input:  {rest_date}:{rest_hr}")
   print(f"Restart date output: {rest_date_out}:{rest_hr_out}")
-  if ins_thkn:
-    print("Insert NSDIC NRT ice concenatraion + ice thickness {fyaml} into CICE restart\n")
-  else:
-    print("Insert NSDIC NRT ice concenatraion, NO ice thickness\n")
+  if ins_ithkn and ins_iconc:
+    print("Insert  ice concenatraion + ice thickness into CICE restart\n")
+  elif ins_iconc:
+    print("Insert ice concenatraion, NO ice thickness\n")
+  elif ins_ithkn:
+    print("Insert ice thickness, NO ice concentration\n")
 
   change_rest_time = (rest_date != rest_date_out) or (rest_hr != rest_hr_out)
 
@@ -647,17 +669,19 @@ def main():
     for regn_tmp in (['north','south']):
       print(f"  Processing region: {regn_tmp}")
       ds_out = insert_iconc_ithkn(regn_tmp, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN,\
-                       ins_thkn, pthrest, flrst_in)
+                       ins_ithkn, ins_iconc, pthrest, flrst_in)
   else:
     print(f"  Processing region: {regn}")
     ds_out = insert_iconc_ithkn(regn, ds_out, config_rest, HH, LAT, LON, dnmbR, dnmbN,\
-                       ins_thkn, pthrest, flrst_in)
+                       ins_ithkn, ins_iconc, pthrest, flrst_in)
 
   # Attributes:
-  if ins_thkn:
-    title_str = f"CICE6 restart with inserted ice conc NSIDC NRT {rest_date_out} and ice thickness from {fyaml}"
-  else:
-    title_str = f"CICE6 restart with inserted ice concentration from NSIDC NRT {rest_date_out} "
+  if ins_ithkn and ins_iconc:
+    title_str = f"CICE6 restart with inserted ice conc {rest_date_out} and ice thickness from {fyaml}"
+  elif ins_iconc:
+    title_str = f"CICE6 restart with inserted ice concentration {rest_date_out} from {fyaml}"
+  elif ins_ithkn:
+    title_str = f"CICE6 restart with inserted ice thickness {rest_date_out} from {fyaml}"
 
   from datetime import datetime
   istep1_val = ds_out.attrs.get('istep1', None)
@@ -675,10 +699,15 @@ def main():
 
   # Save:
   if flrst_out is None:
-    if ins_thkn:
+    if ins_ithkn and ins_iconc:
       flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc_thkn.nc"
-    else:
+    elif ins_iconc:
       flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.iconc.nc"
+    elif ins_ithkn:
+      flrst_out = f"cice_model.res.{yrN}{mmN:02d}{ddN:02d}.{hrN:02d}.thkn.nc"
+    else:
+      # Should never happen, just in case:
+      raise ValueError("Neither ins_iconc nor ins_ithkn is enabled")
 
   dflrst_out = os.path.join(pthrest_out, flrst_out)
   print(f"Saving CICE restart --> {dflrst_out}")

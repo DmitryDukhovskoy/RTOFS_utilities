@@ -133,6 +133,7 @@ def sfs_tests_info(enmb):
     "12" : "e11+MLgbr3-nsidc",    # similar to expt11 with ML ithkn (input: iconc NSIDC + GLORYS)
     "13" : "SFSb2+MLgbr3-nsidc",  # SFSbeta2 params + ALL (similar to expt08),  ML ice thickness (iconc NSIDC + GLORYS)
     "14" : "SFSb2+MLgbr3_20250701", # SFSbeta2 params + ALL,  ML ice thickness input: GDAS, lower R_snw (1.8)
+    "15" : "SFSb2+MLgbr21_20250701", # SFSbeta2 params + ALL,  ML ice thickness input: GDAS, lower R_snw (1.8)
     "61" : "ai+hi+hsU+ITDrdg+snphys_debug",   # cat. ice output for debugging
     "62" : "ai+hi+hsU+ITDrdg+snphys",            #  same as 61, every step output 1 day run
     "63" : "ai+hi+hsU+ITDrdg+snphys+pondpar",   #  tr_pond_lvl params changed, every step out 
