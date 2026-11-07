@@ -2,12 +2,22 @@
   Interpolate NSIDC sea ice concentration 
   to MOM6/CICE6 mesh025 grid
 
+  run multiple jobs on es nodes as dtn job, see:
+  scripts/data_processing/interp_NSIDC_mesh025.sh
+  e.g.:
+  sbatch interp_NSIDC_mesh025.sh --yr 2025 --mm 12 --regn south
+
+  After interpolating north & south - combine these fields into 1 file
+  run bash wrapper script that calls python
+  combine_interpNSIDC_regn2global_mesh025.py
+
   gmapi indices: get_gmapi_NSIDC_to_mesh025.py
 
   NSIDC fields from 
   https://noaadata.apps.nsidc.org/NOAA/G02202_V6/north/daily/2025/
 
   see scripts/./get_NRT_seaconc.sh --yrs 2025 --ms 9 --regn south
+
 """
 import os
 import numpy as np
@@ -107,9 +117,7 @@ hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 with xarray.open_dataset(dftopo_mom) as dstopo:
   HH = dstopo['depth'].data.squeeze()
 
-HH = np.where(HH < 1.e-20, np.nan, HH)
-HH = -HH
-HH = np.where(np.isnan(HH), 1., HH)
+HH = np.where(HH < 1.e-20, 1, -HH)
 
 jdm, idm = HH.shape
 LMsk = np.where(HH<0, 1, 0)

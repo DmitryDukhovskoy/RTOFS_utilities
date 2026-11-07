@@ -50,16 +50,13 @@ import mod_time as mtime
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
 
-init_date = 20250701
 init_hr = 0
-expt_name = 'sfs_C192mx025_cice_test'
+#expt_name = 'sfs_C192mx025_cice_test'
+expt_name = 'sfs_C192mx025_pondsML'  # ML, pond parameterization, 1yr runs
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help="hemisphere: north or south", type=str, required=True)
-parser.add_argument("--init", help=f"Start of the f/cast YYYYMMDD, default=f{init_date}", 
-                    choices=[20240701, 20250701], type=int)
-parser.add_argument("--dend", help="End date to plot YYYYMMDD or provide --ndays", type=int)
-parser.add_argument("--ndays", help=f"Optional: N days to show from init, will override dend", type=int)
+parser.add_argument("--ndays", help=f"N days to show from init date", type=int, required=True)
 parser.add_argument("--pinit", help="Show initial state if exists: 1=yes (default), 0=no", default=1, type=int)
 parser.add_argument("--icref", help="Iconc reference fields, default=nsidc",
                    choices=['nsidc','amsr2'],
@@ -80,33 +77,13 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
-regn      = args.regn if args.regn else None
-init_date = args.init if args.init else init_date  
-end_date  = args.dend if args.dend else None
-ndays     = args.ndays if args.ndays else None
+regn      = args.regn 
+ndays     = args.ndays 
 pinit     = args.pinit
-ENMBS     = args.enmb if args.enmb else None
+ENMBS     = args.enmb 
 PRST      = args.prst if args.prst else []
 iconc_ref = args.icref
 plt_init = pinit == 1  # show RMSE for init state if init. state file exists and saved by CICE6
-
-if end_date is None and ndays is None:
-  raise RuntimeError("Both end_day and ndays are None, one of them has to be provided")
-
-# Dates:
-# Assumed init hour = 0
-if init_hr > 0:
-  raise RuntimeError(f"Assumed init_hr 0, given init_hr={init_hr}, need to change code logic")
-#dnmbS = mtime.rdate2datenum(init_date*100 + init_hr)  # init. day nmb
-dnmbS = int(mtime.rdate2datenum(init_date*100))  # init. day nmb
-YRS, MMS, DDS = mtime.datevec(dnmbS)[:3]
-
-if ndays is not None:
-  # ndays overrides end_date
-  dnmbE = dnmbS + ndays
-else:
-  dnmbE = mtime.rdate2datenum(end_date*100)
-YRE, MME, DDE = mtime.datevec(dnmbE)[:3] 
 
  
 syst_info = os.uname() 
@@ -123,33 +100,26 @@ else:
     
 fyaml = 'paths_sfs.yaml'
 with open(fyaml) as ff:
-  pths_ufs = safe_load(ff)
-    
-# Get MOM6 grid
-pthgrid = pths_ufs[node_nm]["MOM6"]["pthgrid"]
-dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
-dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
-    
-hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
+  pths_sfs = safe_load(ff)
+ 
+EXPTS = pths_sfs[expt_name]
 
-with xarray.open_dataset(dftopo_mom) as dstopo:
-  HH = dstopo['depth'].data.squeeze()
+def find_start_end(EXPTS, enmb, ndays):
+  run_name = EXPTS[f"{enmb:02d}"][0]
+  init_date = EXPTS[f"{enmb:02d}"][1]
 
-HH = np.where(HH < 1.e-20, np.nan, HH)
-HH = -HH
-HH = np.where(np.isnan(HH), 1., HH)
+  # Dates:
+  # Assumed init hour = 0
+  if init_hr > 0:
+    raise RuntimeError(f"Assumed init_hr 0, given init_hr={init_hr}, need to change code logic")
+  #dnmbS = mtime.rdate2datenum(init_date*100 + init_hr)  # init. day nmb
+  dnmbS = int(mtime.rdate2datenum(init_date*100))  # init. day nmb
+  YRS, MMS, DDS = mtime.datevec(dnmbS)[:3]
 
-jdm, idm = HH.shape
+  dnmbE = dnmbS + ndays
 
-
-pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
-
-RMsk = np.where(HH>=0, 0, 1)
-if regn == 'south':
-  RMsk = np.where(hlat > -60., 0, RMsk)
-elif regn == 'north':
-  RMsk = np.where(hlat < 50, 0, RMsk)
-
+  return dnmbS, dnmbE
+   
 def rmse2d(AA, AI):
   """
     RMSE of 2d fields
@@ -181,6 +151,12 @@ def read_nsidc(regn, dnmb):
   pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
   fliceout = f'NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc'
   dfliceout = os.path.join(pthnsidc,fliceout)
+  if not os.path.isfile(dfliceout):
+    fliceout = f'NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_global.nc'
+    dfliceout = os.path.join(pthnsidc,fliceout)
+
+  assert os.path.isfile(dfliceout), f"ice conc not found: {dfliceout}"
+
   print(f'Loading interpolated ice conc {dfliceout}')
   with xarray.open_dataset(dfliceout) as dsint:
     AI = dsint['ice_conc'].isel(time=DD-1).squeeze()
@@ -204,30 +180,59 @@ def read_amsr2(regn, dnmb):
       
   return AI
 
+# Get MOM6 grid
+pthgrid = pths_sfs[node_nm]["MOM6"]["pthgrid"]
+dfgrid_mom = os.path.join(pthgrid, "ocean_hgrid.1440x1080.nc")
+dftopo_mom = os.path.join(pthgrid, "ocean_topog.1440x1080.nc")
+    
+hlon, hlat = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
+
+with xarray.open_dataset(dftopo_mom) as dstopo:
+  HH = dstopo['depth'].data.squeeze()
+
+HH = np.where(HH < 1.e-20, np.nan, HH)
+HH = -HH
+HH = np.where(np.isnan(HH), 1., HH)
+
+jdm, idm = HH.shape
 
 
-# Create an array of day numbers with 0hr = init cond, 12 hr - daily means
-# Assumed: runs start at 0 hr, if not - may need to change the logic 
-# for finding the ic fields 
-#dnmbS = int(mtime.datenum_v2([YR,MMS,DDS], ref_day0=False))
-#dnmbE = int(mtime.datenum_v2([YR,MME,DDE], ref_day0=False))
-RECS = [dnmbS] + [x + 0.5 for x in range(dnmbS, dnmbE + 1)]
-RECS = np.array(RECS)
+pthdata = pths_sfs[node_nm]["MOM6"]["pthdata"]
+
+RMsk = np.where(HH>=0, 0, 1)
+if regn == 'south':
+  RMsk = np.where(hlat > -60., 0, RMsk)
+elif regn == 'north':
+  RMsk = np.where(hlat < 50, 0, RMsk)
+
+
 
 nprst  = len(PRST)
 nexpts = len(ENMBS)
-nrecs  = RECS.shape[0]
-RMSE = np.zeros((nrecs,nexpts))
+nrecs  = ndays + 2  # extra day for IC
+RMSE = np.zeros((nrecs, nexpts))
 if nprst > 0:
   RMSEp = np.zeros((nrecs, nprst))
 Aprst = None
+
+dSold, _ = find_start_end(EXPTS, ENMBS[0], ndays)
 
 iens = -1
 iprst = -1
 for enmb in ENMBS:
   iens += 1
   irec = -1
-  pthout_cice = pths_ufs[node_nm]["MOM6"]["pthcice"].format(expt_name=expt_name, enmb=enmb)
+  pthout_cice = pths_sfs[node_nm]["MOM6"]["pthcice"].format(expt_name=expt_name, enmb=enmb)
+
+  dnmbS, dnmbE = find_start_end(EXPTS, enmb, ndays) 
+  assert dnmbS == dSold, f"Starting date {dnmbS} for expt{enmb:02d} is different from previous expt"
+ 
+  # Create an array of day numbers with 0hr = init cond, 12 hr - daily means
+  # Assumed: runs start at 0 hr, if not - may need to change the logic 
+  # for finding the ic fields 
+  RECS = [dnmbS] + [x + 0.5 for x in range(dnmbS, dnmbE + 1)]
+  RECS = np.array(RECS)
+  assert nrecs == len(RECS), f"RECS length does not match nrecs={nrecs}"
 
   for nn in range(nrecs):
     dnmb = RECS[nn]
@@ -287,6 +292,7 @@ for enmb in ENMBS:
 
   Aprst = None
   
+
 # Line colors:
 import mod_gfs_cice_anls as mgfscice
 importlib.reload(mgfscice)
@@ -297,7 +303,7 @@ print("Plotting ...")
 XT = RECS - np.floor(RECS[0])
 DV0 = mtime.datevec(RECS[0])
 yr0, mm0, dd0 = DV0[:3]
-ndays = np.floor(XT[-1] - XT[0])
+#ndays = int(np.floor(XT[-1] - XT[0]))
 start_date = datetime.datetime(yr0, mm0, dd0)  
 end_date = start_date + datetime.timedelta(days=XT[-1])
 day0 = start_date
@@ -337,9 +343,11 @@ else:
       day0 = day0.replace(month=day0.month+1, day=1)
 
 
-yticks = np.arange(0.,1.,0.05)
+YRS, MMS, DDS = mtime.datevec(dnmbS)[:3]
+YRE, MME, DDE = mtime.datevec(dnmbE)[:3]
+
 sttl = f"RMSE btw iconc {iconc_ref} and SFS GFS expts, {regn}\n"
-sttl = sttl + f"{YR}/{MMS:02d}/{DDS:02d}-{YR}/{MME:02d}/{DDE:02d}"
+sttl = sttl + f"{YRS}/{MMS:02d}/{DDS:02d}-{YRE}/{MME:02d}/{DDE:02d}"
 
 plt.ion()
 fig1 = plt.figure(1,figsize=(9,9))
@@ -351,8 +359,8 @@ for iens in range(nexpts):
   enmb = ENMBS[iens]
   rmse0 = RMSE[:,iens]
   clr0  = CLRS[iens,:]
-  #line_lbl  = f"expt{enmb:02d}"
-  line_lbl = mgfscice.sfs_tests_info(enmb)
+  #line_lbl = mgfscice.sfs_tests_info(enmb)
+  line_lbl = EXPTS[f"{enmb:02d}"][0] 
   ln1, = ax1.plot(XT,rmse0, '.-', linewidth=2, color=clr0, label=line_lbl)
   LNS.append(ln1)
 
@@ -368,13 +376,15 @@ if nprst > 0:
     LNS.append(ln1)
  
 
-yl1 = 0
-yl2 = np.nanmax(RMSE) * 1.05 
+yl1 = 0.
+yl2 = np.nanmax(RMSE) * 1.1 
 #yl2 = 0.5
 
 if nprst > 0:
   ylP = np.nanmax(RMSEp) * 1.05
   yl2 = np.max([yl2, ylP])
+
+yticks = np.arange(0.,1.,0.05)
  
 ax1.set_yticks(yticks)
 ax1.set_ylim(yl1, yl2)

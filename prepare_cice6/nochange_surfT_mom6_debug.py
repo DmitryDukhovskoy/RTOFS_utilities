@@ -1,4 +1,10 @@
 """
+  For debugging FATAL from PE   216: NaN in input field of reproducing_EFP_sum(_2d).
+  in MOM6 restart 
+  just read / write with no changes
+
+
+
   After correcting CICE6 initial fields
   Updated MOM6 surface T:
   under sea ice T = Tfreeze(S)
@@ -123,98 +129,6 @@ LON, LAT = mmom6.read_mom6grid(dfgrid_mom, grdpnt='hgrid')
 # CICE parameters:
 puny      = 1.e-11
 
-# CICE6 restart file:
-pthcice_in = config_rest["cice_paths"]["pth_out"]
-dflcice = os.path.join(pthcice_in, flrst_cice)
-with xarray.open_dataset(dflcice) as ds_ice:
-  aicen = ds_ice["aicen"].data  # partial ice area by cats
-
-# Aggregated ice partial area:
-aice = np.sum(aicen, axis=0).squeeze()
-
-# MOM input restart:
-dflmom_in = os.path.join(pthrest_in, flmom_in) 
-print(f"Reading restart: {dflmom_in}")
-ds_in = xarray.open_dataset(dflmom_in, decode_times=False)
-ds_out = ds_in.copy(deep=True)
-
-# Determine variable name, first use the one from yaml if provided:
-vartmp = config_rest["mom6_names"]["varnm_temp"]
-varlr  = config_rest["mom6_names"]["varnm_intrf"]  # interf depth or lr thicknesses
-varsal = config_rest["mom6_names"]["varnm_sal"]
-
-varlr  = 'eta' if varlr is None else varlr
-varsal = 'Salt' if varsal is None else varsal
-
-if vartmp is None:
-  # Try temp - case insensitive
-  vartmp = next((v for v in ds_in.data_vars if v.lower() == 'temp'), None)
-
-for vv in [vartmp, varlr, varsal]:
-  if vv is None or vv not in ds_in.variables:
-    raise KeyError(
-      f"variable {vv} not found in restart file, "
-      f"provide a valid varnm in {fyaml}"
-    )
-
-# Check if varlr is lr thickness or lr depth:
-long_name = ds_in[varlr].attrs.get("long_name")
-intrf_depth = None
-if long_name is not None and "layer thickn" in long_name.lower():
-  intrf_depth = False
-
-elif long_name is not None and "interface height" in long_name.lower():
-  intrf_depth = True
-
-else:
-  # Fall back to variable name if long_name is missing or unrecognized
-  intrf_depth = varlr.lower() == "eta"
-
-  print(
-      f"WARNING: {'No long_name attribute' if long_name is None else f'Unrecognized long_name: {long_name!r}'} "
-      f"for variable '{varlr}',\n"
-      f"decisions based on variable name: Interface depth={intrf_depth}"
-  )
-
-assert intrf_depth is not None, f"Failed to determine {varlr!r} type (interf depth or lr. thickness) in netcdf"
-
-# Assumed only 1 time level in MOM restart:
-temp_in = ds_in[vartmp].values.squeeze().copy()  # 3D pot temp
-salt_in = ds_in[varsal].values.squeeze().copy()
-lr_in   = ds_in[varlr].values.squeeze().copy() 
-
-ds_in.close()
-
-assert temp_in.ndim == 3, f"Check temp array, expected 3D, ndim={temp_in.ndim}"
-assert salt_in.ndim == 3, f"Check temp array, expected 3D, ndim={salt_in.ndim}"
-
-
-# Construct lr depths from lr thickness
-if intrf_depth:
-  lrthkn_in = None
-  lrdpth_in = -np.abs(lr_in)
-  assert np.nanmin(lrdpth_in[1, :, :]) < 0
-else:
-  lrthkn_in = lr_in
-  lrdpth_in = None
-
-# Check signs:
-assert np.nanmin(HH) < 0, f"Bottom topo has to be negative"
-
-# Compute freezing T:
-S2d = salt_in[0,:,:].squeeze()
-S2d[HH >= 0] = np.nan
-Tfrz = msws.freezing_temp_linear(S2d,0)
-
-# Update surf SST in MOM6:
-T2d = temp_in[0,:,:].squeeze()
-
-T2d_new = T2d*(1. - aice) + aice * Tfrz
-T2d_new = np.where(aice < puny, T2d, T2d_new)
-
-T3d_new = temp_in.copy()
-T3d_new[0,:,:] = T2d_new
-S3d_new = salt_in.copy()
 
 def drho_lrdpth(ilr, S3d, T3d, aice, puny, HH, lrdpth_in):
   rho1 = msws.sw_dens0(S3d[ilr,:,:], T3d[ilr,:,:])
@@ -343,50 +257,6 @@ def compare_finite(name, original, modified):
         f"first 10 locations: {inds[:10].tolist()}"
     )
 
-# Next: check water column stability in the upper ocean:
-# Potential density ref = 0, assumed that only upper ocean needs adjustment
-# Note that in the original fields, some layers can be unstable which seems to be ok for MOM6
-# Therefore, do not mix all whatercolumn but only the upper few layers if needed
-eps_drho = 1e-2    # threshold for delta rho
-mixlrs = 3     # the upper layers to mix if unstable after Tfrz 
-nlrs = salt_in.shape[0]
-ilr = 0
-max_iter = 50
-print(f"Adjusting unstable layers under sea ice, max_iter={max_iter}")
-for iter in range(max_iter):
-  unstb = False
-
-  print(f"iter = {iter+1}")
-  for ilr in range(mixlrs):
-    if intrf_depth:
-      drho = drho_lrdpth(ilr, S3d_new, T3d_new, aice, puny, HH, lrdpth_in)
-    else:
-      drho = drho_lrthkn(ilr, S3d_new, T3d_new, aice, puny, HH, lrthkn_in)
-
-    print(f"  Lr={ilr+1:02d}, max drho={np.nanmax(drho):.6f}")
- 
-    JJ, II = np.where(drho > eps_drho)
-    if JJ.size:
-      unstb = True
-
-      # mix layers ilr and ilr+1
-      if intrf_depth:
-        T3d_new, S3d_new = mix_layers_lrdpth(ilr, lrdpth_in, HH, T3d_new, S3d_new, JJ, II)
-      else:
-        T3d_new, S3d_new = mix_layers_lrthkn(ilr, lrthkn_in, HH, T3d_new, S3d_new, JJ, II)
-
-  if not unstb:
-    print(f"Converged in {iter+1} iterations")
-    break
-
-if unstb:
-  raise RuntimeError(f"Instability adjustment did not converge after {iter+1} iterations")
-
-# Check if any  new nans has been created
-compare_finite("Temperature", temp_in, T3d_new)
-compare_finite("Salinity", salt_in, S3d_new)
-
-
 def fill_bottom_nans(arr):
   """
   Extend the deepest finite T/S value downward through trailing
@@ -415,15 +285,171 @@ def fill_bottom_nans(arr):
 
   return arr
 
+
+# CICE6 restart file:
+pthcice_in = config_rest["cice_paths"]["pth_out"]
+dflcice = os.path.join(pthcice_in, flrst_cice)
+with xarray.open_dataset(dflcice) as ds_ice:
+  aicen = ds_ice["aicen"].data  # partial ice area by cats
+
+# Aggregated ice partial area:
+aice = np.sum(aicen, axis=0).squeeze()
+
+# MOM input restart:
+dflmom_in = os.path.join(pthrest_in, flmom_in) 
+print(f"Reading restart: {dflmom_in}")
+ds_in = xarray.open_dataset(dflmom_in, decode_times=False)
+ds_out = ds_in.copy(deep=True)
+
+# Determine variable name, first use the one from yaml if provided:
+vartmp = config_rest["mom6_names"]["varnm_temp"]
+varlr  = config_rest["mom6_names"]["varnm_intrf"]  # interf depth or lr thicknesses
+varsal = config_rest["mom6_names"]["varnm_sal"]
+
+varlr  = 'eta' if varlr is None else varlr
+varsal = 'Salt' if varsal is None else varsal
+
+if vartmp is None:
+  # Try temp - case insensitive
+  vartmp = next((v for v in ds_in.data_vars if v.lower() == 'temp'), None)
+
+for vv in [vartmp, varlr, varsal]:
+  if vv is None or vv not in ds_in.variables:
+    raise KeyError(
+      f"variable {vv} not found in restart file, "
+      f"provide a valid varnm in {fyaml}"
+    )
+
+# Check if varlr is lr thickness or lr depth:
+long_name = ds_in[varlr].attrs.get("long_name")
+intrf_depth = None
+if long_name is not None and "layer thickn" in long_name.lower():
+  intrf_depth = False
+
+elif long_name is not None and "interface height" in long_name.lower():
+  intrf_depth = True
+
+else:
+  # Fall back to variable name if long_name is missing or unrecognized
+  intrf_depth = varlr.lower() == "eta"
+
+  print(
+      f"WARNING: {'No long_name attribute' if long_name is None else f'Unrecognized long_name: {long_name!r}'} "
+      f"for variable '{varlr}',\n"
+      f"decisions based on variable name: Interface depth={intrf_depth}"
+  )
+
+assert intrf_depth is not None, f"Failed to determine {varlr!r} type (interf depth or lr. thickness) in netcdf"
+
+# Assumed only 1 time level in MOM restart:
+temp_in = ds_in[vartmp].values.squeeze().copy()  # 3D pot temp
+salt_in = ds_in[varsal].values.squeeze().copy()
+lr_in   = ds_in[varlr].values.squeeze().copy() 
+
+ds_in.close()
+
+assert temp_in.ndim == 3, f"Check temp array, expected 3D, ndim={temp_in.ndim}"
+assert salt_in.ndim == 3, f"Check temp array, expected 3D, ndim={salt_in.ndim}"
+
+
+# Determine lr depths from lr thickness
+if intrf_depth:
+  lrthkn_in = None
+  lrdpth_in = -np.abs(lr_in)
+  assert np.nanmin(lrdpth_in[1, :, :]) < 0
+else:
+  lrthkn_in = lr_in
+  lrdpth_in = None
+
+# Check signs:
+assert np.nanmin(HH) < 0, f"Bottom topo has to be negative"
+
+# Compute freezing T:
+S2d = salt_in[0,:,:].squeeze().copy()
+LMsk = HH >= 0.
+Tfrz = msws.freezing_temp_linear(S2d,0)
+
+# Update surf SST in MOM6:
+T2d = temp_in[0,:,:].squeeze().copy()
+
+T2d_new = T2d*(1. - aice) + aice * Tfrz
+T2d_new[LMsk] = 0.0   # keep 0 over land
+T2d_new = np.where(aice < puny, T2d, T2d_new)
+
+T3d_new = temp_in.copy()
+T3d_new[0,:,:] = T2d_new
+S3d_new = salt_in.copy()
+
+def check_nans(name, arr):
+  n_nan = np.count_nonzero(np.isnan(arr))
+  n_inf = np.count_nonzero(np.isinf(arr))
+  print(f"{name:12s}: NaNs={n_nan:10d}, Infs={n_inf:10d}")
+
+check_nans("T2d", T2d)
+check_nans("S2d", S2d)
+check_nans("aice", aice)
+check_nans("Tfrz", Tfrz)
+check_nans("T2d_new", T2d_new)
+
+
+# Next: check water column stability in the upper ocean:
+# Potential density ref = 0, assumed that only upper ocean needs adjustment
+# Note that in the original fields, some layers can be unstable which seems to be ok for MOM6
+# Therefore, do not mix all whatercolumn but only the upper few layers if needed
+eps_drho = 1e-2    # threshold for delta rho
+mixlrs = 3     # the upper layers to mix if unstable after Tfrz 
+nlrs = salt_in.shape[0]
+ilr = 0
+max_iter = 50
+check_stab = False
+
+if check_stab:
+  print(f"Adjusting unstable layers under sea ice, max_iter={max_iter}")
+  for iter in range(max_iter):
+    unstb = False
+
+    print(f"iter = {iter+1}")
+    for ilr in range(mixlrs):
+      if intrf_depth:
+        drho = drho_lrdpth(ilr, S3d_new, T3d_new, aice, puny, HH, lrdpth_in)
+      else:
+        drho = drho_lrthkn(ilr, S3d_new, T3d_new, aice, puny, HH, lrthkn_in)
+
+      print(f"  Lr={ilr+1:02d}, max drho={np.nanmax(drho):.6f}")
+   
+      JJ, II = np.where(drho > eps_drho)
+      if JJ.size:
+        unstb = True
+
+        # mix layers ilr and ilr+1
+        if intrf_depth:
+          T3d_new, S3d_new = mix_layers_lrdpth(ilr, lrdpth_in, HH, T3d_new, S3d_new, JJ, II)
+        else:
+          T3d_new, S3d_new = mix_layers_lrthkn(ilr, lrthkn_in, HH, T3d_new, S3d_new, JJ, II)
+
+    if not unstb:
+      print(f"Converged in {iter+1} iterations")
+      break
+
+  if unstb:
+    raise RuntimeError(f"Instability adjustment did not converge after {iter+1} iterations")
+
+# Check if any  new nans has been created
+compare_finite("Temperature", temp_in, T3d_new)
+compare_finite("Salinity", salt_in, S3d_new)
+
+
 # Check for NaNs below bottom
 # Not really needed in MOM restart, already filled
-if np.isnan(T3d_new).any():
-  print("T3d: Filling NaNs in the bottom cells ")
-  T3d_new = fill_bottom_nans(T3d_new)
+fill_nans = False
+if fill_nans:
+  if np.isnan(T3d_new).any():
+    print("T3d: Filling NaNs in the bottom cells ")
+    T3d_new = fill_bottom_nans(T3d_new)
 
-if np.isnan(S3d_new).any():
-  print("S3d: Filling Nans in the bottom cells")
-  S3d_new = fill_bottom_nans(S3d_new)
+  if np.isnan(S3d_new).any():
+    print("S3d: Filling Nans in the bottom cells")
+    S3d_new = fill_bottom_nans(S3d_new)
 
 
 T3d_new = np.expand_dims(T3d_new, axis=0)
@@ -437,9 +463,13 @@ ds_out[varsal].values[:] = S3d_new
 #  ds_out[varlr].values[:] = 1.e-3
 
 
+# Remove checksum attribute:
+#for vname in ds_out.variables:
+#    ds_out[vname].attrs.pop("checksum", None)
+
 ds_out.attrs.update({
     "title": f"MOM6 restart with adjusted SST under ice to Tfrz weighted by aice {flrst_cice}",
-    "source": "correct_surfTwclmn_stab_mom6_restart.py",
+    "source": "nochange_surfT_mom6_debug.py",
 })
 
 # Save:flmom_in
@@ -483,11 +513,18 @@ if f_chck:
   clrmp = mclrmps.colormap_warm(clrS=[1,1,1])
   rmin = 0
   rmax = 1.8
-  
+ 
+  # Diff. new / old SST:
+  cmpd = mclrmps.positive_negative()
+  rmin = -1.
+  rmax = 1.
+ 
   #dltT = T2d_new - T3d_new[0,:,:]
   dltT = T2d_new - Tfrz
   dltT = T3d_new[0,:,:] - Tfrz
-  dltT = Tfrz_new - Tfrz
+
+  dltT = T2d_new - T2d
+
 
   dltT[HH>=0] = np.nan
   clrmp.set_under([0.9,0.0,0.9])
@@ -511,6 +548,7 @@ if f_chck:
   xh, yh = m(hlon,hlat)
 
   sttl = f'{flmom_in}, MOM6 sst - Tfrz\nCICE6 rest: {flrst_cice}'
+  sttl = f'{flmom_in}, MOM6 sst_new - sst_old\nCICE6 rest: {flrst_cice}'
 
   fig1 = plt.figure(1,figsize=(9,9))
   plt.clf()
@@ -523,6 +561,11 @@ if f_chck:
   #img = ax1.pcolormesh(xh, yh, Tfrz, cmap=clrmp, vmin=rmin, vmax=rmax, shading='auto')
   img = ax1.pcolormesh(xh, yh, dltT, cmap=clrmp, vmin=rmin, vmax=rmax, shading='auto')
   ax1.contour(xh, yh, aice, [0.15], linestyles='solid', colors=[(0.2,1,0.8)], linewidths=1)
+
+  plt.clf()
+  ax1 = plt.axes([0.08, 0.1, 0.8, 0.8])
+  img = ax1.pcolormesh(dltT, cmap=cmpd, vmin=rmin, vmax=rmax, shading='auto')
+  ax1.contour(aice, [0.15], linestyles='solid', colors=[(0.2,1,0.8)], linewidths=1)
 
   ax1.set_title(sttl)
 

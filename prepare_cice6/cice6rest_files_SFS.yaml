@@ -56,7 +56,8 @@ target_paths:
 # Target fields directories and filenames to use in the IC
   ice_conc:
     path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/NRT_NOAA_NSIDC_seaconc/{YR}"
-    file: "NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc"
+    #file: "NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc"
+    file: "NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_global.nc"
 
   ithkn_south:
     path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/CryoSat2_antarctic_ice_snow_thkn/clim"

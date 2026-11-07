@@ -43,7 +43,7 @@ regn = 'north'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help=f"hemisphere: north or south, default={regn}", type=str)
-parser.add_argument("--init", help=f"init date", choices=[20240701, 20250101], default=init_date, type=int)
+parser.add_argument("--init", help=f"init date", choices=[20240701, 20250101, 20250701], default=init_date, type=int)
 parser.add_argument("--ihr", help=f"init hour, default={init_hr}", type=int)
 parser.add_argument("--dend", help="End date to plot YYYYMMDD or provide --ndays", type=int)
 parser.add_argument("--ndays", help=f"Optional: N days to show from init, will override dend", type=int)
@@ -272,7 +272,7 @@ for ibin in range(nbins):
    
 line_lbl = mgfscice.sfs_tests_info(enmb)
 
-ax3 = plt.axes([0.55, 0.01, 0.43, 0.05])
+ax3 = plt.axes([0.55, 0.1, 0.43, 0.05])
 handles = [
     plt.Line2D([0], [0], color=CLRS[i,:], lw=2)
     for i in range(nexpts)
@@ -298,5 +298,5 @@ ax4.text(
 ax4.axis('off')
 
 btx = 'compare_ice_melt.py'
-bottom_text(btx, pos=[0.01,0.01])
+bottom_text(btx, pos=[0.01,0.02])
 

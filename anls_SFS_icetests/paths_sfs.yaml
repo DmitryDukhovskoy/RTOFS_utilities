@@ -28,3 +28,40 @@ dtn:
     pthrun:  '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS'
     pthrest: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_fields' 
 
+# Experiments' names for legend etc
+sfs_mx025_c192:
+  # sensitivity experiments with SFS
+  # Most of the runs, initialized on 20250701
+  "00" : ["Sat.clim", 20250101]     # reserved field for satellite-derived climatology (ice thkn or snow)
+  "01" : ["control GDAS cice_fixed", 20250701]  # control twin expt04 fixed CICE6 apond
+  "02" : ["control CPC", 20250701]  # ice ICs from CPC (SFS runs): GLORe / CORe 
+  "03" : "---"         
+  "04" : ["control GDAS", 20250701]          # init ice - from GDAS GFSv17 ICs
+  "05" : "---"    
+  "06" : ["pondlvl fixed CICE6", 20250701]    # expt07, fixed CICE6 pond bug
+  "07" : ["pondlvl", 20250701]       # pond_lvl with all other settings 
+  "08" : ["pondtopo+beta2+snclim", 20250701]     # pond_topo with updated summer snow clim
+  "09" : "ALL+radpar+nopond"
+  "10" : "ALL+radpar+sealvl+snclim"        # sea level pond parameterization
+  "11" : "ALL+radpar+sealvl+drain+snclim"  # sea level pond + change tscale_pnd_drain = 0.5 (default=10)
+  "12" : "e11+MLgbr3-nsidc"    # similar to expt11 with ML ithkn (input: iconc NSIDC + GLORYS)
+  "13" : "SFSb2+MLgbr3-nsidc"  # SFSbeta2 params (similar to expt08)  ML ice thickness (iconc NSIDC + GLORYS)
+  "14" : "SFSb2+MLgbr21_20250701" # SFSbeta2 params ML ice thickness input: GDAS lower R_snw (1.8)
+  "15" : "SFSb2+MLgbr21_20250701" # SFSbeta2 params ML ice thickness input: GDAS lower R_snw (1.8)
+  "61" : "ai+hi+hsU+ITDrdg+snphys_debug"   # cat. ice output for debugging
+  "62" : "ai+hi+hsU+ITDrdg+snphys"            #  same as 61 every step output 1 day run
+  "63" : "ai+hi+hsU+ITDrdg+snphys+pondpar"   #  tr_pond_lvl  every step out 
+  "64" : "ai+hi+hsU+ITDrdg+snphys+pondpar+radpar" # tr_pond_lvl  + rad param (expt07) every step out
+  "65" : "ai+hi+hsU+ITDrdg+snphys+sealvl+radpar"      #  tr_pond_seallvl + all from expt 64
+
+sfs_C192mx025_pondsML:
+  # experiments with ML ice thickness, pond parameters, 1yr runs
+  "01" : ["pondlvl ML", 20250101]
+  "02" : ["pondlvl ML", 20250401] 
+  "03" : ["pondlvl ML", 20250701]
+  "04" : ["pondlvl ML", 20251001]
+  "11" : ["pondtopo ML", 20250101]
+  "12" : ["pondtopo ML", 20250401]
+  "13" : ["pondtopo ML", 20250701]
+  "14" : ["pondtopo ML", 20251001]
+

@@ -51,15 +51,15 @@ DD = 1
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help="hemisphere: north or south", type=str, required=True)
-parser.add_argument("--yr", help=f"year of NSIDC data, default={YR}", type=int)
+parser.add_argument("--yr", help=f"year of NSIDC data", required=True, type=int)
 parser.add_argument("--mm", help=f"month of NSIDCS data to plot", required=True, type=int)
 parser.add_argument("--dd", help="month day to plot", required=True, type=int)
 args = parser.parse_args()
   
-regn = args.regn if args.regn else None
-YR   = args.yr if args.yr else YR
-MM   = args.mm if args.mm else MM
-DD   = args.dd if args.dd else DD
+regn = args.regn 
+YR   = args.yr 
+MM   = args.mm
+DD   = args.dd 
   
 syst_info = os.uname() 
 machine = syst_info.nodename
@@ -97,8 +97,12 @@ jdm, idm = HH.shape
 # Interpolated fields:
 pthdata = pths_ufs[node_nm]["MOM6"]["pthdata"]
 pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
-fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}_{regn}.nc'
+fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}_global.nc'
 dfliceout = os.path.join(pthnsidc,fliceout)
+if not os.path.isfile(dfliceout):
+  # Try region files:
+  fliceout = f'NSIDC_iconc_interp_mesh025_{jdm}x{idm}_{YR}{MM:02d}_{regn}.nc'
+  dfliceout = os.path.join(pthnsidc,fliceout)
 
 print(f'Loading interpolated ice conc {dfliceout}')
 with xarray.open_dataset(dfliceout) as dsint:

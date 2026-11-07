@@ -358,6 +358,7 @@ if ins_sstmom:
   print(f"Running MOM6 SST update, YAML file = {fyaml}, MOM orig restart = {flmom_in}")
 
   cmd_sst = [
+    #"python", "nochange_surfT_mom6_debug.py",
     "python", "correct_surfT_mom6_restart.py",
     "--flmom_in", str(flmom_in),
     "--flice", str(restart_in_file),

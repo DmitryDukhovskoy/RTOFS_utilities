@@ -119,20 +119,20 @@ def sfs_tests_info(enmb):
   """
   EXPTS = {
     "00" : "Sat.clim",          # reserved field for satellite-derived climatology (ice thkn or snow)
-    "01" : "control 20240701",
-    "02" : "control CPC new exec",  # twin expt03 with new UFS g-w executable
-    "03" : "control CPC",           # init ice - from CPC used in SFS
+    "01" : "control GDAS cice_fixed",  # control twin expt04 fixed CICE6 apond
+    "02" : "control CPC",  # ice ICs from CPC (SFS runs): GLORe / CORe 
+    "03" : "---",         
     "04" : "control GDAS",          # init ice - from GDAS, GFSv17 ICs
-    "05" : "ALL+radpar+sealvl",      # sealvl pond  with tuned pond param: pndaspect=1.2, apnd_sl=0.2
-    "06" : "ALL+radpar+pondtopo",    # expt07 but pond parameterization topo
-    "07" : "ALL+radpar+pondlvl",     # pond_lvl with all other settings 
+    "05" : "---",      # sealvl pond  with tuned pond param: pndaspect=1.2, apnd_sl=0.2
+    "06" : "pondlvl fixed CICE6",    # expt07 but pond parameterization topo
+    "07" : "pondlvl",     # pond_lvl with all other settings 
     "08" : "ALL+radpar+pondtopo+snclim",     # pond_topo with updated summer snow clim
     "09" : "ALL+radpar+nopond",
     "10" : "ALL+radpar+sealvl+snclim",        # sea level pond parameterization
     "11" : "ALL+radpar+sealvl+drain+snclim",  # sea level pond + change tscale_pnd_drain = 0.5 (default=10)
     "12" : "e11+MLgbr3-nsidc",    # similar to expt11 with ML ithkn (input: iconc NSIDC + GLORYS)
     "13" : "SFSb2+MLgbr3-nsidc",  # SFSbeta2 params + ALL (similar to expt08),  ML ice thickness (iconc NSIDC + GLORYS)
-    "14" : "SFSb2+MLgbr3_20250701", # SFSbeta2 params + ALL,  ML ice thickness input: GDAS, lower R_snw (1.8)
+    "14" : "SFSb2+MLgbr21_20250701", # SFSbeta2 params + ALL,  ML ice thickness input: GDAS, lower R_snw (1.8)
     "15" : "SFSb2+MLgbr21_20250701", # SFSbeta2 params + ALL,  ML ice thickness input: GDAS, lower R_snw (1.8)
     "61" : "ai+hi+hsU+ITDrdg+snphys_debug",   # cat. ice output for debugging
     "62" : "ai+hi+hsU+ITDrdg+snphys",            #  same as 61, every step output 1 day run
