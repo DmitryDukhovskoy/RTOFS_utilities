@@ -122,8 +122,11 @@ def insert_hsnow(regn_wrk, ds_out, config_rest, dnmbR, dnmbN, pthrest, flrst_in)
   min_salin = 0.1      # threshold for brine pocket treatment
   saltmax   = 3.2        # max S at ice base
   hg        = 1.e20    # bad values, land mask, etc.
-  nslyr     = 1   # snow layers
-  Tmin      = -100.   # minimum snow T
+  nslyr     = 1            # snow layers
+  Tmin      = -100.        # minimum snow T
+  hsnow_min_check = 0.01   # min snow depth (m) below which max([hsnow_old, hsnow_new]) is chosen to prevent 
+                           # artificial low snow depths near the region boundary that  are 0s in climatology fields
+
   # Check ice_in what ITD is used
   # 0.00, 0.64, 1.39, 2.47, 4.57
   hicat = np.array([0., 0.64, 1.39, 2.47, 4.57, 50.])
@@ -190,7 +193,7 @@ def insert_hsnow(regn_wrk, ds_out, config_rest, dnmbR, dnmbN, pthrest, flrst_in)
 
   # Input values:
   aicen  = ds_out['aicen'].data   # partial area by cats
-  vsnon  = ds_out['vsnon'].data   # snow vol per m2 of ice area
+  vsnon  = ds_out['vsnon'].data   # snow vol per m2 of grid cell 
   qsnon  = ds_out['qsno001'].data # snow enthalpy by cats for 1 snow layer
   vicen  = ds_out['vicen'].data   # ice vol per unit area of grid cell m3/m2
   tsfcn  = ds_out['Tsfcn'].data   # snow/ice surface T
@@ -242,7 +245,7 @@ def insert_hsnow(regn_wrk, ds_out, config_rest, dnmbR, dnmbN, pthrest, flrst_in)
     if units_m:
       hsn_new = HSi[j0,i0]        # m of snow over sea ice
     else:
-      hsn_new = HSi[j0,i0]*0.01   # m of snow over sea ice 
+      hsn_new = HSi[j0,i0]*0.01   # cm --> m of snow over sea ice 
 
     #check_pnt =  LAT[j0,i0] > 70 and ai > 1
     #if check_pnt:
@@ -253,6 +256,14 @@ def insert_hsnow(regn_wrk, ds_out, config_rest, dnmbR, dnmbN, pthrest, flrst_in)
     # there is no very thick snow --> possible crash in picard iteration for very thick snow or ice
     if hsn_new > hsnow_max:
       hsn_new = hsnow_max
+
+    # In snow clim. hsnow is 0 at the domain boundaries (65N)
+    # This may result in artificial no-snow conditions in lower latidues
+    # during winter
+    # Check new hsnow and select old hsnow if it is higher
+    if hsn_new < hsnow_min_check and ai > puny:
+      hsn_old = np.nansum(vsn) / ai
+      hsn_new = np.max([hsn_new, hsn_old, puny])
 
     # ice conc should not change except for a few locaitons to adjust snow load across cats:
     ain_new = ain.copy()

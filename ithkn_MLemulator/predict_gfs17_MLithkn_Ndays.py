@@ -13,7 +13,7 @@
 
   Run N days predictions
   predictions will be performed from sdate to edate
-  using available ERA5 daily SAT fields
+  using GDAS or ERA5 daily SAT fields
 
 """
 import os
@@ -259,7 +259,7 @@ def write_nc(dfliceout, time_dnmb, A3d, regn, nctitle):
   dset.attrs['source']   = "predict_gfs17_MLithkn_Ndays.py"
   dset.attrs['region']   = regn
 
-  print(f'Dumping GLORYS interpolated ice thickness  --> {dfliceout}')
+  print(f'Dumping ML ice thickness  --> {dfliceout}')
   dset.to_netcdf(dfliceout, format='NETCDF4', engine='netcdf4')
 
 
@@ -301,7 +301,7 @@ for dnmb0 in DNMB_fcst:
     os.makedirs(pthdump, exist_ok=True)
     flfcst = f"{ml_model}_ithkn_fcast_GFSv17anls_{rdate}_{regn}.npz"
     dflfcst = os.path.join(pthdump, flfcst)
-    print(f"Saving fcst --> {dflfcst}")
+    print(f"Saving ML fcst --> {dflfcst}")
     np.savez(dflfcst, Yfcst=Yfcst, JG=JG, IG=IG, idim=idm, jdim=jdm)
 
   elif save_nc:
@@ -309,7 +309,7 @@ for dnmb0 in DNMB_fcst:
     os.makedirs(pthdump, exist_ok=True)
     flfcst = f"{ml_model}_ithkn_GFSv17anls_mesh025_{rdate}_{regn}.nc"
     dflfcst = os.path.join(pthdump, flfcst)
-    print(f"Saving fcst --> {dflfcst}")
+    print(f"Saving ML fcst --> {dflfcst}")
    
     A2d = np.zeros_like(HH) * np.nan
     A2d[LMsk] = 0

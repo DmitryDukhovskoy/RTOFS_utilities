@@ -263,7 +263,7 @@ for iday, dnmb0 in enumerate(DNMB):
     print(f"Saving T2m file --> {dfliceout}")
     np.savez(dfliceout, A3d=A3d, TM=time_dnmb)
         
-f_chck = True
+f_chck = False
 if f_chck:
   day_chck = 1
   ichck = day_chck - 1 

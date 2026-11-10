@@ -364,6 +364,7 @@ for irec0, dnmb0 in enumerate(DNMB):
 JG, IG = np.where(LMsk == 1)
 
 if save_ifdd: 
+  print("Interpolating IFDD --> mesh025")
   # Interpolate to mesh025
   IFDDi = msisrlx.interp2Dfld(IFDD, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
 
@@ -372,7 +373,7 @@ if save_ifdd:
   IFDDi = np.where(HH>=0, np.nan, IFDDi)  # no interpolation has been done over land
 
   #assert np.all(~np.isnan(IFDDi[JG,IG])), "Unexpected nan values in IFDDi at active grid points, check LMsk"
-  assert np.all(np.isfinite(IFDDi[JG, IG])), "Non-finite IFDD values at active grid points"
+  assert np.all(np.isfinite(IFDDi[JG, IG])), "Non-finite IFDDi values at active grid points"
 
   pthprd = config_ml["PRED"]["pthprd"]
   flfrz0 = config_ml["PRED"]["flifdd"].format(Ndays=intgr_frz, dxy=dxy, rdate=rdate, regn=regn)
@@ -389,6 +390,8 @@ if save_ifdd:
 
 if save_ihdd:      
   # Interpolate to mesh025
+  print("Interpolating IHDD --> mesh025")
+
   IHDDi = msisrlx.interp2Dfld(IHDD, IMOM, JMOM, INDX, JNDX, LMsk, LON, LAT, hlon, hlat)
 
   IHDDi = np.where(HH>=0, np.nan, IHDDi)  # no interpolation has been done over land
@@ -397,15 +400,15 @@ if save_ihdd:
   assert np.all(np.isfinite(IHDDi[JG, IG])), "Non-finite IHDDi values at active grid points"
 
   pthprd = config_ml["PRED"]["pthprd"]
-  flfrz0 = config_ml["PRED"]["flihdd"].format(Ndays=intgr_frz, dxy=dxy, rdate=rdate, regn=regn)
+  flheat0 = config_ml["PRED"]["flihdd"].format(Ndays=intgr_frz, dxy=dxy, rdate=rdate, regn=regn)
   if save_nc:
-    flfrz = f"{flfrz0}.nc"
-    dfliceout = os.path.join(pthprd, flfrz)
+    flheat = f"{flheat0}.nc"
+    dfliceout = os.path.join(pthprd, flheat)
     write_nc(dfliceout, dnmbR, IHDDi, Tfrz, intgr_frz, "ihdd")
   else:
     # Save numpy binary
-    flfrz = f"{flfrz0}.npz"
-    dfliceout = os.path.join(pthprd, flfrz)
+    flheat = f"{flheat0}.npz"
+    dfliceout = os.path.join(pthprd, flheat)
     print(f"Saving interpoalted IHDD[JG,IG] file --> {dfliceout}")
     np.savez(dfliceout, IHDD=IHDDi[JG,IG], JG=JG, IG=IG, jdim=jdm, idim=idm)
 

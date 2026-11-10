@@ -152,7 +152,7 @@ if app_mask:
   YR, MM, DD, _ = mtime.rdate2date(ice_mask_date)
  
   pthnsidc = os.path.join(pthdata,f"NRT_NOAA_NSIDC_seaconc/{YR}")
-  fliceout = f'NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_{regn}.nc'
+  fliceout = f'NSIDC_iconc_interp_mesh025_1080x1440_{YR}{MM:02d}_global.nc'
   dfliceout = os.path.join(pthnsidc,fliceout)
   print(f'Loading interpolated ice conc {dfliceout}')
   with xarray.open_dataset(dfliceout) as dsint:

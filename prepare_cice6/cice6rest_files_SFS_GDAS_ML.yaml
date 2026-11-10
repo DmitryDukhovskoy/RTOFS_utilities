@@ -7,9 +7,9 @@
 # Input restart date and hr are read from the input restart file
 # no need to specify
 restart_time:
-  rdate_in:  20250701   # input restart date, if ~ will be derived from flrst_in file
+  rdate_in:  20250101   # input restart date, if ~ will be derived from flrst_in file
   rhr_in:    3          # input restart hour
-  rdate_out: 20250701   # output restart date if different from input
+  rdate_out: 20250101   # output restart date if different from input
   rhr_out:   0          # output restart hour if different from input
 
 params:
@@ -28,12 +28,12 @@ params:
   enmb   : ~ 
 
 cice_paths:
-  pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ocean.20250629'
-  pth_out: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice/cice6_global_MLithkn_GDAS'
+  pth_in:  '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice/ice.20250101'
+  pth_out: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice/ice.20250101'
 
 mom6_paths:
-  pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ocean.20250630'
-  pth_out: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ocean/mom6_Tfrz_ML_GDAS'
+  pth_in: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ocean/ocean_res.20250101'
+  pth_out: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ocean/ocean_res.20250101'
   pth_grid: '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/ocean_grids'
 
 rest_names:
@@ -50,7 +50,7 @@ rest_names:
 #  e.g. flrst_in: 20250704.030000.cice_restart.iconc_ithkn.n
 # flrst_tmp: "cice_restart.YYYYMMDD.HH"  --> cice_restart.20250704.00.iconc_ithkn.nc
 #
-  flrst_in: "20250701.030000.cice_model.res.nc"  # IC from GDAS SOCA no changes
+  flrst_in: "20250101.030000.cice_model.res.nc"  # IC from GDAS SOCA no changes
   flrst_out: ~
   flrst_tmp: "cice_restart.YYYYMMDD.HH"
 
@@ -60,7 +60,7 @@ mom6_names:
 # varnm_intrf: - interface depth, var. name in restart, can be "eta" - intrf depths, or "h" - lr thicknesses
 # varnm_sal  - 3D sal field
   rhr_in      :   ~
-  flrst_in    : "20250629.210000.MOM.res.nc"
+  flrst_in    : "20250101.210000.MOM.res.nc"
   varnm_temp  : "Temp"
   varnm_intrf : "h"
   varnm_sal   : "Salt" 
@@ -71,18 +71,17 @@ grid_topo:
 
 target_paths:
 # Target fields directories and filenames to use in the IC
-# For RTOFS - check version, it has changed in July 2025 to 2.5
   ice_conc:
     path: ~
     file: ~
 
   ithkn_north:
     path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/ithkn_predictions"
-    file: "gbr21_ithkn_GFSv17anls_mesh025_20250701_north.nc"
+    file: "gbr21_ithkn_GFSv17anls_mesh025_20250101_north.nc"
 
   ithkn_south:
     path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/ithkn_predictions"
-    file: "gbr21_ithkn_GFSv17anls_mesh025_20250701_south.nc"
+    file: "gbr21_ithkn_GFSv17anls_mesh025_20250101_south.nc"
 
   hsnow_south:
     path: "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/snow_nasa/monthly_clim"

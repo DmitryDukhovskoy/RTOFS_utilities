@@ -177,8 +177,10 @@ hsnow_max = 500.   # to avoid very thick hsnow / ice_area which will cause picar
 rho_ocean = 1025.
 
 # Snow depth climatology, Interpolated fields mesh025:
-pthsnow = os.path.join(pthdata,'snow_nasa','monthly_clim')
-flhsn = 'SSMI_hsnow_mnthclim_1998_2007_mesh025_1440x1080_south.nc'
+#pthsnow = os.path.join(pthdata,'snow_nasa','monthly_clim')
+#flhsn = 'SSMI_hsnow_mnthclim_1998_2007_mesh025_1440x1080_south.nc'
+pthsnow = '/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/hsnow_clim_combined'
+flhsn = 'hsnow_mnthclim_Cryo_ICESat2_1440x1080_north.nc'
 dflhsn = os.path.join(pthsnow,flhsn)
 print(f"Reading interpolated hsnow {dflhsn}")
 with xarray.open_dataset(dflhsn) as ds_snow:

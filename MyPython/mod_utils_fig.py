@@ -63,7 +63,7 @@ def colorbar_horiz(fig1, ax1, img, rmin=None, rmax=None,
   if rmax is None:
     rmax = img.norm.vmax
 
-  ticks = np.linspace(rmin, rmax, nticks)
+  ticks = np.linspace(rmin, rmax, max(2, nticks))
   clb.set_ticks(ticks)
 
   clb.ax.tick_params(
@@ -72,7 +72,11 @@ def colorbar_horiz(fig1, ax1, img, rmin=None, rmax=None,
     labelsize=fontsz
   )
 
-  fmt = f'{{x:.{decim}f}}'
+  if decim > 0:
+    fmt = f'{{x:.{decim}f}}'
+  else:
+    fmt = f'{{x:.0f}}'
+
   clb.ax.xaxis.set_major_formatter(StrMethodFormatter(fmt))
 
   return clb

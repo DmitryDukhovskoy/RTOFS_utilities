@@ -36,7 +36,7 @@ import mod_utils as mutil
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
   
-rest_date = 20250704
+rest_date = 20250101
 rest_hr   = 0
 regn = 'north'
 #flrst = 'cice_model.res.20250103.00.iconc.snow.nc'
@@ -48,7 +48,7 @@ regn = 'north'
 #flrst ='cice_RTOFSres.20250704.00.iconc_ithkn.nc'
 #flrst = '20260422.030000.analysis.cice_model.res.nc'  # SOCA file from Anna
 #flrst = 'rtofs_glo.20001216_00000.restart_cice.nc'
-flrst = 'cice_restart.20250701.00.ithkn.hsnow.snphys.nc'  # ML ice thickness based on GDAS
+flrst = 'cice_restart.20250101.00.ithkn.hsnow.snphys.nc'  # ML ice thickness based on GDAS
 #flrst = '20250701.030000.cice_model.res.nc'  # GDAS field
 
 pthrest = '/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/RUNDIRS/restart_sfs_C192mx025/ice/cice6_global_MLithkn_GDAS/'

@@ -11,16 +11,22 @@ from yaml import safe_load
 import argparse
 import pandas as pd
 
-PPTHN = '/home/Dmitry.Dukhovskoy/python'
-if len(PPTHN) == 0:
-  cwd   = os.getcwd()
-  aa    = cwd.split("/")
-  nii   = cwd.split("/").index('python')
-  PPTHN = '/' + os.path.join(*aa[:nii+1])
-sys.path.append(PPTHN + '/MyPython/hycom_utils')
-sys.path.append(PPTHN + '/MyPython/draw_map')
-sys.path.append(PPTHN + '/MyPython')
-sys.path.append(PPTHN + '/MyPython/mom6_utils')
+PPTHN = None
+if 'PPTHN' not in locals() or PPTHN is None:
+  cwd = os.getcwd()
+  parts = cwd.split(os.sep)
+  if 'python' in parts:
+    idx = parts.index('python')
+    PPTHN = os.sep + os.path.join(*parts[:idx + 1])
+  else:
+    raise RuntimeError("Directory 'python' not found in current working directory path.")
+
+sys.path.extend([
+    os.path.join(PPTHN, 'MyPython', 'hycom_utils'),
+    os.path.join(PPTHN, 'MyPython', 'draw_map'),
+    os.path.join(PPTHN, 'MyPython'),
+    os.path.join(PPTHN, 'MyPython', 'mom6_utils')
+])
 
 from mod_utils_fig import bottom_text
 import mod_plot_xsections as mxsct
