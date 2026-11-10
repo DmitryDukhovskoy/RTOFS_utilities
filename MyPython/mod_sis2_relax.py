@@ -9,8 +9,8 @@ import sys
 import matplotlib.pyplot as plt
 from yaml import safe_load
 
-PPTHN = '/home/Dmitry.Dukhovskoy/python'
-if len(PPTHN) == 0:
+PPTHN = None
+if PPTHN is None:
   cwd   = os.getcwd()
   aa    = cwd.split("/")
   nii   = cwd.split("/").index('python')
@@ -44,10 +44,10 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
   importlib.reload(mblnr)
 
   # Find basis functions for a reference rectangle:
-  phi1,phi2,phi3,phi4 = mblnr.basisFn_RectRef()
-  phi_basis           = np.array([phi1, phi2, phi3, phi4]).transpose() # basis funs in columns
+  phi1, phi2, phi3, phi4 = mblnr.basisFn_RectRef()
+  phi_basis = np.array([phi1, phi2, phi3, phi4]).transpose() # basis funs in columns
 
-  npnts = len(IMOM)
+  npnts = INDX.shape[0]
   jdm, idm = LMsk.shape
   assert np.max(LMsk) == 1 and np.min(LMsk) == 0,\
     f"LMsk should be 0 and 1, given: np.min(LMsk) and np.max(LMsk)"
@@ -168,6 +168,97 @@ def interp2Dfld(A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
     Ai[jmom,imom] = hintp
 
   return Ai
+
+def check_gmapi_index(ikk, A2d, IMOM, JMOM, INDX, JNDX, LMsk, LON0, LAT, hlon, hlat, \
+                eps_err=1.e-2, land_mask=False):
+  """
+    Check gmapi indices for a point 
+  """
+  import mod_utils_ob as muob
+  import time
+  import mod_bilinear as mblnr
+  importlib.reload(mblnr)
+    
+  # Find basis functions for a reference rectangle:
+  phi1,phi2,phi3,phi4 = mblnr.basisFn_RectRef()  
+  phi_basis           = np.array([phi1, phi2, phi3, phi4]).transpose() # basis funs in columns
+
+  npnts = INDX.shape[0]
+  jdm, idm = LMsk.shape
+  assert np.max(LMsk) == 1 and np.min(LMsk) == 0,\
+    f"LMsk should be 0 and 1, given: np.min(LMsk) and np.max(LMsk)"
+
+  # Make sure that gmapi is for the right section:
+  assert npnts==len(IMOM), "INDX and IMOM mismatch in length"
+
+  imom = IMOM[ikk]
+  jmom = JMOM[ikk]
+  #print(f'ikk={ikk}') 
+  assert LMsk[jmom,imom] > 0, f"Land point: ikk={ikk} imom={imom} jmom={jmom}"
+    
+  x0   = hlon[jmom, imom]
+  y0   = hlat[jmom, imom]
+  # Normalize x0
+  x0 = (x0 + 360) % 360
+
+  II = np.squeeze(INDX[ikk,:])
+  JJ = np.squeeze(JNDX[ikk,:])
+
+  xx0 = LON0[JJ,II]
+  xx = mblnr.shift_longitudes(xx0, ref_lon=x0)
+  yy = LAT[JJ,II]
+  # Avoid N. Pole - errors in spehrical distance calculation
+  yy[yy > 89.999] = 89.999
+
+  f_repeated= muob.check_repeated_vertices(xx,yy)
+  if f_repeated:
+    print(f"Bad box with coninciding vertices ikk={ikk}, approximate interpolation")
+    raise RuntimeError("check repeated vertices xx={xx} yy={yy}")
+    
+  xref, yref = xx[0], yy[0]  # reference in the 1st grid pnt
+  transf_enu = mblnr.make_lonlat2xy_transformer(xref, yref) # projection centered @(xref,yref)
+  XV, YV     = transf_enu.transform(xx, yy)    # convert 4 vertices
+  x0c, y0c   = transf_enu.transform(x0,y0)     # convert the target pnt
+
+  # Try to rotate the quadrilateral to orient sides with X and Y axis:
+  XVr, YVr, x0r, y0r  = muob.rotate_box(XV, YV, x0c, y0c)
+  xht, yht = mblnr.map_x2xhat(XVr, YVr, x0r, y0r)  # map to reference coordinates
+
+  # Fix round off errors for points on the side of the ref. square that are close to +/-1:
+  if 0 < abs(xht)-1. < eps_err:
+    print(f"abs xht > 1: {xht}")
+    xht = np.round(xht)
+  if 0 < abs(yht)-1. < eps_err:
+    print(f"abs yht > 1: {yht}")
+    yht = np.round(yht)
+  if abs(xht) > 1. or abs(yht) > 1.:
+    print(f"Fixing by rotating ref BOX failed ikk={ikk} x0={x0:.2f} y0={y0:.2f} " +\
+          f"xht={xht:8.5f} yht={yht:8.5f}, use xhy, yht as middle pnt")
+    xht = yht = 1.e-3
+
+  HT = A2d[JJ,II]
+  # Typically, land values should be filled
+  # in case, they have not:  Get rid off nans
+  nnans = len(np.where(np.isnan(HT))[0])
+  if nnans == len(HT):
+    print(f"Values at 4 points are all nans")
+  else:
+    HT = np.where(np.isnan(HT), np.nanmean(HT), HT)
+
+  hintp  = mblnr.bilin_interp(phi1, phi2, phi3, phi4, xht, yht, HT)
+
+
+  plt.ion()
+  fig1 = plt.figure(1,figsize=(9,9))
+  plt.clf()
+  ax1 = plt.axes([0.1, 0.15, 0.8, 0.8])
+  ax1.plot(x0, y0, 'r*')
+  ax1.plot(xx, yy, '.-')
+  ax1.plot(xx, yy, '.-')
+  ax1.plot([xx[0],xx[-1]],[yy[0],yy[-1]],'b-')
+  ax1.set_title(f"ikk={ikk} imom={imom} jmom={jmom} x0={x0:.4f} y0={y0:.4f}") 
+
+  return
 
 def read_PIOMAS(yr0, mm0, dfpiomas, varnm):
   """
@@ -626,20 +717,30 @@ def redistribute_hice(hice, cice, ICAT=[], eps0=1.e-6, ck_min=1.e-3, verbose=Fal
   # Check that there is enough ice to be i
   # distributed over the cats for min cice and hice:
   #ck_min = 1.e-3  # some small value >> eps0
-  htot_min = np.sum(ck_min*ICAT)
+  # min requirement - enough ice to pu in the thinnest cat 
+  htot_min = ck_min * (ICAT[0] + eps0) 
   if hice < htot_min or cice < ck_min*ncat:
+  #if hice < htot_min or cice < ck_min:
     hcat = np.zeros((ncat))+eps0
     ccat = np.zeros((ncat))+eps0
-    ccat[ithk] = cice - np.sum(ccat[:ithk]) 
-    hcat[ithk] = hice/ccat[ithk]    # can be some high values due to low cice
+    # Try to assign all ice to 1 bin:
+    # cice > 0 but probably small or hice is too small:
+    hi0 = hice / cice 
+    ithk0 = np.searchsorted(ICAT, hi0, side='right') - 1
+    #ccat[ithk] = cice - np.sum(ccat[:ithk]) 
+    #hcat[ithk] = hice/ccat[ithk]    # can be some high values due to low cice
+    ccat[ithk0] = cice
+    hcat[ithk0] = hice
     chcat = ccat*hcat
     # Limit max hcat  aand adjust ccat allowing to be not exact?
 
+    print(f"WARN: Not enough ice --> simplest redistribution")
     return hcat, ccat
 
-# Find ice cat. where grid cell mean hice falls in:
+  # Find primary ice cat. where grid cell mean hice falls in:
   icat = 1e3
   hcat_k = hice/cice     # ice thickness in a category: m3/m2 --> m
+  #print(f'hcat_k={hcat_k:.2f}')
   for kk in range(ncat):
     hbnd = ICAT[kk]
     if kk < ncat-1:
@@ -698,8 +799,8 @@ def redistribute_hice(hice, cice, ICAT=[], eps0=1.e-6, ck_min=1.e-3, verbose=Fal
   htot = np.sum(ccat*hcat)
   print(f"redistr: ctot={ctot:.3f} cice={cice:.3f}, htot={htot:.3f} hice={hice:.3f}")
   err_hice, err_cice  = check_hcice(hcat, ccat, hice, cice)
-  assert not err_hice, f"1. error hice not conserved"
-  assert not err_cice, f"1. error cice not conserved"
+  assert not err_hice, f"2. error hice not conserved"
+  assert not err_cice, f"2. error cice not conserved"
 
   return hcat, ccat
 

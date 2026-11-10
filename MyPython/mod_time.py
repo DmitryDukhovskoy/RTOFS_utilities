@@ -1,58 +1,111 @@
 """
-  Functions computing calendar days, time conversions 
+Functions computing calendar days, time conversions 
 """
 import datetime
 import time
 import numpy as np
 
-def datenum(ldate0,ldate_ref=[1,1,1,0,0]):
+def datenum(ldate0, ldate_ref=None):
   """
-  Given list [YY,MM,DD] - current date 
-  compute days wrt to reference date - optional
-  Hours and Minutes  - optional
-  [YY,MM,DD,HR]
-  [YY,MM,DD,HR,MN]
+  Compute the date number relative to a reference date.
+
+  Input:
+  ldate0 : list or tuple
+      Current date/time as [YY, MM, DD], [YY, MM, DD, HR],
+      or [YY, MM, DD, HR, MN].
+  ldate_ref : list or tuple, optional
+      Reference date/time in the same format as `ldate0`.
+      If not provided, [1, 1, 1, 0, 0] is used.
+
+  Output:
+  dnmb : float
+      Number of days relative to the reference date, with 1.0
+      assigned to the reference date/time.
+
+  Note: reference date number = 1, some conventions = 0
+  For example, datenum([1, 1, 1]) returns 1.0.
   """
+  if ldate_ref is None:
+      ldate_ref = [1, 1, 1, 0, 0]
 
-  ll = len(ldate0)
-  YR = ldate0[0]
-  MM = ldate0[1]
-  DD = ldate0[2]
-  HR = 0
-  MN = 0
-  if ll == 4:
-    HR = ldate0[3]
-    MN = 0
-  elif ll == 5:
-    HR = ldate0[3]
-    MN = ldate0[4]
+  # Fill missing time components with zero.
+  ldate0 = list(ldate0) + [0] * (5 - len(ldate0))
+  ldate_ref = list(ldate_ref) + [0] * (5 - len(ldate_ref))
 
-  lr = len(ldate_ref)
-  YRr = ldate_ref[0]
-  MMr = ldate_ref[1]
-  DDr = ldate_ref[2]
-  HRr = 0
-  MNr = 0
-  if lr == 4:
-    HRr = ldate_ref[3]
-    MNr = 0
-  elif lr == 5:
-    HRr = ldate_ref[3]
-    MNr = ldate_ref[4]
+  YR, MM, DD, HR, MN = [int(x) for x in ldate0[:5]]
+  YRr, MMr, DDr, HRr, MNr = [int(x) for x in ldate_ref[:5]]
 
-  YR = int(YR)
-  MM = int(MM)
-  DD = int(DD)
-  HR = int(HR)
-  MN = int(MN)
-  time0 = datetime.datetime(YR,MM,DD,HR,MN,0)
-  timeR = datetime.datetime(YRr,MMr,DDr,HRr,MNr,0)
+  # Create datetime objects
+  time0 = datetime.datetime(YR, MM, DD, HR, MN)
+  timeR = datetime.datetime(YRr, MMr, DDr, HRr, MNr)
 
-  dnmb = float((time0-timeR).days)+1.+(HR-HRr)/24.+(MN-MNr)/1440.
+  # Elapsed time in days
+  elapsed_days = (time0 - timeR).total_seconds() / 86400.0
+
+  # MATLAB-style datenum
+  dnmb = elapsed_days + 1.0
+
+  if HR == 0 and MN == 0:
+    dnmb = int(dnmb)
 
   return dnmb
 
+def datenum_v2(ldate0, ldate_ref=[1,1,1,0,0], ref_day0=True): 
+  """
+    Compute days relative to reference date
+    day = ref. day ==> dnmb = 0
+    ref_day0 = False: adds + 1 to make it compatible with datenum
+
+    Supports:
+    - Single date: [YY,MM,DD,(HR),(MN)]
+    - Multiple dates: [[...], [...], ...]
+
+    Returns:
+    - float (single input)
+    - numpy array (multiple input)
+  """
+
+  def compute_one(ld):
+    # Pad to length 5
+    if len(ld) < 5:
+      ld = list(ld) + [0]*(5-len(ld))
+
+    YR, MM, DD, HR, MN = map(int, ld[:5])
+    time0 = datetime.datetime(YR, MM, DD, HR, MN)
+    return time0
+
+  # Prepare reference time (once)
+  if len(ldate_ref) < 5:
+    ldate_ref = list(ldate_ref) + [0]*(5-len(ldate_ref))
+
+  YRr, MMr, DDr, HRr, MNr = map(int, ldate_ref[:5])
+  timeR = datetime.datetime(YRr, MMr, DDr, HRr, MNr)
+
+  # Detect single vs multiple input
+  is_multiple = isinstance(ldate0[0], (list, tuple))
+
+  if is_multiple:
+    dnmb = []
+    for ld in ldate0:
+      time0 = compute_one(ld)
+      delta = time0 - timeR
+      if ref_day0:
+        dnmb.append(delta.total_seconds() / 86400.0)
+      else:
+        dnmb.append(delta.total_seconds() / 86400.0 + 1)
+
+    return np.array(dnmb)
+  else:
+    time0 = compute_one(ldate0)
+    delta = time0 - timeR
+    dnmb = delta.total_seconds() / 86400.0
+    if not ref_day0:
+      dnmb += 1
+    return dnmb
+
+
 def adddays_date(rdate,ndays):
+
   """
   Add/subtract n days from rdate
   rdate is in the format YYYYMMDD[HR]
@@ -136,7 +189,7 @@ def rdate2jday(rdate):
 
 def date2jday(ldate0):
   """
-  Given list [YY,MM,DD] - current date 
+  Given list [YY,MM,DD] or tuples (YY,MM,DD) - current date 
   compute year day
   Hours and Minutes  - optional
   [YY,MM,DD,HR]
@@ -188,35 +241,43 @@ def rdate2date(rdate):
   Ldate = [YR,MM,DD,HR]
   return Ldate
 
-def rdate2datenum(rdate):
+def rdate2datenum(rdate_inp):
   """
   Convert rtofs date string YYYYMMDD or YYYYMMDDHR to
   matlab-type datenum
+
+  Inputs:
+    rdate : str, int, list, or np.ndarray
+        A single date or a collection of dates.
+
+  Output: (float or np.ndarray)  MATLAB datenum for a single date, or an array of datenums
+        for multiple dates
   """
-  if not isinstance(rdate, str):
+  def _convert_one(rdate):
     rdate = str(rdate)
 
-  YR     = int(rdate[0:4])
-  MM     = int(rdate[4:6])
-  DD     = int(rdate[6:8])
-
-  if len(rdate) == 8:
+    if len(rdate) == 8:
       YR = int(rdate[0:4])
       MM = int(rdate[4:6])
       DD = int(rdate[6:8])
       HR = 0  # default hour
-  elif len(rdate) == 10:
+    elif len(rdate) == 10:
       YR = int(rdate[0:4])
       MM = int(rdate[4:6])
       DD = int(rdate[6:8])
       HR = int(rdate[8:10])
-  else:
-      raise ValueError("Unsupported date format: must be YYYYMMDD or YYYYMMDDhh")
+    else:
+      raise ValueError(f"Unsupported date format: {rd} "
+                        "must be YYYYMMDD or YYYYMMDDhh")
 
-  Ldate = [YR,MM,DD,HR]
-  dnmb = datenum(Ldate)
+    dnmb = datenum([YR,MM,DD,HR])
 
-  return dnmb
+    return dnmb
+
+  if isinstance(rdate_inp, (list, tuple, np.ndarray)):
+    return np.array([_convert_one(rd) for rd in rdate_inp])
+
+  return _convert_one(rdate_inp)
 
 def dateint2datenum(dateInt):
   """
@@ -237,62 +298,77 @@ def dateint2datenum(dateInt):
     year = dateInt // 10000
     month = (dateInt % 10000) // 100
     day = dateInt % 100
-    dnmb = datenum([year,month,day])
+    dnmb = int(datenum([year,month,day]))
 
   return dnmb
 
-def datevec(dnmb, ldate_ref=[1,1,1], round_hrs=False):
+def datevec(dnmb, ldate_ref=None, round_hrs=False):
   """
-  For datenum computed wrt to reference date - see datenum
-  convert datenum back to [YR,MM,DD,HR,MN]
-  dnmb - 1 date number
+  Convert a date number to a list: [YR, MM, DD, HR, MN].
 
-  round_hrs : round minutes to closest hour
+  The date number is assumed to have been computed relative to
+  ldate_ref using datenum function.
+
+  Input:
+  dnmb : int or float
+      Date number. A date number of 1 corresponds to ldate_ref.
+  ldate_ref : list
+      Reference date as [YR, MM, DD] or [YR, MM, DD, HR, MN].
+  round_hrs : bool, optional
+      If True, round minutes to the nearest hour.
+
+  Output:
+      Date vector (list)  [YR, MM, DD, HR, MN].
   """
+  # If python scalar, convert to Python regular float
   if isinstance(dnmb, np.generic): 
     dnmb = dnmb.item()
 
+  if ldate_ref is None:
+    ldate_ref = [1, 1, 1]
+
   if not (isinstance(dnmb, int) or isinstance(dnmb, float)):
     raise Exception('dnmb should be int or float, for array use datevec2D')
-  lr = len(ldate_ref)
-  YRr = ldate_ref[0]
-  MMr = ldate_ref[1]
-  DDr = ldate_ref[2]
-  if lr > 3:
-    HRr = ldate_ref[3]
-    MNr = ldate_ref[4]
-  else:
-    HRr = 0
-    MNr = 0
 
-  timeR = datetime.datetime(YRr,MMr,DDr,HRr,MNr,0)
+  YRr, MMr, DDr = ldate_ref[:3]
+
+  if len(ldate_ref) >= 5:
+    HRr, MNr = ldate_ref[3:5]
+  else:
+    HRr, MNr = 0, 0
+
+  timeR = datetime.datetime(YRr, MMr, DDr, HRr, MNr)
+
+  # datenum convention: reference date = 1
+  ndays = int(np.floor(dnmb))-1
   dfrct = dnmb-np.floor(dnmb)
+
   if abs(dfrct) < 1.e-6:
     HR = 0
     MN = 0
   else:
-    HR = int(np.floor(dfrct*24.))
-    MN = int(np.floor(dfrct*1440.-HR*60.))
+    HR = int(np.floor(dfrct * 24.))
+    MN = int(np.floor(dfrct * 1440. - HR * 60.))
 
   if round_hrs:
-    if MN>=30:
-      HR = HR+1
-    elif MN<30:
+    if MN >= 30:
+      HR += 1
+    elif MN < 30:
       MN = 0
 
     if HR > 24:
-      HR = HR-24
+      HR -= 24
       ndays += 1
 
-  ndays = int(np.floor(dnmb))-1
-  time0 = timeR+datetime.timedelta(days=ndays, seconds=(HR*3600 + MN*60))
-  YR = time0.year
-  MM = time0.month
-  MD = time0.day
-  HR = time0.hour
-  MN = time0.minute
+  time0 = timeR + datetime.timedelta(days=ndays, seconds=(HR * 3600 + MN * 60))
 
-  dvec = [YR,MM,MD,HR,MN]
+  dvec = [
+      time0.year,
+      time0.month,
+      time0.day,
+      time0.hour,
+      time0.minute
+  ]
 
   return dvec
 
@@ -525,6 +601,15 @@ def month_days(imo, YR):
   YRN   = dv2[0]
   dnmb2 = datenum([YRN, imoN,1])
   ndays = int(dnmb2-dnmb1)
+
+  return ndays
+
+def year_days(YR):
+  """
+    Find the number of days in a year
+  """
+  ndays = datenum([YR,12,31]) - datenum([YR,1,1]) + 1
+  ndays = int(ndays)
 
   return ndays
 

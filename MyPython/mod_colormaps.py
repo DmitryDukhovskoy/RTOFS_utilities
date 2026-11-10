@@ -208,6 +208,31 @@ def colormap_conc():
   
   return CMP
 
+def colormap_conc_blue():
+  """
+  ice conc map: blue (open water) --> cyan --> light blue --> white
+  """
+  CLR = [
+      [5,   25,  80],    # 0.0
+      [5,   60, 140],    # 0.1
+      [5,  100, 185],    # 0.2
+      [10, 145, 210],    # 0.3
+      [30, 180, 225],    # 0.4
+      [70, 205, 235],    # 0.5
+      [115, 220, 240],   # 0.6
+      [155, 230, 242],   # 0.7
+      [185, 235, 240],   # 0.8
+      [210, 235, 235],   # 0.9
+      [235, 240, 240],   # 0.95
+      [255, 255, 255],   # 1.0
+  ]
+
+  CLR = np.array(CLR) / 255.
+  CMP = create_colormap(CLR, 200)
+
+  return CMP
+
+
 def colormap_ice_thkn():
   """
    Prepare colormap for sea ice thickness
@@ -1229,10 +1254,11 @@ def colormap_blue_yellow(Ncmp=200):
 
   return CMP
  
-def colormap_cold_warm(Ncmp=200, ins_white=False):
+def colormap_cold_warm(Ncmp=200, ins_white=False, n_white=3):
   """
     Colormap for showing temperatures etc.
     ins_white = True - white in the middle for showing -/+ values
+    n_white - width of the color region
   """
   CLR_thermal = np.array([
   [0.2, 0.0, 0.5],    # dark purple
@@ -1258,17 +1284,152 @@ def colormap_cold_warm(Ncmp=200, ins_white=False):
   nclrs, nCh = CLR_thermal.shape
   if ins_white:
     ins0 = nclrs // 2
-    if ins0*2 == nclrs:
-      CLR_thermal = np.insert(CLR_thermal, ins0, [1,1,1], axis=0)
-    else:
-      CLR_thermal[ins0,:] = [1,1,1]
+    white = np.ones((n_white, 3))
+    CLR_thermal = np.insert(
+        CLR_thermal,
+        ins0,
+        white,
+        axis=0
+    )
 
   CMP = create_colormap(CLR_thermal, Ncmp, cmp_obj=True, add_alpha=False)
 
   return CMP
 
+def colormap_difference_negpos(Ncmp=200, n_white=0):
+  """
+    Colormap for showing differences with positive and negative values centered around 0
+    or (if no white) to show any other field from dark purple -> blue -> yellow -> dark red
 
- 
+    For negative positive:
+    transition - white
+    n_white - width of the color region
+
+    n_white = 0 - no white
+  """
+  CLR_thermal = np.array([
+    [0.20, 0.00, 0.50],   # dark purple
+    [0.30, 0.00, 0.60],   # purple
+    [0.10, 0.20, 0.70],   # indigo
+    [0.00, 0.30, 0.70],   # blue
+    [0.00, 0.45, 0.85],   # blue-cyan
+    [0.00, 0.60, 0.85],   # cyan
+    [0.20, 0.75, 0.85],   # light cyan
+    [0.65, 0.85, 0.90],   # pale blue
+    [0.90, 0.95, 0.98],   # near white, cool
+    [1.00, 1.00, 1.00],   # pure white (zero)
+    [0.98, 0.97, 0.90],   # near white, warm
+    [1.00, 0.95, 0.60],   # pale yellow
+    [0.98, 0.90, 0.35],   # light yellow (added)
+    [0.95, 0.85, 0.10],   # yellow
+    [0.90, 0.65, 0.00],   # yellow-orange
+    [0.95, 0.45, 0.00],   # orange
+    [0.98, 0.25, 0.00],   # red-orange
+    [1.00, 0.10, 0.00],   # red
+    [0.80, 0.00, 0.00],   # dark red
+  ]) 
+
+  # Symmetric split around the central white color
+  iW = len(CLR_thermal) // 2
+  assert len(CLR_thermal) % 2 == 1, "CLR_thermal must have an odd number of colors"
+  assert np.allclose(CLR_thermal[iW], [1, 1, 1]), "Middle color must be white"
+
+  neg = CLR_thermal[:iW]
+  pos = CLR_thermal[iW+1:]
+
+  n_side_neg = (Ncmp - n_white) // 2
+  n_side_pos = Ncmp - n_white - n_side_neg
+
+  neg_cmap = create_colormap(
+      neg, n_side_neg, cmp_obj=True, add_alpha=False
+  )
+  pos_cmap = create_colormap(
+      pos, n_side_pos, cmp_obj=True, add_alpha=False
+  )
+
+  neg_colors = neg_cmap(np.linspace(0, 1, n_side_neg))[:, :3]
+  pos_colors = pos_cmap(np.linspace(0, 1, n_side_pos))[:, :3]
+
+  white = np.ones((n_white, 3))
+
+  colors = np.vstack([neg_colors, white, pos_colors])
+
+  CMP = create_colormap(
+      colors,
+      Ncmp,
+      cmp_obj=True,
+      add_alpha=False
+  )
+
+  return CMP
+
+def colormap_temperature_coldwarm(Ncmp=200):
+  """
+    Colormap for showing scalar fields from low to high
+    with contrast colormap: dark purple --> blue --> green --> orange --> red
+  """
+  CLR_thermal = np.array([
+      [0.12, 0.00, 0.35],   # very dark purple
+      [0.20, 0.00, 0.50],   # dark purple
+      [0.32, 0.00, 0.60],   # purple
+      [0.25, 0.08, 0.68],   # violet
+      [0.10, 0.20, 0.70],   # indigo
+      [0.00, 0.30, 0.70],   # blue
+      [0.00, 0.42, 0.78],   # blue
+      [0.00, 0.55, 0.82],   # blue-cyan
+      [0.00, 0.65, 0.80],   # cyan
+      [0.10, 0.72, 0.75],   # turquoise
+      [0.30, 0.78, 0.70],   # teal-green
+      [0.50, 0.83, 0.70],   # green
+      [0.68, 0.86, 0.72],   # pale green
+      [0.82, 0.89, 0.70],   # yellow-green
+      [0.95, 0.94, 0.65],   # pale yellow
+      [1.00, 0.90, 0.40],   # yellow
+      [0.95, 0.78, 0.15],   # yellow-orange
+      [0.90, 0.62, 0.00],   # orange
+      [0.95, 0.42, 0.00],   # orange-red
+      [0.98, 0.22, 0.00],   # red-orange
+      [1.00, 0.08, 0.00],   # red
+      [0.80, 0.00, 0.00],   # dark red
+  ])
+
+  CMP = create_colormap( 
+      CLR_thermal,
+      Ncmp,
+      cmp_obj=True, 
+      add_alpha=False
+  )      
+         
+  return CMP
+
+def colors_discrete_contours():
+  """
+    Colors for showing distinct lines / contours
+    20 colors
+  """
+  CLRS      = np.array([
+      [0.00, 0.45, 0.70],  # blue
+      [0.90, 0.17, 0.31],  # red
+      [0.00, 0.62, 0.38],  # green
+      [0.90, 0.60, 0.00],  # orange
+      [0.95, 0.90, 0.25],  # yellow
+      [0.80, 0.47, 0.65],  # pink/violet
+      [0.35, 0.70, 0.90],  # light blue
+      [0.50, 0.39, 0.64],  # purple
+      [0.55, 0.63, 0.79],  # steel blue
+      [0.40, 0.60, 0.00],  # olive green
+      [0.70, 0.30, 0.00],  # brown
+      [0.70, 0.00, 0.30],  # wine red
+      [0.00, 0.55, 0.75],  # teal
+      [0.75, 0.75, 0.75],  # light gray
+      [0.30, 0.30, 0.30],  # dark gray
+      [0.10, 0.80, 0.60],  # aqua green
+      [0.55, 0.20, 0.60],  # plum purple
+      [0.20, 0.70, 0.30],  # jade green
+      [0.80, 0.55, 0.35],  # tan
+      [0.25, 0.25, 0.55]   # deep indigo
+  ])
+  return CLRS
 
 
 

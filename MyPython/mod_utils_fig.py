@@ -7,22 +7,79 @@ import matplotlib.pyplot as plt
 
 def bottom_text(btx, gtdir='RTOFS_utilities', \
                 ipwd=1, pos=[0.05, 0.05], fsz=8, f_short=False):
-  sgit = 'github.com/DmitryDukhovskoy/' + gtdir
+  # add machine name:
+  syst_info = os.uname()
+  machine = syst_info.nodename
+
+  #sgit = 'github.com/DmitryDukhovskoy/' + gtdir
   drr = os.getcwd()
-#  btnm = drr+'/'+btx
   bnm = os.path.basename(drr)
   if f_short:
-    btnm = bnm + '/' + btx
+    btnm = os.path.join(bnm, f"@{machine}: {btx}")
   else:
-    btnm = sgit + '/' + bnm + '/' + btx
+    btnm = os.path.join(drr, f"@{machine}: {btx}")
 
   if ipwd==0:
-    btnm = btx
+    btnm = (f"@{machine}: {btx}")
 
   plt.text(pos[0],pos[1],btnm,horizontalalignment='left',
          transform=plt.gcf().transFigure, fontsize=fsz)
   return
 
+def colorbar_horiz(fig1, ax1, img, rmin=None, rmax=None, 
+        cb_height=0.016, cb_gap=0.016, nticks=11, fontsz=12, 
+        decim=2, extd='both'):
+  """
+    Plot colorbar under the bottom axis = ax1
+    cb_height - cbar height
+    cb_gap - gap between cbar and bottom axis
+    nticks - number of ticks on cbar
+    fontsz - fontsize on cbar
+    decim - number of decimals in cbar tick labels: 0, 1, 2, 3, ...
+    extd - draw an arrow at the end: min, max, both, neither
+  """
+  from matplotlib.ticker import StrMethodFormatter
+
+  fig1.canvas.draw()
+
+  pos = ax1.get_position()
+
+  axcb = fig1.add_axes([
+    pos.x0,
+    pos.y0 - cb_gap - cb_height,
+    pos.x1 - pos.x0,
+    cb_height
+  ])
+
+  clb = fig1.colorbar(
+    img,
+    cax=axcb,
+    extend=extd,
+    orientation='horizontal'
+  )
+
+  if rmin is None:
+    rmin = img.norm.vmin
+  if rmax is None:
+    rmax = img.norm.vmax
+
+  ticks = np.linspace(rmin, rmax, max(2, nticks))
+  clb.set_ticks(ticks)
+
+  clb.ax.tick_params(
+    direction='in',
+    length=10,
+    labelsize=fontsz
+  )
+
+  if decim > 0:
+    fmt = f'{{x:.{decim}f}}'
+  else:
+    fmt = f'{{x:.0f}}'
+
+  clb.ax.xaxis.set_major_formatter(StrMethodFormatter(fmt))
+
+  return clb
 
 def correct_evensp_grid(x, y):
   xcrct = x.copy()
@@ -126,5 +183,21 @@ def plot_fld2D(aa,ctitle,cl1,cl2,X=np.array([]),Y=np.array([]),clrmp='turbo',
 
 
   return
+
+def minmax_clrmap(dmm, pmin=5, pmax=95,
+                  cpnt=0.01, fsym=False):
+
+  a1 = np.nanpercentile(dmm, pmin)
+  a2 = np.nanpercentile(dmm, pmax)
+
+  rmin = cpnt * np.floor(a1 / cpnt)
+  rmax = cpnt * np.ceil (a2 / cpnt)
+
+  if fsym and (rmin < 0.) and (rmax > 0.):
+    mx = max(abs(rmin), abs(rmax))
+    rmin = -mx
+    rmax =  mx
+
+  return rmin, rmax
 
 

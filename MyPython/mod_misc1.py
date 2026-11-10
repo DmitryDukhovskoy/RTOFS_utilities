@@ -50,17 +50,20 @@ def inpolygon_v2(X,Y,Xv,Yv):
 
   return MSK, IP, JP
 
-def reorder_polygon(xv, yv):
+def reorder_polygon(xv, yv, indx=False):
   """
     Order vertices of the polygon so that 
-    they do not zig-zag
+    they do not zig-zag: self-intersect sides (butterfly)
   """
   cx = np.mean(xv)
   cy = np.mean(yv)
   angles = np.arctan2(yv - cy, xv - cx)
   idx = np.argsort(angles)
 
-  return xv[idx], yv[idx]
+  if indx:
+    return xv[idx], yv[idx], idx
+  else:
+    return xv[idx], yv[idx]
 
 def polygon_centroid(XV,YV):
   """
@@ -129,6 +132,54 @@ def point_on_segment(xq, yq, x1, y1, x2, y2, eps0=1e-8):
     return False
 
   return True
+
+def point_on_edge(x0, y0, XV, YV, tol=1e-9):
+  for k in range(len(XV)):
+    x1, y1 = XV[k],     YV[k]
+    x2, y2 = XV[(k+1)%len(XV)], YV[(k+1)%len(YV)]
+
+    # compute distance from point to segment
+    dist = distance_point2segment(x0, y0, x1, y1, x2, y2)
+    #print(f"Distance pnt to edge: {dist:.4e}")
+    if dist < tol:
+      return True
+
+  return False
+
+def distance_point2segment(px, py, x1, y1, x2, y2):
+  """
+  distance_point_segment
+  Return the minimum distance from point (px, py)
+  to the segment (x1, y1) -> (x2, y2).
+  """
+  # segment vector
+  vx = x2 - x1
+  vy = y2 - y1
+
+  # vector from start to point
+  wx = px - x1
+  wy = py - y1
+  
+  # project w onto v, compute parameter t
+  # t < 0  -> closest is endpoint 1
+  # t > 1  -> closest is endpoint 2
+  # 0 <= t <= 1 -> closest is interior point
+  Lsegm2 = vx*vx + vy*vy
+  if Lsegm2 == 0:
+    # the segment is a point
+    dist_p2sgm = np.sqrt(wx**2 + wy**2)
+    return dist_p2sgm
+    
+  t = (wx*vx + wy*vy) / Lsegm2
+  t = max(0.0, min(1.0, t))   # clamp to the segment normalized [0,1]
+    
+  # closest point on the segment
+  cx = x1 + t * vx 
+  cy = y1 + t * vy
+    
+  # distance from point to closest point
+  dist_p2sgm = np.sqrt((px-cx)**2 + (py - cy)**2)
+  return dist_p2sgm
 
 def inpolygon_1pnt(xq, yq, XV, YV, eps0=1e-8):
   """
@@ -636,82 +687,65 @@ def print_1col(A,wd=8,prc=2):
   """
     Print out 1 colume of data
   """
-  if type(A) == list:
-    A = np.array(A)
+  A = np.asarray(A)
 
-  ndim1 = A.shape[0]
-  for k in range (ndim1):
-    print('{0}: {1:{width}.{precis}f}'.format(k+1,A[k],width=wd,precis=prc))
+  if A.ndim != 1:
+    raise ValueError("Input must be 1-dimensional")
+
+  for i, value in enumerate(A, start=1):
+    print(f"{i}: {value:{width}.{precision}f}")
 
   return
 
-def print_2col(A1,A2,wd=8,prc=2,kend=[]):
+def print_2col(A1, A2, wd=8, prc=2, kend=None):
   """
     Print out 2 columns of data, same size or not
-    if not - stops at shortest length of the arrays
-    kend >= 0  stops at kend
+
+    If arrays have different lengths, stop at the shorter one.
+    If kend is specified, stop at kend.
   """
-  if type(A1) == list:
-    A1 = np.array(A1)
-  if type(A2) == list:
-    A2 = np.array(A2)
+  A1 = np.asarray(A1)
+  A2 = np.asarray(A2)
 
   ndim1 = A1.shape[0]
   ndim2 = A2.shape[0]
-  if not kend:
+  if kend is not None:
     kend = min([ndim1, ndim2])
 
-  for k in range (kend):
-    print('{0}: {1:{width}.{precis}f}  {2:{width}.{precis}f}'.\
-          format(k+1,A1[k],A2[k],width=wd,precis=prc))
+  for k, (val1, val2) in enumerate(zip(A1[:kend], A2[:kend]), start=1):
+    print(f"{k}: {val1:{width}.{precision}f}  {val2:{width}.{precision}f}")
 
   return
 
-def print_3col(A1,A2,A3,wd=8,prc=2,kend=[]):
+def print_cols(*arrays, wd=15, prc=8, kend=None, str=None):
   """
-    Print out 3 columns of data, same size
-    if not - stops at shortest length of the arrays
-    kend >= 0  stops at kend
+  Print N columns of numeric data.
+  Provide N 1D arrays or lists:
+  a = [1.1, 2.2, 3.3]
+  b = [10.1, 20.2, 30.3]
+  c = [100.1, 200.2, 300.3]
+  ...
+
+  Stops at the shortest array length unless kend is specified
+
+  str - optional title, e.g. str='snon i=100 j=105'
   """
-  if type(A1) == list:
-    A1 = np.array(A1)
-  if type(A2) == list:
-    A2 = np.array(A2)
-  if type(A3) == list:
-    A3 = np.array(A3)
+  arrays = [np.asarray(a) for a in arrays]
 
-  ndim1 = A1.shape[0]
-  ndim2 = A2.shape[0]
-  ndim3 = A3.shape[0]
-  if not kend:
-    kend = min([ndim1, ndim2, ndim3])
+  n = min(len(a) for a in arrays)
 
-  for k in range (kend):
-    print('{0:3d}: {1:{width}.{precis}f} {2:{width}.{precis}f} {3:{width}.{precis}f}'.\
-          format(k+1,A1[k],A2[k],A3[k],width=wd,precis=prc))
+  if kend is not None:
+    n = min(n, kend)
+
+  if str is not None:
+    print(f"{str}")
+
+  for k, vals in enumerate(zip(*(a[:n] for a in arrays)), start=1):
+    s = "  ".join(f"{v:{wd}.{prc}f}" for v in vals)
+    print(f"{k}: {s}")
 
   return
 
-def print_col(*argv, wd=8, prc=2, kend=[]):
-  """
-  
-   !!! NOT FINISHED  !!!
-
-    Print out N columns of data, same size or not
-    if not - stops at shortest length of the arrays
-    kend >= 0  stops at kend
-
-    Input: A1, A2, ... 1D arrays of data to print out
-    type - numpy arrays
-  """
-  ND = []
-  for A in argv:
-    ndim = A.shape[0] 
-    ND.append(ndim)
-  if not kend:
-    kend = min(ND)
-
-  return
 
 def polysegm_indx(IV, JV):
   """

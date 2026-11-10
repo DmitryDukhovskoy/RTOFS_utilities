@@ -1,7 +1,6 @@
 """
   Functions/subroutines for bilinear interpolation
-  Dmitry Dukhovskoy NOAA NESDIS NCEI 
-  June 2022
+  Dmitry Dukhovskoy NOAA NWS OMD
 """
 import numpy as np
 
@@ -37,6 +36,8 @@ def basisFn_RectRef():
 
 def sort_gridcell_indx(II, JJ, fsens='positive'):
   """
+    Alternative: mmisc.reorder_polygon(xv, yv, indx=False)
+
     In case when rectangular indices are in random order
     need to put them in c/clckwize (positive) or clockwize (negative)
     order
@@ -330,6 +331,62 @@ def shift_longitudes(lons, ref_lon=360):
     # Shift so that longitudes are within +/-180° of ref_lon
     lons = (lons - ref_lon + 180.0) % 360.0 - 180.0 + ref_lon
   return lons
+
+def check_convex(X, Y):
+  """
+    Check if a quadrilateral is convex:
+    no "batterfly" (self-intersecting)
+    no concave quad
+    Important for bilenear interpolation
+  """
+  cross = []
+  for ii in range(len(X)):
+    dx1 = X[(ii+1)%4] - X[ii]
+    dy1 = Y[(ii+1)%4] - Y[ii]
+    dx2 = X[(ii+2)%4] - X[(ii+1)%4]
+    dy2 = Y[(ii+2)%4] - Y[(ii+1)%4]
+    cross.append(dx1*dy2 - dy1*dx2)
+
+  convex =  np.all(np.array(cross) > 0) or np.all(np.array(cross) < 0)
+
+  return convex
+
+def strictly_convex_quad(X, Y, eps_tol=1e-4):
+  """
+    More stric check of convexivity for a quadrilateral
+    guarantees that none of the vertices
+    are on the same line
+    Scale the corss product to get the nearly-collinear cases 
+    when the cross ~0 relative to large edge lengths
+    For scaled cross for coliniear lines is ~1e-6 - 1e-7
+  """
+  signs = []
+  for i in range(4):
+    dx1 = X[(i+1)%4] - X[i]
+    dy1 = Y[(i+1)%4] - Y[i]
+    dx2 = X[(i+2)%4] - X[(i+1)%4]
+    dy2 = Y[(i+2)%4] - Y[(i+1)%4]
+
+    cross = dx1*dy2 - dy1*dx2
+
+    # scale factor ~ product of edge lengths
+    scale = (dx1*dx1 + dy1*dy1)**0.5 * (dx2*dx2 + dy2*dy2)**0.5
+
+    if scale == 0:
+      return False
+
+    cross_scaled = cross / scale
+    #print(f"cross={cross}  scaled={cross_scaled}")
+
+    if abs(cross_scaled) < eps_tol:
+      #print(f"Convex test: Rejected < {eps_tol}")
+      return False  # catches if --*---*  
+
+    signs.append(np.sign(cross_scaled))
+
+  convex = all(s > 0 for s in signs) or all(s < 0 for s in signs)
+ 
+  return convex 
 
 def lonlat2xy_wrtX0(XX, YY, x0, y0):
   """

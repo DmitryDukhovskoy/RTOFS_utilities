@@ -133,7 +133,9 @@ def read_grid_topo(pthtopo, ftopo, fgrid, grdpnt='ppnt', f_lon=180, \
   return LON,LAT,HH
 
 
-def read_topo(pthtopo,ftopo,IDM,JDM,dpth_neg=True):
+def read_topo(pthtopo, ftopo, IDM, JDM, dpth_neg=True):
+# binary *.a file
+#
 # Get topo only need to know I and J dimensions
 #
 # f_lon = 180 - convert lon to [-180, 180]
@@ -141,14 +143,22 @@ def read_topo(pthtopo,ftopo,IDM,JDM,dpth_neg=True):
 #       = else - leave as in the grid file
 #
 # read HYCOM grid and topo files *.[ab]
-  fltopoa = pthtopo+ftopo+'.a'
-  fltopob = pthtopo+ftopo+'.b'
+  if ftopo.endswith('.nc'):
+    raise RuntimeError ("Expected unformatted binary *a, NetCDf not supported")
+
+  if ftopo.endswith('.a'):
+    ftopo = ftopo.removesuffix('.a')
+  elif ftopo.endswith('.b'):
+    ftopo = ftopo.removesuffix('.b')
+
+  fltopoa = os.path.join(pthtopo,f"{ftopo}.a")
+  fltopob = os.path.join(pthtopo,f"{ftopo}.b")
 
   IJDM = IDM*JDM
   npad =4096-IJDM%4096
 
-  print('Reading HYCOM topo {0} '.format(ftopo))
-  print('Grid: IDM={0}, JDM={1}'.format(IDM,JDM))
+  print(f'Reading HYCOM topo {fltopoa}')
+  print(f'Grid: IDM={IDM}, JDM={JDM}')
 
 # Read bottom topography:
 # Big endian float 32
@@ -773,19 +783,20 @@ def dx_dy(LON,LAT):
 
   return DX, DY
  
-
-def find_indx_lonlat(x0,y0,LON,LAT):
+def find_indx_lonlat(x0, y0, LON, LAT):
   """
   Find closest grid point to lon/lat coordinate
   x0, y0 - geographic coordinates
+  Quick and dirty - be aware, 
+  can be inaccurate especially near the poles and long discontinuity
   """
-  if x0 > 180.:
-    x0 = x0-360.
-
+  x0 = (x0 + 360) % 360.
+  LON = (LON + 360) % 360.
   dmm = np.sqrt((LON-x0)**2+(LAT-y0)**2)
-  jj0, ii0 = np.where(dmm == np.min(dmm))
 
-  return ii0[0], jj0[0]
+  jj0, ii0 = np.unravel_index(np.argmin(dmm), dmm.shape)
+
+  return ii0, jj0
   
 
 def read_targ_dens(finb, ss, sep, ifld, kki=-1, prntTD=True):
