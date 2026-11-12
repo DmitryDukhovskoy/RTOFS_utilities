@@ -1,0 +1,117 @@
+---
+# Paths, filenames, specifications for ice thickness predictor
+#
+regn:
+  north:
+    name    : Arctic
+    lat_bnd : 55.
+  south:
+    name    : Antarctic
+    lat_bnd : -55.
+
+params:
+  # dxy - Min dist (km) between data points (~corr.scale), to skip i,j points
+  dxy       : 50
+  davrg     : 1     # averaging time (days) for divUice
+  sqrt_frz  : True      # apply sq. root of freeze degree days
+  intgr_frz : 90       # integration days for IFDD
+  tstep     : 3        # time step T2m sampling, days
+  Tfrz      : -1.85    # ocean freezing T for IFDD
+  Hbtm_min  : -5000    # min depth for topo normalization, btmtopo pred. check training param on PPAN
+
+MOM6:
+  pthgrid: '/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/SFS_config/ocean_grids_mesh025'
+  pthdata: '/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/data'
+
+CICE6:
+  pthgrid: '/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/SFS_config/ocean_grids_mesh025'
+
+ORAS5:
+  pthoras: '/scratch4/BMC/gsienkf/Philip.Pegion/reanalysis/ice/oras5/input'
+
+ERA5:
+  pthgmapi: '/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/data/remap_indx'
+  pthera: '/scratch4/NCEPDEV/land/data/ufs-land-driver/datm/ERA5/original/{YR}'
+
+
+PRED:
+  # Predictor / input fields
+  pthprd:    "/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/predictors"
+  pthifdd:   "/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/predictors"
+  pthihdd:   "/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/predictors"
+  flifdd:    "IFDD_ERA5_{Ndays:03d}days_dxy{dxy:03d}_{rdate}_{regn}"
+  flihdd:    "IHDD_ERA5_{Ndays:03d}days_dxy{dxy:03d}_{rdate}_{regn}"
+  fldivui:   "divUice_CICE6_dxy{dxy:03d}_{rdate}_{regn}"
+  flmnice:   "CICE6_mean_icevol_ithkn_mnthly_{YR}"
+  pthglr:    "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GLORYS_ithkn_interp_UFSmesh025"
+  pthsst:    "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ocean.{mom_rdate}"
+  flsst:     "gdas.t{hr:02d}z.inst.f{fhr:03d}.nc"
+  pthiconc:  "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ice.{YR}{MM:02d}{DD:02d}"
+  fliconc:   "{YR}{MM:02d}{DD:02d}.030000.cice_model.res.nc"
+  pthui:     "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ice.{YR}{MM:02d}{DD:02d}"
+  flui:      "{YR}{MM:02d}{DD:02d}.030000.cice_model.res.nc"
+  pthit2m:   "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GDAS_T2m/{regn}/{YR}"
+  flt2m:     "GDAS_t2m_interp_mesh025_1080x1440_{YR}{MM:02d}{DD:02d}_{regn}.nc"
+  pthdump:   "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/ithkn_predictions"
+
+ml_specs:
+#   yday   - year day represented as cos(yday) + sin(yday) 
+#   gcoord - geogr. coord. in spherical coordinates 
+#   btmtopo - nomralized bottom depth < 0, -1 <= h <= 1 (land)
+# Dynamic predictors: 
+#   mnithkn - monthly mean ice thickness (over ice area!), to account for interann. trend 
+#   iconc   - ice concentration 
+#   sst     - ocean SST 
+#   divu    - area-mean ice divergence 
+#   frzdays - integrated freeze degree days 
+#   heatdays - integrated heat degree days
+#   sat     - atm. surf. temp 
+  predictor_sets:
+    PRED1: &PRED1 [yday, gcoord, mnithkn, iconc, sst, divu, frzdays, sat]
+    PRED2: &PRED2 [yday, gcoord, mnithkn, iconc, sst, divu, frzdays, heatdays, sat]
+    PRED3: &PRED3 [yday, gcoord, btmtopo, mnithkn, iconc, sst, divu, frzdays, heatdays, sat]
+
+  rf:
+    # Random Forest
+    # Ntrees specifies number of random trees, complexity of the model
+    # MinLeaf constrains the complexity of each tree, the smaller the value
+    # the more nodes a tree might have, the better it fits the training
+    # data but the risk of overfitting increases (fitting random noise)
+    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_RF"
+
+    "1":
+      Ntrees  : 100
+      MinLeaf : 5
+      PRED    : *PRED1
+
+    "12":
+      Ntrees  : 100
+      MinLeaf : 20
+      PRED    : *PRED2
+
+    "21":
+      Ntrees  : 100
+      MinLeaf : 20
+      PRED    : *PRED3
+
+  gbr:
+    # Gradient Boosting Decisigion Tree
+    # Keeping shallow trees usually works better (unlike RF)
+    # max leaf is important for controlling complexity and overfitting
+
+    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_GradBoostRegr"
+
+    "11":
+      max_leaf  : 63
+      learn_rt  : 0.05
+      max_iter  : 1200
+      max_depth : 15
+      PRED      : *PRED2
+
+    "21":
+      max_leaf  : 63
+      learn_rt  : 0.05
+      max_iter  : 1200
+      max_depth : 15
+      PRED      : *PRED3
+
