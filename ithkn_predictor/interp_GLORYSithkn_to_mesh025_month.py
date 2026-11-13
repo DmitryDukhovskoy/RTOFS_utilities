@@ -84,7 +84,8 @@ with open(fyaml) as ff:
 
 # Load gmapi:
 pthgmapi = config_predictor["linregr"]["pthgmapi"]
-dfgmapi  = os.path.join(pthgmapi, "gmapi_closenghb_GLORYS_to_UFSmesh025_north.nc")
+dfgmapi  = os.path.join(pthgmapi, f"gmapi_closenghb_GLORYS_to_UFSmesh025_{regn}.nc")
+print(f"Loading {dfgmapi}")
 with xr.open_dataset(dfgmapi) as ds:
   LONG  = ds["glorys_longit"].values
   LATG  = ds["glorys_latit"].values

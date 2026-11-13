@@ -55,7 +55,7 @@ f_save = True
 
 regions = {
     "north": ("Arctic", 60.0),
-    "south": ("Antarctic", -55.0),
+    "south": ("Antarctic", -50.0),
 }
 regn_name, lat0 = regions[regn]
 
@@ -140,7 +140,8 @@ LMsk = np.where(np.isfinite(SSH),1,0)
 if regn == 'north':
   DOMAIN = (LAT_m25 > lat0) & (LMsk_m25 == 1)
 elif regn == 'south':
-  DOMAIN = (LAT_m25 < lat0) & (LMsk_m25 == 1)
+  #DOMAIN = (LAT_m25 < lat0) & (LMsk_m25 == 1)
+  DOMAIN = (LAT_m25 < lat0)
 
 J, I = np.where(DOMAIN)
 Npnts = np.shape(J)[0]

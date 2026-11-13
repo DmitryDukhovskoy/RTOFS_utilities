@@ -19,7 +19,6 @@ import matplotlib.colors as colors
 from mpl_toolkits.basemap import Basemap, cm
 import argparse
 from pathlib import Path
-import urllib.request
 
 
 #ROOT = Path(__file__).resolve().parent

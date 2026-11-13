@@ -44,52 +44,90 @@ from mod_utils_fig import bottom_text
 import mod_colormaps as mclrmps
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--rdate", help="Prediction date YYYYMMDD", 
-                    required=True, 
-                    nargs="+", 
-                    type=int)
-parser.add_argument("--regn", help="Region to process", choices=['north','south'],
-                    default='north', type=str)
-parser.add_argument("--model", help="Model name", 
-                    choices=['clim','ols1','ols2','rf1','rf2','rf3','gbr1','gbr2','gbr3'],
-                    required=True, type=str)
+parser.add_argument(
+  "--rdate", help="Prediction date(s) YYYYMMDD, e.g. 20250701 20250801 20250901", 
+  required=True, 
+  nargs="+", 
+  type=int
+)
+parser.add_argument(
+  "--regn", 
+  help="Region to process", 
+  choices=['north','south'],
+  default='north'
+)
+parser.add_argument("--model", help="Model name, e.g. rf12, gbr21", required=True)
+parser.add_argument(
+  "--iconc", help="Ice conc field used as a predictor",
+  choices=['glorys','amsr2','nsidc'],
+  default="glorys"
+)
 parser.add_argument("--ncol", help=f"N of columns for subplots, default=N dates", type=int)
 parser.add_argument("--nrow", help=f"N of rows for subplots, default=1", type=int)
 args = parser.parse_args()
 
-model   = args.model
-RDATES  = args.rdate
-regn    = args.regn
-ncol    = args.ncol if args.ncol is not None else len(args.rdate)
-nrow    = args.nrow if args.nrow is not None else 1
+ml_model  = args.model
+RDATES    = args.rdate
+iconc_fld = args.iconc
+regn      = args.regn
+ncol      = args.ncol if args.ncol is not None else len(args.rdate)
+nrow      = args.nrow if args.nrow is not None else 1
 
 syst_info = os.uname()
 machine = syst_info.nodename
-
-# Training linregr params:
-MODEL_NAMES = micepr.models_info()
-model_name = MODEL_NAMES[model]
-YS = 1993
-YE = 2025
-
-if model == 'ols1':
-  YE = 2002
-
-regions = {
-    "north": ("Arctic", 65.0),
-    "south": ("Antarctic", -60.0),
-}
-regn_name, lat0 = regions[regn]
 
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
 
+# Split model into model short name and number:
+ml_model = ml_model.lower()
+
+if ml_model.startswith("gbr") and ml_model[3:].isdigit():
+  ml_short = "gbr"
+  ml_nmb = int(ml_model[3:])
+elif ml_model.startswith("rf") and ml_model[2:].isdigit():
+  ml_short = "rf"
+  ml_nmb = int(ml_model[2:])
+else:
+  raise ValueError(f"Model name / number cannot be identified: {ml_model}")
+
+# Check if specified model number exists:
+rf_specs = config_predictor['ml_specs'][ml_short]
+
+# Keep only numeric model IDs, exclude pthmodel and other settings
+valid_models = [
+  int(key) for key in rf_specs
+  if key.isdigit()
+]
+
+if ml_nmb not in valid_models:
+  raise ValueError(
+    f"Invalid model '{ml_short}' number: {ml_nmb},  "
+    f"Choose one of: {valid_models}"
+  )
+
+# Training linregr params:
+ml_full = micepr.full_model_name(ml_model)
+model_name = f"{ml_full}_{regn}"
+
+pthinfo = config_predictor["params"]["pthinfo"]
+flij   = config_predictor["params"]["flij"].format(regn=regn)
+flgrid = config_predictor["params"]["flgrid"]
+dflij   = os.path.join(pthinfo, flij)
+dflgrid = os.path.join(pthinfo, flgrid)
+
+# GLORYS grid:
+A = np.load(dflgrid)
+hlon = A["LON"]
+hlat = A["LAT"]
+LMsk = A["LMsk"]
+
+
 def load_prediction(model_name, rdate, LMsk, hlat_s, hlon_s, JJ):
   # Load prediction and grid points:
   pthfcst = os.path.join(config_predictor["linregr"]["pthfcst"],f"{model_name}")
-  flfcst = f"{model_name}_ithkn_fcast_{rdate}.npz"
-  #flfcst = f"{model_name}_{YS}_{YE}_ithkn_fcast_{rdate}.npz"
+  flfcst = f"{model_name}_ithkn_fcast_{iconc_fld}_{rdate}.npz"
   dflfcst = os.path.join(pthfcst, flfcst)
   print(f"Loading fcst {dflfcst}")
   data_fcst = np.load(dflfcst)

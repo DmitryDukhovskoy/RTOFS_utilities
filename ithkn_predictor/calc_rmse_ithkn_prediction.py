@@ -1,5 +1,5 @@
 """
-Calc RMSE of ice thickness from stat model vs GLORYS
+Calc area-weighted RMSE of ice thickness from stat model vs GLORYS
 Stat model:
 
 Predictions should be done using:
@@ -83,10 +83,10 @@ print(f"Models requested: {MODELS}")
 
 # Requested start / end time - those may change
 # based on saved ERA5 time
-dnmbS0 = mtime.rdate2datenum(sdate)
-YRS0, MMS0, DDS0 = mtime.datevec(dnmbS0)[:3]
-dnmbE0 = mtime.rdate2datenum(edate)
-YRE0, MME0, DDE0 = mtime.datevec(dnmbE0)[:3]
+dnmbS = mtime.rdate2datenum(sdate)
+YRS0, MMS0, DDS0 = mtime.datevec(dnmbS)[:3]
+dnmbE = mtime.rdate2datenum(edate)
+YRE0, MME0, DDE0 = mtime.datevec(dnmbE)[:3]
 
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
@@ -170,6 +170,24 @@ def read_glorys(dnmb0, LMsk):
 
   with xr.open_dataset(dflice) as dsice:
     A2d = dsice['sithick'].isel(time=0).data.squeeze()
+ 
+  if LMsk is not None:
+    Jocn = (LMsk == 1) & (~np.isfinite(A2d))   # open ocean
+    A2d[Jocn] = 0.
+
+  return A2d 
+
+def read_glorys_iconc(dnmb0, LMsk):
+  YR, MM, DD = mtime.datevec(dnmb0, round_hrs=True)[:3]
+  pthice = f"/uda/Global_Ocean_Physics_Reanalysis/global/daily/siconc/{YR}"
+
+  rdate = YR*10000 + MM*100 + DD
+  dflice = mglr.find_file(rdate, pthice)
+  if not os.path.isfile(dflice):
+    raise RuntimeError(f"File not found: {dflice}")
+
+  with xr.open_dataset(dflice) as dsice:
+    A2d = dsice['siconc'].isel(time=0).data.squeeze()
  
   if LMsk is not None:
     Jocn = (LMsk == 1) & (~np.isfinite(A2d))   # open ocean
@@ -270,77 +288,49 @@ def construct_time_fcasts(pthdump, flbase, sdate, edate):
 
   return fcast_dnmbs[idxS:idxE+1]
 
-nmod  = len(MODELS)
-RMSE  = []
-FTIME = []
-for ictr, ml_model in enumerate(MODELS): 
-  if ml_model == "clim":
-    # process clim after ML models
-    continue
 
-  ml_short, ml_nmb = parse_model_name(ml_model)
-  ml_name = micepr.full_model_name(ml_model)
-  model_name = f"{ml_name}_{regn}"
-  print(f"Processing {model_name}")
-
-  # Construct time array for existing f/casts within specified time period
-  pthdump = os.path.join(DIRS["pthfcst"],f"{model_name}")
-  flbase = flfcst = f"{model_name}_ithkn_fcast_{iconc_fld}_"
-  
-  DNMB_fcst = construct_time_fcasts(pthdump, flbase, sdate, edate)
-  if DNMB_fcst is None:
-    raise RuntimeError(f"No forecast found in {pthdump}")
-
-  # Keep rmse and time as list to allow different receord lengths
-  nrecs = len(DNMB_fcst)
-  rmse_run  = np.zeros((nrecs))
-
-  # Check the lenght of the f/cast time array, should be the same for all f/casts:
-  #assert len(DNMB_fcst) == nrecs, f"Check f/cast time, expected nrecs={nrecs}"
-
-  # Subset of grid points, where prediction is performed
-  _, IG, JG = read_prediction(DNMB_fcst[0], model_name, LMsk, pthdump, flbase)
-  Atot = np.nansum(Acell[JG, IG])
-  if Atot <= 0:
-    raise ValueError("Total grid-cell area must be positive")
-
-  for irec, dnmb0 in enumerate(DNMB_fcst):
-    HIG = read_glorys(dnmb0, LMsk)
-    HIP, _, _ = read_prediction(dnmb0, model_name, LMsk, pthdump, flbase)
-
-    ErrSq = np.nansum(Acell[JG,IG] * (HIP[JG,IG] - HIG[JG,IG])**2) / Atot
-    print(f"RMSE = {np.sqrt(ErrSq)}")
-    rmse_run[irec] = np.sqrt(ErrSq)
-
-  RMSE.append(rmse_run)
-  FTIME.append(DNMB_fcst)
-
-# Process climatology f/cast:
-if 'clim' in MODELS:
-  ictr = MODELS.index('clim')
+def process_clim(sdate, edate, regn, LMsk, lat0, Acell0, skip_days=3):
+  # Process climatology f/cast:
   print("Processing climatology")
+
   if regn == 'north':
     JG, IG = np.where((LMsk == 1) & (hlat > lat0))
   elif regn == 'south':
     JG, IG = np.where((LMsk == 1) & (hlat < lat0))
 
-  nrecs = len(DNMB_fcst)
-  rmse_run  = np.zeros((nrecs))
-  for irec, dnmb0 in enumerate(DNMB_fcst):
+  # Construct f/cast dates:
+  dnmbS = mtime.rdate2datenum(sdate)
+  dnmbE = mtime.rdate2datenum(edate)
+  assert dnmbE >= dnmbS, f"Start date {sdate} is after end date {edate}"
+
+  DNMBclim = np.arange(int(dnmbS), int(dnmbE)+1, skip_days)
+  nrecs = len(DNMBclim)
+  rmse_run = np.full(nrecs, np.nan)
+
+  for irec, dnmb0 in enumerate(DNMBclim):
     HIG = read_glorys(dnmb0, LMsk)
+    AIG = read_glorys_iconc(dnmb0, LMsk)
 
     # Read ice thickness CryoSat clim on UFS mesh025
     HIP = subset_ithkn_climatology(dnmb0, regn, LMsk, HIG)
 
-    Atot = np.nansum(Acell[JG,IG])
-    ErrSq = np.nansum(Acell[JG,IG] * (HIP[JG,IG] - HIG[JG,IG])**2) / Atot
-    print(f"RMSE = {np.sqrt(ErrSq)}")
-    rmse_run[irec] = np.sqrt(ErrSq)
+    # Discard points where ice conc = 0 in GLORYS
+    valid = AIG >= 1.e-10
+    HIP = np.where(valid, HIP, np.nan)
+    Acell = np.where(valid, Acell0, np.nan)
 
-  RMSE.append(rmse_run)
-  FTIME.append(DNMB_fcst)
-    
-CLRS = micepr.sens_tests_colors()
+    # Calculate area-weighted RMSE over the selected region.
+    err_sq = (HIP[JG, IG] - HIG[JG, IG])**2
+    area = Acell[JG, IG]
+    valid_rmse = np.isfinite(err_sq) & np.isfinite(area) & (area > 0)
+
+    if np.any(valid_rmse):
+      Atot = np.sum(area[valid_rmse])
+      rmse_run[irec] = np.sqrt(np.sum(area[valid_rmse] * err_sq[valid_rmse]) / Atot)
+
+    print(f"RMSE = {rmse_run[irec]:.4f}")
+
+  return rmse_run, DNMBclim
 
 def create_time_array(DNMB_fcst):
   YR0, MM0, DD0 = mtime.datevec(DNMB_fcst[0])[:3]
@@ -351,6 +341,55 @@ def create_time_array(DNMB_fcst):
   dates = [start_date + timedelta(days=int(d)) for d in fday]
 
   return dates
+
+nmod  = len(MODELS)
+RMSE  = []
+FTIME = []
+for ictr, ml_model in enumerate(MODELS): 
+  if ml_model == "clim":
+    # process clim-based f/cast
+    rmse_run, DNMB_fcst = process_clim(sdate, edate, regn, LMsk, lat0, Acell, skip_days=3)  
+
+  else:
+    # Process ML emulators
+    ml_short, ml_nmb = parse_model_name(ml_model)
+    ml_name = micepr.full_model_name(ml_model)
+    model_name = f"{ml_name}_{regn}"
+    print(f"Processing {model_name}")
+
+    # Construct time array for existing f/casts within specified time period
+    pthdump = os.path.join(DIRS["pthfcst"],f"{model_name}")
+    flbase = flfcst = f"{model_name}_ithkn_fcast_{iconc_fld}_"
+    
+    DNMB_fcst = construct_time_fcasts(pthdump, flbase, sdate, edate)
+    if DNMB_fcst is None:
+      raise RuntimeError(f"No forecast found in {pthdump}")
+
+    # Keep rmse and time as list to allow different receord lengths
+    nrecs = len(DNMB_fcst)
+    rmse_run  = np.zeros((nrecs))
+
+    # Check the lenght of the f/cast time array, should be the same for all f/casts:
+    #assert len(DNMB_fcst) == nrecs, f"Check f/cast time, expected nrecs={nrecs}"
+
+    # Subset of grid points, where prediction is performed
+    _, IG, JG = read_prediction(DNMB_fcst[0], model_name, LMsk, pthdump, flbase)
+    Atot = np.nansum(Acell[JG, IG])
+    if Atot <= 0:
+      raise ValueError("Total grid-cell area must be positive")
+
+    for irec, dnmb0 in enumerate(DNMB_fcst):
+      HIG = read_glorys(dnmb0, LMsk)
+      HIP, _, _ = read_prediction(dnmb0, model_name, LMsk, pthdump, flbase)
+
+      ErrSq = np.nansum(Acell[JG,IG] * (HIP[JG,IG] - HIG[JG,IG])**2) / Atot
+      print(f"RMSE = {np.sqrt(ErrSq)}")
+      rmse_run[irec] = np.sqrt(ErrSq)
+
+  RMSE.append(rmse_run)
+  FTIME.append(DNMB_fcst)
+
+CLRS = micepr.sens_tests_colors()
 
 plt.ion()
 

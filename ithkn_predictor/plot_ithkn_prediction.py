@@ -51,9 +51,7 @@ parser.add_argument(
 )
 parser.add_argument(
   "--model", 
-  help="ML model name, not all ML models exist for S. Ocean", 
-  choices=['clim','ols1','ols2','rf11','rf12','rf20','rf21',
-           'gbr1','gbr10','gbr11','gbr20','gbr21'],
+  help="ML model, e.g.: ols1, rf11, gbr20, ... error message if prediction does not exist", 
   required=True
 )
 parser.add_argument(
@@ -70,14 +68,41 @@ iconc_fld = args.iconc
 syst_info = os.uname()
 machine   = syst_info.nodename
 
-# Training linregr params:
-ml_name = micepr.full_model_name(ml_model)
-model_name = f"{ml_name}_{regn}"
-
-
 fyaml = 'config_ithkn_predictor.yaml'
 with open(fyaml) as ff:
   config_predictor = safe_load(ff)
+
+
+# Split model into model short name and number:
+ml_model = ml_model.lower()
+
+if ml_model.startswith("gbr") and ml_model[3:].isdigit():
+  ml_short = "gbr"
+  ml_nmb = int(ml_model[3:])
+elif ml_model.startswith("rf") and ml_model[2:].isdigit():
+  ml_short = "rf"
+  ml_nmb = int(ml_model[2:])
+else:
+  raise ValueError(f"Model name / number cannot be identified: {ml_model}")
+
+# Check if specified model number exists:
+rf_specs = config_predictor['ml_specs'][ml_short]
+
+# Keep only numeric model IDs, exclude pthmodel and other settings
+valid_models = [
+  int(key) for key in rf_specs
+  if key.isdigit()
+]
+
+if ml_nmb not in valid_models:
+  raise ValueError(
+    f"Invalid model '{ml_short}' number: {ml_nmb},  "
+    f"Choose one of: {valid_models}"
+  )
+
+# Training linregr params:
+ml_full = micepr.full_model_name(ml_model)
+model_name = f"{ml_full}_{regn}"
 
 pthinfo = config_predictor["params"]["pthinfo"]
 flij   = config_predictor["params"]["flij"].format(regn=regn)
