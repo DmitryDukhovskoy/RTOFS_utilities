@@ -11,8 +11,10 @@ regn:
 
 params:
   # dxy - Min dist (km) between data points (~corr.scale), to skip i,j points
+  ys        : 1993
+  ye        : 2025
   dxy       : 50
-  davrg     : 1     # averaging time (days) for divUice
+  davrg     : 1       # averaging time (days) for divUice
   sqrt_frz  : True      # apply sq. root of freeze degree days
   intgr_frz : 90       # integration days for IFDD
   tstep     : 3        # time step T2m sampling, days
@@ -27,10 +29,13 @@ CICE6:
   pthgrid: '/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/SFS_config/ocean_grids_mesh025'
 
 ORAS5:
+  pthgmapi: '/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/data/remap_indx'
+  flgmapi: 'gmapi_ORAS5_to_UFSmesh025_global.nc'
   pthoras: '/scratch4/BMC/gsienkf/Philip.Pegion/reanalysis/ice/oras5/input'
 
 ERA5:
   pthgmapi: '/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/data/remap_indx'
+  flgmapi: 'gmapi_ERA5_to_UFSmesh025_global.nc'
   pthera: '/scratch4/NCEPDEV/land/data/ufs-land-driver/datm/ERA5/original/{YR}'
 
 
@@ -41,18 +46,18 @@ PRED:
   pthihdd:   "/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/predictors"
   flifdd:    "IFDD_ERA5_{Ndays:03d}days_dxy{dxy:03d}_{rdate}_{regn}"
   flihdd:    "IHDD_ERA5_{Ndays:03d}days_dxy{dxy:03d}_{rdate}_{regn}"
-  fldivui:   "divUice_CICE6_dxy{dxy:03d}_{rdate}_{regn}"
-  flmnice:   "CICE6_mean_icevol_ithkn_mnthly_{YR}"
-  pthglr:    "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GLORYS_ithkn_interp_UFSmesh025"
-  pthsst:    "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ocean.{mom_rdate}"
-  flsst:     "gdas.t{hr:02d}z.inst.f{fhr:03d}.nc"
-  pthiconc:  "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ice.{YR}{MM:02d}{DD:02d}"
-  fliconc:   "{YR}{MM:02d}{DD:02d}.030000.cice_model.res.nc"
-  pthui:     "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/GFSv17/ice.{YR}{MM:02d}{DD:02d}"
-  flui:      "{YR}{MM:02d}{DD:02d}.030000.cice_model.res.nc"
-  pthit2m:   "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/GDAS_T2m/{regn}/{YR}"
-  flt2m:     "GDAS_t2m_interp_mesh025_1080x1440_{YR}{MM:02d}{DD:02d}_{regn}.nc"
-  pthdump:   "/gpfs/f6/sfs-cpu/scratch/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/ithkn_predictions"
+  fldivui:   "divUice_ORAS5_dxy{dxy:03d}_{rdate}_{regn}"
+  flmnice:   "ORAS5_mean_icevol_ithkn_mnthly_{YR}"
+  pthglr:    "/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/data/GLORYS_ithkn_interp_UFSmesh025"
+  pthsst:    "/scratch4/BMC/gsienkf/Philip.Pegion/reanalysis/ice/oras5/input"
+  flsst:     ~  
+  pthiconc:  "/scratch4/BMC/gsienkf/Philip.Pegion/reanalysis/ice/oras5/input"
+  fliconc:   ~
+  pthui:     "/scratch4/BMC/gsienkf/Philip.Pegion/reanalysis/ice/oras5/input"
+  flui:      ~
+  pthit2m:   "/scratch4/NCEPDEV/land/data/ufs-land-driver/datm/ERA5/original/{YR}"
+  flt2m:     "ERA5_forcing_{YR}-{MM:02d}-{DD:02d}.nc"
+  pthdump:   "/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/data/ML_emulator_ithkn/ithkn_predictions"
 
 ml_specs:
 #   yday   - year day represented as cos(yday) + sin(yday) 
@@ -77,12 +82,7 @@ ml_specs:
     # MinLeaf constrains the complexity of each tree, the smaller the value
     # the more nodes a tree might have, the better it fits the training
     # data but the risk of overfitting increases (fitting random noise)
-    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_RF"
-
-    "1":
-      Ntrees  : 100
-      MinLeaf : 5
-      PRED    : *PRED1
+    pthmodel : "/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_RF"
 
     "12":
       Ntrees  : 100
@@ -99,7 +99,7 @@ ml_specs:
     # Keeping shallow trees usually works better (unlike RF)
     # max leaf is important for controlling complexity and overfitting
 
-    pthmodel : "/gpfs/f6/sfs-emc/proj-shared/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_GradBoostRegr"
+    pthmodel : "/scratch4/NCEPDEV/marine/Dmitry.Dukhovskoy/ML_ithkn_emulator/ice_GradBoostRegr"
 
     "11":
       max_leaf  : 63

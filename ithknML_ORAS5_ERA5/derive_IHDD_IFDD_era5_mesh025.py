@@ -60,68 +60,7 @@ import mod_time as mtime
 from mod_misc1 import dist_sphcrd
 import mod_colormaps as mclrmps
 import mod_mom6 as mmom6
-import mod_regmom as mrmom
-
-def check_era_mesh025_coord(LATE, LONE, IE, JE, hlon, hlat, IG, JG, dmax=27e3, vocal=False):
-  """
-   Check that gmapi indices are correct
-   dmax ~ ERA5 res. (0.25 degree)
-  """
-  print("Checking gmapi indices ...")
-  DD_max = 0
-  for k, (jj, ii) in enumerate(zip(JG, IG)):
-    jje = JE[k]
-    iie = IE[k]
-    lon_era = LONE[iie]
-    lat_era = LATE[jje]
-    lon_glr = hlon[jj,ii]
-    lat_glr = hlat[jj,ii]
-
-    DD = dist_sphcrd(lat_era, lon_era, lat_glr, lon_glr)
-    if vocal and (k > 0 and k % 20000) == 0:
-      prc = k/len(JG)*100.
-      print(f"  {prc:.2f}% processed, k={k} dist = {DD:.4f} m")
-
-    DD_max = np.max([DD_max, DD])
-
-    if DD > dmax:
-      print(f"ERA point is {DD}m apart from mesh025, k={k}")
-      print(f"ERA lon={lon_era} lat={lat_era}")
-      print(f"mesh025 lon={lon_glr} lat={lat_glr}")
-      raise Exception("ERR: check not passed")
-
-  print(f"Checked gmapi: OK, overall max dist = {DD_max} m")
-
-def read_daily_era5(dfl, dnmb0):
-  """
-  Derive daily fields from ERA5 hourly
-  """
-  yr, mm, dd = mtime.datevec(dnmb0)[:3]
-  rdate0 = yr*10000 + mm*100 + dd
-
-  with xr.open_dataset(dfl) as ds:
-    # Check that all 24 hourly records are present
-    if ds.sizes["Time"] != 24:
-      raise ValueError(f"Expected 24 hourly records, found {ds.sizes['Time']}")
-
-    # Check that all records belong to the requested day rday0=YYYYMMDD
-    dates = ds.time.dt.strftime("%Y%m%d").astype(int).values
-
-    if not np.all(dates == rdate0):
-      raise ValueError(
-          f"Time mismatch: requested {rdate0}, "
-          f"file contains {np.unique(dates)}"
-      )
-
-    # Daily averages
-    T2m_mean = ds["temperature"].mean(dim="Time", skipna=True).values
-  
-    # Convert K --> C if needed:
-    if np.max(T2m_mean) > 270 and np.min(T2m_mean) > 150:
-      T2m_mean -= 273.15
-
-  return T2m_mean
-
+import mod_ml_emulator as mml
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--regn", help="Region to process", choices=['north','south'],
@@ -223,7 +162,7 @@ for irec0, dnmb0 in enumerate(DNMB):
     raise FileNotFoundError(f"Not found: {dflera}")
  
   # Note N pole is fliped, lat goes from 90 to -90 
-  T2m = read_daily_era5(dflera, dnmb0) 
+  T2m = mml.read_daily_era5(dflera, dnmb0) 
 
   #  Use Zubov definition of accumulated freeze degree days
   #  sum(Tfrz-T), when SAT < Tfrz
@@ -264,7 +203,7 @@ for k, (jj, ii) in enumerate(zip(Jsub, Isub)):
 
 check_gmapi = True
 if check_gmapi:
-  check_era_mesh025_coord(LATE, LONE, IEsub, JEsub, hlon, hlat, Isub, Jsub)
+  mml.check_era_mesh025_coord(LATE, LONE, IEsub, JEsub, hlon, hlat, Isub, Jsub)
 
 
 if save_ifdd: 

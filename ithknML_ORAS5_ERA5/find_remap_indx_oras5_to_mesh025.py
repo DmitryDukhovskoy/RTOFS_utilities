@@ -54,7 +54,7 @@ def find_icemod_file(dpath, rdate):
 
 def save_netcdf(JORAS, IORAS, J025, I025, LONORAS, LATORAS, LON025, LAT025, dfgmapi):
   """
-    NetCDF writer
+    NetCDF writer: Save ORAS5-to-mesh025 grid mapping indices and coordinates to NetCDF
   """
   # Target indices on ORAS subset grid
   JORAS = np.asarray(JORAS, dtype=int)
@@ -63,33 +63,40 @@ def save_netcdf(JORAS, IORAS, J025, I025, LONORAS, LATORAS, LON025, LAT025, dfgm
   J025 = np.asarray(J025, dtype=int)
   I025 = np.asarray(I025, dtype=int)
 
+  # Check mapping consistency
   Npnts = len(J025)
-
   assert len(JORAS) == len(IORAS) == len(J025) == len(I025), \
        "Inconsistent number of mapping points"
 
   # ORAS5 coord:
-  jdimE = LATORAS.shape[0]
-  idimE = LONORAS.shape[0]
+  jdimE, idimE = LATORAS.shape
 
   # mesh025 coord:
   jdimG, idimG = LAT025.shape
 
-  darr_lonE = xr.DataArray(LONORAS, dims="idimE",\
-                           coords={"idimE": np.arange(idimE)})
-  darr_latE = xr.DataArray(LATORAS, dims="jdimE",\
-                           coords={"jdimE": np.arange(jdimE)})
+  # Grid coordinates
+  darr_lonE = xr.DataArray(
+      LONORAS, dims=("jdimE", "idimE"),
+      coords={"jdimE": np.arange(jdimE),
+              "idimE": np.arange(idimE)}
+  )
+  darr_latE = xr.DataArray(
+      LATORAS, dims=("jdimE", "idimE"),
+      coords={"jdimE": np.arange(jdimE),
+              "idimE": np.arange(idimE)}
+  )
   darr_lonG = xr.DataArray(
       LON025, dims=("jdimG", "idimG"),
       coords={"jdimG": np.arange(jdimG),
               "idimG": np.arange(idimG)}
   )
-
   darr_latG = xr.DataArray(
       LAT025, dims=("jdimG", "idimG"),
       coords={"jdimG": np.arange(jdimG),
               "idimG": np.arange(idimG)}
   )
+
+  # Mapping indices:
   coords = {"npoints": np.arange(Npnts)}
 
   darr_ioras = xr.DataArray(IORAS, dims="npoints", coords=coords)
@@ -121,9 +128,11 @@ def save_netcdf(JORAS, IORAS, J025, I025, LONORAS, LATORAS, LON025, LAT025, dfgm
   dset["mesh025_latit"].attrs["units"]      = "degrees_north"
 
   # Global attributes:
-  dset.attrs['title']  = 'ORAS5-to-UFS mesh025 grid mapping using nearest neighbors'
-  dset.attrs['source'] = 'find_remap_indx_oras5_to_mesh025.py'
-  dset.attrs['index_base'] = 0
+  dset.attrs.update({
+      "title": "ORAS5-to-UFS mesh025 grid mapping using nearest neighbors",
+      "source": "find_remap_indx_oras5_to_mesh025.py",
+      "index_base": 0
+  })
 
   print(f'Saving gmapi --> {dfgmapi}')
   dset.to_netcdf(dfgmapi, format='NETCDF4', engine='netcdf4')
@@ -166,19 +175,16 @@ elif regn == 'global':
 dgr2rad = np.pi/180.
 
 # Read ORAS5 grid
-
+# ~ 0.16 x 0.25 degree res.
 # Find file
-floras = find_icemod_file(pthoras, rdate)
+dfloras = find_icemod_file(pthoras, rdate)
 
-
-STOPPED - HERE
-
-
-with xr.open_dataset(dfloras5) as ds:
-  LON_oras = ds["longitude"].values
-  LAT_oras = ds["latitude"].values
+with xr.open_dataset(dfloras) as ds:
+  LON_oras = ds["nav_lon"].values
+  LAT_oras = ds["nav_lat"].values
 
 LON_oras = (LON_oras + 360) % 360
+lat_min_oras = np.max(LAT_oras[0,:]) # 
 
 if lat0 is None:
   if regn == 'north':
@@ -189,7 +195,8 @@ if lat0 is None:
     lat0 = 90.
 
 # Radians:
-LONR_oras, LATR_oras = np.meshgrid(LON_oras * dgr2rad, LAT_oras * dgr2rad)
+LONR_oras = LON_oras * dgr2rad
+LATR_oras = LAT_oras * dgr2rad
 
 # Convert to spherical coord:
 Z_oras = np.sin(LATR_oras)
@@ -211,6 +218,12 @@ HH = np.where(HH < 1.e-20, 1., -HH)
 jdm, idm = HH.shape
 LMsk = HH < 0
 use_lmask = True
+
+if use_lmask:
+ lat_min_mesh025 = np.min(hlat[LMsk])
+else:
+ lat_min_mesh025 = np.min(hlat)
+
 
 # Regional domain:
 if regn == 'north':
@@ -235,8 +248,8 @@ tree = cKDTree(xyz_oras)
 
 J025 = []    # mesh025 global index j where fields need to be interpolated
 I025 = []    # mesh025 global index i
-JER = []    # ORAS5 j index of the saved domain (typically not global)
-IER = []    # ORAS5 i index of the saved domain
+JORAS = []    # ORAS5 j index of the saved domain (typically not global)
+IORAS = []    # ORAS5 i index of the saved domain
 cntr = 0
 dmin0 = 0.5   # max allowed distance (degrees) to the closest point
 
@@ -249,8 +262,8 @@ for jj, ii in zip(J,I):
   if use_lmask and not LMsk[jj, ii]:
     J025.append(jj)
     I025.append(ii)
-    JER.append(-999)
-    IER.append(-999)
+    JORAS.append(-999)
+    IORAS.append(-999)
     continue
 
   x0 = hlon[jj, ii]
@@ -288,7 +301,18 @@ for jj, ii in zip(J,I):
     dmin_degr = np.degrees(np.arccos(np.clip(DOT[jbf, ibf], -1., 1.)))
 
     # Check: convert distance in radian to degrees:
-    assert dmin_degr < dmin0, f"Min distance {Dmin_degr:.5f} > {dmin0:.5f} dgr"
+    # ORAS5 grid starts at -77.01N
+    # mesh025 ocean grid point starts at -78.70
+    # allow a larger distance for southern points
+    if y0 < lat_min_oras:
+      dmin_south = 1.02 * abs(lat_min_mesh025 - lat_min_oras) # allow for error
+      assert dmin_degr <=  dmin_south, (
+        f"jj={jj}, ii={ii}, lat={y0:.2f}, lon={x0:.2f}, "
+         f"Min distance {dmin_degr:.5f} > {dmin_south:.5f} dgr"
+      )
+    else:
+      assert dmin_degr < dmin0, (f"jj={jj}, ii={ii}, lat={y0:.2f}, lon={x0:.2f}, "
+         f"Min distance {dmin_degr:.5f} > {dmin0:.5f} dgr")
 
     # Check KDTree and distance:
     dot_tree = (
@@ -308,8 +332,8 @@ for jj, ii in zip(J,I):
 
 
   # Regitser
-  JER.append(jmin)
-  IER.append(imin)
+  JORAS.append(jmin)
+  IORAS.append(imin)
   J025.append(jj)
   I025.append(ii)
 
@@ -317,7 +341,7 @@ if f_save:
   flout = f"gmapi_ORAS5_to_UFSmesh025_{regn}.nc"
   dflout = os.path.join(pthindx, flout)
 
-  save_netcdf(JER, IER, J025, I025, LON_oras, LAT_oras, hlon, hlat, dflout)
+  save_netcdf(JORAS, IORAS, J025, I025, LON_oras, LAT_oras, hlon, hlat, dflout)
 
 
 
